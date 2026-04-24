@@ -7,10 +7,10 @@ const SISTEMAS = [
 ];
 
 const LEITOS_INICIAIS = [
-  { id:1, nome:"Leito 01", paciente:"J.S.", diagnostico:"Sepse foco pulmonar", dataInternacao:"2026-04-20", peso:78, altura:175, sexo:"M", procedimentos:[{id:1,nome:"Laparotomia exploradora",data:"2026-04-19"}] },
-  { id:2, nome:"Leito 02", paciente:"M.A.", diagnostico:"IRA oligúrica",       dataInternacao:"2026-04-22", peso:62, altura:162, sexo:"F", procedimentos:[] },
-  { id:3, nome:"Leito 03", paciente:"R.C.", diagnostico:"TCE grave",            dataInternacao:"2026-04-16", peso:85, altura:178, sexo:"M", procedimentos:[{id:1,nome:"Craniotomia descompressiva",data:"2026-04-16"},{id:2,nome:"Traqueostomia",data:"2026-04-20"}] },
-  { id:4, nome:"Leito 04", paciente:"",     diagnostico:"",                     dataInternacao:"",           peso:"", altura:"",  sexo:"M", procedimentos:[] },
+  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
 ];
 
 const METAS_SUGESTOES = [
@@ -1400,17 +1400,49 @@ function MetasPanel() {
 }
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
-function LeitoCard({ leito, selecionado, onClick }) {
+function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
   const dias = diasInternacao(leito.dataInternacao);
   const vago = !leito.paciente;
+  const [editingNome, setEditingNome] = useState(false);
+  const [nomeTemp, setNomeTemp] = useState(leito.nome);
+
+  const confirmarNome = () => {
+    if (nomeTemp.trim()) onRename(nomeTemp.trim());
+    setEditingNome(false);
+  };
+
   return (
-    <div onClick={onClick} style={{cursor:"pointer",borderRadius:12,padding:"14px 16px",background:selecionado?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",border:selecionado?"1.5px solid #38bdf8":"1.5px solid rgba(255,255,255,0.08)",transition:"all 0.2s",marginBottom:8}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <span style={{fontSize:11,color:"#64748b",fontFamily:mono,letterSpacing:2}}>{leito.nome}</span>
-        {!vago&&dias!==null&&<span style={{fontSize:11,color:"#a78bfa",fontWeight:700}}>D{dias}</span>}
+    <div style={{cursor:"pointer",borderRadius:12,padding:"14px 16px",background:selecionado?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",border:selecionado?"1.5px solid #38bdf8":"1.5px solid rgba(255,255,255,0.08)",transition:"all 0.2s",marginBottom:8}} onClick={e=>{if(!editingNome) onClick();}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+        {editingNome ? (
+          <input autoFocus value={nomeTemp}
+            onChange={e=>setNomeTemp(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter")confirmarNome(); if(e.key==="Escape"){setEditingNome(false);setNomeTemp(leito.nome);}}}
+            onBlur={confirmarNome}
+            onClick={e=>e.stopPropagation()}
+            style={{fontSize:11,fontFamily:mono,letterSpacing:1,color:"#38bdf8",background:"rgba(56,189,248,0.1)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:4,padding:"2px 6px",width:"100%"}}/>
+        ) : (
+          <span style={{fontSize:11,color:"#64748b",fontFamily:mono,letterSpacing:2}}
+            onDoubleClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}>
+            {leito.nome}
+          </span>
+        )}
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          {!editingNome && dias!==null && !vago && <span style={{fontSize:11,color:"#a78bfa",fontWeight:700}}>D{dias}</span>}
+          {!editingNome && (
+            <button onClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}
+              title="Renomear leito"
+              style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>✏️</button>
+          )}
+          {onRemove && (
+            <button onClick={e=>{e.stopPropagation();if(confirm(`Remover ${leito.nome}?`))onRemove();}}
+              title="Remover leito"
+              style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>🗑️</button>
+          )}
+        </div>
       </div>
       {vago ? <div style={{fontSize:13,color:"#334155",marginTop:4,fontStyle:"italic"}}>Vago</div> : <>
-        <div style={{fontSize:14,color:"#e2e8f0",marginTop:4,fontWeight:600}}>{leito.paciente}</div>
+        <div style={{fontSize:14,color:"#e2e8f0",marginTop:2,fontWeight:600}}>{leito.paciente}</div>
         <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{leito.diagnostico}</div>
         {(leito.peso||leito.altura)&&<div style={{fontSize:11,color:"#475569",marginTop:3}}>{leito.peso?`${leito.peso} kg`:""}{leito.peso&&leito.altura?" · ":""}{leito.altura?`${leito.altura} cm`:""}</div>}
         {(leito.procedimentos||[]).length>0&&(
@@ -1422,7 +1454,6 @@ function LeitoCard({ leito, selecionado, onClick }) {
             })}
           </div>
         )}
-        {/* Alerta dispositivos vencidos */}
         {(() => {
           const d = leito.dispositivos || {};
           const temAlerta =
@@ -1646,8 +1677,30 @@ export default function App() {
 
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
         <div style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
-          <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2,marginBottom:12,paddingLeft:4}}>LEITOS</div>
-          {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId} onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setAba("paciente");}}/>)}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
+            <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
+            <button
+              onClick={()=>{
+                const novoId = Date.now();
+                const novoNum = leitos.length + 1;
+                setLeitos(ls=>[...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}]);
+                setLeitoSelId(novoId);
+                setAba("paciente");
+              }}
+              title="Adicionar leito"
+              style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+          </div>
+          {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId}
+            onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setAba("paciente");}}
+            onRename={nome=>setLeitos(ls=>ls.map(x=>x.id===l.id?{...x,nome}:x))}
+            onRemove={leitos.length>1?()=>{
+              setLeitos(ls=>{
+                const novo = ls.filter(x=>x.id!==l.id);
+                setLeitoSelId(novo[0].id);
+                return novo;
+              });
+            }:null}
+          />)}
         </div>
 
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
