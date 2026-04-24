@@ -1020,42 +1020,42 @@ function EvolucaoEditor({ dadosIA, leito }) {
   ];
 
   // ── Neurológico ─────────────────────────────────────────────────────────────
-  const [nEF,    setNEF]    = useState("");
+  const [nEF,    setNEF]    = useState(dadosIA?.sistemas?.["Neurológico"] || "");
   const [nSeda,  setNSeda]  = useState("");
   const [nAnalg, setNAnalg] = useState("");
   const [nPsiq,  setNPsiq]  = useState("");
   const [nObs,   setNObs]   = useState("");
 
   // ── Cardiovascular ──────────────────────────────────────────────────────────
-  const [cvEF,   setCvEF]   = useState("");
-  const [cv24h,  setCv24h]  = useState("");
+  const [cvEF,   setCvEF]   = useState(dadosIA?.sistemas?.["Hemodinâmico"] || "");
+  const [cv24h,  setCv24h]  = useState(dadosIA?.sistemas?.["Hemodinâmico"] || "");
   const [cvDVA,  setCvDVA]  = useState("");
   const [cvMed,  setCvMed]  = useState("");
   const [cvPerf, setCvPerf] = useState("");
   const [cvObs,  setCvObs]  = useState("");
 
   // ── Respiratório ────────────────────────────────────────────────────────────
-  const [reVM,    setReVM]    = useState("");
+  const [reVM,    setReVM]    = useState(dadosIA?.sistemas?.["Respiratório"] || "");
   const [reEF,    setReEF]    = useState("");
-  const [re24h,   setRe24h]   = useState("");
+  const [re24h,   setRe24h]   = useState(dadosIA?.sistemas?.["Respiratório"] || "");
   const [reGaso,  setReGaso]  = useState("");
   const [rePocus, setRePocus] = useState("");
   const [reObs,   setReObs]   = useState("");
 
   // ── Renal/Metabólico ────────────────────────────────────────────────────────
-  const [rm24h,  setRm24h]  = useState("");
-  const [rmLabs, setRmLabs] = useState("");
+  const [rm24h,  setRm24h]  = useState(dadosIA?.sistemas?.["Renal/Metabólico"] || "");
+  const [rmLabs, setRmLabs] = useState(dadosIA?.sistemas?.["Renal/Metabólico"] || "");
   const [rmTRS,  setRmTRS]  = useState("");
   const [rmObs,  setRmObs]  = useState("");
 
   // ── TGI ─────────────────────────────────────────────────────────────────────
-  const [tgEF,   setTgEF]   = useState("");
+  const [tgEF,   setTgEF]   = useState(dadosIA?.sistemas?.["Gastrointestinal"] || "");
   const [tg24h,  setTg24h]  = useState("");
   const [tgObs,  setTgObs]  = useState("");
 
   // ── He / In ─────────────────────────────────────────────────────────────────
   const [heTemp, setHeTemp] = useState("");
-  const [heLabs, setHeLabs] = useState("");
+  const [heLabs, setHeLabs] = useState(dadosIA?.sistemas?.["Hematológico/Infeccioso"] || "");
   const [heMed,  setHeMed]  = useState("");
   const [heAtb,  setHeAtb]  = useState("");
   const [heProf, setHeProf] = useState("");
@@ -1065,12 +1065,13 @@ function EvolucaoEditor({ dadosIA, leito }) {
     if (!dadosIA?.sistemas) return;
     const s = dadosIA.sistemas;
     if (s["Neurológico"])             setNEF(s["Neurológico"]);
-    if (s["Hemodinâmico"])            setCvEF(s["Hemodinâmico"]);
-    if (s["Respiratório"])            setReVM(s["Respiratório"]);
-    if (s["Renal/Metabólico"])        setRmLabs(s["Renal/Metabólico"]);
+    if (s["Hemodinâmico"])            { setCvEF(s["Hemodinâmico"]); setCv24h(s["Hemodinâmico"]); }
+    if (s["Respiratório"])            { setReVM(s["Respiratório"]); setReEF(s["Respiratório"]); }
+    if (s["Renal/Metabólico"])        { setRmLabs(s["Renal/Metabólico"]); setRm24h(s["Renal/Metabólico"]); }
     if (s["Gastrointestinal"])        setTgEF(s["Gastrointestinal"]);
     if (s["Hematológico/Infeccioso"]) setHeLabs(s["Hematológico/Infeccioso"]);
-  },[dadosIA]);
+  // eslint-disable-next-line
+  },[]);  // roda só na montagem — dadosIA já está disponível via prop no momento da criação
 
   // ── Textos corridos por sistema ─────────────────────────────────────────────
   const txtN = (() => {
