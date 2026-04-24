@@ -838,6 +838,7 @@ function UploadAnalyzer({ onResult }) {
   const [draft,   setDraft]   = useState(null);
   const [rev,     setRev]     = useState(false);
   const fileRef = useRef();
+  const areaRef = useRef();
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;
@@ -862,14 +863,34 @@ function UploadAnalyzer({ onResult }) {
     reader.readAsDataURL(file);
   }, []);
 
+  // Paste anywhere on the page
+  useEffect(() => {
+    const onPaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          handleFile(item.getAsFile());
+          return;
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [handleFile]);
+
   return (
     <div>
       <div onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} onDragOver={e=>e.preventDefault()} onClick={()=>fileRef.current?.click()}
         style={{ border:"1.5px dashed rgba(56,189,248,0.3)", borderRadius:12, padding:24, textAlign:"center", cursor:"pointer", background:"rgba(56,189,248,0.03)", marginBottom:16 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
         <div style={{fontSize:28,marginBottom:8}}>📋</div>
-        <div style={{color:"#38bdf8",fontSize:14,fontWeight:600}}>Arraste o print aqui ou clique para selecionar</div>
-        <div style={{color:"#64748b",fontSize:12,marginTop:4}}>Sinais vitais · Laboratórios · Controles de enfermagem</div>
+        <div style={{color:"#38bdf8",fontSize:14,fontWeight:600}}>Cole o print com Ctrl+V</div>
+        <div style={{color:"#64748b",fontSize:12,marginTop:6}}>ou arraste · ou clique para selecionar arquivo</div>
+        <div style={{marginTop:10,display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:1}}>
+          CTRL + V  em qualquer momento nesta aba
+        </div>
       </div>
       {preview && <img src={preview} alt="preview" style={{width:"100%",borderRadius:8,marginBottom:12,maxHeight:180,objectFit:"contain",background:"#0f172a"}}/>}
       {loading && <div style={{textAlign:"center",color:"#38bdf8",padding:16,fontSize:14}}>⏳ Analisando imagem com IA…</div>}
