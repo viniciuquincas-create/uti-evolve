@@ -21,35 +21,27 @@ Formato exato:
 
 Preencha apenas os sistemas com dados visíveis na imagem. Seja conciso e clínico.`;
 
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent?key=${GEMINI_KEY}`;
-
-    const body = {
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 1024
-      }
-    };
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
+          ]
+        }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
+      })
     });
 
     const responseText = await response.text();
 
     if (!response.ok) {
       console.error('Gemini error:', response.status, responseText);
-      return res.status(502).json({
-        error: `Gemini API error ${response.status}`,
-        details: responseText.slice(0, 500)
-      });
+      return res.status(502).json({ error: `Gemini API error ${response.status}`, details: responseText.slice(0, 300) });
     }
 
     const data = JSON.parse(responseText);
@@ -57,15 +49,10 @@ Preencha apenas os sistemas com dados visíveis na imagem. Seja conciso e clíni
     const clean = text.replace(/```json|```/g, '').trim();
 
     try {
-      const parsed = JSON.parse(clean);
-      return res.status(200).json(parsed);
+      return res.status(200).json(JSON.parse(clean));
     } catch {
       return res.status(200).json({
-        sistemas: {
-          "Neurológico": "", "Respiratório": "", "Hemodinâmico": "",
-          "Renal/Metabólico": "", "Gastrointestinal": "",
-          "Hematológico/Infeccioso": "", "Pele/Acessos": ""
-        },
+        sistemas: { "Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":"" },
         metas_sugeridas: [],
         resumo: clean.slice(0, 300)
       });
