@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
     const prompt = `Você é médico intensivista. Analise esta imagem de UTI e extraia os dados clínicos encontrados. Retorne SOMENTE JSON válido, sem markdown, sem texto extra. Formato exato: {"sistemas":{"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},"metas_sugeridas":[],"resumo":""}`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${GEMINI_KEY}`;
 
     const response = await fetch(url, {
       method: 'POST',
