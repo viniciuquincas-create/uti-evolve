@@ -12,14 +12,7 @@ export default async function handler(req, res) {
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
 
-    const prompt = `Você é médico intensivista. Analise esta imagem de UTI e extraia os dados clínicos encontrados.
-
-Retorne SOMENTE JSON válido, sem markdown, sem texto extra, sem blocos de código. Apenas o JSON puro.
-
-Formato exato:
-{"sistemas":{"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},"metas_sugeridas":[],"resumo":""}
-
-Preencha apenas os sistemas com dados visíveis na imagem. Seja conciso e clínico.`;
+    const prompt = `Você é médico intensivista. Analise esta imagem de UTI e extraia os dados clínicos encontrados. Retorne SOMENTE JSON válido, sem markdown, sem texto extra. Formato exato: {"sistemas":{"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},"metas_sugeridas":[],"resumo":""}`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
 
@@ -27,18 +20,12 @@ Preencha apenas os sistemas com dados visíveis na imagem. Seja conciso e clíni
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
-          ]
-        }],
+        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }] }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
       })
     });
 
     const responseText = await response.text();
-
     if (!response.ok) {
       console.error('Gemini error:', response.status, responseText);
       return res.status(502).json({ error: `Gemini API error ${response.status}`, details: responseText.slice(0, 300) });
@@ -51,13 +38,8 @@ Preencha apenas os sistemas com dados visíveis na imagem. Seja conciso e clíni
     try {
       return res.status(200).json(JSON.parse(clean));
     } catch {
-      return res.status(200).json({
-        sistemas: { "Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":"" },
-        metas_sugeridas: [],
-        resumo: clean.slice(0, 300)
-      });
+      return res.status(200).json({ sistemas: {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""}, metas_sugeridas: [], resumo: clean.slice(0, 300) });
     }
-
   } catch (err) {
     console.error('Handler error:', err);
     return res.status(500).json({ error: err.message });
