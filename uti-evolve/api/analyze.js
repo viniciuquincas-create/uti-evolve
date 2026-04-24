@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -11,50 +10,49 @@ export default async function handler(req, res) {
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
 
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_KEY) return res.status(500).json({ error: 'API key not configured' });
+    if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
 
-    const prompt = `Você é médico intensivista. Analise esta imagem (print de monitor, sistema hospitalar, exames laboratoriais ou controles de enfermagem de UTI) e extraia os dados clínicos.
+    const prompt = `Você é médico intensivista. Analise esta imagem de UTI e extraia os dados clínicos encontrados.
 
-Retorne SOMENTE JSON válido, sem markdown, sem texto extra. Formato exato:
-{
-  "sistemas": {
-    "Neurológico": "",
-    "Respiratório": "",
-    "Hemodinâmico": "",
-    "Renal/Metabólico": "",
-    "Gastrointestinal": "",
-    "Hematológico/Infeccioso": "",
-    "Pele/Acessos": ""
-  },
-  "metas_sugeridas": [],
-  "resumo": ""
-}
+Retorne SOMENTE JSON válido, sem markdown, sem texto extra, sem blocos de código. Apenas o JSON puro.
 
-Para cada sistema, preencha com os dados encontrados na imagem no formato de evolução médica de UTI (ex: "FC 88 bpm / PAM 75 mmHg / sem DVA"). Se não houver dados para um sistema, deixe string vazia. Seja conciso e clínico.`;
+Formato exato:
+{"sistemas":{"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},"metas_sugeridas":[],"resumo":""}
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
-            ]
-          }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
-        })
+Preencha apenas os sistemas com dados visíveis na imagem. Seja conciso e clínico.`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+
+    const body = {
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 1024
       }
-    );
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    const responseText = await response.text();
 
     if (!response.ok) {
-      const err = await response.text();
-      return res.status(502).json({ error: 'Gemini error', details: err });
+      console.error('Gemini error:', response.status, responseText);
+      return res.status(502).json({
+        error: `Gemini API error ${response.status}`,
+        details: responseText.slice(0, 500)
+      });
     }
 
-    const data = await response.json();
+    const data = JSON.parse(responseText);
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const clean = text.replace(/```json|```/g, '').trim();
 
@@ -62,10 +60,19 @@ Para cada sistema, preencha com os dados encontrados na imagem no formato de evo
       const parsed = JSON.parse(clean);
       return res.status(200).json(parsed);
     } catch {
-      return res.status(200).json({ raw: text, error: 'parse_failed' });
+      return res.status(200).json({
+        sistemas: {
+          "Neurológico": "", "Respiratório": "", "Hemodinâmico": "",
+          "Renal/Metabólico": "", "Gastrointestinal": "",
+          "Hematológico/Infeccioso": "", "Pele/Acessos": ""
+        },
+        metas_sugeridas: [],
+        resumo: clean.slice(0, 300)
+      });
     }
 
   } catch (err) {
+    console.error('Handler error:', err);
     return res.status(500).json({ error: err.message });
   }
 }
