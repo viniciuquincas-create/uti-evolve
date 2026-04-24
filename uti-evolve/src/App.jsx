@@ -846,22 +846,17 @@ function UploadAnalyzer({ onResult }) {
       const b64 = e.target.result.split(",")[1];
       setPreview(e.target.result); setLoading(true); setDraft(null); setRev(false);
       try {
-        const r = await fetch("https://api.anthropic.com/v1/messages", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000,
-            system:`Você é médico intensivista. Analise a imagem e extraia dados clínicos em JSON. Retorne SOMENTE JSON, sem markdown. Formato exato:
-{"sistemas":{"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},"metas_sugeridas":[],"resumo":""}`,
-            messages:[{role:"user",content:[
-              {type:"image",source:{type:"base64",media_type:file.type||"image/png",data:b64}},
-              {type:"text",text:"Extraia os dados clínicos estruturados por sistemas."}
-            ]}]
-          })
+        const r = await fetch("/api/analyze", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ imageBase64: b64, mimeType: file.type || "image/png" })
         });
         const data = await r.json();
-        const txt = data.content?.map(i=>i.text||"").join("")||"";
-        setDraft(JSON.parse(txt.replace(/```json|```/g,"").trim()));
+        if (data.error && data.error !== 'parse_failed') throw new Error(data.error);
+        if (data.raw) throw new Error("Resposta inválida da IA");
+        setDraft(data);
         setRev(true);
-      } catch { setDraft({error:"Erro ao analisar imagem. Tente novamente."}); }
+      } catch(err) { setDraft({error:`Erro ao analisar imagem: ${err.message}`}); }
       setLoading(false);
     };
     reader.readAsDataURL(file);
