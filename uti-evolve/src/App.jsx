@@ -1001,14 +1001,38 @@ function SysBlock({ sigla, label, color="#38bdf8", preview, children }) {
 }
 
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
-function EvolucaoEditor({ dadosIA, leito }) {
+const EVOLUCAO_VAZIA = {
+  nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
+  cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
+  reVM:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
+  rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
+  tgEF:"", tg24h:"", tgObs:"",
+  heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"",
+};
+
+function aplicarIA(dadosIA) {
+  if (!dadosIA?.sistemas) return {};
+  const s = dadosIA.sistemas;
+  return {
+    nEF:    s["Neurológico"]             || "",
+    cvEF:   s["Hemodinâmico"]            || "",
+    cv24h:  s["Hemodinâmico"]            || "",
+    reVM:   s["Respiratório"]            || "",
+    re24h:  s["Respiratório"]            || "",
+    rmLabs: s["Renal/Metabólico"]        || "",
+    rm24h:  s["Renal/Metabólico"]        || "",
+    tgEF:   s["Gastrointestinal"]        || "",
+    heLabs: s["Hematológico/Infeccioso"] || "",
+  };
+}
+
+function EvolucaoEditor({ leito, campos, setCampos }) {
   const [copiadoTudo, setCopiadoTudo] = useState(false);
   const peso = parseFloat(leito.peso) || null;
   const pp   = pesoPredito(leito.altura, leito.sexo);
   const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
   const dias = diasInternacao(leito.dataInternacao);
   const disps = leito.dispositivos || {};
-  // Coleta todos os dispositivos ativos (singular + múltiplos) como lista plana
   const ativos = [
     ...DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
       label: (Array.isArray(disps[d.key])&&disps[d.key].length>1)?`${d.label} ${i+1}`:d.label,
@@ -1019,59 +1043,15 @@ function EvolucaoEditor({ dadosIA, leito }) {
     })),
   ];
 
-  // ── Neurológico ─────────────────────────────────────────────────────────────
-  const [nEF,    setNEF]    = useState(dadosIA?.sistemas?.["Neurológico"] || "");
-  const [nSeda,  setNSeda]  = useState("");
-  const [nAnalg, setNAnalg] = useState("");
-  const [nPsiq,  setNPsiq]  = useState("");
-  const [nObs,   setNObs]   = useState("");
-
-  // ── Cardiovascular ──────────────────────────────────────────────────────────
-  const [cvEF,   setCvEF]   = useState(dadosIA?.sistemas?.["Hemodinâmico"] || "");
-  const [cv24h,  setCv24h]  = useState(dadosIA?.sistemas?.["Hemodinâmico"] || "");
-  const [cvDVA,  setCvDVA]  = useState("");
-  const [cvMed,  setCvMed]  = useState("");
-  const [cvPerf, setCvPerf] = useState("");
-  const [cvObs,  setCvObs]  = useState("");
-
-  // ── Respiratório ────────────────────────────────────────────────────────────
-  const [reVM,    setReVM]    = useState(dadosIA?.sistemas?.["Respiratório"] || "");
-  const [reEF,    setReEF]    = useState("");
-  const [re24h,   setRe24h]   = useState(dadosIA?.sistemas?.["Respiratório"] || "");
-  const [reGaso,  setReGaso]  = useState("");
-  const [rePocus, setRePocus] = useState("");
-  const [reObs,   setReObs]   = useState("");
-
-  // ── Renal/Metabólico ────────────────────────────────────────────────────────
-  const [rm24h,  setRm24h]  = useState(dadosIA?.sistemas?.["Renal/Metabólico"] || "");
-  const [rmLabs, setRmLabs] = useState(dadosIA?.sistemas?.["Renal/Metabólico"] || "");
-  const [rmTRS,  setRmTRS]  = useState("");
-  const [rmObs,  setRmObs]  = useState("");
-
-  // ── TGI ─────────────────────────────────────────────────────────────────────
-  const [tgEF,   setTgEF]   = useState(dadosIA?.sistemas?.["Gastrointestinal"] || "");
-  const [tg24h,  setTg24h]  = useState("");
-  const [tgObs,  setTgObs]  = useState("");
-
-  // ── He / In ─────────────────────────────────────────────────────────────────
-  const [heTemp, setHeTemp] = useState("");
-  const [heLabs, setHeLabs] = useState(dadosIA?.sistemas?.["Hematológico/Infeccioso"] || "");
-  const [heMed,  setHeMed]  = useState("");
-  const [heAtb,  setHeAtb]  = useState("");
-  const [heProf, setHeProf] = useState("");
-  const [heObs,  setHeObs]  = useState("");
-
-  useEffect(()=>{
-    if (!dadosIA?.sistemas) return;
-    const s = dadosIA.sistemas;
-    if (s["Neurológico"])             setNEF(s["Neurológico"]);
-    if (s["Hemodinâmico"])            { setCvEF(s["Hemodinâmico"]); setCv24h(s["Hemodinâmico"]); }
-    if (s["Respiratório"])            { setReVM(s["Respiratório"]); setReEF(s["Respiratório"]); }
-    if (s["Renal/Metabólico"])        { setRmLabs(s["Renal/Metabólico"]); setRm24h(s["Renal/Metabólico"]); }
-    if (s["Gastrointestinal"])        setTgEF(s["Gastrointestinal"]);
-    if (s["Hematológico/Infeccioso"]) setHeLabs(s["Hematológico/Infeccioso"]);
-  // eslint-disable-next-line
-  },[]);  // roda só na montagem — dadosIA já está disponível via prop no momento da criação
+  const set = (field) => (val) => setCampos(c=>({...c,[field]:val}));
+  const {
+    nEF, nSeda, nAnalg, nPsiq, nObs,
+    cvEF, cv24h, cvDVA, cvMed, cvPerf, cvObs,
+    reVM, reEF, re24h, reGaso, rePocus, reObs,
+    rm24h, rmLabs, rmTRS, rmObs,
+    tgEF, tg24h, tgObs,
+    heTemp, heLabs, heMed, heAtb, heProf, heObs,
+  } = campos;
 
   // ── Textos corridos por sistema ─────────────────────────────────────────────
   const txtN = (() => {
@@ -1214,88 +1194,88 @@ function EvolucaoEditor({ dadosIA, leito }) {
       {/* Sistemas */}
       <SysBlock sigla="== N:" label="Neurológico" color={colors.N} preview={txtN}>
         <Row><Col><FLabel>EF — GCS · RASS · Pupilas · Déficit</FLabel>
-          <TA value={nEF} onChange={setNEF} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2 / Ptose palpebral discreta à esq" rows={2}/>
+          <TA value={nEF} onChange={set("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2 / Ptose palpebral discreta à esq" rows={2}/>
         </Col></Row>
         <Row>
           <Col><FLabel>P — SEDAÇÃO (droga + dose)</FLabel>
-            <TA value={nSeda} onChange={setNSeda} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2}/>
+            <TA value={nSeda} onChange={set("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2}/>
           </Col>
           <Col><FLabel>A — ANALGESIA</FLabel>
-            <TA value={nAnalg} onChange={setNAnalg} placeholder="Metadona 22,5mg/d + Lido 140mg 12/12h" rows={2}/>
+            <TA value={nAnalg} onChange={set("nAnalg")} placeholder="Metadona 22,5mg/d + Lido 140mg 12/12h" rows={2}/>
           </Col>
         </Row>
         <Row><Col><FLabel>PSIQ / OUTROS</FLabel>
-          <TA value={nPsiq} onChange={setNPsiq} placeholder="Diazepam 40mg/d + Sertralina 50mg/d" rows={1}/>
+          <TA value={nPsiq} onChange={set("nPsiq")} placeholder="Diazepam 40mg/d + Sertralina 50mg/d" rows={1}/>
         </Col></Row>
         <Row><Col><FLabel>* OBSERVAÇÃO / PENDÊNCIA</FLabel>
-          <TA value={nObs} onChange={setNObs} placeholder="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1}/>
+          <TA value={nObs} onChange={set("nObs")} placeholder="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1}/>
         </Col></Row>
       </SysBlock>
 
       <SysBlock sigla="== Cv:" label="Cardiovascular" color={colors.Cv} preview={txtCv}>
         <Row><Col><FLabel>EF — Estabilidade · Ritmo · Bulhas</FLabel>
-          <TA value={cvEF} onChange={setCvEF} placeholder="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2}/>
+          <TA value={cvEF} onChange={set("cvEF")} placeholder="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2}/>
         </Col></Row>
         <Row>
           <Col><FLabel>24h — FC / PAM (min-máx)</FLabel>
-            <TA value={cv24h} onChange={setCv24h} placeholder="FC 109 - 58 / PAM 121 - 58" rows={1}/>
+            <TA value={cv24h} onChange={set("cv24h")} placeholder="FC 109 - 58 / PAM 121 - 58" rows={1}/>
           </Col>
           <Col><FLabel>DVA — Droga + vazão + dose calculada</FLabel>
-            <TA value={cvDVA} onChange={setCvDVA} placeholder="Nora 5ml/h (0,08 mcg/kg/min)" rows={1}/>
+            <TA value={cvDVA} onChange={set("cvDVA")} placeholder="Nora 5ml/h (0,08 mcg/kg/min)" rows={1}/>
           </Col>
         </Row>
         <Row>
           <Col><FLabel>P — MEDICAÇÕES CV</FLabel>
-            <TA value={cvMed} onChange={setCvMed} placeholder="Atenolol 25mg" rows={1}/>
+            <TA value={cvMed} onChange={set("cvMed")} placeholder="Atenolol 25mg" rows={1}/>
           </Col>
           <Col><FLabel>Perfusão — TEC · Lactato</FLabel>
-            <TA value={cvPerf} onChange={setCvPerf} placeholder="TEC 2 seg / Lactato 12 > 22" rows={1}/>
+            <TA value={cvPerf} onChange={set("cvPerf")} placeholder="TEC 2 seg / Lactato 12 > 22" rows={1}/>
           </Col>
         </Row>
         <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={cvObs} onChange={setCvObs} placeholder="Eco beira-leito amanhã" rows={1}/>
+          <TA value={cvObs} onChange={set("cvObs")} placeholder="Eco beira-leito amanhã" rows={1}/>
         </Col></Row>
       </SysBlock>
 
       <SysBlock sigla="== Res:" label="Respiratório" color={colors.Res} preview={txtRes}>
         <Row><Col><FLabel>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FLabel>
-          <TA value={reVM} onChange={setReVM} placeholder="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2}/>
+          <TA value={reVM} onChange={set("reVM")} placeholder="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2}/>
         </Col></Row>
         <Row>
           <Col><FLabel>EF — Ausculta</FLabel>
-            <TA value={reEF} onChange={setReEF} placeholder="MV + bilateralmente c/ roncos" rows={1}/>
+            <TA value={reEF} onChange={set("reEF")} placeholder="MV + bilateralmente c/ roncos" rows={1}/>
           </Col>
           <Col><FLabel>24h — FR / Sat (min-máx)</FLabel>
-            <TA value={re24h} onChange={setRe24h} placeholder="FR 41 - 20 / Sat 96 - 92" rows={1}/>
+            <TA value={re24h} onChange={set("re24h")} placeholder="FR 41 - 20 / Sat 96 - 92" rows={1}/>
           </Col>
         </Row>
         <Row>
           <Col><FLabel>Gasometria — pH · pCO2 · pO2 · Bic · SatO2</FLabel>
-            <TA value={reGaso} onChange={setReGaso} placeholder="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SataO2 94%" rows={1}/>
+            <TA value={reGaso} onChange={set("reGaso")} placeholder="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SataO2 94%" rows={1}/>
           </Col>
           <Col><FLabel>POCUS — Data · Achados</FLabel>
-            <TA value={rePocus} onChange={setRePocus} placeholder="22/04: Excursão 0,87 / Fen 12%" rows={1}/>
+            <TA value={rePocus} onChange={set("rePocus")} placeholder="22/04: Excursão 0,87 / Fen 12%" rows={1}/>
           </Col>
         </Row>
         <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={reObs} onChange={setReObs} placeholder="Tentar reduzir PS amanhã / desmame" rows={1}/>
+          <TA value={reObs} onChange={set("reObs")} placeholder="Tentar reduzir PS amanhã / desmame" rows={1}/>
         </Col></Row>
       </SysBlock>
 
       <SysBlock sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} preview={txtReMe}>
         <Row>
           <Col><FLabel>24h — HD · BH</FLabel>
-            <TA value={rm24h} onChange={setRm24h} placeholder="HD 3000 / BH +1084 > +1508" rows={1}/>
+            <TA value={rm24h} onChange={set("rm24h")} placeholder="HD 3000 / BH +1084 > +1508" rows={1}/>
           </Col>
           <Col><FLabel>TRS</FLabel>
-            <TA value={rmTRS} onChange={setRmTRS} placeholder="CRRT citrato 150ml/h / HFI diária" rows={1}/>
+            <TA value={rmTRS} onChange={set("rmTRS")} placeholder="CRRT citrato 150ml/h / HFI diária" rows={1}/>
           </Col>
         </Row>
         <Row><Col><FLabel>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FLabel>
-          <TA value={rmLabs} onChange={setRmLabs} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141 / Cai 1,36 > 1,42 / Mg 2 > 1,9 / P 1,3 > 2,3 / Cl 112" rows={2}/>
+          <TA value={rmLabs} onChange={set("rmLabs")} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141 / Cai 1,36 > 1,42 / Mg 2 > 1,9 / P 1,3 > 2,3 / Cl 112" rows={2}/>
         </Col></Row>
         <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={rmObs} onChange={setRmObs} placeholder="Repor K se < 3,5 / monitorar P" rows={1}/>
+          <TA value={rmObs} onChange={set("rmObs")} placeholder="Repor K se < 3,5 / monitorar P" rows={1}/>
         </Col></Row>
       </SysBlock>
 
@@ -1307,31 +1287,31 @@ function EvolucaoEditor({ dadosIA, leito }) {
         )}
         <Row>
           <Col><FLabel>EF — Abdome</FLabel>
-            <TA value={tgEF} onChange={setTgEF} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2}/>
+            <TA value={tgEF} onChange={set("tgEF")} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2}/>
           </Col>
           <Col><FLabel>24h — Dex · Evacuação</FLabel>
-            <TA value={tg24h} onChange={setTg24h} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2}/>
+            <TA value={tg24h} onChange={set("tg24h")} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2}/>
           </Col>
         </Row>
         <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={tgObs} onChange={setTgObs} placeholder="Omeprazol para LAMG / resíduo gástrico elevado" rows={1}/>
+          <TA value={tgObs} onChange={set("tgObs")} placeholder="Omeprazol para LAMG / resíduo gástrico elevado" rows={1}/>
         </Col></Row>
       </SysBlock>
 
       <SysBlock sigla="== He:" label="Hematológico" color={colors.He} preview={txtHe}>
         <Row>
           <Col><FLabel>Temperatura — mín · máx</FLabel>
-            <TA value={heTemp} onChange={setHeTemp} placeholder="37,2 - 36,2" rows={1}/>
+            <TA value={heTemp} onChange={set("heTemp")} placeholder="37,2 - 36,2" rows={1}/>
           </Col>
           <Col><FLabel>** Profilaxias / TEV</FLabel>
-            <TA value={heProf} onChange={setHeProf} placeholder="HNF 5kUI 12/12h / profilaxia TEV" rows={1}/>
+            <TA value={heProf} onChange={set("heProf")} placeholder="HNF 5kUI 12/12h / profilaxia TEV" rows={1}/>
           </Col>
         </Row>
         <Row><Col><FLabel>Labs — Hb · Leuco · Bastões · Plaq</FLabel>
-          <TA value={heLabs} onChange={setHeLabs} placeholder="7,6 > 7,5 / Leuco 21k > 14k > 17k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2}/>
+          <TA value={heLabs} onChange={set("heLabs")} placeholder="7,6 > 7,5 / Leuco 21k > 14k > 17k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2}/>
         </Col></Row>
         <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={heObs} onChange={setHeObs} placeholder="Aguarda cultura / BAAR negativo" rows={1}/>
+          <TA value={heObs} onChange={set("heObs")} placeholder="Aguarda cultura / BAAR negativo" rows={1}/>
         </Col></Row>
       </SysBlock>
 
@@ -1345,10 +1325,10 @@ function EvolucaoEditor({ dadosIA, leito }) {
           </div>
         )}
         <Row><Col><FLabel>Profilaxias / Outros medicamentos</FLabel>
-          <TA value={heMed} onChange={setHeMed} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2}/>
+          <TA value={heMed} onChange={set("heMed")} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2}/>
         </Col></Row>
         <Row><Col><FLabel>Antibióticos — nome + período</FLabel>
-          <TA value={heAtb} onChange={setHeAtb} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3}/>
+          <TA value={heAtb} onChange={set("heAtb")} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3}/>
         </Col></Row>
       </SysBlock>
 
@@ -1597,6 +1577,7 @@ export default function App() {
   const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
   const [aba,        setAba]        = useState("paciente");
   const [dadosIA,    setDadosIA]    = useState(null);
+  const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
   const [saving,     setSaving]     = useState(false);
   const saveTimer = useRef(null);
 
@@ -1708,7 +1689,7 @@ export default function App() {
               style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
           </div>
           {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId}
-            onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setAba("paciente");}}
+            onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setAba("paciente");}}
             onRename={nome=>setLeitos(ls=>ls.map(x=>x.id===l.id?{...x,nome}:x))}
             onRemove={leitos.length>1?()=>{
               setLeitos(ls=>{
@@ -1760,7 +1741,11 @@ export default function App() {
                   <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
                   <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
-                <UploadAnalyzer onResult={d=>{setDadosIA(d); setTimeout(()=>setAba("evolucao"),50);}}/>
+                <UploadAnalyzer onResult={d=>{
+                  setDadosIA(d);
+                  setEvolCampos(c=>({...c, ...aplicarIA(d)}));
+                  setTimeout(()=>setAba("evolucao"), 50);
+                }}/>
               </div>
             ) : aba==="evolucao" ? (
               !leito.paciente ? (
@@ -1771,7 +1756,7 @@ export default function App() {
               ) : (
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                  <EvolucaoEditor dadosIA={dadosIA} leito={leito} key={`${leito.id}-${dadosIA?JSON.stringify(dadosIA).length:0}`}/>
+                  <EvolucaoEditor leito={leito} campos={evolCampos} setCampos={setEvolCampos} key={leito.id}/>
                 </div>
               )
             ) : (
