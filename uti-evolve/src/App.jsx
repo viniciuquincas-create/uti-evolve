@@ -1735,12 +1735,7 @@ export default function App() {
           </div>
 
           <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
-            {!leito.paciente ? (
-              <div style={{textAlign:"center",padding:60,color:"#334155"}}>
-                <div style={{fontSize:40,marginBottom:12}}>🛏</div>
-                <div>Leito vago — cadastre um paciente na aba Paciente & Cálculos</div>
-              </div>
-            ) : aba==="paciente" ? (
+            {aba==="paciente" ? (
               <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar}/></div>
             ) : aba==="upload" ? (
               <div style={{maxWidth:600}}>
@@ -1751,10 +1746,17 @@ export default function App() {
                 <UploadAnalyzer onResult={d=>{setDadosIA(d);setAba("evolucao");}}/>
               </div>
             ) : aba==="evolucao" ? (
-              <div style={{maxWidth:700}}>
-                {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                <EvolucaoEditor dadosIA={dadosIA} leito={leito} key={leito.id+(dadosIA?"ia":"manual")}/>
-              </div>
+              !leito.paciente ? (
+                <div style={{textAlign:"center",padding:60,color:"#334155"}}>
+                  <div style={{fontSize:40,marginBottom:12}}>📝</div>
+                  <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
+                </div>
+              ) : (
+                <div style={{maxWidth:700}}>
+                  {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
+                  <EvolucaoEditor dadosIA={dadosIA} leito={leito} key={leito.id+(dadosIA?"ia":"manual")}/>
+                </div>
+              )
             ) : (
               <div style={{maxWidth:600}}>
                 <div style={{marginBottom:16}}>
