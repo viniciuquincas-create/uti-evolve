@@ -1760,7 +1760,7 @@ export default function App() {
                   <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
                   <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
-                <UploadAnalyzer onResult={d=>{setDadosIA(d);setAba("evolucao");}}/>
+                <UploadAnalyzer onResult={d=>{setDadosIA(d); setTimeout(()=>setAba("evolucao"),50);}}/>
               </div>
             ) : aba==="evolucao" ? (
               !leito.paciente ? (
@@ -1771,7 +1771,7 @@ export default function App() {
               ) : (
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                  <EvolucaoEditor dadosIA={dadosIA} leito={leito} key={leito.id+(dadosIA?"ia":"manual")}/>
+                  <EvolucaoEditor dadosIA={dadosIA} leito={leito} key={`${leito.id}-${dadosIA?JSON.stringify(dadosIA).length:0}`}/>
                 </div>
               )
             ) : (
