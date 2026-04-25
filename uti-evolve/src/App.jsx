@@ -1837,6 +1837,7 @@ export default function App() {
   const [aba,        setAba]        = useState("paciente");
   const [dadosIA,    setDadosIA]    = useState(null);
   const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
+  const [evolVersion, setEvolVersion] = useState(0);
   const [tabelaData, setTabelaData] = useState({});
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
@@ -1955,7 +1956,7 @@ export default function App() {
               style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
           </div>
           {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId}
-            onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setAba("paciente");}}
+            onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("paciente");}}
             onRename={nome=>setLeitos(ls=>ls.map(x=>x.id===l.id?{...x,nome}:x))}
             onRemove={leitos.length>1?()=>{
               setLeitos(ls=>{
@@ -2008,7 +2009,7 @@ export default function App() {
                 leito={leito}
                 data={tabelaData[leitoSelId] || {}}
                 onChange={d=>setTabelaData(t=>({...t,[leitoSelId]:d}))}
-                onAplicarEvolucao={(campos)=>{ setEvolCampos(c=>({...c,...campos})); setAba("evolucao"); }}
+                onAplicarEvolucao={(campos)=>{ setEvolCampos(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
               />
             ) : aba==="upload" ? (
               <div style={{maxWidth:600}}>
@@ -2017,11 +2018,10 @@ export default function App() {
                   <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
                 <UploadAnalyzer onResult={d=>{
-                  console.log("=== DADOS IA ===", JSON.stringify(d, null, 2));
                   const aplicado = aplicarIA(d);
-                  console.log("=== APLICADO ===", JSON.stringify(aplicado, null, 2));
                   setDadosIA(d);
                   setEvolCampos(c=>({...c, ...aplicado}));
+                  setEvolVersion(v=>v+1);
                   setTimeout(()=>setAba("evolucao"), 50);
                 }}/>
               </div>
@@ -2034,7 +2034,7 @@ export default function App() {
               ) : (
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                  <EvolucaoEditor leito={leito} campos={evolCampos} setCampos={setEvolCampos} key={leito.id}/>
+                  <EvolucaoEditor leito={leito} campos={evolCampos} setCampos={setEvolCampos} key={`${leito.id}-${evolVersion}`}/>
                 </div>
               )
             ) : (
