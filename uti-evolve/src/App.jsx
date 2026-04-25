@@ -2007,8 +2007,13 @@ export default function App() {
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
   });
   const [saving, setSaving] = useState(false);
-  const saveTimer = useRef(null);
+  const saveTimer    = useRef(null);
+  const evolTimer    = useRef(null);
+  const tabelaTimer  = useRef(null);
+  const configTimer  = useRef(null);
+  const dataLoaded   = useRef(false); // bloqueia saves até load completo
 
+  // ── INIT: verifica sessão e carrega dados ─────────────────────────────────
   useEffect(()=>{
     (async()=>{
       const sess = sessionStorage.getItem(SESSION_KEY);
@@ -2023,114 +2028,103 @@ export default function App() {
       }
       setAppReady(true);
     })();
+  // eslint-disable-next-line
   },[]);
 
+  // ── LOAD ─────────────────────────────────────────────────────────────────────
   const loadData = async () => {
+    dataLoaded.current = false; // bloqueia saves durante load
     try {
-      const { data } = await supabase.from("config").select("value").eq("key","leitos_data").single();
-      if (data) {
-        const parsed = JSON.parse(data.value);
-        if (Array.isArray(parsed) && parsed.length) setLeitos(parsed);
+      const results = await Promise.all([
+        supabase.from("config").select("value").eq("key","leitos_data").single(),
+        supabase.from("config").select("value").eq("key","tabela_data").single(),
+        supabase.from("config").select("value").eq("key","app_config").single(),
+        supabase.from("config").select("value").eq("key","evolucao_data").single(),
+      ]);
+
+      const [leitos_r, tabela_r, config_r, evol_r] = results;
+
+      if (leitos_r.data?.value) {
+        try { const p=JSON.parse(leitos_r.data.value); if(Array.isArray(p)&&p.length) setLeitos(p); } catch {}
+      }
+      if (tabela_r.data?.value) {
+        try { const p=JSON.parse(tabela_r.data.value); if(p&&typeof p==='object') setTabelaData(p); } catch {}
+      }
+      if (config_r.data?.value) {
+        try { const p=JSON.parse(config_r.data.value); if(p&&typeof p==='object') setConfig(c=>({...c,...p})); } catch {}
+      }
+      if (evol_r.data?.value) {
+        try {
+          const p=JSON.parse(evol_r.data.value);
+          if(p&&typeof p==='object') {
+            setEvolPorLeito(p);
+            // Aplica imediatamente no leito atual
+            const leitoAtual = leitoSelId;
+            if (p[leitoAtual]) {
+              setEvolCampos(p[leitoAtual]);
+              setEvolVersion(v=>v+1);
+            }
+          }
+        } catch {}
       }
     } catch {}
-    try {
-      const { data } = await supabase.from("config").select("value").eq("key","tabela_data").single();
-      if (data) {
-        const parsed = JSON.parse(data.value);
-        if (parsed && typeof parsed === 'object') setTabelaData(parsed);
-      }
-    } catch {}
-    try {
-      const { data } = await supabase.from("config").select("value").eq("key","app_config").single();
-      if (data) {
-        const parsed = JSON.parse(data.value);
-        if (parsed && typeof parsed === 'object') setConfig(c=>({...c,...parsed}));
-      }
-    } catch {}
-    // Carrega evolução de todos os leitos
-    try {
-      const { data } = await supabase.from("config").select("value").eq("key","evolucao_data").single();
-      if (data) {
-        const parsed = JSON.parse(data.value);
-        if (parsed && typeof parsed === 'object') setEvolPorLeito(parsed);
-      }
-    } catch {}
+
+    // Libera saves APÓS todo o load
+    setTimeout(() => { dataLoaded.current = true; }, 100);
   };
 
   const onLogin = async () => { await loadData(); setAuthed(true); };
 
-  // Salva leitos
+  // ── SAVES (só rodam se dataLoaded=true) ──────────────────────────────────────
   useEffect(()=>{
-    if (!authed) return;
+    if (!authed || !dataLoaded.current) return;
     clearTimeout(saveTimer.current);
     setSaving(true);
     saveTimer.current = setTimeout(async()=>{
-      try {
-        await supabase.from("config").upsert({ key:"leitos_data", value:JSON.stringify(leitos) });
-      } catch {}
+      try { await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(leitos)}); } catch {}
       setSaving(false);
-    }, 800);
+    }, 1000);
   },[leitos]);
 
-  // Salva evolução por leito (só depois que authed E evolPorLeito tem dados)
-  const evolTimer = useRef(null);
-  const evolLoadedRef = useRef(false);
   useEffect(()=>{
-    if (!authed) return;
-    if (!evolLoadedRef.current) { evolLoadedRef.current = true; return; } // pula o primeiro render
+    if (!authed || !dataLoaded.current) return;
     clearTimeout(evolTimer.current);
     evolTimer.current = setTimeout(async()=>{
-      try {
-        await supabase.from("config").upsert({ key:"evolucao_data", value:JSON.stringify(evolPorLeito) });
-      } catch {}
-    }, 800);
+      try { await supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(evolPorLeito)}); } catch {}
+    }, 1000);
   },[evolPorLeito]);
 
-  const tabelaTimer = useRef(null);
-  const tabelaLoadedRef = useRef(false);
   useEffect(()=>{
-    if (!authed) return;
-    if (!tabelaLoadedRef.current) { tabelaLoadedRef.current = true; return; } // pula o primeiro render
+    if (!authed || !dataLoaded.current) return;
     clearTimeout(tabelaTimer.current);
     tabelaTimer.current = setTimeout(async()=>{
-      try {
-        await supabase.from("config").upsert({ key:"tabela_data", value:JSON.stringify(tabelaData) });
-      } catch {}
-    }, 800);
+      try { await supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(tabelaData)}); } catch {}
+    }, 1000);
   },[tabelaData]);
 
-  // Salva config
-  const configTimer = useRef(null);
   useEffect(()=>{
-    if (!authed) return;
+    if (!authed || !dataLoaded.current) return;
     clearTimeout(configTimer.current);
     configTimer.current = setTimeout(async()=>{
-      try {
-        await supabase.from("config").upsert({ key:"app_config", value:JSON.stringify(config) });
-      } catch {}
-    }, 800);
+      try { await supabase.from("config").upsert({key:"app_config",value:JSON.stringify(config)}); } catch {}
+    }, 1000);
   },[config]);
 
   const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
   const atualizar = (d) => setLeitos(ls=>ls.map(l=>l.id===leitoSelId?{...l,...d}:l));
   const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
 
-  // Sincroniza evolCampos com evolPorLeito quando troca de leito OU quando dados carregam do Supabase
+  // Sincroniza evolCampos quando troca de leito
   const evolPorLeitoRef = useRef({});
   useEffect(()=>{
-    const saved = evolPorLeito[leitoSelId];
-    const prev  = evolPorLeitoRef.current[leitoSelId];
     evolPorLeitoRef.current = evolPorLeito;
-    // Só atualiza se o leito mudou OU se os dados do leito mudaram externamente (ex: load do Supabase)
-    if (saved !== prev) {
-      if (saved) {
-        setEvolCampos(saved);
-      } else {
-        setEvolCampos(EVOLUCAO_VAZIA);
-      }
-      setEvolVersion(v=>v+1);
-    }
-  },[leitoSelId, evolPorLeito]);
+  },[evolPorLeito]);
+
+  useEffect(()=>{
+    const saved = evolPorLeitoRef.current[leitoSelId] || evolPorLeito[leitoSelId];
+    setEvolCampos(saved || EVOLUCAO_VAZIA);
+    setEvolVersion(v=>v+1);
+  },[leitoSelId]);
 
   // Quando evolCampos muda, persiste no evolPorLeito
   const setEvolCamposComPersistencia = (updater) => {
