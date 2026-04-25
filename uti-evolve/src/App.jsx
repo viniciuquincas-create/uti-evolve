@@ -922,6 +922,23 @@ function UploadAnalyzer({ onResult }) {
                 placeholder={`Dados de ${s}...`}/>
             </div>
           ))}
+
+          {/* Exames extras não categorizados */}
+          {(draft.extras||[]).length > 0 && (
+            <div style={{marginTop:4,marginBottom:12,padding:"12px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10}}>
+              <div style={{fontSize:11,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:10}}>⚠️ EXAMES NÃO CATEGORIZADOS — selecione onde lançar</div>
+              {(draft.extras||[]).map((ex,i)=>(
+                <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+                  <div style={{flex:2,minWidth:140,fontSize:13,color:"#e2e8f0",fontWeight:600}}>{ex.nome}: <span style={{color:"#fcd34d"}}>{ex.valor}</span></div>
+                  <select value={ex.categoria||ex.sugestao||""} onChange={e=>setDraft(d=>({...d,extras:d.extras.map((x,j)=>j===i?{...x,categoria:e.target.value}:x)}))}
+                    style={{flex:1,minWidth:160,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
+                    <option value="">— Ignorar —</option>
+                    {SISTEMAS.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
           <button onClick={()=>{onResult(draft);setRev(false);}}
             style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
             📊 Confirmar e adicionar à Tabela Clínica
@@ -2022,9 +2039,19 @@ export default function App() {
                 </div>
                 <UploadAnalyzer onResult={d=>{
                   const hoje = new Date().toISOString().split("T")[0];
-                  const s = d.sistemas || {};
 
-                  // Extrai valores numéricos dos textos por sistema
+                  // Merge extras categorizados nos sistemas
+                  const sistemasFinais = { ...(d.sistemas||{}) };
+                  (d.extras||[]).forEach(ex=>{
+                    const cat = ex.categoria || ex.sugestao;
+                    if (cat && sistemasFinais[cat] !== undefined) {
+                      const linha = `${ex.nome}: ${ex.valor}`;
+                      sistemasFinais[cat] = sistemasFinais[cat]
+                        ? `${sistemasFinais[cat]} / ${linha}` : linha;
+                    }
+                  });
+
+                  const s = sistemasFinais;
                   const extrair = (texto, patterns) => {
                     if (!texto) return {};
                     const vals = {};
@@ -2040,24 +2067,25 @@ export default function App() {
                     ["lact", /[Ll]actato[:\s]+([0-9,]+)/],
                   ]));
                   Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [
-                    ["cr",   /[Cc]r[eatinina\s]*[:/\s]+([0-9,]+)/],
-                    ["ur",   /[Uu]r[eia\s]*[:/\s]+([0-9,]+)/],
+                    ["cr",   /\bCr[eatinina\s]*[:/\s]+([0-9,]+)/],
+                    ["ur",   /\bUr[eia\s]*[:/\s]+([0-9,]+)/],
                     ["k",    /\bK[+\s]*[:/\s]+([0-9,]+)/],
                     ["na",   /\bNa[+\s]*[:/\s]+([0-9,]+)/],
                     ["mg",   /\bMg[:\s]+([0-9,]+)/],
-                    ["cai",  /[Cc]ai[:\s]+([0-9,]+)/],
+                    ["cai",  /\bCai[:\s]+([0-9,]+)/],
                     ["p",    /\bP[:\s]+([0-9,]+)/],
                     ["ph",   /\bpH[:\s]+([0-9,]+)/],
-                    ["hco3", /[Bb]ic[:\s]+([0-9,]+)/],
-                    ["diur", /[Dd]iurese[:\s]+([0-9,]+)/],
-                    ["bh",   /\bBH[:\s]+([+-]?[0-9,]+)/],
+                    ["hco3", /\bHCO3[:\s]+([0-9,]+)/i],
+                    ["diur", /[Dd]iurese[:\s]+([0-9.]+)/],
+                    ["bh",   /\bBH[:\s]+([+-]?[0-9.]+)/],
                   ]));
                   Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [
                     ["hb",    /\bHb[:\s]+([0-9,]+)/],
                     ["ht",    /\bHt[:\s]+([0-9,]+)/],
-                    ["leuco", /[Ll]euco[citos\s]*[:/\s]+([0-9,]+)/],
+                    ["leuco", /[Ll]euco[citos\s]*[:/\s]+([0-9,.]+)/],
                     ["bast",  /[Bb]ast[ões\s]*[:/\s]+([0-9,]+)/],
-                    ["plaq",  /[Pp]laq[uetas\s]*[:/\s]+([0-9,]+)/],
+                    ["plaq",  /[Pp]laq[uetas\s]*[:/\s]+([0-9,.]+)/],
+                    ["rni",   /\bRNI[:\s]+([0-9,]+)/],
                   ]));
                   Object.assign(novos, extrair(s["Respiratório"]||"", [
                     ["po2",  /pO2[:\s]+([0-9,]+)/],
