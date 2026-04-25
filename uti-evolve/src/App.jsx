@@ -1128,6 +1128,33 @@ const GRUPOS_LAB = [
 
 const TODOS_PARAMS = GRUPOS_LAB.flatMap(g=>g.params);
 
+// Abreviações para a evolução e formatação especial
+const ABREV = {
+  hb:"Hb", ht:"Ht", leuco:"Leuco", neut:"Neut", bast:"Bast", linf:"Linf",
+  plaq:"Plaq", rni:"RNI", ttpa:"TTPA", fibri:"Fibri",
+  cr:"Cr", ur:"Ur", na:"Na", k:"K", mg:"Mg", cai:"Cai", p:"P", ph:"pH", hco3:"HCO3",
+  trop:"Trop", bnp:"BNP", ntpro:"NT-proBNP", be:"BE", lact:"Lactato",
+  po2:"pO2", pco2:"pCO2",
+  tgo:"TGO", tgp:"TGP", bttot:"BT", btdir:"BD", btind:"BI",
+  falc:"FA", ggt:"GGT", alb:"Alb",
+  diur:"Diurese", bh:"BH", dreno1:"Dreno1", dreno2:"Dreno2", dreno3:"Dreno3", evac:"Evac",
+};
+
+// Formata valor: plaquetas e leucócitos em k quando >= 100
+const fmtVal = (key, raw) => {
+  if (!raw) return raw;
+  const n = parseFloat(raw.replace(',','.'));
+  if (isNaN(n)) return raw;
+  // Plaquetas e leucócitos: mostrar em k (mil)
+  if (["plaq","leuco"].includes(key)) {
+    if (n >= 100) return `${Math.round(n)}k`;
+    // Já está em mil (ex: 11.17 = 11170 -> mostra 11.170k)
+    if (n < 100) return `${(n).toFixed(n % 1 === 0 ? 0 : 2)}k`;
+  }
+  // Remove casas decimais desnecessárias
+  return n % 1 === 0 ? String(Math.round(n)) : raw.replace(',','.');
+};
+
 function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   const hoje = new Date().toISOString().split("T")[0];
   const [novaData, setNovaData] = useState("");
@@ -1160,12 +1187,14 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
     const dtAnt = idxHoje > 0 ? datas[idxHoje-1] : null;
     const campos = {};
     const pegar = (keys) => keys.map(k=>{
-      const par = TODOS_PARAMS.find(x=>x.key===k);
-      const atu = getVal(hoje, k);
-      const ant = dtAnt ? getVal(dtAnt, k) : "";
-      if (!atu && !ant) return null;
-      const val = (ant&&atu&&ant!==atu) ? `${ant} > ${atu}` : (atu||ant);
-      return `${par.label}: ${val}`;
+      const abrev = ABREV[k] || TODOS_PARAMS.find(x=>x.key===k)?.label || k;
+      const atuRaw = getVal(hoje, k);
+      const antRaw = dtAnt ? getVal(dtAnt, k) : "";
+      if (!atuRaw && !antRaw) return null;
+      const atu = fmtVal(k, atuRaw);
+      const ant = fmtVal(k, antRaw);
+      const val = (ant && atu && ant !== atu) ? `${ant} > ${atu}` : (atu || ant);
+      return `${abrev} ${val}`;
     }).filter(Boolean).join(" / ");
 
     const heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
