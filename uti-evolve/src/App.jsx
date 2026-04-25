@@ -2072,10 +2072,12 @@ export default function App() {
     }, 800);
   },[leitos]);
 
-  // Salva evolução por leito
+  // Salva evolução por leito (só depois que authed E evolPorLeito tem dados)
   const evolTimer = useRef(null);
+  const evolLoadedRef = useRef(false);
   useEffect(()=>{
     if (!authed) return;
+    if (!evolLoadedRef.current) { evolLoadedRef.current = true; return; } // pula o primeiro render
     clearTimeout(evolTimer.current);
     evolTimer.current = setTimeout(async()=>{
       try {
@@ -2083,9 +2085,12 @@ export default function App() {
       } catch {}
     }, 800);
   },[evolPorLeito]);
+
   const tabelaTimer = useRef(null);
+  const tabelaLoadedRef = useRef(false);
   useEffect(()=>{
     if (!authed) return;
+    if (!tabelaLoadedRef.current) { tabelaLoadedRef.current = true; return; } // pula o primeiro render
     clearTimeout(tabelaTimer.current);
     tabelaTimer.current = setTimeout(async()=>{
       try {
@@ -2110,16 +2115,22 @@ export default function App() {
   const atualizar = (d) => setLeitos(ls=>ls.map(l=>l.id===leitoSelId?{...l,...d}:l));
   const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
 
-  // Sincroniza evolCampos com evolPorLeito quando troca de leito
+  // Sincroniza evolCampos com evolPorLeito quando troca de leito OU quando dados carregam do Supabase
+  const evolPorLeitoRef = useRef({});
   useEffect(()=>{
     const saved = evolPorLeito[leitoSelId];
-    if (saved) {
-      setEvolCampos(saved);
-    } else {
-      setEvolCampos(EVOLUCAO_VAZIA);
+    const prev  = evolPorLeitoRef.current[leitoSelId];
+    evolPorLeitoRef.current = evolPorLeito;
+    // Só atualiza se o leito mudou OU se os dados do leito mudaram externamente (ex: load do Supabase)
+    if (saved !== prev) {
+      if (saved) {
+        setEvolCampos(saved);
+      } else {
+        setEvolCampos(EVOLUCAO_VAZIA);
+      }
+      setEvolVersion(v=>v+1);
     }
-    setEvolVersion(v=>v+1);
-  },[leitoSelId]);
+  },[leitoSelId, evolPorLeito]);
 
   // Quando evolCampos muda, persiste no evolPorLeito
   const setEvolCamposComPersistencia = (updater) => {
