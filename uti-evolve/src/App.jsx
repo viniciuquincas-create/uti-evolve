@@ -1225,6 +1225,11 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   });
   const datas = Array.from(new Set([...comDados, hoje])).sort();
 
+  // Extrai exames extras dinâmicos (keys começando com _extra_)
+  const extrasKeys = Array.from(new Set(
+    datas.flatMap(d => Object.keys(data[d]||{}).filter(k => k.startsWith('_extra_')))
+  ));
+
   const getVal = (date, key) => data[date]?.[key] || "";
   const setVal = (date, key, val) =>
     onChange({ ...data, [date]: { ...(data[date]||{}), [key]: val } });
@@ -1387,12 +1392,40 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
                   ))}
                 </React.Fragment>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div style={{marginTop:8,fontSize:11,color:"#475569",display:"flex",gap:16,flexWrap:"wrap"}}>
-        <span style={{color:"#34d399"}}>▼ verde = queda</span>
+              {/* Exames extras dinâmicos */}
+              {extrasKeys.length > 0 && (
+                <React.Fragment>
+                  <tr>
+                    <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      ⭐ Exames Extras
+                    </td>
+                  </tr>
+                  {extrasKeys.map(k=>{
+                    // Extrai o nome amigável do exame a partir da key
+                    const nomeAmigavel = datas.map(d=>data[d]?.[k]).find(v=>v)?.split('(')[1]?.replace(')','') || k.replace('_extra_','').replace(/_/g,' ');
+                    return (
+                      <tr key={k}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{nomeAmigavel}</td>
+                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>—</td>
+                        {datas.map(d=>{
+                          const ativo=isHoje(d);
+                          const raw = data[d]?.[k] || "";
+                          const val = raw.split(' (')[0]; // extrai só o valor
+                          return (
+                            <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
+                              <div style={{fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",color:ativo?"#38bdf8":"#e2e8f0",fontWeight:ativo?700:400}}>
+                                {val||"—"}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              )}
         <span style={{color:"#f87171"}}>▲ vermelho = subida</span>
         <span>· Clique para editar · ✕ remove a coluna do dia</span>
       </div>
@@ -2204,8 +2237,15 @@ export default function App() {
                     const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
                     if (!numMatch) return;
                     const numVal = numMatch[1].replace(',','.');
+                    // Tenta achar key padrão
+                    let achou = false;
                     for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
-                      if (nl.includes(k)) { novos[tkey] = numVal; break; }
+                      if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
+                    }
+                    // Se não achou key padrão, usa o nome do exame como key dinâmica
+                    if (!achou) {
+                      const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+                      novos[keyDinamica] = `${ex.valor} (${ex.nome})`;
                     }
                   });
 
