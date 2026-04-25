@@ -1991,6 +1991,7 @@ function LoginScreen({ onLogin }) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [authed,     setAuthed]     = useState(false);
   const [appReady,   setAppReady]   = useState(false);
@@ -2011,6 +2012,9 @@ export default function App() {
   const evolTimer   = useRef(null);
   const tabelaTimer = useRef(null);
   const configTimer = useRef(null);
+
+  // Trava de segurança para impedir o salvamento automático antes do carregamento
+  const isLoaded = useRef(false);
 
   // ── LOAD ─────────────────────────────────────────────────────────────────────
   const loadData = async () => {
@@ -2041,12 +2045,14 @@ export default function App() {
         const p = JSON.parse(ed.value);
         if (p && typeof p === 'object') {
           setEvolPorLeito(p);
-          // leitoSelId no momento do load é sempre LEITOS_INICIAIS[0].id
           const firstId = LEITOS_INICIAIS[0].id;
           if (p[firstId]) { setEvolCampos(p[firstId]); setEvolVersion(v=>v+1); }
         }
       }
     } catch {}
+
+    // Libera a trava após o carregamento de todos os dados do Supabase
+    isLoaded.current = true;
   };
 
   // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -2068,6 +2074,7 @@ export default function App() {
 
   // ── SAVES manuais (chamados explicitamente, não por useEffect) ────────────────
   const salvarLeitos = (val) => {
+    if (!isLoaded.current) return;
     clearTimeout(saveTimer.current);
     setSaving(true);
     saveTimer.current = setTimeout(async()=>{
@@ -2077,6 +2084,7 @@ export default function App() {
   };
 
   const salvarEvol = (val) => {
+    if (!isLoaded.current) return;
     clearTimeout(evolTimer.current);
     evolTimer.current = setTimeout(async()=>{
       try { await supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(val)}); } catch {}
@@ -2084,6 +2092,7 @@ export default function App() {
   };
 
   const salvarTabela = (val) => {
+    if (!isLoaded.current) return;
     clearTimeout(tabelaTimer.current);
     tabelaTimer.current = setTimeout(async()=>{
       try { await supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(val)}); } catch {}
@@ -2091,12 +2100,13 @@ export default function App() {
   };
 
   const salvarConfig = (val) => {
+    if (!isLoaded.current) return;
     clearTimeout(configTimer.current);
     configTimer.current = setTimeout(async()=>{
       try { await supabase.from("config").upsert({key:"app_config",value:JSON.stringify(val)}); } catch {}
     }, 800);
   };
-
+  
   const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
   const atualizar = (d) => {
     setLeitos(ls=>{
