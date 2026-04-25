@@ -2052,6 +2052,8 @@ export default function App() {
                   });
 
                   const s = sistemasFinais;
+                  // Regex: captura números com vírgula OU ponto como decimal
+                  const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
                   const extrair = (texto, patterns) => {
                     if (!texto) return {};
                     const vals = {};
@@ -2062,35 +2064,78 @@ export default function App() {
                     return vals;
                   };
 
+                  const re = s => new RegExp(s, 'i');
                   const novos = {};
+
                   Object.assign(novos, extrair(s["Hemodinâmico"]||"", [
-                    ["lact", /[Ll]actato[:\s]+([0-9,]+)/],
+                    ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)],
+                    ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)],
+                    ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)],
                   ]));
                   Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [
-                    ["cr",   /\bCr[eatinina\s]*[:/\s]+([0-9,]+)/],
-                    ["ur",   /\bUr[eia\s]*[:/\s]+([0-9,]+)/],
-                    ["k",    /\bK[+\s]*[:/\s]+([0-9,]+)/],
-                    ["na",   /\bNa[+\s]*[:/\s]+([0-9,]+)/],
-                    ["mg",   /\bMg[:\s]+([0-9,]+)/],
-                    ["cai",  /\bCai[:\s]+([0-9,]+)/],
-                    ["p",    /\bP[:\s]+([0-9,]+)/],
-                    ["ph",   /\bpH[:\s]+([0-9,]+)/],
-                    ["hco3", /\bHCO3[:\s]+([0-9,]+)/i],
-                    ["diur", /[Dd]iurese[:\s]+([0-9.]+)/],
-                    ["bh",   /\bBH[:\s]+([+-]?[0-9.]+)/],
+                    ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)],
+                    ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)],
+                    ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)],
+                    ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)],
+                    ["mg",   re(`\\bMg[:\\s]+${NUM}`)],
+                    ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)],
+                    ["p",    re(`\\bP[:\\s]+${NUM}`)],
+                    ["ph",   re(`\\bpH[:\\s]+${NUM}`)],
+                    ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)],
+                    ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)],
+                    ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)],
+                    ["lact", re(`\\bLactato[:\\s]+${NUM}`)],
                   ]));
                   Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [
-                    ["hb",    /\bHb[:\s]+([0-9,]+)/],
-                    ["ht",    /\bHt[:\s]+([0-9,]+)/],
-                    ["leuco", /[Ll]euco[citos\s]*[:/\s]+([0-9,.]+)/],
-                    ["bast",  /[Bb]ast[ões\s]*[:/\s]+([0-9,]+)/],
-                    ["plaq",  /[Pp]laq[uetas\s]*[:/\s]+([0-9,.]+)/],
-                    ["rni",   /\bRNI[:\s]+([0-9,]+)/],
+                    ["hb",    re(`\\bHb[:\\s]+${NUM}`)],
+                    ["ht",    re(`\\bHt[:\\s]+${NUM}`)],
+                    ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)],
+                    ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)],
+                    ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)],
+                    ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)],
+                    ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)],
+                    ["rni",   re(`\\bRNI[:\\s]+${NUM}`)],
+                    ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)],
                   ]));
                   Object.assign(novos, extrair(s["Respiratório"]||"", [
-                    ["po2",  /pO2[:\s]+([0-9,]+)/],
-                    ["pco2", /pCO2[:\s]+([0-9,]+)/],
+                    ["po2",  re(`pO2[:\\s]+${NUM}`)],
+                    ["pco2", re(`pCO2[:\\s]+${NUM}`)],
                   ]));
+                  Object.assign(novos, extrair(s["Gastrointestinal"]||"", [
+                    ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)],
+                    ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)],
+                    ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)],
+                    ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)],
+                    ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)],
+                    ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)],
+                  ]));
+
+                  // Extras com categoria selecionada → também vai para a tabela
+                  const EXTRAS_PARA_KEY = {
+                    'magnésio':'mg','magnesio':'mg','mg':'mg',
+                    'cálcio':'cai','calcio':'cai','cal':'cai','cai':'cai',
+                    'pcr':'pcr_extra', // não tem key na tabela, ignora
+                    'fósforo':'p','fosforo':'p',
+                    'troponina':'trop','bnp':'bnp',
+                    'tgo':'tgo','tgp':'tgp','albumina':'alb',
+                    'procalcitonina':'pct_extra', // não tem key na tabela
+                  };
+                  (d.extras||[]).forEach(ex=>{
+                    const cat = ex.categoria || ex.sugestao;
+                    if (!cat) return;
+                    const nl = (ex.nome||'').toLowerCase();
+                    // Tenta extrair número do valor
+                    const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
+                    if (!numMatch) return;
+                    const numVal = numMatch[1].replace(',','.');
+                    // Encontra key da tabela pelo nome do exame
+                    for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
+                      if (nl.includes(k) && !tkey.includes('extra')) {
+                        novos[tkey] = numVal;
+                        break;
+                      }
+                    }
+                  });
 
                   setTabelaData(t=>({
                     ...t,
