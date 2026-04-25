@@ -1445,6 +1445,12 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
                   })}
                 </React.Fragment>
               )}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div style={{marginTop:8,fontSize:11,color:"#475569",display:"flex",gap:16,flexWrap:"wrap"}}>
+        <span style={{color:"#34d399"}}>▼ verde = queda</span>
         <span style={{color:"#f87171"}}>▲ vermelho = subida</span>
         <span>· Clique para editar · ✕ remove a coluna do dia</span>
       </div>
