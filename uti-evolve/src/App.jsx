@@ -331,12 +331,27 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
 // ── DrogasCalculadora ─────────────────────────────────────────────────────────
 const GRUPOS = { vasoativa:"Vasoativas", sedacao:"Sedação", analgesia:"Analgesia" };
 
-function DrogasCalculadora({ peso, onLancarDroga }) {
+function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas }) {
   const [drogaSel, setDrogaSel] = useState("noradrenalina");
-  const [mlh, setMlh]           = useState("");
-  const [concCustom, setConcCustom] = useState("");
   const [editandoConc, setEditandoConc] = useState(false);
   const [lancado, setLancado]   = useState(false);
+
+  // Lê os dados salvos ou inicia vazio
+  const dState = drogasState[drogaSel] || { mlh:"", concCustom:"", lastEdit:"" };
+  const mlh = dState.mlh;
+  const concCustom = dState.concCustom;
+
+  // Atualiza persistindo a data
+  const setVal = (field, val) => {
+    onChangeDrogas({
+      ...drogasState,
+      [drogaSel]: {
+        ...dState,
+        [field]: val,
+        lastEdit: new Date().toLocaleString("pt-BR", {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})
+      }
+    });
+  };
 
   const conf = DROGAS_PROTOCOLO[drogaSel];
   const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined);
@@ -358,12 +373,7 @@ function DrogasCalculadora({ peso, onLancarDroga }) {
     return n.toFixed(2);
   };
 
-  // Mapeia grupo → campo da evolução
-  const CAMPO_EVOLUCAO = {
-    vasoativa: "cvDVA",
-    sedacao:   "nSeda",
-    analgesia: "nAnalg",
-  };
+  const CAMPO_EVOLUCAO = { vasoativa: "cvDVA", sedacao: "nSeda", analgesia: "nAnalg" };
 
   const lancarNaEvolucao = () => {
     if (!resultado || !onLancarDroga) return;
@@ -378,14 +388,14 @@ function DrogasCalculadora({ peso, onLancarDroga }) {
   return (
     <div>
       <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>
-        Informe a <strong style={{color:"#e2e8f0"}}>vazão da bomba (mL/h)</strong> — o sistema calcula a dose com base na diluição padrão do protocolo.
+        Informe a <strong style={{color:"#e2e8f0"}}>vazão da bomba (mL/h)</strong> — o valor ficará salvo na memória do leito.
       </div>
       {Object.entries(porGrupo).map(([grupo, drogas])=>(
         <div key={grupo} style={{marginBottom:10}}>
           <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:2,marginBottom:5,textTransform:"uppercase"}}>{GRUPOS[grupo]||grupo}</div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
             {drogas.map(([key,d])=>(
-              <button key={key} onClick={()=>{setDrogaSel(key);setMlh("");setConcCustom("");setEditandoConc(false);}}
+              <button key={key} onClick={()=>{setDrogaSel(key); setEditandoConc(false);}}
                 style={{padding:"5px 11px",borderRadius:20,border:`1px solid ${drogaSel===key?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:drogaSel===key?"rgba(56,189,248,0.14)":"rgba(255,255,255,0.02)",color:drogaSel===key?"#38bdf8":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,transition:"all 0.15s"}}>
                 {d.label}
               </button>
@@ -403,6 +413,13 @@ function DrogasCalculadora({ peso, onLancarDroga }) {
               {concCustom ? `★ ${concCustom} mcg/mL (personalizado)` : `= ${conf.concMcgML} mcg/mL`}
             </div>}
             {conf.concUIML && <div style={{fontSize:11,color:"#38bdf8",marginTop:1,fontFamily:mono}}>= {conf.concUIML} UI/mL</div>}
+            
+            {/* Exibe a data de atualização */}
+            {dState.lastEdit && (
+              <div style={{fontSize:10, color:"#94a3b8", marginTop:6, display:"flex", alignItems:"center", gap:4}}>
+                <span style={{color:"#38bdf8"}}>🕒</span> Atualizado em {dState.lastEdit}
+              </div>
+            )}
           </div>
           <button onClick={()=>setEditandoConc(e=>!e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>
             {editandoConc?"✕ Fechar":"✏️ Diluição personalizada"}
@@ -413,8 +430,8 @@ function DrogasCalculadora({ peso, onLancarDroga }) {
           <div style={{marginBottom:14,padding:"10px 12px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8}}>
             <div style={{fontSize:10,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:8}}>CONCENTRAÇÃO PERSONALIZADA (mcg/mL)</div>
             <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
-              <Field label="CONCENTRAÇÃO" value={concCustom} onChange={setConcCustom} type="number" placeholder={String(conf.concMcgML||"")} suffix="mcg/mL"/>
-              <button onClick={()=>setConcCustom("")} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:1}}>
+              <Field label="CONCENTRAÇÃO" value={concCustom} onChange={v => setVal("concCustom", v)} type="number" placeholder={String(conf.concMcgML||"")} suffix="mcg/mL"/>
+              <button onClick={()=>setVal("concCustom", "")} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:1}}>
                 Resetar
               </button>
             </div>
@@ -423,7 +440,7 @@ function DrogasCalculadora({ peso, onLancarDroga }) {
         )}
 
         <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-          <Field label="VAZÃO DA BOMBA (mL/h)" value={mlh} onChange={setMlh} type="number" placeholder="5.0" suffix="mL/h"/>
+          <Field label="VAZÃO DA BOMBA (mL/h)" value={mlh} onChange={v => setVal("mlh", v)} type="number" placeholder="5.0" suffix="mL/h"/>
           <div style={{flex:1,minWidth:150}}>
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DOSE RESULTANTE</div>
             <div style={{padding:"9px 14px",borderRadius:8,textAlign:"center",background:resBg,border:`1px solid ${resBorder}`,fontSize:16,fontWeight:700,color:resCor,minHeight:38,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -777,10 +794,30 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
   const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
 
-  const [volUrina, setVolUrina] = useState("");
-  const [hUrina,   setHUrina]   = useState("6");
+  // Lógica da Diurese Persistida
+  const dCalc = dados.diureseCalc || { vol:"", h:"", lastEdit:"" };
+  const setDCalc = (field, val) => {
+    onChange({
+      ...dados,
+      diureseCalc: {
+        ...dCalc,
+        [field]: val,
+        lastEdit: new Date().toLocaleString("pt-BR", {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})
+      }
+    });
+  };
+  const volUrina = dCalc.vol;
+  const hUrina = dCalc.h;
   const diurese = (volUrina && hUrina && dados.peso)
     ? (parseFloat(volUrina)/(parseFloat(hUrina)*parseFloat(dados.peso))).toFixed(2) : null;
+
+  const [lancadoDiur, setLancadoDiur] = useState(false);
+  const lancarNaEvolucaoDiur = () => {
+    if (!diurese || !onLancarDroga) return;
+    onLancarDroga(`Diurese: ${diurese} mL/kg/h (${volUrina}mL em ${hUrina}h)`, "rm24h");
+    setLancadoDiur(true);
+    setTimeout(()=>setLancadoDiur(false), 2000);
+  };
 
   return (
     <div>
@@ -827,8 +864,8 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
       {dados.peso && <>
         <SecTitle>CALCULADORA DE DIURESE</SecTitle>
         <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
-          <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={setVolUrina} type="number" placeholder="300"/>
-          <Field label="PERÍODO (horas)"     value={hUrina}   onChange={setHUrina}   type="number" placeholder="6"/>
+          <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={v=>setDCalc("vol",v)} type="number" placeholder="300"/>
+          <Field label="PERÍODO (horas)"     value={hUrina}   onChange={v=>setDCalc("h",v)}   type="number" placeholder="6"/>
           <div style={{ flex:1, minWidth:110 }}>
             <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>RESULTADO</div>
             <div style={{ padding:"8px 12px", borderRadius:8, textAlign:"center",
@@ -839,16 +876,35 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
             </div>
           </div>
         </div>
-        {diurese && (
-          <div style={{ marginTop:6, fontSize:12, color: parseFloat(diurese)<0.5?"#f87171":"#4ade80" }}>
-            {parseFloat(diurese)<0.5 ? "⚠️ Oligúria — diurese abaixo de 0,5 mL/kg/h. Avaliar volemia e função renal." : "✅ Diurese adequada (≥ 0,5 mL/kg/h)."}
+        
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", marginTop:8, gap:10 }}>
+          <div style={{ fontSize:12, color: diurese ? (parseFloat(diurese)<0.5?"#f87171":"#4ade80") : "#64748b" }}>
+            {diurese ? (parseFloat(diurese)<0.5 ? "⚠️ Oligúria — avaliar volemia e função renal." : "✅ Diurese adequada.") : "Informe os dados para calcular."}
+            {dCalc.lastEdit && <span style={{color:"#94a3b8", marginLeft:6}}>· 🕒 Atualizado em {dCalc.lastEdit}</span>}
           </div>
-        )}
+          
+          {diurese && (
+            <button onClick={lancarNaEvolucaoDiur} style={{
+              padding:"6px 14px",
+              background: lancadoDiur ? "rgba(34,197,94,0.15)" : "rgba(56,189,248,0.1)",
+              border: `1px solid ${lancadoDiur ? "#22c55e" : "#38bdf8"}`,
+              borderRadius:8, color: lancadoDiur ? "#22c55e" : "#38bdf8",
+              fontWeight:700, fontSize:12, cursor:"pointer", transition:"all 0.2s",
+            }}>
+              {lancadoDiur ? "✅ Lançado!" : "📋 Lançar na evolução (== ReMe)"}
+            </button>
+          )}
+        </div>
       </>}
 
       {dados.peso && <>
         <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga} />
+        <DrogasCalculadora 
+          peso={dados.peso} 
+          onLancarDroga={onLancarDroga}
+          drogasState={dados.drogasCalc || {}}
+          onChangeDrogas={dc => onChange({...dados, drogasCalc: dc})}
+        />
       </>}
 
       <DietaPanel dados={dados} onChange={onChange} />
@@ -1730,7 +1786,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit }) {
 
       <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} txtFn={txtReMe}>
         <Row>
-          <Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} placeholder="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — Diurese · HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} placeholder="Diurese 1,5 mL/kg/h / HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
           <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} placeholder="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col>
         </Row>
         <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
