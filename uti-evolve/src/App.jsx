@@ -919,7 +919,7 @@ function UploadAnalyzer({ onResult }) {
           ):null)}
           <button onClick={()=>{onResult(draft);setRev(false);}}
             style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
-            ✅ Confirmar e aplicar na evolução
+            📊 Confirmar e adicionar à Tabela Clínica
           </button>
         </div>
       )}
@@ -1125,37 +1125,41 @@ const TODOS_PARAMS = GRUPOS_LAB.flatMap(g=>g.params);
 
 function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   const hoje = new Date().toISOString().split("T")[0];
+  const [novaData, setNovaData] = useState("");
+  const [showAddCol, setShowAddCol] = useState(false);
 
-  const getDatas = () => {
-    const datas = [];
-    if (!leito.dataInternacao) { datas.push(hoje); return datas; }
-    let cur = new Date(leito.dataInternacao+"T00:00:00");
-    const fim = new Date(hoje+"T00:00:00");
-    while (cur <= fim) {
-      datas.push(cur.toISOString().split("T")[0]);
-      cur = new Date(cur.getTime()+86400000);
-    }
-    return datas.slice(-14);
-  };
+  // Só mostra colunas que têm dados, mais hoje sempre
+  const comDados = Object.keys(data).filter(d=>d.match(/^\d{4}-\d{2}-\d{2}$/)&&Object.keys(data[d]||{}).some(k=>k!=='_resumoIA'&&data[d][k]));
+  const datas = Array.from(new Set([...comDados, hoje])).sort();
 
-  const datas = getDatas();
   const getVal = (date, key) => data[date]?.[key] || "";
   const setVal = (date, key, val) =>
-    onChange({...data, [date]:{...(data[date]||{}),[key]:val}});
+    onChange({ ...data, [date]: { ...(data[date]||{}), [key]: val } });
+
+  const adicionarColuna = () => {
+    if (!novaData) return;
+    onChange({ ...data, [novaData]: data[novaData] || {} });
+    setShowAddCol(false); setNovaData("");
+  };
+
+  const removerColuna = (date) => {
+    if (date === hoje) return;
+    if (!confirm(`Remover coluna ${fmtData(date)}?`)) return;
+    const novo = { ...data }; delete novo[date]; onChange(novo);
+  };
 
   const fmtData = (ds) => { const [,m,d]=ds.split("-"); return `${d}/${m}`; };
 
   const gerarEvolucao = () => {
     const idxHoje = datas.indexOf(hoje);
-    const dtAnt = idxHoje>0 ? datas[idxHoje-1] : null;
+    const dtAnt = idxHoje > 0 ? datas[idxHoje-1] : null;
     const campos = {};
-
     const pegar = (keys) => keys.map(k=>{
       const par = TODOS_PARAMS.find(x=>x.key===k);
       const atu = getVal(hoje, k);
       const ant = dtAnt ? getVal(dtAnt, k) : "";
       if (!atu && !ant) return null;
-      const val = (ant && atu && ant!==atu) ? `${ant} > ${atu}` : (atu||ant);
+      const val = (ant&&atu&&ant!==atu) ? `${ant} > ${atu}` : (atu||ant);
       return `${par.label}: ${val}`;
     }).filter(Boolean).join(" / ");
 
@@ -1166,13 +1170,12 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
     const resStr = pegar(["po2","pco2"]);
     const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
 
-    if (heStr) campos.heLabs  = heStr;
-    if (rmStr) campos.rmLabs  = rmStr;
-    if (ctStr) campos.rm24h   = ctStr;
-    if (cvStr) campos.cvPerf  = cvStr;
-    if (resStr)campos.reGaso  = resStr;
-    if (tgStr) campos.tgEF    = tgStr;
-
+    if (heStr)  campos.heLabs = heStr;
+    if (rmStr)  campos.rmLabs = rmStr;
+    if (ctStr)  campos.rm24h  = ctStr;
+    if (cvStr)  campos.cvPerf = cvStr;
+    if (resStr) campos.reGaso = resStr;
+    if (tgStr)  campos.tgEF   = tgStr;
     onAplicarEvolucao(campos);
   };
 
@@ -1181,82 +1184,111 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
     color:isHoje?"#38bdf8":"#64748b",
     background:isHoje?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.03)",
     borderBottom:isHoje?"2px solid #38bdf8":"2px solid rgba(255,255,255,0.06)",
-    whiteSpace:"nowrap", textAlign:"center", minWidth:64, position:"sticky", top:0,
+    whiteSpace:"nowrap", textAlign:"center", minWidth:72, position:"sticky", top:0,
   });
-
-  const tdBase = { padding:"2px 3px", borderBottom:"1px solid rgba(255,255,255,0.04)", textAlign:"center" };
+  const tdBase = {padding:"2px 3px", borderBottom:"1px solid rgba(255,255,255,0.04)", textAlign:"center"};
 
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <div>
           <div style={{fontSize:15,fontWeight:700}}>Tabela Clínica</div>
-          <div style={{fontSize:12,color:"#64748b"}}>Registre os valores diários · coluna de hoje destacada · anterior → atual na evolução</div>
+          <div style={{fontSize:12,color:"#64748b"}}>Registre valores diários · depois aplique na evolução</div>
         </div>
-        <button onClick={gerarEvolucao} style={{padding:"9px 18px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:13,cursor:"pointer"}}>
-          📝 Aplicar na evolução
-        </button>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setShowAddCol(v=>!v)} style={{padding:"8px 14px",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:"#94a3b8",fontWeight:600,fontSize:12,cursor:"pointer"}}>
+            {showAddCol?"✕ Fechar":"+ Adicionar dia"}
+          </button>
+          <button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+            📝 Aplicar na evolução
+          </button>
+        </div>
       </div>
 
-      <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
-        <table style={{width:"100%",borderCollapse:"collapse"}}>
-          <thead>
-            <tr>
-              <th style={{...thStyle(false),textAlign:"left",minWidth:150,padding:"8px 12px",position:"sticky",left:0,zIndex:2}}>Parâmetro</th>
-              <th style={{...thStyle(false),minWidth:44}}>Un.</th>
-              {datas.map(d=>(
-                <th key={d} style={thStyle(d===hoje)}>
-                  {fmtData(d)}
-                  {d===hoje&&<div style={{fontSize:9,letterSpacing:0.5}}>HOJE</div>}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {GRUPOS_LAB.map(({grupo,params})=>(
-              <React.Fragment key={grupo}>
-                <tr>
-                  <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-                    {grupo}
-                  </td>
-                </tr>
-                {params.map(({key,label,unit})=>(
-                  <tr key={key}
-                    onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
-                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
-                    <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono}}>{unit}</td>
-                    {datas.map(d=>{
-                      const isHoje = d===hoje;
-                      const val    = getVal(d,key);
-                      const idxD   = datas.indexOf(d);
-                      const ant    = idxD>0 ? getVal(datas[idxD-1],key) : "";
-                      const subiu  = val&&ant&&val!==ant&&parseFloat(val)>parseFloat(ant);
-                      const caiu   = val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
-                      return (
-                        <td key={d} style={{...tdBase,background:isHoje?"rgba(56,189,248,0.03)":undefined}}>
-                          <input value={val} onChange={e=>setVal(d,key,e.target.value)}
-                            style={{width:"100%",background:"transparent",border:"none",color:isHoje&&subiu?"#f87171":isHoje&&caiu?"#34d399":"#e2e8f0",fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px",outline:"none",fontWeight:isHoje?700:400}}
-                            placeholder="—"
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
+      {showAddCol && (
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.18)",borderRadius:10}}>
+          <div style={{fontSize:12,color:"#64748b"}}>Data:</div>
+          <input type="date" value={novaData} onChange={e=>setNovaData(e.target.value)}
+            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,padding:"6px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+          <button onClick={adicionarColuna} disabled={!novaData}
+            style={{padding:"6px 14px",background:novaData?"rgba(56,189,248,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novaData?"#38bdf8":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novaData?"#38bdf8":"#475569",fontWeight:600,fontSize:12,cursor:novaData?"pointer":"default"}}>
+            Adicionar
+          </button>
+        </div>
+      )}
+
+      {datas.length === 0 ? (
+        <div style={{padding:40,textAlign:"center",color:"#334155",fontSize:13}}>
+          Nenhum dado ainda. Cole um print na aba 📤 ou adicione um dia manualmente.
+        </div>
+      ) : (
+        <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead>
+              <tr>
+                <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0d1424"}}>Parâmetro</th>
+                <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0d1424"}}>Un.</th>
+                {datas.map(d=>(
+                  <th key={d} style={thStyle(d===hoje)}>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                      <span>{fmtData(d)}</span>
+                      {d===hoje&&<span style={{fontSize:9,letterSpacing:0.5}}>HOJE</span>}
+                      {d!==hoje&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
+                    </div>
+                  </th>
                 ))}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              </tr>
+            </thead>
+            <tbody>
+              {GRUPOS_LAB.map(({grupo,params})=>(
+                <React.Fragment key={grupo}>
+                  <tr>
+                    <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      {grupo}
+                    </td>
+                  </tr>
+                  {params.map(({key,label,unit})=>(
+                    <tr key={key}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
+                      <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>{unit}</td>
+                      {datas.map(d=>{
+                        const isHoje=d===hoje;
+                        const val=getVal(d,key);
+                        const idxD=datas.indexOf(d);
+                        const ant=idxD>0?getVal(datas[idxD-1],key):"";
+                        const subiu=val&&ant&&val!==ant&&parseFloat(val)>parseFloat(ant);
+                        const caiu=val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
+                        return (
+                          <td key={d} style={{...tdBase,background:isHoje?"rgba(56,189,248,0.03)":undefined}}>
+                            <input value={val} onChange={e=>setVal(d,key,e.target.value)}
+                              style={{width:"100%",background:"transparent",border:"none",
+                                color:isHoje&&subiu?"#f87171":isHoje&&caiu?"#34d399":"#e2e8f0",
+                                fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
+                                fontWeight:isHoje?700:400}}
+                              placeholder="—"
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div style={{marginTop:8,fontSize:11,color:"#475569",display:"flex",gap:16,flexWrap:"wrap"}}>
         <span style={{color:"#34d399"}}>▼ verde = queda</span>
         <span style={{color:"#f87171"}}>▲ vermelho = subida</span>
-        <span>Clique em qualquer célula para editar</span>
+        <span>· Clique para editar · ✕ remove a coluna do dia</span>
       </div>
     </div>
   );
 }
+
 
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 const EVOLUCAO_VAZIA = {
@@ -1955,11 +1987,59 @@ export default function App() {
                   <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
                 <UploadAnalyzer onResult={d=>{
-                  const aplicado = aplicarIA(d);
+                  // Mapeia dados da IA para a tabela clínica do dia de hoje
+                  const hoje = new Date().toISOString().split("T")[0];
+                  const s = d.sistemas || {};
+                  const novosValores = {};
+
+                  // Tenta extrair valores numéricos dos textos gerados pela IA
+                  const extrair = (texto, patterns) => {
+                    if (!texto) return {};
+                    const vals = {};
+                    patterns.forEach(([key, regex]) => {
+                      const m = texto.match(regex);
+                      if (m) vals[key] = m[1];
+                    });
+                    return vals;
+                  };
+
+                  Object.assign(novosValores, extrair(s["Hemodinâmico"], [
+                    ["lact", /[Ll]actato[:\s]+([0-9.,]+)/],
+                  ]));
+                  Object.assign(novosValores, extrair(s["Renal/Metabólico"], [
+                    ["cr",   /[Cc]r[eatinina]*[:\s]+([0-9.,]+)/],
+                    ["ur",   /[Uu]r[eia]*[:\s]+([0-9.,]+)/],
+                    ["k",    /[Kk]\+?[:\s]+([0-9.,]+)/],
+                    ["na",   /[Nn]a\+?[:\s]+([0-9.,]+)/],
+                    ["mg",   /[Mm]g[:\s]+([0-9.,]+)/],
+                    ["cai",  /[Cc]ai[:\s]+([0-9.,]+)/],
+                    ["p",    /[Pp]\s[:\s]+([0-9.,]+)/],
+                    ["ph",   /pH[:\s]+([0-9.,]+)/],
+                    ["hco3", /[Bb]ic[arbonato]*[:\s]+([0-9.,]+)/],
+                    ["diur", /[Dd]iurese[:\s]+([0-9.,]+)/],
+                    ["bh",   /BH[:\s]+([+-]?[0-9.,]+)/],
+                  ]));
+                  Object.assign(novosValores, extrair(s["Hematológico/Infeccioso"], [
+                    ["hb",   /[Hh]b[:\s]+([0-9.,]+)/],
+                    ["plaq", /[Pp]laq[uetas]*[:\s]+([0-9.,]+)/],
+                    ["leuco",/[Ll]euco[citos]*[:\s]+([0-9.,]+)/],
+                  ]));
+                  Object.assign(novosValores, extrair(s["Respiratório"], [
+                    ["po2",  /pO2[:\s]+([0-9.,]+)/],
+                    ["pco2", /pCO2[:\s]+([0-9.,]+)/],
+                  ]));
+
+                  // Atualiza tabela com os valores extraídos + texto bruto no resumo do dia
+                  const dadosHoje = { _resumoIA: JSON.stringify(s), ...novosValores };
+                  setTabelaData(t=>({
+                    ...t,
+                    [leitoSelId]: {
+                      ...(t[leitoSelId]||{}),
+                      [hoje]: { ...(t[leitoSelId]?.[hoje]||{}), ...dadosHoje }
+                    }
+                  }));
                   setDadosIA(d);
-                  setEvolCampos(c=>({...c, ...aplicado}));
-                  setEvolVersion(v=>v+1);
-                  setTimeout(()=>setAba("evolucao"), 50);
+                  setTimeout(()=>setAba("tabela"), 50);
                 }}/>
               </div>
             ) : aba==="evolucao" ? (
