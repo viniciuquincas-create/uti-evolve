@@ -944,7 +944,11 @@ function UploadAnalyzer({ onResult }) {
           )}
           {draft.dataColeta && (
             <div style={{background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"#4ade80",display:"flex",alignItems:"center",gap:8}}>
-              📅 <strong>Data de coleta detectada:</strong> {draft.dataColeta.split('-').reverse().join('/')} — os valores serão lançados nesta coluna da tabela
+              📅 <strong>Data/hora de coleta detectada:</strong> {(() => {
+                const [datePart, timePart] = draft.dataColeta.split('T');
+                const [y,m,d] = datePart.split('-');
+                return `${d}/${m}/${y}${timePart ? ` às ${timePart}h` : ''}`;
+              })()} — os valores serão lançados nesta coluna da tabela
             </div>
           )}
           <div style={{fontSize:12,color:"#94a3b8",marginBottom:8,fontFamily:mono}}>REVISÃO — edite se necessário</div>
@@ -1231,7 +1235,17 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
     const novo = { ...data }; delete novo[date]; onChange(novo);
   };
 
-  const fmtData = (ds) => { const [,m,d]=ds.split("-"); return `${d}/${m}`; };
+  // Formata chave de data (pode ser "2026-04-23" ou "2026-04-23T05:15")
+  const fmtData = (ds) => {
+    if (!ds) return "";
+    const [datePart, timePart] = ds.split("T");
+    const [,m,d] = datePart.split("-");
+    if (timePart) return `${d}/${m}\n${timePart}h`;
+    return `${d}/${m}`;
+  };
+
+  // Compara datas ignorando hora para determinar "hoje"
+  const isHoje = (ds) => ds === hoje || ds.startsWith(hoje + "T");
 
   const gerarEvolucao = () => {
     const idxHoje = datas.indexOf(hoje);
@@ -1264,12 +1278,12 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
     onAplicarEvolucao(campos);
   };
 
-  const thStyle = (isHoje) => ({
+  const thStyle = (ativo) => ({
     padding:"6px 8px", fontSize:11, fontFamily:mono, letterSpacing:1,
-    color:isHoje?"#38bdf8":"#64748b",
-    background:isHoje?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.03)",
-    borderBottom:isHoje?"2px solid #38bdf8":"2px solid rgba(255,255,255,0.06)",
-    whiteSpace:"nowrap", textAlign:"center", minWidth:72, position:"sticky", top:0,
+    color:ativo?"#38bdf8":"#64748b",
+    background:ativo?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.03)",
+    borderBottom:ativo?"2px solid #38bdf8":"2px solid rgba(255,255,255,0.06)",
+    whiteSpace:"pre", textAlign:"center", minWidth:72, position:"sticky", top:0,
   });
   const tdBase = {padding:"2px 3px", borderBottom:"1px solid rgba(255,255,255,0.04)", textAlign:"center"};
 
@@ -1314,11 +1328,13 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
                 <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0d1424"}}>Parâmetro</th>
                 <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0d1424"}}>Un.</th>
                 {datas.map(d=>(
-                  <th key={d} style={thStyle(d===hoje)}>
+                  <th key={d} style={thStyle(isHoje(d))}>
                     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-                      <span>{fmtData(d)}</span>
-                      {d===hoje&&<span style={{fontSize:9,letterSpacing:0.5}}>HOJE</span>}
-                      {d!==hoje&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
+                      {fmtData(d).split('\n').map((linha,i)=>(
+                        <span key={i} style={{fontSize:i===1?10:11}}>{linha}</span>
+                      ))}
+                      {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#38bdf8"}}>HOJE</span>}
+                      {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
                     </div>
                   </th>
                 ))}
@@ -1339,19 +1355,19 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
                       <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
                       <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>{unit}</td>
                       {datas.map(d=>{
-                        const isHoje=d===hoje;
+                        const ativo=isHoje(d);
                         const val=getVal(d,key);
                         const idxD=datas.indexOf(d);
                         const ant=idxD>0?getVal(datas[idxD-1],key):"";
                         const subiu=val&&ant&&val!==ant&&parseFloat(val)>parseFloat(ant);
                         const caiu=val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
                         return (
-                          <td key={d} style={{...tdBase,background:isHoje?"rgba(56,189,248,0.03)":undefined}}>
+                          <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
                             <input value={val} onChange={e=>setVal(d,key,e.target.value)}
                               style={{width:"100%",background:"transparent",border:"none",
-                                color:isHoje&&subiu?"#f87171":isHoje&&caiu?"#34d399":"#e2e8f0",
+                                color:ativo&&subiu?"#f87171":ativo&&caiu?"#34d399":"#e2e8f0",
                                 fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
-                                fontWeight:isHoje?700:400}}
+                                fontWeight:ativo?700:400}}
                               placeholder="—"
                             />
                           </td>
@@ -2151,28 +2167,35 @@ export default function App() {
 
                   // Extras com categoria selecionada → também vai para a tabela
                   const EXTRAS_PARA_KEY = {
-                    'magnésio':'mg','magnesio':'mg','mg':'mg',
-                    'cálcio':'cai','calcio':'cai','cal':'cai','cai':'cai',
-                    'pcr':'pcr_extra', // não tem key na tabela, ignora
+                    'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht',
+                    'leucócito':'leuco','leucocito':'leuco',
+                    'neutrófilo':'neut','neutrofilo':'neut',
+                    'bastão':'bast','bastao':'bast','bastonete':'bast',
+                    'linfócito':'linf','linfocito':'linf',
+                    'plaqueta':'plaq',
+                    'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa',
+                    'creatinina':'cr','ureia':'ur','uréia':'ur',
+                    'sódio':'na','sodio':'na','potássio':'k','potassio':'k',
+                    'magnésio':'mg','magnesio':'mg',
+                    'cálcio':'cai','calcio':'cai',
                     'fósforo':'p','fosforo':'p',
-                    'troponina':'trop','bnp':'bnp',
-                    'tgo':'tgo','tgp':'tgp','albumina':'alb',
-                    'procalcitonina':'pct_extra', // não tem key na tabela
+                    'hco3':'hco3','bicarbonato':'hco3',
+                    'lactato':'lact','troponina':'trop','bnp':'bnp',
+                    'po2':'po2','pco2':'pco2',
+                    'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp',
+                    'albumina':'alb','ggt':'ggt',
+                    'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir',
+                    'diurese':'diur','balanço':'bh','balanco':'bh',
                   };
                   (d.extras||[]).forEach(ex=>{
                     const cat = ex.categoria || ex.sugestao;
-                    if (!cat) return;
+                    if (!cat) return; // só lança se categoria foi selecionada
                     const nl = (ex.nome||'').toLowerCase();
-                    // Tenta extrair número do valor
                     const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
                     if (!numMatch) return;
                     const numVal = numMatch[1].replace(',','.');
-                    // Encontra key da tabela pelo nome do exame
                     for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
-                      if (nl.includes(k) && !tkey.includes('extra')) {
-                        novos[tkey] = numVal;
-                        break;
-                      }
+                      if (nl.includes(k)) { novos[tkey] = numVal; break; }
                     }
                   });
 
