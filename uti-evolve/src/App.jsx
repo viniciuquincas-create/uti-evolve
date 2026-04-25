@@ -1215,8 +1215,14 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   const [novaData, setNovaData] = useState("");
   const [showAddCol, setShowAddCol] = useState(false);
 
-  // Só mostra colunas que têm dados, mais hoje sempre
-  const comDados = Object.keys(data).filter(d=>d.match(/^\d{4}-\d{2}-\d{2}$/)&&Object.keys(data[d]||{}).some(k=>k!=='_resumoIA'&&data[d][k]));
+  // Mostra colunas com dados OU marcadas como visíveis, mais hoje sempre
+  // Aceita tanto "2026-04-23" quanto "2026-04-23T05:15"
+  const comDados = Object.keys(data).filter(d => {
+    if (!d.match(/^\d{4}-\d{2}-\d{2}/)) return false; // ignora chaves que não são datas
+    const vals = data[d] || {};
+    // mostra se tem qualquer valor, ou se foi marcada como visível
+    return vals._visivel || Object.entries(vals).some(([k,v]) => k !== '_visivel' && v);
+  });
   const datas = Array.from(new Set([...comDados, hoje])).sort();
 
   const getVal = (date, key) => data[date]?.[key] || "";
@@ -1225,7 +1231,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
 
   const adicionarColuna = () => {
     if (!novaData) return;
-    onChange({ ...data, [novaData]: data[novaData] || {} });
+    // Marca como visível mesmo vazia
+    onChange({ ...data, [novaData]: { ...(data[novaData]||{}), _visivel: true } });
     setShowAddCol(false); setNovaData("");
   };
 
@@ -1248,12 +1255,15 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   const isHoje = (ds) => ds === hoje || ds.startsWith(hoje + "T");
 
   const gerarEvolucao = () => {
-    const idxHoje = datas.indexOf(hoje);
+    // Encontra a coluna mais recente de hoje (pode ter hora: "2026-04-25T05:15")
+    const datasHoje = datas.filter(d => isHoje(d)).sort();
+    const chaveHoje = datasHoje[datasHoje.length - 1] || hoje;
+    const idxHoje = datas.indexOf(chaveHoje);
     const dtAnt = idxHoje > 0 ? datas[idxHoje-1] : null;
     const campos = {};
     const pegar = (keys) => keys.map(k=>{
       const abrev = ABREV[k] || TODOS_PARAMS.find(x=>x.key===k)?.label || k;
-      const atuRaw = getVal(hoje, k);
+      const atuRaw = getVal(chaveHoje, k);
       const antRaw = dtAnt ? getVal(dtAnt, k) : "";
       if (!atuRaw && !antRaw) return null;
       const atu = fmtVal(k, atuRaw);
