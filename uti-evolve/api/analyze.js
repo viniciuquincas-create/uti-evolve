@@ -17,13 +17,13 @@ export default async function handler(req, res) {
     const prompt = `Analise esta imagem de exames laboratoriais ou controles de UTI.
 
 IGNORE: nomes de pacientes, datas de nascimento, prontuários, médicos, assinaturas, carimbos.
-Extraia APENAS valores clínicos e a DATA DA COLETA se visível.
+Extraia APENAS valores clínicos e a DATA E HORA DA COLETA se visível.
 
-IMPORTANTE - DATA DA COLETA:
-- Procure por textos como "Coleta:", "Colhido em:", "Data coleta:", "Data do pedido:"
-- Formato brasileiro: DD/MM/AAAA
-- Converta para formato ISO: AAAA-MM-DD
-- Se não encontrar, deixe DATA vazio
+IMPORTANTE - DATA E HORA DA COLETA:
+- Procure por "Coleta:", "Colhido em:", "Data coleta:", textos com data próximos a horários
+- Extraia data E hora se disponível (ex: "23/04/2026 05:15")
+- Converta para: DATA:AAAA-MM-DD e HORA:HH:MM
+- Se não encontrar, não inclua as linhas DATA e HORA
 
 Categorias:
 - RM: Creatinina, Ureia, Sódio, Potássio, Magnésio, Cálcio iônico, Fósforo, pH, HCO3, Lactato, Glicemia, PCR, BH, Diurese
@@ -31,18 +31,18 @@ Categorias:
 - H: FC, PA, PAM, DVA, Troponina, BNP
 - R: FR, Sat, FiO2, PEEP, pO2, pCO2
 - GI: TGO, TGP, Bilirrubinas, Albumina, GGT, FA
+- EX: exames não categorizados acima
 
-Responda SOMENTE com linhas no formato CHAVE:VALOR:
+Responda SOMENTE com linhas CHAVE:VALOR:
 DATA:AAAA-MM-DD
+HORA:HH:MM
 RM:Cr X / Ur X / K X / Na X / Mg X / Ca X
 HI:Hb X / Ht X% / Leuco Xk / Bastões X% / Plaq Xk
-H:FC X / PAM X
-R:pO2 X / pCO2 X
-GI:TGO X / TGP X
-EX:NomeExame=Valor (para exames não categorizados acima)
+EX:NomeExame=Valor
 
-Exemplo real:
+Exemplo:
 DATA:2026-04-23
+HORA:05:15
 HI:Hb 7.5 / Ht 24.2% / Leuco 17.65k / Bastões 4% / Neutrófilos 82% / Plaq 251k
 EX:IgG=689 mg/dL
 EX:Procalcitonina=1.95 ng/mL`;
@@ -83,11 +83,11 @@ EX:Procalcitonina=1.95 ng/mL`;
     if (!text.trim()) {
       return res.status(200).json({
         sistemas: {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},
-        extras: [], resumo: '[SEM RESPOSTA]', dataColeta: null
+        extras: [], resumo: '[SEM RESPOSTA]', dataColeta: null, horaColeta: null
       });
     }
 
-    const MAP = {
+    const MAP_SISTEMA = {
       'N': 'Neurológico', 'R': 'Respiratório', 'H': 'Hemodinâmico',
       'RM': 'Renal/Metabólico', 'GI': 'Gastrointestinal',
       'HI': 'Hematológico/Infeccioso', 'PA': 'Pele/Acessos'
@@ -101,38 +101,33 @@ EX:Procalcitonina=1.95 ng/mL`;
       'igg':'Hematológico/Infeccioso','imunoglobulina':'Hematológico/Infeccioso',
       'troponina':'Hemodinâmico','bnp':'Hemodinâmico',
       'tgo':'Gastrointestinal','tgp':'Gastrointestinal','bilirrubina':'Gastrointestinal',
-      'albumina':'Gastrointestinal','ggt':'Gastrointestinal','amilase':'Gastrointestinal',
+      'albumina':'Gastrointestinal','ggt':'Gastrointestinal',
     };
 
     const sistemas = {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""};
     const extras = [];
     let dataColeta = null;
+    let horaColeta = null;
 
     for (const line of text.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-
       const colonIdx = trimmed.indexOf(':');
       if (colonIdx <= 0) continue;
-
       const key = trimmed.slice(0, colonIdx).trim().toUpperCase();
       const val = trimmed.slice(colonIdx + 1).trim();
 
-      // Data de coleta
       if (key === 'DATA') {
-        // Valida formato AAAA-MM-DD
-        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
-          dataColeta = val;
-        }
-        // Tenta converter DD/MM/AAAA
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) dataColeta = val;
         else if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
-          const [d, m, y] = val.split('/');
-          dataColeta = `${y}-${m}-${d}`;
+          const [d,m,y] = val.split('/'); dataColeta = `${y}-${m}-${d}`;
         }
         continue;
       }
-
-      // Extras
+      if (key === 'HORA') {
+        if (/^\d{2}:\d{2}/.test(val)) horaColeta = val.slice(0,5);
+        continue;
+      }
       if (key === 'EX') {
         const eqIdx = val.indexOf('=');
         if (eqIdx > 0) {
@@ -140,26 +135,24 @@ EX:Procalcitonina=1.95 ng/mL`;
           const valor = val.slice(eqIdx + 1).trim();
           const nl = nome.toLowerCase();
           let sugestao = '';
-          for (const [k, v] of Object.entries(AUTO_CAT)) {
+          for (const [k,v] of Object.entries(AUTO_CAT)) {
             if (nl.includes(k)) { sugestao = v; break; }
           }
           extras.push({ nome, valor, sugestao });
         }
         continue;
       }
-
-      // Sistemas
-      if (MAP[key] && val) {
-        sistemas[MAP[key]] = val;
-      }
+      if (MAP_SISTEMA[key] && val) sistemas[MAP_SISTEMA[key]] = val;
     }
 
-    console.log('DATA COLETA:', dataColeta);
-    console.log('HI:', sistemas['Hematológico/Infeccioso'].slice(0, 80));
-    console.log('RM:', sistemas['Renal/Metabólico'].slice(0, 80));
-    console.log('EXTRAS:', extras.map(e => e.nome));
+    // Monta chave com data+hora
+    let dataColeta_final = dataColeta;
+    if (dataColeta && horaColeta) {
+      dataColeta_final = `${dataColeta}T${horaColeta}`;
+    }
 
-    return res.status(200).json({ sistemas, extras, resumo: '', dataColeta });
+    console.log('DATA:', dataColeta_final, '| HI:', sistemas['Hematológico/Infeccioso'].slice(0,60));
+    return res.status(200).json({ sistemas, extras, resumo: '', dataColeta: dataColeta_final, horaColeta });
 
   } catch (err) {
     console.error('ERROR:', err.message);
