@@ -931,9 +931,9 @@ function UploadAnalyzer({ onResult }) {
                 <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
                   <div style={{flex:2,minWidth:140,fontSize:13,color:"#e2e8f0",fontWeight:600}}>{ex.nome}: <span style={{color:"#fcd34d"}}>{ex.valor}</span></div>
                   <select value={ex.categoria||ex.sugestao||""} onChange={e=>setDraft(d=>({...d,extras:d.extras.map((x,j)=>j===i?{...x,categoria:e.target.value}:x)}))}
-                    style={{flex:1,minWidth:160,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
-                    <option value="">— Ignorar —</option>
-                    {SISTEMAS.map(s=><option key={s} value={s}>{s}</option>)}
+                    style={{flex:1,minWidth:160,background:"#1e2a3a",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
+                    <option value="" style={{background:"#1e2a3a",color:"#94a3b8"}}>— Ignorar —</option>
+                    {SISTEMAS.map(s=><option key={s} value={s} style={{background:"#1e2a3a",color:"#e2e8f0"}}>{s}</option>)}
                   </select>
                 </div>
               ))}
