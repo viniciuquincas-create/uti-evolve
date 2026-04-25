@@ -908,15 +908,20 @@ function UploadAnalyzer({ onResult }) {
       {loading && <div style={{textAlign:"center",color:"#38bdf8",padding:16,fontSize:14}}>⏳ Analisando imagem com IA…</div>}
       {draft && !draft.error && rev && (
         <div>
-          {draft.resumo && <div style={{background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#7dd3fc"}}><strong>Resumo IA:</strong> {draft.resumo}</div>}
+          {draft.resumo && !draft.resumo.startsWith('{') && !draft.resumo.startsWith('[ERRO') && (
+            <div style={{background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#7dd3fc"}}>
+              <strong>Resumo IA:</strong> {draft.resumo}
+            </div>
+          )}
           <div style={{fontSize:12,color:"#94a3b8",marginBottom:8,fontFamily:mono}}>REVISÃO — edite se necessário</div>
-          {SISTEMAS.map(s=>draft.sistemas?.[s]?(
+          {SISTEMAS.map(s=>(
             <div key={s} style={{marginBottom:10}}>
               <div style={{fontSize:11,color:"#38bdf8",marginBottom:4,fontFamily:mono}}>{s.toUpperCase()}</div>
-              <textarea value={draft.sistemas[s]} onChange={e=>setDraft(d=>({...d,sistemas:{...d.sistemas,[s]:e.target.value}}))}
-                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,resize:"vertical",fontFamily:"inherit",minHeight:56,boxSizing:"border-box"}}/>
+              <textarea value={draft.sistemas?.[s]||""} onChange={e=>setDraft(d=>({...d,sistemas:{...d.sistemas,[s]:e.target.value}}))}
+                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,resize:"vertical",fontFamily:"inherit",minHeight:46,boxSizing:"border-box"}}
+                placeholder={`Dados de ${s}...`}/>
             </div>
-          ):null)}
+          ))}
           <button onClick={()=>{onResult(draft);setRev(false);}}
             style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
             📊 Confirmar e adicionar à Tabela Clínica
@@ -1987,55 +1992,54 @@ export default function App() {
                   <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
                 <UploadAnalyzer onResult={d=>{
-                  // Mapeia dados da IA para a tabela clínica do dia de hoje
                   const hoje = new Date().toISOString().split("T")[0];
                   const s = d.sistemas || {};
-                  const novosValores = {};
 
-                  // Tenta extrair valores numéricos dos textos gerados pela IA
+                  // Extrai valores numéricos dos textos por sistema
                   const extrair = (texto, patterns) => {
                     if (!texto) return {};
                     const vals = {};
                     patterns.forEach(([key, regex]) => {
                       const m = texto.match(regex);
-                      if (m) vals[key] = m[1];
+                      if (m?.[1]) vals[key] = m[1].replace(',','.');
                     });
                     return vals;
                   };
 
-                  Object.assign(novosValores, extrair(s["Hemodinâmico"], [
-                    ["lact", /[Ll]actato[:\s]+([0-9.,]+)/],
+                  const novos = {};
+                  Object.assign(novos, extrair(s["Hemodinâmico"]||"", [
+                    ["lact", /[Ll]actato[:\s]+([0-9,]+)/],
                   ]));
-                  Object.assign(novosValores, extrair(s["Renal/Metabólico"], [
-                    ["cr",   /[Cc]r[eatinina]*[:\s]+([0-9.,]+)/],
-                    ["ur",   /[Uu]r[eia]*[:\s]+([0-9.,]+)/],
-                    ["k",    /[Kk]\+?[:\s]+([0-9.,]+)/],
-                    ["na",   /[Nn]a\+?[:\s]+([0-9.,]+)/],
-                    ["mg",   /[Mm]g[:\s]+([0-9.,]+)/],
-                    ["cai",  /[Cc]ai[:\s]+([0-9.,]+)/],
-                    ["p",    /[Pp]\s[:\s]+([0-9.,]+)/],
-                    ["ph",   /pH[:\s]+([0-9.,]+)/],
-                    ["hco3", /[Bb]ic[arbonato]*[:\s]+([0-9.,]+)/],
-                    ["diur", /[Dd]iurese[:\s]+([0-9.,]+)/],
-                    ["bh",   /BH[:\s]+([+-]?[0-9.,]+)/],
+                  Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [
+                    ["cr",   /[Cc]r[eatinina\s]*[:/\s]+([0-9,]+)/],
+                    ["ur",   /[Uu]r[eia\s]*[:/\s]+([0-9,]+)/],
+                    ["k",    /\bK[+\s]*[:/\s]+([0-9,]+)/],
+                    ["na",   /\bNa[+\s]*[:/\s]+([0-9,]+)/],
+                    ["mg",   /\bMg[:\s]+([0-9,]+)/],
+                    ["cai",  /[Cc]ai[:\s]+([0-9,]+)/],
+                    ["p",    /\bP[:\s]+([0-9,]+)/],
+                    ["ph",   /\bpH[:\s]+([0-9,]+)/],
+                    ["hco3", /[Bb]ic[:\s]+([0-9,]+)/],
+                    ["diur", /[Dd]iurese[:\s]+([0-9,]+)/],
+                    ["bh",   /\bBH[:\s]+([+-]?[0-9,]+)/],
                   ]));
-                  Object.assign(novosValores, extrair(s["Hematológico/Infeccioso"], [
-                    ["hb",   /[Hh]b[:\s]+([0-9.,]+)/],
-                    ["plaq", /[Pp]laq[uetas]*[:\s]+([0-9.,]+)/],
-                    ["leuco",/[Ll]euco[citos]*[:\s]+([0-9.,]+)/],
+                  Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [
+                    ["hb",    /\bHb[:\s]+([0-9,]+)/],
+                    ["ht",    /\bHt[:\s]+([0-9,]+)/],
+                    ["leuco", /[Ll]euco[citos\s]*[:/\s]+([0-9,]+)/],
+                    ["bast",  /[Bb]ast[ões\s]*[:/\s]+([0-9,]+)/],
+                    ["plaq",  /[Pp]laq[uetas\s]*[:/\s]+([0-9,]+)/],
                   ]));
-                  Object.assign(novosValores, extrair(s["Respiratório"], [
-                    ["po2",  /pO2[:\s]+([0-9.,]+)/],
-                    ["pco2", /pCO2[:\s]+([0-9.,]+)/],
+                  Object.assign(novos, extrair(s["Respiratório"]||"", [
+                    ["po2",  /pO2[:\s]+([0-9,]+)/],
+                    ["pco2", /pCO2[:\s]+([0-9,]+)/],
                   ]));
 
-                  // Atualiza tabela com os valores extraídos + texto bruto no resumo do dia
-                  const dadosHoje = { _resumoIA: JSON.stringify(s), ...novosValores };
                   setTabelaData(t=>({
                     ...t,
                     [leitoSelId]: {
                       ...(t[leitoSelId]||{}),
-                      [hoje]: { ...(t[leitoSelId]?.[hoje]||{}), ...dadosHoje }
+                      [hoje]: { ...(t[leitoSelId]?.[hoje]||{}), ...novos }
                     }
                   }));
                   setDadosIA(d);
