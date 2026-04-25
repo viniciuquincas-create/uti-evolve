@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import React from "react";
 import { supabase } from './supabase.js';
 
 const SISTEMAS = [
@@ -586,8 +587,13 @@ function DispCard({ label, icone, alertaDias, disp, onUpdate, onRemove }) {
   );
 }
 
-function DispositivosPanel({ dispositivos={}, onChange }) {
+function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
   const [showPicker, setShowPicker] = useState(false);
+
+  const getAlerta = (key) => {
+    const map = {cvc:"cvc",dialise:"dialise",dreno:"dreno",tot:"tot",tqt:"tqt",svd:"svd",pai:"pai",sng:"sng"};
+    return alertas[map[key]] ?? DISP_SINGULAR.find(d=>d.key===key)?.alertaDias ?? DISP_MULTIPLO.find(d=>d.key===key)?.alertaDias ?? 99;
+  };
 
   // helpers
   const novoDisp = (siteDefault="") => ({
@@ -640,7 +646,7 @@ function DispositivosPanel({ dispositivos={}, onChange }) {
       )}
 
       {/* Múltiplos */}
-      {DISP_MULTIPLO.map(({key,label,icone,siteDefault,alertaDias})=>{
+      {DISP_MULTIPLO.map(({key,label,icone})=>{
         const lista = getMultiplos(key);
         if (!lista.length) return null;
         return (
@@ -648,7 +654,7 @@ function DispositivosPanel({ dispositivos={}, onChange }) {
             {lista.map((disp,i)=>(
               <DispCard key={disp.id}
                 label={lista.length>1?`${label} ${i+1}`:label}
-                icone={icone} alertaDias={alertaDias} disp={disp}
+                icone={icone} alertaDias={getAlerta(key)} disp={disp}
                 onUpdate={(f,v)=>updMultiplo(key,disp.id,f,v)}
                 onRemove={()=>retirarMultiplo(key,disp.id)}
               />
@@ -658,11 +664,11 @@ function DispositivosPanel({ dispositivos={}, onChange }) {
       })}
 
       {/* Singulares */}
-      {DISP_SINGULAR.map(({key,label,icone,siteDefault,alertaDias})=>{
+      {DISP_SINGULAR.map(({key,label,icone})=>{
         if (!isSingularAtivo(key)) return null;
         const disp = dispositivos[key];
         return (
-          <DispCard key={key} label={label} icone={icone} alertaDias={alertaDias} disp={disp}
+          <DispCard key={key} label={label} icone={icone} alertaDias={getAlerta(key)} disp={disp}
             onUpdate={(f,v)=>updSingular(key,f,v)}
             onRemove={()=>retirarSingular(key)}
           />
@@ -736,7 +742,7 @@ function DispositivosPanel({ dispositivos={}, onChange }) {
 }
 
 // ── PacientePanel ─────────────────────────────────────────────────────────────
-function PacientePanel({ dados, onChange }) {
+function PacientePanel({ dados, onChange, config={} }) {
   const dias  = diasInternacao(dados.dataInternacao);
   const pp    = pesoPredito(dados.altura, dados.sexo);
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
@@ -821,6 +827,12 @@ function PacientePanel({ dados, onChange }) {
       <DispositivosPanel
         dispositivos={dados.dispositivos||{}}
         onChange={disps=>onChange({...dados,dispositivos:disps})}
+        alertas={{
+          cvc:config.alertaCVC||7, pai:config.alertaPAI||7,
+          svd:config.alertaSVD||14, dialise:config.alertaDialise||14,
+          tot:config.alertaTOT||99, tqt:config.alertaTQT||99,
+          sng:config.alertaSNG||21, dreno:config.alertaDreno||21,
+        }}
       />
 
       <ProcedimentosPanel
@@ -996,6 +1008,253 @@ function SysBlock({ sigla, label, color="#38bdf8", preview, children }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── ConfigPanel ───────────────────────────────────────────────────────────────
+const DISP_CONFIG_ITEMS = [
+  { key:"alertaCVC",    label:"Cateter Venoso Central",    icone:"🩸" },
+  { key:"alertaPAI",    label:"Cateter Arterial (PAI)",    icone:"📈" },
+  { key:"alertaSVD",    label:"Sonda Vesical de Demora",   icone:"💧" },
+  { key:"alertaDialise",label:"Cateter de Diálise",        icone:"🔴" },
+  { key:"alertaTOT",    label:"Tubo Orotraqueal (TOT)",    icone:"🫁" },
+  { key:"alertaTQT",    label:"Traqueostomia (TQT)",       icone:"🫁" },
+  { key:"alertaSNG",    label:"Sonda Naso/Nasoenteral",    icone:"🔧" },
+  { key:"alertaDreno",  label:"Dreno",                     icone:"🏥" },
+];
+
+function ConfigPanel({ config, onChange, onVoltar }) {
+  const upd = (key, val) => onChange({...config, [key]: parseInt(val)||0});
+
+  return (
+    <div style={{maxWidth:560}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button onClick={onVoltar} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",cursor:"pointer",fontSize:12,padding:"6px 12px"}}>← Voltar</button>
+        <div>
+          <div style={{fontSize:15,fontWeight:700}}>⚙️ Configurações</div>
+          <div style={{fontSize:12,color:"#64748b"}}>Personalize os alertas de revisão de dispositivos invasivos</div>
+        </div>
+      </div>
+
+      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
+          <div style={{fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:2}}>ALERTAS DE DISPOSITIVOS (dias)</div>
+          <div style={{fontSize:11,color:"#64748b",marginTop:2}}>O dispositivo ficará vermelho ⚠️ após este número de dias</div>
+        </div>
+        {DISP_CONFIG_ITEMS.map(({key,label,icone})=>(
+          <div key={key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+            <span style={{fontSize:18,width:24}}>{icone}</span>
+            <div style={{flex:1,fontSize:13,color:"#cbd5e1"}}>{label}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <button onClick={()=>upd(key,Math.max(1,(config[key]||7)-1))} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+              <div style={{textAlign:"center",minWidth:60}}>
+                <div style={{fontSize:18,fontWeight:700,color:"#38bdf8",fontFamily:mono}}>{config[key]||7}</div>
+                <div style={{fontSize:10,color:"#475569",fontFamily:mono}}>{(config[key]||7)===99?"sem limite":"dias"}</div>
+              </div>
+              <button onClick={()=>upd(key,Math.min(99,(config[key]||7)+1))} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+            </div>
+            {config[key]===99 && <span style={{fontSize:10,color:"#475569",fontFamily:mono}}>∞</span>}
+          </div>
+        ))}
+      </div>
+
+      <div style={{marginTop:12,padding:"10px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,fontSize:12,color:"#fcd34d"}}>
+        💡 Dica: para dispositivos sem limite de troca (TOT, TQT), deixe em 99 dias — o alerta não será disparado.
+      </div>
+    </div>
+  );
+}
+
+// ── TabelaClinica ─────────────────────────────────────────────────────────────
+const GRUPOS_LAB = [
+  { grupo:"🩸 Hematológico", params:[
+    {key:"hb",    label:"Hemoglobina",      unit:"g/dL"},
+    {key:"ht",    label:"Hematócrito",      unit:"%"},
+    {key:"leuco", label:"Leucócitos",       unit:"mil/mm³"},
+    {key:"neut",  label:"Neutrófilos",      unit:"%"},
+    {key:"bast",  label:"Bastões",          unit:"%"},
+    {key:"linf",  label:"Linfócitos",       unit:"%"},
+    {key:"plaq",  label:"Plaquetas",        unit:"mil/mm³"},
+    {key:"rni",   label:"RNI",              unit:""},
+    {key:"ttpa",  label:"TTPA",             unit:"s"},
+    {key:"fibri", label:"Fibrinogênio",     unit:"mg/dL"},
+  ]},
+  { grupo:"🫘 Renal / Metabólico", params:[
+    {key:"cr",    label:"Creatinina",       unit:"mg/dL"},
+    {key:"ur",    label:"Ureia",            unit:"mg/dL"},
+    {key:"na",    label:"Sódio",            unit:"mEq/L"},
+    {key:"k",     label:"Potássio",         unit:"mEq/L"},
+    {key:"mg",    label:"Magnésio",         unit:"mg/dL"},
+    {key:"cai",   label:"Cálcio iônico",    unit:"mmol/L"},
+    {key:"p",     label:"Fósforo",          unit:"mg/dL"},
+    {key:"ph",    label:"pH",               unit:""},
+    {key:"hco3",  label:"HCO3",             unit:"mEq/L"},
+  ]},
+  { grupo:"❤️ Cardiovascular", params:[
+    {key:"trop",  label:"Troponina",        unit:"ng/mL"},
+    {key:"bnp",   label:"BNP",              unit:"pg/mL"},
+    {key:"ntpro", label:"NT-proBNP",        unit:"pg/mL"},
+    {key:"be",    label:"BE",               unit:"mEq/L"},
+    {key:"lact",  label:"Lactato",          unit:"mmol/L"},
+  ]},
+  { grupo:"🫁 Respiratório", params:[
+    {key:"po2",   label:"pO2",              unit:"mmHg"},
+    {key:"pco2",  label:"pCO2",             unit:"mmHg"},
+  ]},
+  { grupo:"🫀 TGI / Hepático", params:[
+    {key:"tgo",   label:"TGO (AST)",        unit:"U/L"},
+    {key:"tgp",   label:"TGP (ALT)",        unit:"U/L"},
+    {key:"bttot", label:"Bili. Total",      unit:"mg/dL"},
+    {key:"btdir", label:"Bili. Direta",     unit:"mg/dL"},
+    {key:"btind", label:"Bili. Indireta",   unit:"mg/dL"},
+    {key:"falc",  label:"Fosf. Alcalina",   unit:"U/L"},
+    {key:"ggt",   label:"Gama-GT",          unit:"U/L"},
+    {key:"alb",   label:"Albumina",         unit:"g/dL"},
+  ]},
+  { grupo:"💧 Controles 24h", params:[
+    {key:"diur",  label:"Diurese",          unit:"mL"},
+    {key:"bh",    label:"Balanço Hídrico",  unit:"mL"},
+    {key:"dreno1",label:"Dreno 1",          unit:"mL"},
+    {key:"dreno2",label:"Dreno 2",          unit:"mL"},
+    {key:"dreno3",label:"Dreno 3",          unit:"mL"},
+    {key:"evac",  label:"Evacuações",       unit:"x/dia"},
+  ]},
+];
+
+const TODOS_PARAMS = GRUPOS_LAB.flatMap(g=>g.params);
+
+function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
+  const hoje = new Date().toISOString().split("T")[0];
+
+  const getDatas = () => {
+    const datas = [];
+    if (!leito.dataInternacao) { datas.push(hoje); return datas; }
+    let cur = new Date(leito.dataInternacao+"T00:00:00");
+    const fim = new Date(hoje+"T00:00:00");
+    while (cur <= fim) {
+      datas.push(cur.toISOString().split("T")[0]);
+      cur = new Date(cur.getTime()+86400000);
+    }
+    return datas.slice(-14);
+  };
+
+  const datas = getDatas();
+  const getVal = (date, key) => data[date]?.[key] || "";
+  const setVal = (date, key, val) =>
+    onChange({...data, [date]:{...(data[date]||{}),[key]:val}});
+
+  const fmtData = (ds) => { const [,m,d]=ds.split("-"); return `${d}/${m}`; };
+
+  const gerarEvolucao = () => {
+    const idxHoje = datas.indexOf(hoje);
+    const dtAnt = idxHoje>0 ? datas[idxHoje-1] : null;
+    const campos = {};
+
+    const pegar = (keys) => keys.map(k=>{
+      const par = TODOS_PARAMS.find(x=>x.key===k);
+      const atu = getVal(hoje, k);
+      const ant = dtAnt ? getVal(dtAnt, k) : "";
+      if (!atu && !ant) return null;
+      const val = (ant && atu && ant!==atu) ? `${ant} > ${atu}` : (atu||ant);
+      return `${par.label}: ${val}`;
+    }).filter(Boolean).join(" / ");
+
+    const heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
+    const rmStr  = pegar(["cr","ur","na","k","mg","cai","p","ph","hco3"]);
+    const ctStr  = pegar(["diur","bh","dreno1","dreno2","dreno3","evac"]);
+    const cvStr  = pegar(["trop","bnp","ntpro","be","lact"]);
+    const resStr = pegar(["po2","pco2"]);
+    const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
+
+    if (heStr) campos.heLabs  = heStr;
+    if (rmStr) campos.rmLabs  = rmStr;
+    if (ctStr) campos.rm24h   = ctStr;
+    if (cvStr) campos.cvPerf  = cvStr;
+    if (resStr)campos.reGaso  = resStr;
+    if (tgStr) campos.tgEF    = tgStr;
+
+    onAplicarEvolucao(campos);
+  };
+
+  const thStyle = (isHoje) => ({
+    padding:"6px 8px", fontSize:11, fontFamily:mono, letterSpacing:1,
+    color:isHoje?"#38bdf8":"#64748b",
+    background:isHoje?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.03)",
+    borderBottom:isHoje?"2px solid #38bdf8":"2px solid rgba(255,255,255,0.06)",
+    whiteSpace:"nowrap", textAlign:"center", minWidth:64, position:"sticky", top:0,
+  });
+
+  const tdBase = { padding:"2px 3px", borderBottom:"1px solid rgba(255,255,255,0.04)", textAlign:"center" };
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+        <div>
+          <div style={{fontSize:15,fontWeight:700}}>Tabela Clínica</div>
+          <div style={{fontSize:12,color:"#64748b"}}>Registre os valores diários · coluna de hoje destacada · anterior → atual na evolução</div>
+        </div>
+        <button onClick={gerarEvolucao} style={{padding:"9px 18px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+          📝 Aplicar na evolução
+        </button>
+      </div>
+
+      <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead>
+            <tr>
+              <th style={{...thStyle(false),textAlign:"left",minWidth:150,padding:"8px 12px",position:"sticky",left:0,zIndex:2}}>Parâmetro</th>
+              <th style={{...thStyle(false),minWidth:44}}>Un.</th>
+              {datas.map(d=>(
+                <th key={d} style={thStyle(d===hoje)}>
+                  {fmtData(d)}
+                  {d===hoje&&<div style={{fontSize:9,letterSpacing:0.5}}>HOJE</div>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {GRUPOS_LAB.map(({grupo,params})=>(
+              <React.Fragment key={grupo}>
+                <tr>
+                  <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                    {grupo}
+                  </td>
+                </tr>
+                {params.map(({key,label,unit})=>(
+                  <tr key={key}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
+                    <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono}}>{unit}</td>
+                    {datas.map(d=>{
+                      const isHoje = d===hoje;
+                      const val    = getVal(d,key);
+                      const idxD   = datas.indexOf(d);
+                      const ant    = idxD>0 ? getVal(datas[idxD-1],key) : "";
+                      const subiu  = val&&ant&&val!==ant&&parseFloat(val)>parseFloat(ant);
+                      const caiu   = val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
+                      return (
+                        <td key={d} style={{...tdBase,background:isHoje?"rgba(56,189,248,0.03)":undefined}}>
+                          <input value={val} onChange={e=>setVal(d,key,e.target.value)}
+                            style={{width:"100%",background:"transparent",border:"none",color:isHoje&&subiu?"#f87171":isHoje&&caiu?"#34d399":"#e2e8f0",fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px",outline:"none",fontWeight:isHoje?700:400}}
+                            placeholder="—"
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{marginTop:8,fontSize:11,color:"#475569",display:"flex",gap:16,flexWrap:"wrap"}}>
+        <span style={{color:"#34d399"}}>▼ verde = queda</span>
+        <span style={{color:"#f87171"}}>▲ vermelho = subida</span>
+        <span>Clique em qualquer célula para editar</span>
+      </div>
     </div>
   );
 }
@@ -1578,7 +1837,12 @@ export default function App() {
   const [aba,        setAba]        = useState("paciente");
   const [dadosIA,    setDadosIA]    = useState(null);
   const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
-  const [saving,     setSaving]     = useState(false);
+  const [tabelaData, setTabelaData] = useState({});
+  const [config, setConfig] = useState({
+    alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
+    alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
+  });
+  const [saving, setSaving] = useState(false);
   const saveTimer = useRef(null);
 
   useEffect(()=>{
@@ -1626,10 +1890,11 @@ export default function App() {
   const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
 
   const ABAS = [
-    {id:"paciente",label:"👤 Paciente & Cálculos"},
-    {id:"upload",  label:"📤 Importar Print"},
-    {id:"evolucao",label:"📝 Evolução"},
-    {id:"metas",   label:"🎯 Metas & Pendências"},
+    {id:"paciente", label:"👤 Paciente & Cálculos"},
+    {id:"tabela",   label:"📊 Tabela Clínica"},
+    {id:"upload",   label:"📤 Importar Print"},
+    {id:"evolucao", label:"📝 Evolução"},
+    {id:"metas",    label:"🎯 Metas & Pendências"},
   ];
 
   const dias = diasInternacao(leito.dataInternacao);
@@ -1670,6 +1935,7 @@ export default function App() {
             {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase()}
           </div>
           <button onClick={logout} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
+          <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
         </div>
       </div>
 
@@ -1733,8 +1999,17 @@ export default function App() {
           </div>
 
           <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
-            {aba==="paciente" ? (
-              <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar}/></div>
+            {aba==="config" ? (
+              <ConfigPanel config={config} onChange={setConfig} onVoltar={()=>setAba("paciente")}/>
+            ) : aba==="paciente" ? (
+              <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config}/></div>
+            ) : aba==="tabela" ? (
+              <TabelaClinica
+                leito={leito}
+                data={tabelaData[leitoSelId] || {}}
+                onChange={d=>setTabelaData(t=>({...t,[leitoSelId]:d}))}
+                onAplicarEvolucao={(campos)=>{ setEvolCampos(c=>({...c,...campos})); setAba("evolucao"); }}
+              />
             ) : aba==="upload" ? (
               <div style={{maxWidth:600}}>
                 <div style={{marginBottom:16}}>
@@ -1742,8 +2017,11 @@ export default function App() {
                   <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
                 <UploadAnalyzer onResult={d=>{
+                  console.log("=== DADOS IA ===", JSON.stringify(d, null, 2));
+                  const aplicado = aplicarIA(d);
+                  console.log("=== APLICADO ===", JSON.stringify(aplicado, null, 2));
                   setDadosIA(d);
-                  setEvolCampos(c=>({...c, ...aplicarIA(d)}));
+                  setEvolCampos(c=>({...c, ...aplicado}));
                   setTimeout(()=>setAba("evolucao"), 50);
                 }}/>
               </div>
