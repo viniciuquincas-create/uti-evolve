@@ -14,20 +14,36 @@ export default async function handler(req, res) {
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
 
-    const prompt = `Analise a imagem de UTI. Extraia dados clínicos em JSON conciso.
+    const prompt = `Você é médico intensivista. Analise esta imagem de UTI e extraia os dados clínicos.
 
-IMPORTANTE: seja MUITO breve em cada campo. Máximo 80 caracteres por sistema.
-Use abreviações: Hb, Ht, Leuco, Plaq, Cr, Ur, K, Na, FC, PA, Sat, FR.
+REGRAS IMPORTANTES:
+- IGNORE completamente: nomes de pacientes, datas de nascimento, número de prontuário, cabeçalhos de documentos, rodapés, assinaturas, carimbos, médicos solicitantes. Esses dados NÃO devem aparecer em nenhum sistema.
+- Extraia SOMENTE valores clínicos (exames laboratoriais, sinais vitais, parâmetros ventilatórios, volumes).
+- Não invente valores. Deixe vazio se não visível.
 
-JSON de retorno (sem markdown, sem texto fora do JSON):
-{"N":"","Res":"","Cv":"","ReMe":"","TGI":"","He":"","extras":[{"nome":"","valor":"","cat":""}]}
+CATEGORIZAÇÃO DOS EXAMES:
+Renal/Metabólico: Creatinina, Ureia, Sódio, Potássio, Magnésio, Cálcio iônico, Fósforo, pH, HCO3, Bicarbonato, Cloro, Lactato, Glicemia, PCR, Ureia, BH, Diurese, Balanço
+Hematológico/Infeccioso: Hemoglobina, Hematócrito, Leucócitos, Neutrófilos, Bastões, Linfócitos, Plaquetas, RNI, TTPA, Fibrinogênio, VHS, Procalcitonina
+Hemodinâmico: FC, PA, PAM, Pressão, DVA, Noradrenalina, Vasopressina
+Respiratório: FR, Sat, SpO2, FiO2, PEEP, pO2, pCO2, Volume corrente, modo ventilatório
+TGI/Hepático vai em Gastrointestinal: TGO, TGP, Bilirrubinas, Fosfatase, GGT, Albumina, Amilase, Lipase
 
-Exemplos:
-- Cv: "FC 102-58 / PAM 111-67 / sem DVA"
-- Res: "FiO2 25% / PEEP 8 / Sat 100-94% / FR 30-14"
-- ReMe: "Cr 1.27 / Ur 47 / K 4.1 / Na 141 / BH +1508"
-- He: "Hb 7 / Ht 23% / Leuco 14k / Plaq 251k"
-- extras: exames não listados acima com sugestão de categoria`;
+Retorne EXATAMENTE este JSON sem nenhum texto fora dele:
+{
+  "sistemas": {
+    "Neurológico": "",
+    "Respiratório": "",
+    "Hemodinâmico": "",
+    "Renal/Metabólico": "",
+    "Gastrointestinal": "",
+    "Hematológico/Infeccioso": "",
+    "Pele/Acessos": ""
+  },
+  "extras": [],
+  "resumo": ""
+}
+
+Em "extras" coloque exames que não se encaixam claramente acima: [{"nome":"nome do exame","valor":"valor com unidade","sugestao":"sistema sugerido"}]`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -37,7 +53,7 @@ Exemplos:
           { text: prompt },
           { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
         ]}],
-        generationConfig: { temperature: 0, maxOutputTokens: 8192 }
+        generationConfig: { temperature: 0, maxOutputTokens: 2000 }
       })
     });
 
@@ -47,60 +63,73 @@ Exemplos:
     if (!response.ok) {
       let msg = `Gemini error ${response.status}`;
       try { msg = JSON.parse(rawText).error?.message || msg; } catch {}
+      console.error('Gemini error:', msg);
       return res.status(502).json({ error: msg });
     }
 
     let geminiResp;
-    try { geminiResp = JSON.parse(rawText); } catch {
-      return res.status(500).json({ error: 'Resposta inválida do Gemini' });
-    }
+    try { geminiResp = JSON.parse(rawText); }
+    catch { return res.status(500).json({ error: 'Resposta inválida do Gemini' }); }
 
-    const candidate = geminiResp.candidates?.[0];
-    const text = (candidate?.content?.parts || []).map(p => p.text || '').join('');
-    console.log('FINISH:', candidate?.finishReason, '| TEXT:', text.slice(0, 300));
+    const parts = geminiResp.candidates?.[0]?.content?.parts || [];
+    const finishReason = geminiResp.candidates?.[0]?.finishReason;
+    let text = parts.map(p => p.text || '').join('');
+    
+    console.log('FINISH:', finishReason);
+    console.log('TEXT:', text.slice(0, 600));
+
+    if (!text) {
+      return res.status(200).json({
+        sistemas: {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},
+        extras: [], resumo: `[SEM RESPOSTA: ${finishReason}]`
+      });
+    }
 
     let clean = text.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
 
     const tryParse = s => {
-      try {
-        const p = JSON.parse(s);
-        // Aceita formato curto {N, Res, Cv...} ou longo {sistemas...}
-        if (p.N !== undefined || p.sistemas) return p;
-      } catch {}
-      return null;
+      try { const p = JSON.parse(s); if (p?.sistemas) return p; } catch {} return null;
     };
 
     let parsed = tryParse(clean);
     if (!parsed) {
-      const start = clean.indexOf('{'), end = clean.lastIndexOf('}');
-      if (start !== -1 && end !== -1) parsed = tryParse(clean.slice(start, end+1));
+      const start = clean.indexOf('{');
+      const end = clean.lastIndexOf('}');
+      if (start !== -1 && end > start) parsed = tryParse(clean.slice(start, end + 1));
     }
 
     if (parsed) {
-      // Normaliza para formato longo se veio no formato curto
-      const MAP = { N:"Neurológico", Res:"Respiratório", Cv:"Hemodinâmico", ReMe:"Renal/Metabólico", TGI:"Gastrointestinal", He:"Hematológico/Infeccioso" };
-      const sistemas = parsed.sistemas || {};
-      Object.entries(MAP).forEach(([short, long]) => {
-        if (parsed[short] !== undefined) sistemas[long] = parsed[short];
+      if (!parsed.extras) parsed.extras = [];
+      // Auto-categoriza extras conhecidos
+      const MAPA_EXTRAS = {
+        'magnésio': 'Renal/Metabólico', 'magnesio': 'Renal/Metabólico', 'mg': 'Renal/Metabólico',
+        'cálcio': 'Renal/Metabólico', 'calcio': 'Renal/Metabólico', 'cal': 'Renal/Metabólico', 'cai': 'Renal/Metabólico',
+        'pcr': 'Renal/Metabólico', 'proteína c': 'Renal/Metabólico',
+        'fósforo': 'Renal/Metabólico', 'fosforo': 'Renal/Metabólico',
+        'procalcitonina': 'Hematológico/Infeccioso', 'pct': 'Hematológico/Infeccioso',
+        'troponina': 'Hemodinâmico', 'bnp': 'Hemodinâmico', 'nt-probnp': 'Hemodinâmico',
+        'tgo': 'Gastrointestinal', 'tgp': 'Gastrointestinal', 'bilirrubina': 'Gastrointestinal',
+        'albumina': 'Gastrointestinal', 'ggt': 'Gastrointestinal', 'amilase': 'Gastrointestinal',
+      };
+      parsed.extras = parsed.extras.map(ex => {
+        const nomeLower = (ex.nome||'').toLowerCase();
+        for (const [k, v] of Object.entries(MAPA_EXTRAS)) {
+          if (nomeLower.includes(k)) return { ...ex, sugestao: v };
+        }
+        return ex;
       });
-      // Garante todos os campos
-      ["Neurológico","Respiratório","Hemodinâmico","Renal/Metabólico","Gastrointestinal","Hematológico/Infeccioso","Pele/Acessos"].forEach(k => {
-        if (!sistemas[k]) sistemas[k] = "";
-      });
-
-      console.log('OK. Sistemas preenchidos:', Object.entries(sistemas).filter(([,v])=>v).map(([k])=>k).join(', '));
-      return res.status(200).json({ sistemas, extras: parsed.extras || [], resumo: parsed.resumo || "" });
+      console.log('OK. Sistemas preenchidos:', Object.entries(parsed.sistemas).filter(([,v])=>v).map(([k])=>k));
+      return res.status(200).json(parsed);
     }
 
-    console.error('PARSE FAILED:', clean.slice(0, 200));
+    console.error('PARSE FAILED:', clean.slice(0, 300));
     return res.status(200).json({
       sistemas: {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},
-      extras: [],
-      resumo: `[ERRO] ${clean.slice(0, 100)}`
+      extras: [], resumo: `[PARSE FALHOU] ${clean.slice(0, 100)}`
     });
 
   } catch (err) {
-    console.error('HANDLER ERROR:', err.message);
+    console.error('ERROR:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
