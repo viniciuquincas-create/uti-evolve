@@ -12,22 +12,26 @@ export default async function handler(req, res) {
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
 
-    const prompt = `Você é médico intensivista analisando dados de UTI. Analise a imagem (pode ser tabela de controles do Tasy, monitor, exames laboratoriais, PDF de resultados, etc.) e extraia os dados clínicos.
+    const prompt = `Você é médico intensivista analisando dados de UTI.
 
-Se for tabela de controles Tasy: use as colunas Máxima/Mínima/Total (últimas colunas) para resumir os valores do dia.
-Se for PDF de exames laboratoriais: extraia os valores dos exames.
-Se for monitor de sinais vitais: extraia FC, PA, SpO2, FR, Temperatura.
+Analise a imagem (tabela de controles do Tasy, exames laboratoriais, monitor de sinais vitais, PDF de resultados, etc.) e extraia os dados clínicos.
 
-Retorne SOMENTE JSON válido, sem markdown, sem texto extra antes ou depois. Formato exato:
-{"sistemas":{"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},"metas_sugeridas":[],"resumo":""}
+INSTRUÇÕES IMPORTANTES:
+- Se for tabela de controles Tasy: use as colunas Máxima e Mínima (últimas colunas) para resumir sinais vitais do dia. Use Total para volumes.
+- Se for PDF/laudo de exames: extraia os valores dos exames com seus números.
+- Extraia SOMENTE o que está visível na imagem. Não invente valores.
+- Para sinais vitais: formato "FC 102-58 bpm / PAM 111-67 mmHg"
+- Para exames: formato "Cr 1,56 / Ur 66 / K 4,2 / Na 143"
 
-Diretrizes por sistema:
-- Hemodinâmico: FC máx-mín / PAM máx-mín mmHg / DVA se houver / Lactato / Glicemia
-- Respiratório: modo VM / FiO2 / PEEP / FR máx-mín / Sat máx-mín / gasometria se houver
-- Renal/Metabólico: Temp / HD total / BH / eletrólitos se houver
-- Gastrointestinal: dieta e volume / evacuações
-- Hematológico/Infeccioso: Hb / Leuco / Plaq / exames infecciosos
-Deixe vazio sistemas sem dados.`;
+Retorne SOMENTE o JSON abaixo, sem nenhum texto antes ou depois, sem markdown, sem explicações:
+{"sistemas":{"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},"metas_sugeridas":[],"resumo":"resumo clínico em 1 frase"}
+
+Exemplos de preenchimento:
+- Hemodinâmico: "FC 102-58 bpm / PAM 111-67 mmHg / sem DVA / Glic 179-141 mg/dL"
+- Respiratório: "TQT / FiO2 25% / PEEP 6-8 cmH2O / Sat 100-94% / FR 30-14 rpm"
+- Renal/Metabólico: "Temp 36,8-36°C / HD 3000 mL / BH +1508 mL / Cr 1,27 / K 4,1 / Na 141"
+- Hematológico/Infeccioso: "Hb 7,5 / Leuco 14k / Bastões 4% / Plaq 251k"
+- Gastrointestinal: "Dieta enteral 1340 mL / evacuação 21/04"`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
 
@@ -39,52 +43,69 @@ Deixe vazio sistemas sem dados.`;
           { text: prompt },
           { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
         ]}],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1500 }
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1500,
+          responseMimeType: "application/json"
+        }
       })
     });
 
-    // Lê resposta como texto primeiro para evitar erro de parse
     const rawText = await response.text();
 
     if (!response.ok) {
       console.error('Gemini HTTP error:', response.status, rawText.slice(0, 400));
-      // Tenta extrair mensagem do erro JSON do Gemini
       try {
         const errJson = JSON.parse(rawText);
         return res.status(502).json({ error: errJson.error?.message || `Gemini error ${response.status}` });
       } catch {
-        return res.status(502).json({ error: `Gemini error ${response.status}: ${rawText.slice(0, 200)}` });
+        return res.status(502).json({ error: `Gemini error ${response.status}` });
       }
     }
 
-    let data;
+    let geminiData;
     try {
-      data = JSON.parse(rawText);
+      geminiData = JSON.parse(rawText);
     } catch {
-      console.error('Failed to parse Gemini response:', rawText.slice(0, 200));
+      console.error('Failed to parse Gemini response:', rawText.slice(0, 300));
       return res.status(500).json({ error: 'Resposta inválida do Gemini' });
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const clean = text.replace(/```json|```/g, '').trim();
+    const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    console.log('Gemini raw text:', text.slice(0, 500));
 
+    // Remove markdown e espaços extras
+    let clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+    // Tenta parsear direto
     try {
       const parsed = JSON.parse(clean);
-      return res.status(200).json(parsed);
-    } catch {
-      // Tenta encontrar JSON dentro do texto
-      const match = clean.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          return res.status(200).json(JSON.parse(match[0]));
-        } catch {}
+      // Valida estrutura mínima
+      if (parsed.sistemas) {
+        return res.status(200).json(parsed);
       }
-      return res.status(200).json({
-        sistemas: {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},
-        metas_sugeridas: [],
-        resumo: clean.slice(0, 300)
-      });
+    } catch {}
+
+    // Tenta encontrar JSON dentro do texto
+    const match = clean.match(/\{[\s\S]*"sistemas"[\s\S]*\}/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]);
+        if (parsed.sistemas) return res.status(200).json(parsed);
+      } catch {}
     }
+
+    // Fallback: retorna o texto no resumo para debug
+    console.error('Could not parse JSON from:', clean.slice(0, 500));
+    return res.status(200).json({
+      sistemas: {
+        "Neurológico":"","Respiratório":"","Hemodinâmico":"",
+        "Renal/Metabólico":"","Gastrointestinal":"",
+        "Hematológico/Infeccioso":"","Pele/Acessos":""
+      },
+      metas_sugeridas: [],
+      resumo: `[ERRO PARSE] ${clean.slice(0, 200)}`
+    });
 
   } catch (err) {
     console.error('Handler error:', err.message);
