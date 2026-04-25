@@ -931,11 +931,10 @@ function UploadAnalyzer({ onResult }) {
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 // ── Helpers de evolução ───────────────────────────────────────────────────────
 const v = (s) => s?.trim() || "";
-const seg = (...parts) => parts.filter(Boolean).join(". ").replace(/\.+/g, ".");
 
-function TA({ value, onChange, placeholder, rows=2 }) {
+function TA({ fieldRef, defaultValue, placeholder, rows=2 }) {
   return (
-    <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows}
+    <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={placeholder} rows={rows}
       style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",
         borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",
         fontFamily:"inherit",boxSizing:"border-box",lineHeight:1.5}}
@@ -1285,8 +1284,8 @@ function aplicarIA(dadosIA) {
   };
 }
 
-function EvolucaoEditor({ leito, campos, setCampos }) {
-  const [copiadoTudo, setCopiadoTudo] = useState(false);
+function EvolucaoEditor({ leito, campos }) {
+  const [copiado, setCopiado] = useState({});
   const peso = parseFloat(leito.peso) || null;
   const pp   = pesoPredito(leito.altura, leito.sexo);
   const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
@@ -1294,7 +1293,7 @@ function EvolucaoEditor({ leito, campos, setCampos }) {
   const disps = leito.dispositivos || {};
   const ativos = [
     ...DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
-      label: (Array.isArray(disps[d.key])&&disps[d.key].length>1)?`${d.label} ${i+1}`:d.label,
+      label:(Array.isArray(disps[d.key])&&disps[d.key].length>1)?`${d.label} ${i+1}`:d.label,
       icone:d.icone, alertaDias:d.alertaDias, disp:inst
     }))),
     ...DISP_SINGULAR.filter(d=>disps[d.key]?.ativo).map(d=>({
@@ -1302,142 +1301,157 @@ function EvolucaoEditor({ leito, campos, setCampos }) {
     })),
   ];
 
-  const set = (field) => (val) => setCampos(c=>({...c,[field]:val}));
-  const {
-    nEF, nSeda, nAnalg, nPsiq, nObs,
-    cvEF, cv24h, cvDVA, cvMed, cvPerf, cvObs,
-    reVM, reEF, re24h, reGaso, rePocus, reObs,
-    rm24h, rmLabs, rmTRS, rmObs,
-    tgEF, tg24h, tgObs,
-    heTemp, heLabs, heMed, heAtb, heProf, heObs,
-  } = campos;
+  // Refs para cada campo
+  const refs = {
+    nEF:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nObs:useRef(),
+    cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
+    reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
+    rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
+    tgEF:useRef(), tg24h:useRef(), tgObs:useRef(),
+    heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(),
+  };
 
-  // ── Textos corridos por sistema ─────────────────────────────────────────────
-  const txtN = (() => {
-    const parts = [];
-    if (v(nEF))    parts.push(`- EF: ${v(nEF)}`);
-    if (v(nSeda))  parts.push(`- P: ${v(nSeda)}`);
-    if (v(nAnalg)) parts.push(`- A: ${v(nAnalg)}`);
-    if (v(nPsiq))  parts.push(`- Psiq: ${v(nPsiq)}`);
-    if (v(nObs))   parts.push(`*${v(nObs)}`);
-    return parts.join("\n");
-  })();
+  const get = (key) => refs[key]?.current?.value?.trim() || "";
 
-  const txtCv = (() => {
-    const parts = [];
-    if (v(cvEF))   parts.push(`- EF: ${v(cvEF)}`);
-    if (v(cv24h))  parts.push(`- 24h: ${v(cv24h)}`);
-    if (v(cvDVA))  parts.push(`- DVA: ${v(cvDVA)}`);
-    if (v(cvMed))  parts.push(`- P: ${v(cvMed)}`);
-    if (v(cvPerf)) parts.push(`- Perfusão: ${v(cvPerf)}`);
-    if (v(cvObs))  parts.push(`*${v(cvObs)}`);
-    return parts.join("\n");
-  })();
-
-  const txtRes = (() => {
-    const parts = [];
-    if (v(reVM))    parts.push(`- Ventilação: ${v(reVM)}`);
-    if (v(reEF))    parts.push(`- EF: ${v(reEF)}`);
-    if (v(re24h))   parts.push(`- 24h: ${v(re24h)}`);
-    if (v(reGaso))  parts.push(`- *nova* Gaso: ${v(reGaso)}`);
-    if (v(rePocus)) parts.push(`- POCUS: ${v(rePocus)}`);
-    if (v(reObs))   parts.push(`*${v(reObs)}`);
-    return parts.join("\n");
-  })();
-
-  const txtReMe = (() => {
-    const parts = [];
-    if (v(rm24h))  parts.push(`- 24h: ${v(rm24h)}`);
-    if (v(rmLabs)) parts.push(`- Labs: ${v(rmLabs)}`);
-    if (v(rmTRS))  parts.push(`- TRS: ${v(rmTRS)}`);
-    if (v(rmObs))  parts.push(`*${v(rmObs)}`);
-    return parts.join("\n");
-  })();
-
-  const txtTGI = (() => {
-    const parts = [];
-    const d = leito.dieta;
-    if (d?.tipo && d.tipo !== "jejum") {
-      const tipoLabel = {enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
-      let dl = `Dieta: ${tipoLabel}`;
-      if (d.formula) dl += ` ${d.formula}`;
-      if (d.vazao)   dl += ` ${d.vazao}ml/h`;
-      if (d.kcalTotal && peso) dl += ` (${(parseFloat(d.kcalTotal)/peso).toFixed(1)} kcal/kg/d`;
-      if (d.ptnTotal  && peso) dl += ` / ${(parseFloat(d.ptnTotal)/peso).toFixed(2)} g ptn/kg/d)`;
-      parts.push(`- ${dl}`);
-    } else if (d?.tipo === "jejum") {
-      parts.push(`- Dieta: Jejum`);
-    }
-    if (v(tgEF))   parts.push(`- EF: ${v(tgEF)}`);
-    if (v(tg24h))  parts.push(`- 24h: ${v(tg24h)}`);
-    if (v(tgObs))  parts.push(`*${v(tgObs)}`);
-    return parts.join("\n");
-  })();
-
-  const txtHe = (() => {
-    const parts = [];
-    if (v(heTemp))  parts.push(`T ${v(heTemp)}`);
-    if (v(heLabs))  parts.push(`- Labs: ${v(heLabs)}`);
-    if (v(heProf))  parts.push(`** ${v(heProf)}`);
-    if (v(heObs))   parts.push(`*${v(heObs)}`);
-    return parts.join("\n");
-  })();
-
-  const txtIn = (() => {
-    const parts = [];
-    if (v(heMed)) parts.push(v(heMed));
-    if (ativos.length) {
-      const lista = ativos.map(a=>{
-        const dd = Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
+  const txtN = () => {
+    const p=[];
+    if(get("nEF"))    p.push(`- EF: ${get("nEF")}`);
+    if(get("nSeda"))  p.push(`- P: ${get("nSeda")}`);
+    if(get("nAnalg")) p.push(`- A: ${get("nAnalg")}`);
+    if(get("nPsiq"))  p.push(`- Psiq: ${get("nPsiq")}`);
+    if(get("nObs"))   p.push(`*${get("nObs")}`);
+    return p.join("\n");
+  };
+  const txtCv = () => {
+    const p=[];
+    if(get("cvEF"))   p.push(`- EF: ${get("cvEF")}`);
+    if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
+    if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
+    if(get("cvMed"))  p.push(`- P: ${get("cvMed")}`);
+    if(get("cvPerf")) p.push(`- Perfusão: ${get("cvPerf")}`);
+    if(get("cvObs"))  p.push(`*${get("cvObs")}`);
+    return p.join("\n");
+  };
+  const txtRes = () => {
+    const p=[];
+    if(get("reVM"))    p.push(`- Ventilação: ${get("reVM")}`);
+    if(get("reEF"))    p.push(`- EF: ${get("reEF")}`);
+    if(get("re24h"))   p.push(`- 24h: ${get("re24h")}`);
+    if(get("reGaso"))  p.push(`- *nova* Gaso: ${get("reGaso")}`);
+    if(get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
+    if(get("reObs"))   p.push(`*${get("reObs")}`);
+    return p.join("\n");
+  };
+  const txtReMe = () => {
+    const p=[];
+    if(get("rm24h"))  p.push(`- 24h: ${get("rm24h")}`);
+    if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
+    if(get("rmTRS"))  p.push(`- TRS: ${get("rmTRS")}`);
+    if(get("rmObs"))  p.push(`*${get("rmObs")}`);
+    return p.join("\n");
+  };
+  const txtTGI = () => {
+    const p=[];
+    const d=leito.dieta;
+    if(d?.tipo&&d.tipo!=="jejum"){
+      const tl={enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
+      let dl=`Dieta: ${tl}`;
+      if(d.formula) dl+=` ${d.formula}`;
+      if(d.vazao)   dl+=` ${d.vazao}ml/h`;
+      if(d.kcalTotal&&peso) dl+=` (${(parseFloat(d.kcalTotal)/peso).toFixed(1)} kcal/kg/d`;
+      if(d.ptnTotal&&peso)  dl+=` / ${(parseFloat(d.ptnTotal)/peso).toFixed(2)} g ptn/kg/d)`;
+      p.push(`- ${dl}`);
+    }else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
+    if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
+    if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
+    if(get("tgObs"))  p.push(`*${get("tgObs")}`);
+    return p.join("\n");
+  };
+  const txtHe = () => {
+    const p=[];
+    if(get("heTemp"))  p.push(`T ${get("heTemp")}`);
+    if(get("heLabs"))  p.push(`- Labs: ${get("heLabs")}`);
+    if(get("heProf"))  p.push(`** ${get("heProf")}`);
+    if(get("heObs"))   p.push(`*${get("heObs")}`);
+    return p.join("\n");
+  };
+  const txtIn = () => {
+    const p=[];
+    if(get("heMed")) p.push(get("heMed"));
+    if(ativos.length){
+      const lista=ativos.map(a=>{
+        const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
         return `${a.label}${a.disp.site?` ${a.disp.site}`:""} D${dd}`;
       }).join(", ");
-      parts.push(`Dispositivos: ${lista}`);
+      p.push(`Dispositivos: ${lista}`);
     }
-    if (v(heAtb)) parts.push(v(heAtb));
-    return parts.join("\n");
-  })();
+    if(get("heAtb")) p.push(get("heAtb"));
+    return p.join("\n");
+  };
 
-  // Tudo junto
-  const gerarTudo = () => {
-    const dt = new Date().toLocaleDateString("pt-BR");
-    let t = `EVOLUÇÃO UTI — ${dt}`;
-    if (leito.paciente)    t += `\nPaciente: ${leito.paciente}`;
-    if (leito.diagnostico) t += ` | ${leito.diagnostico}`;
-    if (dias !== null)     t += ` | D${dias} UTI`;
-    if (leito.peso)        t += ` | ${leito.peso} kg`;
-    if (pp)                t += ` | PP ${pp} kg`;
-    const procs = leito.procedimentos||[];
-    if (procs.length) t += "\n" + procs.map(p=>{
-      const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-      return `${p.nome} (${po===0?"POI":`PO${po}`})`;
-    }).join(" · ");
-    t += "\n\n";
-    const blocos = [
-      ["== N:", txtN], ["== Cv:", txtCv], ["== Res:", txtRes],
-      ["== ReMe:", txtReMe], ["== TGI:", txtTGI], ["== He:", txtHe], ["== In:", txtIn],
-    ];
-    blocos.forEach(([header, corpo])=>{
-      if (corpo?.trim()) t += `${header}\n${corpo}\n\n`;
-    });
-    return t;
+  const copiarBloco = (id, txt) => {
+    const text = txt();
+    if(!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiado(c=>({...c,[id]:true}));
+    setTimeout(()=>setCopiado(c=>({...c,[id]:false})),2000);
   };
 
   const copiarTudo = () => {
-    navigator.clipboard.writeText(gerarTudo());
-    setCopiadoTudo(true);
-    setTimeout(()=>setCopiadoTudo(false), 2500);
+    const dt=new Date().toLocaleDateString("pt-BR");
+    let t=`EVOLUÇÃO UTI — ${dt}`;
+    if(leito.paciente)    t+=`\nPaciente: ${leito.paciente}`;
+    if(leito.diagnostico) t+=` | ${leito.diagnostico}`;
+    if(dias!==null)       t+=` | D${dias} UTI`;
+    if(leito.peso)        t+=` | ${leito.peso} kg`;
+    if(pp)                t+=` | PP ${pp} kg`;
+    const procs=leito.procedimentos||[];
+    if(procs.length) t+="\n"+procs.map(p=>{
+      const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
+      return `${p.nome} (${po===0?"POI":`PO${po}`})`;
+    }).join(" · ");
+    t+="\n\n";
+    const blocos=[["== N:",txtN],["== Cv:",txtCv],["== Res:",txtRes],["== ReMe:",txtReMe],["== TGI:",txtTGI],["== He:",txtHe],["== In:",txtIn]];
+    blocos.forEach(([h,fn])=>{ const c=fn(); if(c) t+=`${h}\n${c}\n\n`; });
+    navigator.clipboard.writeText(t);
+    setCopiado(c=>({...c,tudo:true}));
+    setTimeout(()=>setCopiado(c=>({...c,tudo:false})),2500);
   };
 
-  const colors = {N:"#a78bfa",Cv:"#f87171",Res:"#38bdf8",ReMe:"#34d399",TGI:"#fb923c",He:"#f59e0b",In:"#94a3b8"};
+  const colors={N:"#a78bfa",Cv:"#f87171",Res:"#38bdf8",ReMe:"#34d399",TGI:"#fb923c",He:"#f59e0b",In:"#94a3b8"};
+
+  const SysB = ({id,sigla,label,color,txtFn,children}) => {
+    const [open,setOpen]=useState(true);
+    const cp=copiado[id];
+    return (
+      <div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:10,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
+          <button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+            <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
+            <span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
+            <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
+            <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
+          </button>
+          <button onClick={()=>copiarBloco(id,txtFn)} style={{margin:"6px 10px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,background:cp?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${cp?"#22c55e":"rgba(255,255,255,0.1)"}`,color:cp?"#22c55e":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
+            {cp?"✓ Copiado":"📋 Copiar"}
+          </button>
+        </div>
+        {open&&<div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>{children}</div>}
+      </div>
+    );
+  };
+
+  const Row=({children})=><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>{children}</div>;
+  const Col=({children,flex=1,min=120})=><div style={{flex,minWidth:min}}>{children}</div>;
+  const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
 
   return (
     <div>
-      {/* Info rápida */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-        {dias!==null && <Pill label="D UTI" value={`D${dias}`} unit="" color="#a78bfa"/>}
-        {leito.peso  && <Pill label="PESO"  value={leito.peso} unit="kg" color="#f59e0b"/>}
-        {pp          && <Pill label="PP"    value={pp}         unit="kg" color="#fb923c"/>}
-        {vc6         && <Pill label="VC 6×" value={vc6}        unit="mL" color="#34d399"/>}
+        {dias!==null&&<Pill label="D UTI" value={`D${dias}`} unit="" color="#a78bfa"/>}
+        {leito.peso&&<Pill label="PESO" value={leito.peso} unit="kg" color="#f59e0b"/>}
+        {pp&&<Pill label="PP" value={pp} unit="kg" color="#fb923c"/>}
+        {vc6&&<Pill label="VC 6×" value={vc6} unit="mL" color="#34d399"/>}
         {(leito.procedimentos||[]).map(p=>{
           const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
           const cor=po<=0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
@@ -1450,156 +1464,79 @@ function EvolucaoEditor({ leito, campos, setCampos }) {
         })}
       </div>
 
-      {/* Sistemas */}
-      <SysBlock sigla="== N:" label="Neurológico" color={colors.N} preview={txtN}>
-        <Row><Col><FLabel>EF — GCS · RASS · Pupilas · Déficit</FLabel>
-          <TA value={nEF} onChange={set("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2 / Ptose palpebral discreta à esq" rows={2}/>
-        </Col></Row>
+      <SysB id="n" sigla="== N:" label="Neurológico" color={colors.N} txtFn={txtN}>
+        <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2}/></Col></Row>
         <Row>
-          <Col><FLabel>P — SEDAÇÃO (droga + dose)</FLabel>
-            <TA value={nSeda} onChange={set("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2}/>
-          </Col>
-          <Col><FLabel>A — ANALGESIA</FLabel>
-            <TA value={nAnalg} onChange={set("nAnalg")} placeholder="Metadona 22,5mg/d + Lido 140mg 12/12h" rows={2}/>
-          </Col>
+          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2}/></Col>
+          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} placeholder="Metadona 22,5mg/d + Lido 140mg 12/12h" rows={2}/></Col>
         </Row>
-        <Row><Col><FLabel>PSIQ / OUTROS</FLabel>
-          <TA value={nPsiq} onChange={set("nPsiq")} placeholder="Diazepam 40mg/d + Sertralina 50mg/d" rows={1}/>
-        </Col></Row>
-        <Row><Col><FLabel>* OBSERVAÇÃO / PENDÊNCIA</FLabel>
-          <TA value={nObs} onChange={set("nObs")} placeholder="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1}/>
-        </Col></Row>
-      </SysBlock>
+        <Row><Col><FL>PSIQ / OUTROS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} placeholder="Diazepam 40mg/d + Sertralina 50mg/d" rows={1}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} placeholder="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1}/></Col></Row>
+      </SysB>
 
-      <SysBlock sigla="== Cv:" label="Cardiovascular" color={colors.Cv} preview={txtCv}>
-        <Row><Col><FLabel>EF — Estabilidade · Ritmo · Bulhas</FLabel>
-          <TA value={cvEF} onChange={set("cvEF")} placeholder="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2}/>
-        </Col></Row>
+      <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={colors.Cv} txtFn={txtCv}>
+        <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} placeholder="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2}/></Col></Row>
         <Row>
-          <Col><FLabel>24h — FC / PAM (min-máx)</FLabel>
-            <TA value={cv24h} onChange={set("cv24h")} placeholder="FC 109 - 58 / PAM 121 - 58" rows={1}/>
-          </Col>
-          <Col><FLabel>DVA — Droga + vazão + dose calculada</FLabel>
-            <TA value={cvDVA} onChange={set("cvDVA")} placeholder="Nora 5ml/h (0,08 mcg/kg/min)" rows={1}/>
-          </Col>
+          <Col><FL>24h — FC / PAM (min-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} placeholder="FC 109 - 58 / PAM 121 - 58" rows={1}/></Col>
+          <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} placeholder="Nora 5ml/h (0,08 mcg/kg/min)" rows={1}/></Col>
         </Row>
         <Row>
-          <Col><FLabel>P — MEDICAÇÕES CV</FLabel>
-            <TA value={cvMed} onChange={set("cvMed")} placeholder="Atenolol 25mg" rows={1}/>
-          </Col>
-          <Col><FLabel>Perfusão — TEC · Lactato</FLabel>
-            <TA value={cvPerf} onChange={set("cvPerf")} placeholder="TEC 2 seg / Lactato 12 > 22" rows={1}/>
-          </Col>
+          <Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} placeholder="Atenolol 25mg" rows={1}/></Col>
+          <Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} placeholder="TEC 2 seg / Lactato 12 > 22" rows={1}/></Col>
         </Row>
-        <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={cvObs} onChange={set("cvObs")} placeholder="Eco beira-leito amanhã" rows={1}/>
-        </Col></Row>
-      </SysBlock>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} placeholder="Eco beira-leito amanhã" rows={1}/></Col></Row>
+      </SysB>
 
-      <SysBlock sigla="== Res:" label="Respiratório" color={colors.Res} preview={txtRes}>
-        <Row><Col><FLabel>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FLabel>
-          <TA value={reVM} onChange={set("reVM")} placeholder="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2}/>
-        </Col></Row>
+      <SysB id="res" sigla="== Res:" label="Respiratório" color={colors.Res} txtFn={txtRes}>
+        <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} placeholder="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2}/></Col></Row>
         <Row>
-          <Col><FLabel>EF — Ausculta</FLabel>
-            <TA value={reEF} onChange={set("reEF")} placeholder="MV + bilateralmente c/ roncos" rows={1}/>
-          </Col>
-          <Col><FLabel>24h — FR / Sat (min-máx)</FLabel>
-            <TA value={re24h} onChange={set("re24h")} placeholder="FR 41 - 20 / Sat 96 - 92" rows={1}/>
-          </Col>
+          <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} placeholder="MV + bilateralmente c/ roncos" rows={1}/></Col>
+          <Col><FL>24h — FR / Sat</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} placeholder="FR 41 - 20 / Sat 96 - 92" rows={1}/></Col>
         </Row>
         <Row>
-          <Col><FLabel>Gasometria — pH · pCO2 · pO2 · Bic · SatO2</FLabel>
-            <TA value={reGaso} onChange={set("reGaso")} placeholder="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SataO2 94%" rows={1}/>
-          </Col>
-          <Col><FLabel>POCUS — Data · Achados</FLabel>
-            <TA value={rePocus} onChange={set("rePocus")} placeholder="22/04: Excursão 0,87 / Fen 12%" rows={1}/>
-          </Col>
+          <Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} placeholder="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SataO2 94%" rows={1}/></Col>
+          <Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} placeholder="22/04: Excursão 0,87 / Fen 12%" rows={1}/></Col>
         </Row>
-        <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={reObs} onChange={set("reObs")} placeholder="Tentar reduzir PS amanhã / desmame" rows={1}/>
-        </Col></Row>
-      </SysBlock>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} placeholder="Tentar reduzir PS amanhã" rows={1}/></Col></Row>
+      </SysB>
 
-      <SysBlock sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} preview={txtReMe}>
+      <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} txtFn={txtReMe}>
         <Row>
-          <Col><FLabel>24h — HD · BH</FLabel>
-            <TA value={rm24h} onChange={set("rm24h")} placeholder="HD 3000 / BH +1084 > +1508" rows={1}/>
-          </Col>
-          <Col><FLabel>TRS</FLabel>
-            <TA value={rmTRS} onChange={set("rmTRS")} placeholder="CRRT citrato 150ml/h / HFI diária" rows={1}/>
-          </Col>
+          <Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} placeholder="HD 3000 / BH +1084 > +1508" rows={1}/></Col>
+          <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} placeholder="CRRT citrato 150ml/h" rows={1}/></Col>
         </Row>
-        <Row><Col><FLabel>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FLabel>
-          <TA value={rmLabs} onChange={set("rmLabs")} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141 / Cai 1,36 > 1,42 / Mg 2 > 1,9 / P 1,3 > 2,3 / Cl 112" rows={2}/>
-        </Col></Row>
-        <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={rmObs} onChange={set("rmObs")} placeholder="Repor K se < 3,5 / monitorar P" rows={1}/>
-        </Col></Row>
-      </SysBlock>
+        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} placeholder="Repor K se < 3,5" rows={1}/></Col></Row>
+      </SysB>
 
-      <SysBlock sigla="== TGI:" label="Gastrointestinal" color={colors.TGI} preview={txtTGI}>
-        {leito.dieta?.tipo && (
-          <div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>
-            🍽 Dieta cadastrada: <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`} — será incluída automaticamente
-          </div>
-        )}
+      <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={colors.TGI} txtFn={txtTGI}>
+        {leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>🍽 Dieta cadastrada: <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`}</div>}
         <Row>
-          <Col><FLabel>EF — Abdome</FLabel>
-            <TA value={tgEF} onChange={set("tgEF")} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2}/>
-          </Col>
-          <Col><FLabel>24h — Dex · Evacuação</FLabel>
-            <TA value={tg24h} onChange={set("tg24h")} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2}/>
-          </Col>
+          <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2}/></Col>
+          <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2}/></Col>
         </Row>
-        <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={tgObs} onChange={set("tgObs")} placeholder="Omeprazol para LAMG / resíduo gástrico elevado" rows={1}/>
-        </Col></Row>
-      </SysBlock>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} placeholder="Omeprazol para LAMG" rows={1}/></Col></Row>
+      </SysB>
 
-      <SysBlock sigla="== He:" label="Hematológico" color={colors.He} preview={txtHe}>
+      <SysB id="he" sigla="== He:" label="Hematológico" color={colors.He} txtFn={txtHe}>
         <Row>
-          <Col><FLabel>Temperatura — mín · máx</FLabel>
-            <TA value={heTemp} onChange={set("heTemp")} placeholder="37,2 - 36,2" rows={1}/>
-          </Col>
-          <Col><FLabel>** Profilaxias / TEV</FLabel>
-            <TA value={heProf} onChange={set("heProf")} placeholder="HNF 5kUI 12/12h / profilaxia TEV" rows={1}/>
-          </Col>
+          <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} placeholder="37,2 - 36,2" rows={1}/></Col>
+          <Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} placeholder="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1}/></Col>
         </Row>
-        <Row><Col><FLabel>Labs — Hb · Leuco · Bastões · Plaq</FLabel>
-          <TA value={heLabs} onChange={set("heLabs")} placeholder="7,6 > 7,5 / Leuco 21k > 14k > 17k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2}/>
-        </Col></Row>
-        <Row><Col><FLabel>* OBSERVAÇÃO</FLabel>
-          <TA value={heObs} onChange={set("heObs")} placeholder="Aguarda cultura / BAAR negativo" rows={1}/>
-        </Col></Row>
-      </SysBlock>
+        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} placeholder="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} placeholder="Aguarda cultura / BAAR negativo" rows={1}/></Col></Row>
+      </SysB>
 
-      <SysBlock sigla="== In:" label="Infeccioso / Dispositivos" color={colors.In} preview={txtIn}>
-        {ativos.length > 0 && (
-          <div style={{padding:"6px 10px",background:"rgba(148,163,184,0.07)",border:"1px solid rgba(148,163,184,0.15)",borderRadius:6,fontSize:11,color:"#94a3b8",marginBottom:8}}>
-            📎 Dispositivos automáticos: {ativos.map(a=>{
-              const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
-              return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;
-            }).join(" / ")}
-          </div>
-        )}
-        <Row><Col><FLabel>Profilaxias / Outros medicamentos</FLabel>
-          <TA value={heMed} onChange={set("heMed")} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2}/>
-        </Col></Row>
-        <Row><Col><FLabel>Antibióticos — nome + período</FLabel>
-          <TA value={heAtb} onChange={set("heAtb")} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3}/>
-        </Col></Row>
-      </SysBlock>
+      <SysB id="in" sigla="== In:" label="Infeccioso / Dispositivos" color={colors.In} txtFn={txtIn}>
+        {ativos.length>0&&<div style={{padding:"6px 10px",background:"rgba(148,163,184,0.07)",border:"1px solid rgba(148,163,184,0.15)",borderRadius:6,fontSize:11,color:"#94a3b8",marginBottom:8}}>
+          📎 {ativos.map(a=>{const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;}).join(" / ")}
+        </div>}
+        <Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2}/></Col></Row>
+        <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3}/></Col></Row>
+      </SysB>
 
-      {/* Copiar tudo */}
-      <button onClick={copiarTudo} style={{
-        width:"100%",padding:"13px",marginTop:6,
-        background: copiadoTudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",
-        border:`1.5px solid ${copiadoTudo?"#22c55e":"#0284c7"}`,
-        borderRadius:10,color:copiadoTudo?"#22c55e":"#38bdf8",
-        fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",
-      }}>
-        {copiadoTudo ? "✅ Evolução completa copiada!" : "📋 Copiar evolução completa"}
+      <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+        {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
       </button>
     </div>
   );
@@ -2034,7 +1971,7 @@ export default function App() {
               ) : (
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                  <EvolucaoEditor leito={leito} campos={evolCampos} setCampos={setEvolCampos} key={`${leito.id}-${evolVersion}`}/>
+                  <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}/>
                 </div>
               )
             ) : (
