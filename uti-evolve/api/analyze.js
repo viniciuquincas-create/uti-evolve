@@ -12,27 +12,28 @@ export default async function handler(req, res) {
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
 
+    // Usa gemini-2.5-flash com thinking desabilitado para resposta direta
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
 
-    const prompt = `Médico intensivista. Analise a imagem e extraia dados clínicos laboratoriais e sinais vitais.
+    const prompt = `Analise esta imagem de exames laboratoriais ou controles de UTI.
+IGNORE: nomes, datas de nascimento, prontuários, médicos, assinaturas.
+Extraia APENAS valores numéricos de exames e sinais vitais.
 
-IGNORE: nomes de pacientes, datas de nascimento, prontuários, médicos, assinaturas, carimbos.
+Responda SOMENTE com linhas no formato CHAVE:VALOR, uma por linha.
+Use estas chaves exatas:
+RM para Renal/Metabólico (Cr, Ur, Na, K, Mg, Ca, P, pH, HCO3, Lactato, Glicemia, PCR, BH, Diurese)
+HI para Hematológico (Hb, Ht, Leuco, Bastões, Plaq, RNI, TTPA, Procalcitonina)
+H para Hemodinâmico (FC, PA, PAM, DVA, Troponina, BNP)
+R para Respiratório (FR, Sat, FiO2, PEEP, pO2, pCO2)
+GI para Gastrointestinal/Hepático (TGO, TGP, Bili, Albumina, GGT)
+N para Neurológico
+EX para cada exame não categorizado (formato: NomeExame=Valor)
 
-Categorias:
-- Renal/Metabólico: Cr, Ur, Na, K, Mg, Ca, P, pH, HCO3, Cl, Lactato, Glicemia, PCR, BH, Diurese
-- Hematológico/Infeccioso: Hb, Ht, Leuco, Neutrófilos, Bastões, Linfócitos, Plaquetas, RNI, TTPA, Fibrinogênio, Procalcitonina
-- Hemodinâmico: FC, PA, PAM, DVA, Troponina, BNP
-- Respiratório: FR, Sat, FiO2, PEEP, pO2, pCO2
-- Gastrointestinal: TGO, TGP, Bilirrubinas, Albumina, GGT, FA
-
-Retorne APENAS este JSON compacto (sem espaços extras, sem markdown):
-{"N":"","R":"","H":"","RM":"","GI":"","HI":"","PA":"","ex":[]}
-
-Onde: N=Neurológico, R=Respiratório, H=Hemodinâmico, RM=Renal/Metabólico, GI=Gastrointestinal, HI=Hematológico/Infeccioso, PA=Pele/Acessos
-"ex" = exames não categorizados: [{"n":"nome","v":"valor","s":"sistema sugerido"}]
-
-Seja BREVE. Exemplo de RM: "Cr 1.27 / Ur 47 / K 4.1 / Na 141 / Mg 1.9 / PCR 85"
-Exemplo de HI: "Hb 7.0 / Ht 23% / Leuco 11.17k / Plaq 204k"`;
+Exemplo de resposta:
+RM:Cr 1.27 / Ur 47 / K 4.1 / Na 141 / Mg 1.9 / PCR 85
+HI:Hb 7.0 / Ht 23% / Leuco 11.17k / Plaq 204k
+EX:Amilase=320 U/L
+EX:Lipase=180 U/L`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -42,7 +43,11 @@ Exemplo de HI: "Hb 7.0 / Ht 23% / Leuco 11.17k / Plaq 204k"`;
           { text: prompt },
           { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
         ]}],
-        generationConfig: { temperature: 0, maxOutputTokens: 800 }
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 1000,
+          thinkingConfig: { thinkingBudget: 0 }
+        }
       })
     });
 
@@ -59,77 +64,76 @@ Exemplo de HI: "Hb 7.0 / Ht 23% / Leuco 11.17k / Plaq 204k"`;
     try { geminiResp = JSON.parse(rawText); }
     catch { return res.status(500).json({ error: 'Resposta inválida' }); }
 
-    const text = (geminiResp.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
-    const finishReason = geminiResp.candidates?.[0]?.finishReason;
-    console.log('FINISH:', finishReason, '| TEXT:', text.slice(0, 400));
-
-    if (!text) {
-      return res.status(200).json({
-        sistemas: {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},
-        extras: [], resumo: `[SEM RESPOSTA: ${finishReason}]`
-      });
-    }
-
-    // Extrai JSON do texto
-    let clean = text.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-    const start = clean.indexOf('{');
-    const end = clean.lastIndexOf('}');
+    const text = (geminiResp.candidates?.[0]?.content?.parts || [])
+      .filter(p => !p.thought) // ignora partes de raciocínio
+      .map(p => p.text || '').join('');
     
-    console.log('CLEAN:', clean.slice(0,300));
+    console.log('TEXT:', text.slice(0, 500));
 
-    if (start === -1 || end === -1 || end <= start) {
+    if (!text.trim()) {
       return res.status(200).json({
         sistemas: {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},
-        extras: [], resumo: `[SEM JSON] ${clean.slice(0,100)}`
+        extras: [], resumo: '[SEM RESPOSTA]'
       });
     }
 
-    let compact;
-    try { compact = JSON.parse(clean.slice(start, end + 1)); }
-    catch(e) {
-      console.error('PARSE ERR:', e.message, clean.slice(start, end+1).slice(0,200));
-      return res.status(200).json({
-        sistemas: {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""},
-        extras: [], resumo: `[PARSE FALHOU] ${e.message}`
-      });
-    }
+    // Parse do formato chave:valor linha por linha
+    const MAP = {
+      'N': 'Neurológico', 'R': 'Respiratório', 'H': 'Hemodinâmico',
+      'RM': 'Renal/Metabólico', 'GI': 'Gastrointestinal',
+      'HI': 'Hematológico/Infeccioso', 'PA': 'Pele/Acessos'
+    };
 
-    // Expande formato compacto para formato completo
     const AUTO_CAT = {
-      'mg':'Renal/Metabólico','magnésio':'Renal/Metabólico','magnesio':'Renal/Metabólico',
-      'ca':'Renal/Metabólico','cal':'Renal/Metabólico','cai':'Renal/Metabólico','cálcio':'Renal/Metabólico',
-      'pcr':'Renal/Metabólico','proteína c':'Renal/Metabólico','p':'Renal/Metabólico','fósforo':'Renal/Metabólico',
+      'mg':'Renal/Metabólico','magnésio':'Renal/Metabólico',
+      'ca':'Renal/Metabólico','cai':'Renal/Metabólico','cálcio':'Renal/Metabólico',
+      'pcr':'Renal/Metabólico','fósforo':'Renal/Metabólico','fosforo':'Renal/Metabólico',
       'procalcitonina':'Hematológico/Infeccioso','pct':'Hematológico/Infeccioso',
-      'troponina':'Hemodinâmico','bnp':'Hemodinâmico','nt-probnp':'Hemodinâmico',
+      'troponina':'Hemodinâmico','bnp':'Hemodinâmico',
       'tgo':'Gastrointestinal','tgp':'Gastrointestinal','bilirrubina':'Gastrointestinal',
-      'albumina':'Gastrointestinal','ggt':'Gastrointestinal','fa':'Gastrointestinal','amilase':'Gastrointestinal',
+      'albumina':'Gastrointestinal','ggt':'Gastrointestinal','amilase':'Gastrointestinal','lipase':'Gastrointestinal',
     };
 
-    const extras = (compact.ex || []).map(e => {
-      const nl = (e.n||'').toLowerCase();
-      let sugestao = e.s || '';
-      for (const [k,v] of Object.entries(AUTO_CAT)) {
-        if (nl.includes(k)) { sugestao = v; break; }
+    const sistemas = {"Neurológico":"","Respiratório":"","Hemodinâmico":"","Renal/Metabólico":"","Gastrointestinal":"","Hematológico/Infeccioso":"","Pele/Acessos":""};
+    const extras = [];
+
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Formato EX:Nome=Valor
+      if (trimmed.startsWith('EX:')) {
+        const rest = trimmed.slice(3);
+        const eqIdx = rest.indexOf('=');
+        if (eqIdx > 0) {
+          const nome = rest.slice(0, eqIdx).trim();
+          const valor = rest.slice(eqIdx + 1).trim();
+          const nl = nome.toLowerCase();
+          let sugestao = '';
+          for (const [k,v] of Object.entries(AUTO_CAT)) {
+            if (nl.includes(k)) { sugestao = v; break; }
+          }
+          extras.push({ nome, valor, sugestao });
+        }
+        continue;
       }
-      return { nome: e.n, valor: e.v, sugestao };
-    });
 
-    const result = {
-      sistemas: {
-        "Neurológico":            compact.N  || "",
-        "Respiratório":           compact.R  || "",
-        "Hemodinâmico":           compact.H  || "",
-        "Renal/Metabólico":       compact.RM || "",
-        "Gastrointestinal":       compact.GI || "",
-        "Hematológico/Infeccioso":compact.HI || "",
-        "Pele/Acessos":           compact.PA || "",
-      },
-      extras,
-      resumo: compact.resumo || ""
-    };
+      // Formato CHAVE:valor
+      const colonIdx = trimmed.indexOf(':');
+      if (colonIdx > 0) {
+        const key = trimmed.slice(0, colonIdx).trim();
+        const val = trimmed.slice(colonIdx + 1).trim();
+        if (MAP[key] && val) {
+          sistemas[MAP[key]] = val;
+        }
+      }
+    }
 
-    console.log('OK. RM:', result.sistemas["Renal/Metabólico"].slice(0,60), '| HI:', result.sistemas["Hematológico/Infeccioso"].slice(0,60));
-    return res.status(200).json(result);
+    console.log('PARSED RM:', sistemas['Renal/Metabólico'].slice(0,60));
+    console.log('PARSED HI:', sistemas['Hematológico/Infeccioso'].slice(0,60));
+    console.log('EXTRAS:', extras.length);
+
+    return res.status(200).json({ sistemas, extras, resumo: '' });
 
   } catch (err) {
     console.error('ERROR:', err.message);
