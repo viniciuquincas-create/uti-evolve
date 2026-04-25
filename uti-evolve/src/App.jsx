@@ -2007,23 +2007,56 @@ export default function App() {
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
   });
   const [saving, setSaving] = useState(false);
-  const saveTimer    = useRef(null);
-  const evolTimer    = useRef(null);
-  const tabelaTimer  = useRef(null);
-  const configTimer  = useRef(null);
-  const dataLoaded   = useRef(false); // bloqueia saves até load completo
+  const saveTimer   = useRef(null);
+  const evolTimer   = useRef(null);
+  const tabelaTimer = useRef(null);
+  const configTimer = useRef(null);
 
-  // ── INIT: verifica sessão e carrega dados ─────────────────────────────────
+  // ── LOAD ─────────────────────────────────────────────────────────────────────
+  const loadData = async () => {
+    try {
+      const { data: ld } = await supabase.from("config").select("value").eq("key","leitos_data").single();
+      if (ld?.value) {
+        const p = JSON.parse(ld.value);
+        if (Array.isArray(p) && p.length) setLeitos(p);
+      }
+    } catch {}
+    try {
+      const { data: td } = await supabase.from("config").select("value").eq("key","tabela_data").single();
+      if (td?.value) {
+        const p = JSON.parse(td.value);
+        if (p && typeof p === 'object') setTabelaData(p);
+      }
+    } catch {}
+    try {
+      const { data: cd } = await supabase.from("config").select("value").eq("key","app_config").single();
+      if (cd?.value) {
+        const p = JSON.parse(cd.value);
+        if (p && typeof p === 'object') setConfig(c=>({...c,...p}));
+      }
+    } catch {}
+    try {
+      const { data: ed } = await supabase.from("config").select("value").eq("key","evolucao_data").single();
+      if (ed?.value) {
+        const p = JSON.parse(ed.value);
+        if (p && typeof p === 'object') {
+          setEvolPorLeito(p);
+          // leitoSelId no momento do load é sempre LEITOS_INICIAIS[0].id
+          const firstId = LEITOS_INICIAIS[0].id;
+          if (p[firstId]) { setEvolCampos(p[firstId]); setEvolVersion(v=>v+1); }
+        }
+      }
+    } catch {}
+  };
+
+  // ── INIT ──────────────────────────────────────────────────────────────────────
   useEffect(()=>{
     (async()=>{
       const sess = sessionStorage.getItem(SESSION_KEY);
       if (sess) {
         try {
           const { data } = await supabase.from("config").select("value").eq("key","pwd_hash").single();
-          if (data && data.value === sess) {
-            await loadData();
-            setAuthed(true);
-          }
+          if (data && data.value === sess) { await loadData(); setAuthed(true); }
         } catch {}
       }
       setAppReady(true);
@@ -2031,87 +2064,47 @@ export default function App() {
   // eslint-disable-next-line
   },[]);
 
-  // ── LOAD ─────────────────────────────────────────────────────────────────────
-  const loadData = async () => {
-    dataLoaded.current = false; // bloqueia saves durante load
-    try {
-      const results = await Promise.all([
-        supabase.from("config").select("value").eq("key","leitos_data").single(),
-        supabase.from("config").select("value").eq("key","tabela_data").single(),
-        supabase.from("config").select("value").eq("key","app_config").single(),
-        supabase.from("config").select("value").eq("key","evolucao_data").single(),
-      ]);
-
-      const [leitos_r, tabela_r, config_r, evol_r] = results;
-
-      if (leitos_r.data?.value) {
-        try { const p=JSON.parse(leitos_r.data.value); if(Array.isArray(p)&&p.length) setLeitos(p); } catch {}
-      }
-      if (tabela_r.data?.value) {
-        try { const p=JSON.parse(tabela_r.data.value); if(p&&typeof p==='object') setTabelaData(p); } catch {}
-      }
-      if (config_r.data?.value) {
-        try { const p=JSON.parse(config_r.data.value); if(p&&typeof p==='object') setConfig(c=>({...c,...p})); } catch {}
-      }
-      if (evol_r.data?.value) {
-        try {
-          const p=JSON.parse(evol_r.data.value);
-          if(p&&typeof p==='object') {
-            setEvolPorLeito(p);
-            // Aplica imediatamente no leito atual
-            const leitoAtual = leitoSelId;
-            if (p[leitoAtual]) {
-              setEvolCampos(p[leitoAtual]);
-              setEvolVersion(v=>v+1);
-            }
-          }
-        } catch {}
-      }
-    } catch {}
-
-    // Libera saves APÓS todo o load
-    setTimeout(() => { dataLoaded.current = true; }, 100);
-  };
-
   const onLogin = async () => { await loadData(); setAuthed(true); };
 
-  // ── SAVES (só rodam se dataLoaded=true) ──────────────────────────────────────
-  useEffect(()=>{
-    if (!authed || !dataLoaded.current) return;
+  // ── SAVES manuais (chamados explicitamente, não por useEffect) ────────────────
+  const salvarLeitos = (val) => {
     clearTimeout(saveTimer.current);
     setSaving(true);
     saveTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(leitos)}); } catch {}
+      try { await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(val)}); } catch {}
       setSaving(false);
-    }, 1000);
-  },[leitos]);
+    }, 800);
+  };
 
-  useEffect(()=>{
-    if (!authed || !dataLoaded.current) return;
+  const salvarEvol = (val) => {
     clearTimeout(evolTimer.current);
     evolTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(evolPorLeito)}); } catch {}
-    }, 1000);
-  },[evolPorLeito]);
+      try { await supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(val)}); } catch {}
+    }, 800);
+  };
 
-  useEffect(()=>{
-    if (!authed || !dataLoaded.current) return;
+  const salvarTabela = (val) => {
     clearTimeout(tabelaTimer.current);
     tabelaTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(tabelaData)}); } catch {}
-    }, 1000);
-  },[tabelaData]);
+      try { await supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(val)}); } catch {}
+    }, 800);
+  };
 
-  useEffect(()=>{
-    if (!authed || !dataLoaded.current) return;
+  const salvarConfig = (val) => {
     clearTimeout(configTimer.current);
     configTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"app_config",value:JSON.stringify(config)}); } catch {}
-    }, 1000);
-  },[config]);
+      try { await supabase.from("config").upsert({key:"app_config",value:JSON.stringify(val)}); } catch {}
+    }, 800);
+  };
 
   const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
-  const atualizar = (d) => setLeitos(ls=>ls.map(l=>l.id===leitoSelId?{...l,...d}:l));
+  const atualizar = (d) => {
+    setLeitos(ls=>{
+      const novo = ls.map(l=>l.id===leitoSelId?{...l,...d}:l);
+      salvarLeitos(novo);
+      return novo;
+    });
+  };
   const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
 
   // Sincroniza evolCampos quando troca de leito
@@ -2131,15 +2124,16 @@ export default function App() {
     setEvolCampos(prev => {
       const hoje = new Date().toISOString().split("T")[0];
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      // Marca a data de edição de cada campo que mudou
       const novasDatas = { ...(prev._datas||{}) };
       Object.keys(next).forEach(k => {
-        if (k !== '_datas' && next[k] !== prev[k]) {
-          novasDatas[k] = hoje;
-        }
+        if (k !== '_datas' && next[k] !== prev[k]) novasDatas[k] = hoje;
       });
       const comData = { ...next, _datas: novasDatas };
-      setEvolPorLeito(ep => ({ ...ep, [leitoSelId]: comData }));
+      setEvolPorLeito(ep => {
+        const novo = { ...ep, [leitoSelId]: comData };
+        salvarEvol(novo);
+        return novo;
+      });
       return comData;
     });
   };
@@ -2202,7 +2196,11 @@ export default function App() {
               onClick={()=>{
                 const novoId = Date.now();
                 const novoNum = leitos.length + 1;
-                setLeitos(ls=>[...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}]);
+                setLeitos(ls=>{
+                  const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+                  salvarLeitos(novo);
+                  return novo;
+                });
                 setLeitoSelId(novoId);
                 setAba("paciente");
               }}
@@ -2211,10 +2209,11 @@ export default function App() {
           </div>
           {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId}
             onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("paciente");}}
-            onRename={nome=>setLeitos(ls=>ls.map(x=>x.id===l.id?{...x,nome}:x))}
+            onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
             onRemove={leitos.length>1?()=>{
               setLeitos(ls=>{
                 const novo = ls.filter(x=>x.id!==l.id);
+                salvarLeitos(novo);
                 setLeitoSelId(novo[0].id);
                 return novo;
               });
@@ -2255,7 +2254,7 @@ export default function App() {
 
           <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
             {aba==="config" ? (
-              <ConfigPanel config={config} onChange={setConfig} onVoltar={()=>setAba("paciente")}/>
+              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="paciente" ? (
               <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
                 setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
@@ -2265,7 +2264,13 @@ export default function App() {
               <TabelaClinica
                 leito={leito}
                 data={tabelaData[leitoSelId] || {}}
-                onChange={d=>setTabelaData(t=>({...t,[leitoSelId]:d}))}
+                onChange={d=>{
+                  setTabelaData(t=>{
+                    const novo = {...t,[leitoSelId]:d};
+                    salvarTabela(novo);
+                    return novo;
+                  });
+                }}
                 onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
               />
             ) : aba==="upload" ? (
@@ -2390,13 +2395,17 @@ export default function App() {
                     }
                   });
 
-                  setTabelaData(t=>({
-                    ...t,
-                    [leitoSelId]: {
-                      ...(t[leitoSelId]||{}),
-                      [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos }
-                    }
-                  }));
+                  setTabelaData(t=>{
+                    const novo = {
+                      ...t,
+                      [leitoSelId]: {
+                        ...(t[leitoSelId]||{}),
+                        [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos }
+                      }
+                    };
+                    salvarTabela(novo);
+                    return novo;
+                  });
                   setDadosIA(d);
                   setTimeout(()=>setAba("tabela"), 50);
                 }}/>
