@@ -331,11 +331,12 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
 // ── DrogasCalculadora ─────────────────────────────────────────────────────────
 const GRUPOS = { vasoativa:"Vasoativas", sedacao:"Sedação", analgesia:"Analgesia" };
 
-function DrogasCalculadora({ peso }) {
+function DrogasCalculadora({ peso, onLancarDroga }) {
   const [drogaSel, setDrogaSel] = useState("noradrenalina");
   const [mlh, setMlh]           = useState("");
   const [concCustom, setConcCustom] = useState("");
   const [editandoConc, setEditandoConc] = useState(false);
+  const [lancado, setLancado]   = useState(false);
 
   const conf = DROGAS_PROTOCOLO[drogaSel];
   const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined);
@@ -355,6 +356,23 @@ function DrogasCalculadora({ peso }) {
     if (n < 0.01)  return n.toFixed(4);
     if (n < 1)     return n.toFixed(3);
     return n.toFixed(2);
+  };
+
+  // Mapeia grupo → campo da evolução
+  const CAMPO_EVOLUCAO = {
+    vasoativa: "cvDVA",
+    sedacao:   "nSeda",
+    analgesia: "nAnalg",
+  };
+
+  const lancarNaEvolucao = () => {
+    if (!resultado || !onLancarDroga) return;
+    const dose = `${fmtDose(resultado.dose)} ${resultado.label}`;
+    const linha = `${conf.label} ${mlh}mL/h (${dose})`;
+    const campo = CAMPO_EVOLUCAO[conf.grupo] || "cvDVA";
+    onLancarDroga(linha, campo);
+    setLancado(true);
+    setTimeout(()=>setLancado(false), 2000);
   };
 
   return (
@@ -423,6 +441,17 @@ function DrogasCalculadora({ peso }) {
           <div style={{marginTop:6,fontSize:11,color:"#475569"}}>
             Máx. recomendado: {conf.max} {conf.unidadeLabel}
           </div>
+        )}
+        {resultado && onLancarDroga && (
+          <button onClick={lancarNaEvolucao} style={{
+            width:"100%", marginTop:10, padding:"9px",
+            background: lancado ? "rgba(34,197,94,0.15)" : "rgba(56,189,248,0.1)",
+            border: `1px solid ${lancado ? "#22c55e" : "#38bdf8"}`,
+            borderRadius:8, color: lancado ? "#22c55e" : "#38bdf8",
+            fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s",
+          }}>
+            {lancado ? "✅ Lançado na evolução!" : `📋 Lançar na evolução (${conf.grupo === "vasoativa" ? "== Cv: DVA" : conf.grupo === "sedacao" ? "== N: Sedação" : "== N: Analgesia"})`}
+          </button>
         )}
       </div>
     </div>
@@ -742,7 +771,7 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
 }
 
 // ── PacientePanel ─────────────────────────────────────────────────────────────
-function PacientePanel({ dados, onChange, config={} }) {
+function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
   const dias  = diasInternacao(dados.dataInternacao);
   const pp    = pesoPredito(dados.altura, dados.sexo);
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
@@ -819,7 +848,7 @@ function PacientePanel({ dados, onChange, config={} }) {
 
       {dados.peso && <>
         <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-        <DrogasCalculadora peso={dados.peso} />
+        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga} />
       </>}
 
       <DietaPanel dados={dados} onChange={onChange} />
@@ -908,9 +937,14 @@ function UploadAnalyzer({ onResult }) {
       {loading && <div style={{textAlign:"center",color:"#38bdf8",padding:16,fontSize:14}}>⏳ Analisando imagem com IA…</div>}
       {draft && !draft.error && rev && (
         <div>
-          {draft.resumo && !draft.resumo.startsWith('{') && !draft.resumo.startsWith('[ERRO') && (
+          {draft.resumo && !draft.resumo.startsWith('{') && !draft.resumo.startsWith('[ERRO') && !draft.resumo.startsWith('[SEM') && (
             <div style={{background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#7dd3fc"}}>
               <strong>Resumo IA:</strong> {draft.resumo}
+            </div>
+          )}
+          {draft.dataColeta && (
+            <div style={{background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"#4ade80",display:"flex",alignItems:"center",gap:8}}>
+              📅 <strong>Data de coleta detectada:</strong> {draft.dataColeta.split('-').reverse().join('/')} — os valores serão lançados nesta coluna da tabela
             </div>
           )}
           <div style={{fontSize:12,color:"#94a3b8",marginBottom:8,fontFamily:mono}}>REVISÃO — edite se necessário</div>
@@ -2023,7 +2057,10 @@ export default function App() {
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={setConfig} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="paciente" ? (
-              <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config}/></div>
+              <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
+                setEvolCampos(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
+                setEvolVersion(v=>v+1);
+              }}/></div>
             ) : aba==="tabela" ? (
               <TabelaClinica
                 leito={leito}
@@ -2039,6 +2076,8 @@ export default function App() {
                 </div>
                 <UploadAnalyzer onResult={d=>{
                   const hoje = new Date().toISOString().split("T")[0];
+                  // Usa a data de coleta do exame se disponível, senão hoje
+                  const dataAlvo = d.dataColeta || hoje;
 
                   // Merge extras categorizados nos sistemas
                   const sistemasFinais = { ...(d.sistemas||{}) };
@@ -2141,7 +2180,7 @@ export default function App() {
                     ...t,
                     [leitoSelId]: {
                       ...(t[leitoSelId]||{}),
-                      [hoje]: { ...(t[leitoSelId]?.[hoje]||{}), ...novos }
+                      [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos }
                     }
                   }));
                   setDadosIA(d);
