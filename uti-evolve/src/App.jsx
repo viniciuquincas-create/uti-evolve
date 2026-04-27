@@ -2276,6 +2276,7 @@ export default function App() {
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.85}
 
         /* 🔥 AJUSTES PARA CELULAR (MOBILE) */
+        .mobile-backdrop { display: none; }
         @media (max-width: 768px) {
           .mobile-pad { padding-left: 12px !important; padding-right: 12px !important; }
           .mobile-hide-text { display: none !important; }
@@ -2283,10 +2284,17 @@ export default function App() {
             position: absolute; 
             z-index: 200; 
             height: calc(100vh - 56px); 
-            background: #0a0f1e; 
+            background: #0a0f1e !important; /* CORRIGE A TRANSPARÊNCIA */
             box-shadow: 4px 0 15px rgba(0,0,0,0.8); 
           }
           .mobile-tabs { padding-left: 12px !important; }
+          .mobile-backdrop {
+            display: block;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 190;
+          }
         }
       `}</style>
 
@@ -2314,6 +2322,10 @@ export default function App() {
       </div>
 
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)",position:"relative"}}>
+        
+        {/* 🔥 NOVO: OVERLAY ESCURO PARA FECHAR CLICANDO FORA NO CELULAR */}
+        {showSidebar && <div className="mobile-backdrop" onClick={() => setShowSidebar(false)}></div>}
+
         {/* BARRA LATERAL (LEITOS) */}
         {showSidebar && (
           <div className="mobile-sidebar" style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
