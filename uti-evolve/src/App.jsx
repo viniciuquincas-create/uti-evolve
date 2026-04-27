@@ -1020,7 +1020,7 @@ function UploadAnalyzer({ onResult }) {
                 placeholder={`Dados de ${s}...`}/>
             </div>
           ))}
-          
+
           {/* Exames extras não categorizados */}
           {(draft.extras||[]).length > 0 && (
             <div style={{marginTop:4,marginBottom:12,padding:"12px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10}}>
@@ -1724,8 +1724,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
           <div style={{width:12,height:12,borderRadius:3,background:"rgba(100,116,139,0.15)",border:"1px solid rgba(100,116,139,0.3)"}}/>
           Dia anterior — edite para atualizar
         </div>
-
-      <button onClick={()=>{
+        <button onClick={()=>{
           if(confirm("Limpar toda a evolução deste leito?")) {
             onCampoEdit && Object.keys(EVOLUCAO_VAZIA).filter(k=>k!=='_datas').forEach(k=>onCampoEdit(k,''));
           }
