@@ -1120,291 +1120,6 @@ function UploadAnalyzer({ onResult }) {
   );
 }
 
-// ── EvolucaoEditor ────────────────────────────────────────────────────────────
-function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
-  const [copiado, setCopiado] = useState({});
-  const hoje = new Date().toISOString().split("T")[0];
-  const isAntigo = (fieldName) => {
-    const dataEdicao = campos._datas?.[fieldName];
-    return dataEdicao && dataEdicao < hoje;
-  };
-  const salvar = onCampoEdit || (()=>{});
-  const peso = parseFloat(leito.peso) || null;
-  const pp   = pesoPredito(leito.altura, leito.sexo);
-  const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
-  const dias = diasInternacao(leito.dataInternacao);
-  const disps = leito.dispositivos || {};
-
-  const getAlertaDias = (key, defaultDias) => {
-    const map = {cvc:"alertaCVC", dialise:"alertaDialise", dreno:"alertaDreno", tot:"alertaTOT", tqt:"alertaTQT", svd:"alertaSVD", pai:"alertaPAI", sng:"alertaSNG"};
-    return config[map[key]] ?? defaultDias;
-  };
-
-  const ativos = [
-    ...DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
-      label:(Array.isArray(disps[d.key])&&disps[d.key].length>1)?`${d.label} ${i+1}`:d.label,
-      icone:d.icone, alertaDias:getAlertaDias(d.key, d.alertaDias), disp:inst
-    }))),
-    ...DISP_SINGULAR.filter(d=>disps[d.key]?.ativo).map(d=>({
-      label:d.label, icone:d.icone, alertaDias:getAlertaDias(d.key, d.alertaDias), disp:disps[d.key]
-    })),
-  ];
-
-  const refs = {
-    nEF:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nObs:useRef(),
-    cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
-    reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
-    rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
-    tgEF:useRef(), tg24h:useRef(), tgLabs:useRef(), tgObs:useRef(),
-    heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(),
-    inCult:useRef(),
-  };
-
-  const get = (key) => refs[key]?.current?.value?.trim() || "";
-
-  const txtN = () => {
-    const p=[];
-    if(get("nEF"))    p.push(`- EF: ${get("nEF")}`);
-    if(get("nSeda"))  p.push(`- P: ${get("nSeda")}`);
-    if(get("nAnalg")) p.push(`- A: ${get("nAnalg")}`);
-    if(get("nPsiq"))  p.push(`- Psiq: ${get("nPsiq")}`);
-    if(get("nObs"))   p.push(`*${get("nObs")}`);
-    return p.join("\n");
-  };
-  const txtCv = () => {
-    const p=[];
-    if(get("cvEF"))   p.push(`- EF: ${get("cvEF")}`);
-    if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
-    if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
-    if(get("cvMed"))  p.push(`- P: ${get("cvMed")}`);
-    if(get("cvPerf")) p.push(`- Perfusão: ${get("cvPerf")}`);
-    if(get("cvObs"))  p.push(`*${get("cvObs")}`);
-    return p.join("\n");
-  };
-  const txtRes = () => {
-    const p=[];
-    if(get("reVM"))    p.push(`- Ventilação: ${get("reVM")}`);
-    if(get("reEF"))    p.push(`- EF: ${get("reEF")}`);
-    if(get("re24h"))   p.push(`- 24h: ${get("re24h")}`);
-    if(get("reGaso"))  p.push(`- *nova* Gaso: ${get("reGaso")}`);
-    if(get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
-    if(get("reObs"))   p.push(`*${get("reObs")}`);
-    return p.join("\n");
-  };
-  const txtReMe = () => {
-    const p=[];
-    if(get("rm24h"))  p.push(`- 24h: ${get("rm24h")}`);
-    if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
-    if(get("rmTRS"))  p.push(`- TRS: ${get("rmTRS")}`);
-    if(get("rmObs"))  p.push(`*${get("rmObs")}`);
-    return p.join("\n");
-  };
-  const txtTGI = () => {
-    const p=[];
-    const d=leito.dieta;
-    if(d?.tipo&&d.tipo!=="jejum"){
-      const tl={enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
-      let dl=`Dieta: ${tl}`;
-      if(d.formula) dl+=` ${d.formula}`;
-      if(d.vazao)   dl+=` ${d.vazao}ml/h`;
-      if(d.kcalTotal&&peso) dl+=` (${(parseFloat(d.kcalTotal)/peso).toFixed(1)} kcal/kg/d`;
-      if(d.ptnTotal&&peso)  dl+=` / ${(parseFloat(d.ptnTotal)/peso).toFixed(2)} g ptn/kg/d)`;
-      p.push(`- ${dl}`);
-    }else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
-    if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
-    if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
-    if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
-    if(get("tgObs"))  p.push(`*${get("tgObs")}`);
-    return p.join("\n");
-  };
-  const txtHe = () => {
-    const p=[];
-    if(get("heTemp"))  p.push(`T ${get("heTemp")}`);
-    if(get("heLabs"))  p.push(`- Labs: ${get("heLabs")}`);
-    if(get("heProf"))  p.push(`** ${get("heProf")}`);
-    if(get("heObs"))   p.push(`*${get("heObs")}`);
-    return p.join("\n");
-  };
-  const txtIn = () => {
-    const p=[];
-    if(get("heMed")) p.push(get("heMed"));
-    if(ativos.length){
-      const lista=ativos.map(a=>{
-        const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
-        return `${a.label}${a.disp.site?` ${a.disp.site}`:""} D${dd}`;
-      }).join(", ");
-      p.push(`Dispositivos: ${lista}`);
-    }
-    if(get("heAtb")) p.push(get("heAtb"));
-    if(get("inCult")) p.push(`- Culturas: ${get("inCult")}`);
-    return p.join("\n");
-  };
-
-  const copiarBloco = (id, txt) => {
-    const text = txt();
-    if(!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiado(c=>({...c,[id]:true}));
-    setTimeout(()=>setCopiado(c=>({...c,[id]:false})),2000);
-  };
-
-  const copiarTudo = () => {
-    const dt=new Date().toLocaleDateString("pt-BR");
-    let t=`EVOLUÇÃO UTI — ${dt}`;
-    if(leito.paciente)    t+=`\nPaciente: ${leito.paciente}`;
-    if(leito.diagnostico) t+=` | ${leito.diagnostico}`;
-    if(dias!==null)       t+=` | D${dias} UTI`;
-    if(leito.peso)        t+=` | ${leito.peso} kg`;
-    if(pp)                t+=` | PP ${pp} kg`;
-    const procs=leito.procedimentos||[];
-    if(procs.length) t+="\n"+procs.map(p=>{
-      const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-      return `${p.nome} (${po===0?"POI":`PO${po}`})`;
-    }).join(" · ");
-    t+="\n\n";
-    const blocos=[["== N:",txtN],["== Cv:",txtCv],["== Res:",txtRes],["== ReMe:",txtReMe],["== TGI:",txtTGI],["== He:",txtHe],["== In:",txtIn]];
-    blocos.forEach(([h,fn])=>{ const c=fn(); if(c) t+=`${h}\n${c}\n\n`; });
-    navigator.clipboard.writeText(t);
-    setCopiado(c=>({...c,tudo:true}));
-    setTimeout(()=>setCopiado(c=>({...c,tudo:false})),2500);
-  };
-
-  const colors={N:"#a78bfa",Cv:"#f87171",Res:"#38bdf8",ReMe:"#34d399",TGI:"#fb923c",He:"#f59e0b",In:"#94a3b8"};
-
-  const SysB = ({id,sigla,label,color,txtFn,children}) => {
-    const [open,setOpen]=useState(true);
-    const cp=copiado[id];
-    return (
-      <div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:10,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
-          <button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
-            <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
-            <span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
-            <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
-            <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
-          </button>
-          <button onClick={()=>copiarBloco(id,txtFn)} style={{margin:"6px 10px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,background:cp?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${cp?"#22c55e":"rgba(255,255,255,0.1)"}`,color:cp?"#22c55e":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
-            {cp?"✓ Copiado":"📋 Copiar"}
-          </button>
-        </div>
-        {open&&<div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>{children}</div>}
-      </div>
-    );
-  };
-
-  return (
-    <div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-        {dias!==null&&<Pill label="D UTI" value={`D${dias}`} unit="" color="#a78bfa"/>}
-        {leito.peso&&<Pill label="PESO" value={leito.peso} unit="kg" color="#f59e0b"/>}
-        {pp&&<Pill label="PP" value={pp} unit="kg" color="#fb923c"/>}
-        {vc6&&<Pill label="VC 6×" value={vc6} unit="mL" color="#34d399"/>}
-        {(leito.procedimentos||[]).map(p=>{
-          const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-          const cor=po<=0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
-          return <span key={p.id} style={{padding:"4px 10px",borderRadius:20,fontSize:11,fontFamily:mono,fontWeight:700,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
-        })}
-        {ativos.map((a,i)=>{
-          const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
-          const al=dd>a.alertaDias;
-          return <span key={i} style={{padding:"4px 10px",borderRadius:20,fontSize:11,fontFamily:mono,color:al?"#f87171":"#64748b",background:al?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.04)",border:`1px solid ${al?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`}}>{a.icone} D{dd}{al?" ⚠️":""}</span>;
-        })}
-      </div>
-
-      <div style={{display:"flex",gap:16,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
-          <div style={{width:12,height:12,borderRadius:3,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.15)"}}/>
-          Editado hoje
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
-          <div style={{width:12,height:12,borderRadius:3,background:"rgba(100,116,139,0.15)",border:"1px solid rgba(100,116,139,0.3)"}}/>
-          Dia anterior
-        </div>
-        <button onClick={()=>{
-          if(confirm("Limpar toda a evolução deste leito?")) {
-            onCampoEdit && Object.keys(EVOLUCAO_VAZIA).filter(k=>k!=='_datas').forEach(k=>onCampoEdit(k,''));
-          }
-        }} style={{marginLeft:"auto",padding:"4px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",fontSize:11,cursor:"pointer"}}>
-          🗑 Limpar evolução
-        </button>
-      </div>
-
-      <SysB id="n" sigla="== N:" label="Neurológico" color={colors.N} txtFn={txtN}>
-        <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
-        <Row>
-          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h)" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
-          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} placeholder="Fentanil" rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>PSIQ / OUTROS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} placeholder="Quetiapina" rows={1} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} placeholder="Obs neuro..." rows={1} fieldName="nObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={colors.Cv} txtFn={txtCv}>
-        <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} placeholder="Estável..." rows={2} fieldName="cvEF" onBlurSave={salvar}/></Col></Row>
-        <Row>
-          <Col><FL>24h — FC / PAM (min-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
-          <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row>
-          <Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col>
-          <Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="res" sigla="== Res:" label="Respiratório" color={colors.Res} txtFn={txtRes}>
-        <Row><Col><FL>Ventilação</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
-        <Row>
-          <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — FR / Sat</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row>
-          <Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} isAntigo={isAntigo("reGaso")} rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col>
-          <Col><FL>POCUS</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} txtFn={txtReMe}>
-        <Row>
-          <Col><FL>24h — Diurese · HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
-          <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>Labs</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={colors.TGI} txtFn={txtTGI}>
-        <Row>
-          <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>Labs</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="he" sigla="== He:" label="Hematológico" color={colors.He} txtFn={txtHe}>
-        <Row>
-          <Col><FL>Temperatura</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
-          <Col><FL>Profilaxias</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} rows={1} fieldName="heProf" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>Labs</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} rows={2} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="in" sigla="== In:" label="Infeccioso / Dispositivos" color={colors.In} txtFn={txtIn}>
-        <Row><Col><FL>Medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>Antibióticos</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>Culturas</FL><TA fieldRef={refs.inCult} defaultValue={campos.inCult} isAntigo={isAntigo("inCult")} rows={2} fieldName="inCult" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
-        {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
-      </button>
-    </div>
-  );
-}
-
 // ── ConfigPanel ───────────────────────────────────────────────────────────────
 const DISP_CONFIG_ITEMS = [
   { key:"alertaCVC",    label:"Cateter Venoso Central",    icone:"🩸" },
@@ -1765,7 +1480,50 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   );
 }
 
-// ── EvolucaoEditor ────────────────────────────────────────────────────────────
+const EVOLUCAO_VAZIA = {
+  nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
+  cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
+  reVM:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
+  rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
+  tgEF:"", tg24h:"", tgLabs:"", tgObs:"",
+  heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"",
+  inCult:"",
+  _datas:{},
+};
+
+function TA({ fieldRef, defaultValue, placeholder, rows=2, isAntigo=false, fieldName, onBlurSave }) {
+  return (
+    <div style={{position:"relative"}}>
+      <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={placeholder} rows={rows}
+        style={{width:"100%",
+          background: isAntigo ? "rgba(100,116,139,0.08)" : "rgba(255,255,255,0.03)",
+          border: isAntigo ? "1px solid rgba(100,116,139,0.25)" : "1px solid rgba(255,255,255,0.07)",
+          borderRadius:8,padding:"8px 10px",
+          color: isAntigo ? "#64748b" : "#cbd5e1",
+          fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",lineHeight:1.5}}
+        onFocus={e=>e.target.style.borderColor="rgba(56,189,248,0.4)"}
+        onBlur={e=>{
+          e.target.style.borderColor = isAntigo ? "rgba(100,116,139,0.25)" : "rgba(255,255,255,0.07)";
+          if (onBlurSave && fieldName) onBlurSave(fieldName, e.target.value);
+        }}/>
+      {isAntigo && (
+        <span style={{position:"absolute",top:4,right:6,fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:0.5,pointerEvents:"none"}}>
+          dia anterior
+        </span>
+      )}
+    </div>
+  );
+}
+function FLabel({ children }) {
+  return <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
+}
+function Row({ children }) {
+  return <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>{children}</div>;
+}
+function Col({ children, flex=1, min=120 }) {
+  return <div style={{flex,minWidth:min}}>{children}</div>;
+}
+
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
@@ -1963,7 +1721,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
           <div style={{width:12,height:12,borderRadius:3,background:"rgba(100,116,139,0.15)",border:"1px solid rgba(100,116,139,0.3)"}}/>
-          Dia anterior — edite para atualizar
+          Dia anterior
         </div>
         <button onClick={()=>{
           if(confirm("Limpar toda a evolução deste leito?")) {
@@ -1977,74 +1735,70 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
       <SysB id="n" sigla="== N:" label="Neurológico" color={colors.N} txtFn={txtN}>
         <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
         <Row>
-          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
-          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} placeholder="Metadona 22,5mg/d + Lido 140mg 12/12h" rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
+          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h)" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
+          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} placeholder="Fentanil" rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>PSIQ / OUTROS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} placeholder="Diazepam 40mg/d + Sertralina 50mg/d" rows={1} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} placeholder="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1} fieldName="nObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>PSIQ / OUTROS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} placeholder="Quetiapina" rows={1} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} placeholder="Obs neuro..." rows={1} fieldName="nObs" onBlurSave={salvar}/></Col></Row>
       </SysB>
 
       <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={colors.Cv} txtFn={txtCv}>
-        <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} placeholder="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2} fieldName="cvEF" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} placeholder="Estável..." rows={2} fieldName="cvEF" onBlurSave={salvar}/></Col></Row>
         <Row>
-          <Col><FL>24h — FC / PAM (min-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} placeholder="FC 109 - 58 / PAM 121 - 58" rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
-          <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} placeholder="Nora 5ml/h (0,08 mcg/kg/min)" rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — FC / PAM (min-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
+          <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
         </Row>
         <Row>
-          <Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} placeholder="Atenolol 25mg" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col>
-          <Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} placeholder="TEC 2 seg / Lactato 12 > 22" rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col>
+          <Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col>
+          <Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} placeholder="Eco beira-leito amanhã" rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>
       </SysB>
 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={colors.Res} txtFn={txtRes}>
-        <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} placeholder="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Ventilação</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
         <Row>
-          <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} placeholder="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — FR / Sat</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} placeholder="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
+          <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — FR / Sat</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
         </Row>
         <Row>
-          <Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} isAntigo={isAntigo("reGaso")} placeholder="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SataO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col>
-          <Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} placeholder="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col>
+          <Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} isAntigo={isAntigo("reGaso")} rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col>
+          <Col><FL>POCUS</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} placeholder="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>
       </SysB>
 
       <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} txtFn={txtReMe}>
         <Row>
-          <Col><FL>24h — Diurese · HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} placeholder="Diurese 1,5 mL/kg/h / HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
-          <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} placeholder="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — Diurese · HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
+          <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} placeholder="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>
       </SysB>
 
       <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={colors.TGI} txtFn={txtTGI}>
-        {leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>🍽 Dieta cadastrada: <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`}</div>}
         <Row>
-          <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
+          <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} placeholder="TGO 24 / TGP 14 / BT 2.7 / FA 154 / GGT 128 / Alb 3.2" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} placeholder="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>
       </SysB>
 
       <SysB id="he" sigla="== He:" label="Hematológico" color={colors.He} txtFn={txtHe}>
         <Row>
-          <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} placeholder="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
-          <Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} placeholder="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1} fieldName="heProf" onBlurSave={salvar}/></Col>
+          <Col><FL>Temperatura</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
+          <Col><FL>Profilaxias</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} rows={1} fieldName="heProf" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} placeholder="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} placeholder="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} rows={2} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>
       </SysB>
 
       <SysB id="in" sigla="== In:" label="Infeccioso / Dispositivos" color={colors.In} txtFn={txtIn}>
-        {ativos.length>0&&<div style={{padding:"6px 10px",background:"rgba(148,163,184,0.07)",border:"1px solid rgba(148,163,184,0.15)",borderRadius:6,fontSize:11,color:"#94a3b8",marginBottom:8}}>
-          📎 {ativos.map(a=>{const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;}).join(" / ")}
-        </div>}
-        <Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>Culturas — material + data</FL><TA fieldRef={refs.inCult} defaultValue={campos.inCult} isAntigo={isAntigo("inCult")} placeholder="HMC (23/04): em andamento" rows={2} fieldName="inCult" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Antibióticos</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Culturas</FL><TA fieldRef={refs.inCult} defaultValue={campos.inCult} isAntigo={isAntigo("inCult")} rows={2} fieldName="inCult" onBlurSave={salvar}/></Col></Row>
       </SysB>
 
       <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
@@ -2054,7 +1808,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
   );
 }
 
-// ── MetasPanel ────────────────────────────────────────────────────────────────
 function MetasPanel({ metas=[], onChange }) {
   const [nova,  setNova]  = useState("");
   const [show,  setShow]  = useState(false);
@@ -2103,7 +1856,6 @@ function MetasPanel({ metas=[], onChange }) {
   );
 }
 
-// ── LeitoCard ─────────────────────────────────────────────────────────────────
 function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, config={}, onMoveUp, onMoveDown, isFirst, isLast }) {
   const dias = diasInternacao(leito.dataInternacao);
   const vago = !leito.paciente;
@@ -2139,7 +1891,6 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, config={},
         <div style={{display:"flex",alignItems:"center",gap:4}}>
           {!editingNome && dias!==null && !vago && <span style={{fontSize:11,color:"#a78bfa",fontWeight:700}}>D{dias}</span>}
           
-          {/* Botões de reordenação de leitos */}
           {!editingNome && (
             <div style={{display:"flex", flexDirection:"column", gap:0, marginRight:2}}>
               <button onClick={e=>{e.stopPropagation();onMoveUp();}} disabled={isFirst} title="Mover para cima" style={{background:"none",border:"none",color:isFirst?"#334155":"#64748b",cursor:isFirst?"default":"pointer",fontSize:10,padding:0,lineHeight:0.8}}>▲</button>
@@ -2191,14 +1942,12 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, config={},
   );
 }
 
-// ── Auth helpers ──────────────────────────────────────────────────────────────
 async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 const SESSION_KEY = "uti_session_hash";
 
-// ── LoginScreen ───────────────────────────────────────────────────────────────
 function LoginScreen({ onLogin }) {
   const [senha,    setSenha]    = useState("");
   const [confirma, setConfirma] = useState("");
@@ -2287,7 +2036,6 @@ function LoginScreen({ onLogin }) {
   );
 }
 
-// ── FerramentasPanel ──────────────────────────────────────────────────────────
 function FerramentasPanel() {
   return (
     <div style={{padding:"24px", maxWidth:"800px", margin:"0 auto", width:"100%"}}>
@@ -2296,7 +2044,7 @@ function FerramentasPanel() {
           📚 Links e Guias Institucionais
         </div>
         <div style={{fontSize:14, color:"#64748b", marginTop:6}}>
-          Acesso rápido a protocolos, checklists e drives da sua unidade.
+          Acesso rápido a protocolos, checklists e drives da sua unidade. 
         </div>
       </div>
 
@@ -2314,7 +2062,6 @@ function FerramentasPanel() {
           </div>
         </a>
 
-        {/* Links corrigidos com os nomes curtos que criaste */}
         <a href="/Protocolos/Protocolo-Profilaxia-Cirurgica.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>🩸</div>
           <div>
@@ -2337,6 +2084,7 @@ function FerramentasPanel() {
         <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>DRIVES E SISTEMAS</span>
       </div>
       <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
+        
         <a href="https://account.huhsp.org.br/portal/auth/access" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>💊</div>
           <div>
@@ -2349,7 +2097,15 @@ function FerramentasPanel() {
           <div style={{fontSize:32}}>📁</div>
           <div>
             <div style={{fontWeight:700, color:"#34d399", marginBottom:2}}>Drive Geral UTI</div>
-            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Ficheiros e guias da unidade</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Repositório de ficheiros e guias da unidade</div>
+          </div>
+        </a>
+
+        <a href="https://www.mdcalc.com/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(167,139,250,0.08)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>🧮</div>
+          <div>
+            <div style={{fontWeight:700, color:"#c4b5fd", marginBottom:2}}>MDCalc</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Calculadoras médicas, escores (APACHE, SAPS)</div>
           </div>
         </a>
       </div>
@@ -2357,7 +2113,6 @@ function FerramentasPanel() {
   );
 }
 
-// ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [authed,     setAuthed]     = useState(false);
   const [appReady,   setAppReady]   = useState(false);
@@ -2563,7 +2318,6 @@ export default function App() {
         }
       `}</style>
 
-      {/* HEADER PRINCIPAL */}
       <div className="mobile-pad" style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={() => setShowSidebar(!showSidebar)} style={{background:"transparent", border:"none", color:"#e2e8f0", fontSize:22, cursor:"pointer", padding:"0 6px 0 0", display:"flex", alignItems:"center"}}>
@@ -2589,7 +2343,6 @@ export default function App() {
         
         {showSidebar && <div className="mobile-backdrop" onClick={() => setShowSidebar(false)}></div>}
 
-        {/* BARRA LATERAL (LEITOS E LINKS) */}
         {showSidebar && (
           <div className="mobile-sidebar" style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0, display:"flex", flexDirection:"column"}}>
             
@@ -2676,7 +2429,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ÁREA PRINCIPAL */}
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           
           {viewGlobal === "ferramentas" ? (
