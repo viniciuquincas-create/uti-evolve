@@ -1733,11 +1733,14 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
         </button>
       </div>
 
-      {/* ADICIONE ESTA LINHA ABAIXO */}
-      <SysB id="n" sigla="== N:" label="Neurológico" color={colors.N} txtFn={txtN}>
-        
-        <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
-      
+      <button onClick={()=>{
+          if(confirm("Limpar toda a evolução deste leito?")) {
+            onCampoEdit && Object.keys(EVOLUCAO_VAZIA).filter(k=>k!=='_datas').forEach(k=>onCampoEdit(k,''));
+          }
+        }} style={{marginLeft:"auto",padding:"4px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",fontSize:11,cursor:"pointer"}}>
+          🗑 Limpar evolução
+        </button>
+      </div>
 
       <SysB id="n" sigla="== N:" label="Neurológico" color={colors.N} txtFn={txtN}>
         <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
