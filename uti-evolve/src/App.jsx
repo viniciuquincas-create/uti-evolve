@@ -1038,7 +1038,6 @@ function UploadAnalyzer({ onResult }) {
             </div>
           )}
           <button onClick={()=>{
-              // O processamento das regex foi movido para o botão Confirmar para facilitar a leitura.
               const d = draft;
               const hoje = new Date().toISOString().split("T")[0];
               const dataAlvo = d.dataColeta || hoje;
@@ -1069,7 +1068,6 @@ function UploadAnalyzer({ onResult }) {
 
               Object.assign(novos, extrair(s["Hemodinâmico"]||"", [ ["lact",  re(`[Ll]actato[:\\s]*${NUM}`)], ["trop",  re(`[Tt]roponina[:\\s]*${NUM}`)], ["bnp",   re(`\\bBNP[:\\s]*${NUM}`)] ]));
               Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [ ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]*${NUM}`)], ["ur",   re(`\\bUr[eia\\s]*[:/\\s]*${NUM}`)], ["k",    re(`\\bK[+\\s]*[:/\\s]*${NUM}`)], ["na",   re(`\\bNa[+\\s]*[:/\\s]*${NUM}`)], ["mg",   re(`\\bMg[:\\s]*${NUM}`)], ["cai",  re(`\\bCa[i\\s]*[:/\\s]*${NUM}`)], ["p",    re(`\\bP[:\\s]*${NUM}`)], ["ph",   re(`\\bpH[:\\s]*${NUM}`)], ["hco3", re(`\\bHCO3[:\\s]*${NUM}`)], ["diur", re(`[Dd]iurese[:\\s]*${NUM}`)], ["bh",   re(`\\bBH[:\\s]*([+-]?${NUM.slice(1)}`)], ["lact", re(`\\bLactato[:\\s]*${NUM}`)] ]));
-              // REGEX ATUALIZADA AQUI PARA PEGAR PALAVRAS INTEIRAS
               Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [ 
                 ["hb",    re(`(?:\\bHb|Hemoglobina)[:\\s]*${NUM}`)], 
                 ["ht",    re(`(?:\\bHt|Hemat[óo]crito)[:\\s]*${NUM}`)], 
@@ -1104,8 +1102,13 @@ function UploadAnalyzer({ onResult }) {
                 }
               });
 
-              onResult({ dataAlvo, novos });
-              setRev(false);
+              setTabelaData(t=>{
+                const novo = { ...t, [leitoSelId]: { ...(t[leitoSelId]||{}), [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos } } };
+                salvarTabela(novo);
+                return novo;
+              });
+              setDadosIA(d);
+              setTimeout(()=>setAba("tabela"), 50);
           }}
             style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
             📊 Confirmar e adicionar à Tabela Clínica
@@ -1123,9 +1126,9 @@ const EVOLUCAO_VAZIA = {
   cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
   reVM:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
-  tgEF:"", tg24h:"", tgLabs:"", tgObs:"", // tgLabs adicionado
+  tgEF:"", tg24h:"", tgLabs:"", tgObs:"",
   heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"",
-  inCult:"", // inCult adicionado
+  inCult:"",
   _datas:{},
 };
 
@@ -1285,16 +1288,15 @@ const ABREV = {
   diur:"Diurese", bh:"BH", dreno1:"Dreno1", dreno2:"Dreno2", dreno3:"Dreno3", evac:"Evac",
 };
 
-// Formata valor: plaquetas e leucócitos em k
 const fmtVal = (key, raw) => {
   if (!raw) return raw;
   const n = parseFloat(raw.replace(',','.'));
   if (isNaN(n)) return raw;
   if (["plaq","leuco"].includes(key)) {
     let val = n;
-    if (val >= 1000) val = val / 1000; // Converte 5200 para 5.2 (mil)
-    if (val >= 100) return `${Math.round(val)}k`; // Ex: 251k
-    return `${val.toFixed(val % 1 === 0 ? 0 : 2)}k`; // Ex: 5.2k
+    if (val >= 1000) val = val / 1000; 
+    if (val >= 100) return `${Math.round(val)}k`; 
+    return `${val.toFixed(val % 1 === 0 ? 0 : 2)}k`; 
   }
   return n % 1 === 0 ? String(Math.round(n)) : raw.replace(',','.');
 };
@@ -1472,7 +1474,6 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
                   ))}
                 </React.Fragment>
               ))}
-              {/* Exames extras dinâmicos */}
               {extrasKeys.length > 0 && (
                 <React.Fragment>
                   <tr>
