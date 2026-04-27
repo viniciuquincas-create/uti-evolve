@@ -2144,6 +2144,62 @@ function FerramentasPanel() {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
+// ── FerramentasPanel ──────────────────────────────────────────────────────────
+function FerramentasPanel() {
+  return (
+    <div style={{padding:"24px", maxWidth:"800px", margin:"0 auto", width:"100%"}}>
+      <div style={{marginBottom:30}}>
+        <div style={{fontSize:24, fontWeight:700, color:"#e2e8f0", display:"flex", alignItems:"center", gap:10}}>
+          📚 Links e Guias Institucionais
+        </div>
+        <div style={{fontSize:14, color:"#64748b", marginTop:6}}>
+          Acesso rápido a protocolos, checklists e drives da sua unidade. 
+          Você pode editar os links diretamente no código do sistema.
+        </div>
+      </div>
+
+      <SecTitle>CHECKLISTS & PROTOCOLOS</SecTitle>
+      <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
+        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>🫁</div>
+          <div>
+            <div style={{fontWeight:700, color:"#38bdf8", marginBottom:2}}>Checklist de IOT</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Passo a passo para intubação e via aérea difícil</div>
+          </div>
+        </a>
+
+        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>🩸</div>
+          <div>
+            <div style={{fontWeight:700, color:"#f87171", marginBottom:2}}>Protocolo de Transfusão</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Gatilhos transfusionais e reversão de anticoagulantes</div>
+          </div>
+        </a>
+      </div>
+
+      <SecTitle>DRIVES E SISTEMAS</SecTitle>
+      <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
+        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>💊</div>
+          <div>
+            <div style={{fontWeight:700, color:"#f59e0b", marginBottom:2}}>Drive de Antimicrobianos</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Guia de diluição, posologia e CCIH da instituição</div>
+          </div>
+        </a>
+
+        <a href="https://www.mdcalc.com/" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(167,139,250,0.08)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>🧮</div>
+          <div>
+            <div style={{fontWeight:700, color:"#c4b5fd", marginBottom:2}}>MDCalc</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Calculadoras médicas, escores (APACHE, SAPS)</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [authed,     setAuthed]     = useState(false);
   const [appReady,   setAppReady]   = useState(false);
@@ -2161,7 +2217,7 @@ export default function App() {
   });
   const [saving, setSaving] = useState(false);
   
-  // 🔥 CONTROLE DA BARRA LATERAL (MOBILE) E TELA GLOBAL
+  // 🔥 CONTROLE DA BARRA LATERAL E DA TELA GLOBAL (O SEGREDO ESTÁ AQUI)
   const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
   const [viewGlobal, setViewGlobal]   = useState("leitos"); // "leitos" | "ferramentas"
 
@@ -2428,7 +2484,7 @@ export default function App() {
               />)}
             </div>
 
-            {/* BOTÃO FIXO PARA A PÁGINA DE LINKS E GUIAS */}
+            {/* AQUI ESTÁ O NOVO BOTÃO DA PÁGINA DE LINKS E GUIAS */}
             <div style={{marginTop:16, borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:16}}>
               <button
                 onClick={()=>{
