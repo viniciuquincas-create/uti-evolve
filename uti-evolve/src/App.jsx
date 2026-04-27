@@ -1,4 +1,3 @@
-ATUALMENTE, ELE ESTÁ ASSIM:
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { supabase } from './supabase.js';
