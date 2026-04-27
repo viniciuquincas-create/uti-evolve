@@ -2085,7 +2085,64 @@ function LoginScreen({ onLogin }) {
   );
 }
 
-// ── App ───────────────────────────────────────────────────────────────────────
+// ── FerramentasPanel ──────────────────────────────────────────────────────────
+function FerramentasPanel() {
+  return (
+    <div style={{padding:"24px", maxWidth:"800px", margin:"0 auto", width:"100%"}}>
+      <div style={{marginBottom:30}}>
+        <div style={{fontSize:24, fontWeight:700, color:"#e2e8f0", display:"flex", alignItems:"center", gap:10}}>
+          📚 Links e Guias Institucionais
+        </div>
+        <div style={{fontSize:14, color:"#64748b", marginTop:6}}>
+          Acesso rápido a protocolos, checklists e drives da sua unidade. 
+          Você pode editar os links diretamente no código do sistema.
+        </div>
+      </div>
+
+      <SecTitle>CHECKLISTS & PROTOCOLOS</SecTitle>
+      <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
+        {/* Substitua o href="#" pelo link do seu checklist de IOT */}
+        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>🫁</div>
+          <div>
+            <div style={{fontWeight:700, color:"#38bdf8", marginBottom:2}}>Checklist de IOT</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Passo a passo para intubação e via aérea difícil</div>
+          </div>
+        </a>
+
+        {/* Substitua o href="#" pelo link do seu protocolo */}
+        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>🩸</div>
+          <div>
+            <div style={{fontWeight:700, color:"#f87171", marginBottom:2}}>Protocolo de Transfusão</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Gatilhos transfusionais e reversão de anticoagulantes</div>
+          </div>
+        </a>
+      </div>
+
+      <SecTitle>DRIVES E SISTEMAS</SecTitle>
+      <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
+        {/* Substitua o href="#" pelo link do Drive de Antibióticos da sua Instituição */}
+        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>💊</div>
+          <div>
+            <div style={{fontWeight:700, color:"#f59e0b", marginBottom:2}}>Drive de Antimicrobianos</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Guia de diluição, posologia e CCIH da instituição</div>
+          </div>
+        </a>
+
+        <a href="https://www.mdcalc.com/" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(167,139,250,0.08)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+          <div style={{fontSize:32}}>🧮</div>
+          <div>
+            <div style={{fontWeight:700, color:"#c4b5fd", marginBottom:2}}>MDCalc</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Calculadoras médicas, escores (APACHE, SAPS)</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [authed,     setAuthed]     = useState(false);
@@ -2104,15 +2161,15 @@ export default function App() {
   });
   const [saving, setSaving] = useState(false);
   
-  // 🔥 NOVO: Controle da barra lateral (Inicia aberta no PC, fechada no celular)
+  // 🔥 CONTROLE DA BARRA LATERAL (MOBILE) E TELA GLOBAL
   const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
+  const [viewGlobal, setViewGlobal]   = useState("leitos"); // "leitos" | "ferramentas"
 
   const saveTimer   = useRef(null);
   const evolTimer   = useRef(null);
   const tabelaTimer = useRef(null);
   const configTimer = useRef(null);
 
-  // Trava de segurança para impedir o salvamento automático antes do carregamento completo
   const isLoaded = useRef(false);
 
   // ── LOAD ─────────────────────────────────────────────────────────────────────
@@ -2275,7 +2332,6 @@ export default function App() {
         ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.3);border-radius:4px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.85}
 
-        /* 🔥 AJUSTES PARA CELULAR (MOBILE) */
         .mobile-backdrop { display: none; }
         @media (max-width: 768px) {
           .mobile-pad { padding-left: 12px !important; padding-right: 12px !important; }
@@ -2284,7 +2340,7 @@ export default function App() {
             position: absolute; 
             z-index: 200; 
             height: calc(100vh - 56px); 
-            background: #0a0f1e !important; /* CORRIGE A TRANSPARÊNCIA */
+            background: #0a0f1e !important; 
             box-shadow: 4px 0 15px rgba(0,0,0,0.8); 
           }
           .mobile-tabs { padding-left: 12px !important; }
@@ -2301,7 +2357,6 @@ export default function App() {
       {/* HEADER PRINCIPAL */}
       <div className="mobile-pad" style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {/* BOTÃO HAMBURGER P/ CELULAR */}
           <button onClick={() => setShowSidebar(!showSidebar)} style={{background:"transparent", border:"none", color:"#e2e8f0", fontSize:22, cursor:"pointer", padding:"0 6px 0 0", display:"flex", alignItems:"center"}}>
             ☰
           </button>
@@ -2317,210 +2372,242 @@ export default function App() {
             <span className="mobile-hide-text">{saving?"Salvando…":"Salvo"}</span>
           </div>
           <button onClick={logout} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
-          <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
+          <button onClick={()=>{setAba("config"); setViewGlobal("leitos");}} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
         </div>
       </div>
 
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)",position:"relative"}}>
         
-        {/* 🔥 NOVO: OVERLAY ESCURO PARA FECHAR CLICANDO FORA NO CELULAR */}
         {showSidebar && <div className="mobile-backdrop" onClick={() => setShowSidebar(false)}></div>}
 
-        {/* BARRA LATERAL (LEITOS) */}
+        {/* BARRA LATERAL (LEITOS E LINKS) */}
         {showSidebar && (
-          <div className="mobile-sidebar" style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
-              <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
-              <button
+          <div className="mobile-sidebar" style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0, display:"flex", flexDirection:"column"}}>
+            
+            <div style={{flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
+                <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
+                <button
+                  onClick={()=>{
+                    const novoId = Date.now();
+                    const novoNum = leitos.length + 1;
+                    setLeitos(ls=>{
+                      const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+                      salvarLeitos(novo);
+                      return novo;
+                    });
+                    setLeitoSelId(novoId);
+                    setAba("paciente");
+                    setViewGlobal("leitos");
+                    if (window.innerWidth <= 768) setShowSidebar(false);
+                  }}
+                  title="Adicionar leito"
+                  style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+              </div>
+              
+              {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId && viewGlobal==="leitos"} config={config}
                 onClick={()=>{
-                  const novoId = Date.now();
-                  const novoNum = leitos.length + 1;
-                  setLeitos(ls=>{
-                    const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
-                    salvarLeitos(novo);
-                    return novo;
-                  });
-                  setLeitoSelId(novoId);
+                  setLeitoSelId(l.id);
+                  setDadosIA(null);
+                  setEvolCampos(EVOLUCAO_VAZIA);
+                  setEvolVersion(0);
                   setAba("paciente");
+                  setViewGlobal("leitos");
                   if (window.innerWidth <= 768) setShowSidebar(false);
                 }}
-                title="Adicionar leito"
-                style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+                onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
+                onRemove={leitos.length>1?()=>{
+                  setLeitos(ls=>{
+                    const novo = ls.filter(x=>x.id!==l.id);
+                    salvarLeitos(novo);
+                    setLeitoSelId(novo[0].id);
+                    return novo;
+                  });
+                  setViewGlobal("leitos");
+                }:null}
+              />)}
             </div>
-            
-            {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId} config={config}
-              onClick={()=>{
-                setLeitoSelId(l.id);
-                setDadosIA(null);
-                setEvolCampos(EVOLUCAO_VAZIA);
-                setEvolVersion(0);
-                setAba("paciente");
-                if (window.innerWidth <= 768) setShowSidebar(false); // Fecha a barra no celular
-              }}
-              onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
-              onRemove={leitos.length>1?()=>{
-                setLeitos(ls=>{
-                  const novo = ls.filter(x=>x.id!==l.id);
-                  salvarLeitos(novo);
-                  setLeitoSelId(novo[0].id);
-                  return novo;
-                });
-              }:null}
-            />)}
+
+            {/* BOTÃO FIXO PARA A PÁGINA DE LINKS E GUIAS */}
+            <div style={{marginTop:16, borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:16}}>
+              <button
+                onClick={()=>{
+                  setViewGlobal("ferramentas");
+                  if (window.innerWidth <= 768) setShowSidebar(false);
+                }}
+                style={{
+                  width:"100%", padding:"12px 14px", borderRadius:10, cursor:"pointer",
+                  display:"flex", alignItems:"center", gap:10, transition:"all 0.2s",
+                  background: viewGlobal==="ferramentas" ? "rgba(245,158,11,0.1)" : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${viewGlobal==="ferramentas" ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.05)"}`,
+                  color: viewGlobal==="ferramentas" ? "#fcd34d" : "#94a3b8",
+                  fontWeight: viewGlobal==="ferramentas" ? 700 : 500
+                }}>
+                <span style={{fontSize:18}}>📚</span>
+                <span>Links & Guias</span>
+              </button>
+            </div>
           </div>
         )}
 
-        {/* ÁREA PRINCIPAL DO PACIENTE */}
+        {/* ÁREA PRINCIPAL */}
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {leito.paciente && (
-            <div className="mobile-pad" style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
-              <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
-              <div style={{fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
-                {(leito.procedimentos||[]).map(p=>{
-                  const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-                  const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
-                  return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.12)`,border:`1px solid ${cor}55`,borderRadius:4,padding:"1px 7px"}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
-                })}
-                
-                {[
-                  ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:getAlertaDias(def.key, def.alertaDias),data:inst.data}))),
-                  ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:getAlertaDias(def.key, def.alertaDias),data:(leito.dispositivos||{})[def.key].data})),
-                ].map((a,i)=>{
-                  const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
-                  const cor=po>a.alertaDias?"#f87171":"#38bdf8";
-                  return <span key={i} style={{fontSize:10,fontFamily:mono,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 7px"}}>{a.label} D{po}{po>a.alertaDias?" ⚠️":""}</span>;
-                })}
-              </div>
+          
+          {viewGlobal === "ferramentas" ? (
+            <div style={{flex:1, overflowY:"auto"}}>
+              <FerramentasPanel />
             </div>
-          )}
-
-          {/* MENUS (ABAS) */}
-          <div className="mobile-tabs" style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:24,overflowX:"auto",flexShrink:0}}>
-            {ABAS.map(a=>(
-              <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
-                {a.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="mobile-pad" style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
-            {aba==="config" ? (
-              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
-            ) : aba==="paciente" ? (
-              <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
-                setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
-                setEvolVersion(v=>v+1);
-              }}/></div>
-            ) : aba==="tabela" ? (
-              <TabelaClinica
-                leito={leito}
-                data={tabelaData[leitoSelId] || {}}
-                onChange={d=>{
-                  setTabelaData(t=>{
-                    const novo = {...t,[leitoSelId]:d};
-                    salvarTabela(novo);
-                    return novo;
-                  });
-                }}
-                onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
-              />
-            ) : aba==="upload" ? (
-              <div style={{maxWidth:600}}>
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
-                  <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
+          ) : (
+            <>
+              {leito.paciente && (
+                <div className="mobile-pad" style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
+                  <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
+                  <div style={{fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
+                    {(leito.procedimentos||[]).map(p=>{
+                      const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
+                      const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
+                      return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.12)`,border:`1px solid ${cor}55`,borderRadius:4,padding:"1px 7px"}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
+                    })}
+                    
+                    {[
+                      ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:getAlertaDias(def.key, def.alertaDias),data:inst.data}))),
+                      ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:getAlertaDias(def.key, def.alertaDias),data:(leito.dispositivos||{})[def.key].data})),
+                    ].map((a,i)=>{
+                      const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
+                      const cor=po>a.alertaDias?"#f87171":"#38bdf8";
+                      return <span key={i} style={{fontSize:10,fontFamily:mono,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 7px"}}>{a.label} D{po}{po>a.alertaDias?" ⚠️":""}</span>;
+                    })}
+                  </div>
                 </div>
-                {/* ... (O componente UploadAnalyzer continua inalterado) ... */}
-                <UploadAnalyzer onResult={d=>{
-                  const hoje = new Date().toISOString().split("T")[0];
-                  const dataAlvo = d.dataColeta || hoje;
+              )}
 
-                  const sistemasFinais = { ...(d.sistemas||{}) };
-                  (d.extras||[]).forEach(ex=>{
-                    const cat = ex.categoria || ex.sugestao;
-                    if (cat && sistemasFinais[cat] !== undefined) {
-                      const linha = `${ex.nome}: ${ex.valor}`;
-                      sistemasFinais[cat] = sistemasFinais[cat] ? `${sistemasFinais[cat]} / ${linha}` : linha;
-                    }
-                  });
-
-                  const s = sistemasFinais;
-                  const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
-                  const extrair = (texto, patterns) => {
-                    if (!texto) return {};
-                    const vals = {};
-                    patterns.forEach(([key, regex]) => {
-                      const m = texto.match(regex);
-                      if (m?.[1]) vals[key] = m[1].replace(',','.');
-                    });
-                    return vals;
-                  };
-
-                  const re = s => new RegExp(s, 'i');
-                  const novos = {};
-
-                  Object.assign(novos, extrair(s["Hemodinâmico"]||"", [ ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)], ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)], ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)] ]));
-                  Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [ ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)], ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)], ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)], ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)], ["mg",   re(`\\bMg[:\\s]+${NUM}`)], ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)], ["p",    re(`\\bP[:\\s]+${NUM}`)], ["ph",   re(`\\bpH[:\\s]+${NUM}`)], ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)], ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)], ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)], ["lact", re(`\\bLactato[:\\s]+${NUM}`)] ]));
-                  Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [ ["hb",    re(`\\bHb[:\\s]+${NUM}`)], ["ht",    re(`\\bHt[:\\s]+${NUM}`)], ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)], ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)], ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)], ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)], ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)], ["rni",   re(`\\bRNI[:\\s]+${NUM}`)], ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)] ]));
-                  Object.assign(novos, extrair(s["Respiratório"]||"", [ ["po2",  re(`pO2[:\\s]+${NUM}`)], ["pco2", re(`pCO2[:\\s]+${NUM}`)] ]));
-                  Object.assign(novos, extrair(s["Gastrointestinal"]||"", [ ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)], ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)], ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)], ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)], ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)], ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)] ]));
-
-                  const EXTRAS_PARA_KEY = {
-                    'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht', 'leucócito':'leuco','leucocito':'leuco', 'neutrófilo':'neut','neutrofilo':'neut', 'bastão':'bast','bastao':'bast','bastonete':'bast', 'linfócito':'linf','linfocito':'linf', 'plaqueta':'plaq', 'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa', 'creatinina':'cr','ureia':'ur','uréia':'ur', 'sódio':'na','sodio':'na','potássio':'k','potassio':'k', 'magnésio':'mg','magnesio':'mg', 'cálcio':'cai','calcio':'cai', 'fósforo':'p','fosforo':'p', 'hco3':'hco3','bicarbonato':'hco3', 'lactato':'lact','troponina':'trop','bnp':'bnp', 'po2':'po2','pco2':'pco2', 'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp', 'albumina':'alb','ggt':'ggt', 'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir', 'diurese':'diur','balanço':'bh','balanco':'bh',
-                  };
-                  (d.extras||[]).forEach(ex=>{
-                    const cat = ex.categoria || ex.sugestao;
-                    if (!cat) return; 
-                    const nl = (ex.nome||'').toLowerCase();
-                    const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
-                    if (!numMatch) return;
-                    const numVal = numMatch[1].replace(',','.');
-                    let achou = false;
-                    for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
-                      if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
-                    }
-                    if (!achou) {
-                      const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-                      novos[keyDinamica] = numVal; 
-                    }
-                  });
-
-                  setTabelaData(t=>{
-                    const novo = { ...t, [leitoSelId]: { ...(t[leitoSelId]||{}), [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos } } };
-                    salvarTabela(novo);
-                    return novo;
-                  });
-                  setDadosIA(d);
-                  setTimeout(()=>setAba("tabela"), 50);
-                }}/>
+              <div className="mobile-tabs" style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:24,overflowX:"auto",flexShrink:0}}>
+                {ABAS.map(a=>(
+                  <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                    {a.label}
+                  </button>
+                ))}
               </div>
-            ) : aba==="evolucao" ? (
-              !leito.paciente ? (
-                <div style={{textAlign:"center",padding:60,color:"#334155"}}>
-                  <div style={{fontSize:40,marginBottom:12}}>📝</div>
-                  <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
-                </div>
-              ) : (
-                <div style={{maxWidth:700}}>
-                  {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                  <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`} config={config}
-                    onCampoEdit={(field, value)=>{
-                      setEvolCamposComPersistencia(c=>({...c, [field]: value}));
+
+              <div className="mobile-pad" style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+                {aba==="config" ? (
+                  <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
+                ) : aba==="paciente" ? (
+                  <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
+                    setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
+                    setEvolVersion(v=>v+1);
+                  }}/></div>
+                ) : aba==="tabela" ? (
+                  <TabelaClinica
+                    leito={leito}
+                    data={tabelaData[leitoSelId] || {}}
+                    onChange={d=>{
+                      setTabelaData(t=>{
+                        const novo = {...t,[leitoSelId]:d};
+                        salvarTabela(novo);
+                        return novo;
+                      });
                     }}
+                    onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
                   />
-                </div>
-              )
-            ) : (
-              <div style={{maxWidth:600}}>
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Metas do plantão</div>
-                  <div style={{fontSize:13,color:"#64748b"}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
-                </div>
-                <MetasPanel key={leito.id}/>
+                ) : aba==="upload" ? (
+                  <div style={{maxWidth:600}}>
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
+                      <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
+                    </div>
+                    <UploadAnalyzer onResult={d=>{
+                      const hoje = new Date().toISOString().split("T")[0];
+                      const dataAlvo = d.dataColeta || hoje;
+
+                      const sistemasFinais = { ...(d.sistemas||{}) };
+                      (d.extras||[]).forEach(ex=>{
+                        const cat = ex.categoria || ex.sugestao;
+                        if (cat && sistemasFinais[cat] !== undefined) {
+                          const linha = `${ex.nome}: ${ex.valor}`;
+                          sistemasFinais[cat] = sistemasFinais[cat] ? `${sistemasFinais[cat]} / ${linha}` : linha;
+                        }
+                      });
+
+                      const s = sistemasFinais;
+                      const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
+                      const extrair = (texto, patterns) => {
+                        if (!texto) return {};
+                        const vals = {};
+                        patterns.forEach(([key, regex]) => {
+                          const m = texto.match(regex);
+                          if (m?.[1]) vals[key] = m[1].replace(',','.');
+                        });
+                        return vals;
+                      };
+
+                      const re = s => new RegExp(s, 'i');
+                      const novos = {};
+
+                      Object.assign(novos, extrair(s["Hemodinâmico"]||"", [ ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)], ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)], ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)] ]));
+                      Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [ ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)], ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)], ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)], ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)], ["mg",   re(`\\bMg[:\\s]+${NUM}`)], ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)], ["p",    re(`\\bP[:\\s]+${NUM}`)], ["ph",   re(`\\bpH[:\\s]+${NUM}`)], ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)], ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)], ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)], ["lact", re(`\\bLactato[:\\s]+${NUM}`)] ]));
+                      Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [ ["hb",    re(`\\bHb[:\\s]+${NUM}`)], ["ht",    re(`\\bHt[:\\s]+${NUM}`)], ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)], ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)], ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)], ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)], ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)], ["rni",   re(`\\bRNI[:\\s]+${NUM}`)], ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)] ]));
+                      Object.assign(novos, extrair(s["Respiratório"]||"", [ ["po2",  re(`pO2[:\\s]+${NUM}`)], ["pco2", re(`pCO2[:\\s]+${NUM}`)] ]));
+                      Object.assign(novos, extrair(s["Gastrointestinal"]||"", [ ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)], ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)], ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)], ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)], ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)], ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)] ]));
+
+                      const EXTRAS_PARA_KEY = {
+                        'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht', 'leucócito':'leuco','leucocito':'leuco', 'neutrófilo':'neut','neutrofilo':'neut', 'bastão':'bast','bastao':'bast','bastonete':'bast', 'linfócito':'linf','linfocito':'linf', 'plaqueta':'plaq', 'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa', 'creatinina':'cr','ureia':'ur','uréia':'ur', 'sódio':'na','sodio':'na','potássio':'k','potassio':'k', 'magnésio':'mg','magnesio':'mg', 'cálcio':'cai','calcio':'cai', 'fósforo':'p','fosforo':'p', 'hco3':'hco3','bicarbonato':'hco3', 'lactato':'lact','troponina':'trop','bnp':'bnp', 'po2':'po2','pco2':'pco2', 'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp', 'albumina':'alb','ggt':'ggt', 'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir', 'diurese':'diur','balanço':'bh','balanco':'bh',
+                      };
+                      (d.extras||[]).forEach(ex=>{
+                        const cat = ex.categoria || ex.sugestao;
+                        if (!cat) return; 
+                        const nl = (ex.nome||'').toLowerCase();
+                        const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
+                        if (!numMatch) return;
+                        const numVal = numMatch[1].replace(',','.');
+                        let achou = false;
+                        for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
+                          if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
+                        }
+                        if (!achou) {
+                          const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+                          novos[keyDinamica] = numVal; 
+                        }
+                      });
+
+                      setTabelaData(t=>{
+                        const novo = { ...t, [leitoSelId]: { ...(t[leitoSelId]||{}), [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos } } };
+                        salvarTabela(novo);
+                        return novo;
+                      });
+                      setDadosIA(d);
+                      setTimeout(()=>setAba("tabela"), 50);
+                    }}/>
+                  </div>
+                ) : aba==="evolucao" ? (
+                  !leito.paciente ? (
+                    <div style={{textAlign:"center",padding:60,color:"#334155"}}>
+                      <div style={{fontSize:40,marginBottom:12}}>📝</div>
+                      <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
+                    </div>
+                  ) : (
+                    <div style={{maxWidth:700}}>
+                      {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
+                      <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`} config={config}
+                        onCampoEdit={(field, value)=>{
+                          setEvolCamposComPersistencia(c=>({...c, [field]: value}));
+                        }}
+                      />
+                    </div>
+                  )
+                ) : (
+                  <div style={{maxWidth:600}}>
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Metas do plantão</div>
+                      <div style={{fontSize:13,color:"#64748b"}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
+                    </div>
+                    <MetasPanel key={leito.id}/>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>
