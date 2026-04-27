@@ -2296,8 +2296,7 @@ function FerramentasPanel() {
           📚 Links e Guias Institucionais
         </div>
         <div style={{fontSize:14, color:"#64748b", marginTop:6}}>
-          Acesso rápido a protocolos, checklists e drives da sua unidade. 
-          Você pode editar os links diretamente no código do sistema.
+          Acesso rápido a protocolos, checklists e drives da sua unidade.
         </div>
       </div>
 
@@ -2315,8 +2314,8 @@ function FerramentasPanel() {
           </div>
         </a>
 
-        {/* Links corrigidos apontando para a subpasta Protocolos */}
-        <a href="/Protocolos/Protocolo de Profilaxia Cirúrgica - Adulto.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+        {/* Links corrigidos com os nomes curtos que criaste */}
+        <a href="/Protocolos/Protocolo-Profilaxia-Cirurgica.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>🩸</div>
           <div>
             <div style={{fontWeight:700, color:"#f87171", marginBottom:2}}>Profilaxia Cirúrgica</div>
@@ -2324,7 +2323,7 @@ function FerramentasPanel() {
           </div>
         </a>
 
-        <a href="/Protocolos/Protocolo-Tx-10-hepatico_230812_084326.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(251,146,60,0.08)", border:"1px solid rgba(251,146,60,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+        <a href="/Protocolos/Protocolo-Tx-Hepatico.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(251,146,60,0.08)", border:"1px solid rgba(251,146,60,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>🫀</div>
           <div>
             <div style={{fontWeight:700, color:"#fb923c", marginBottom:2}}>Tx Hepático</div>
@@ -2338,7 +2337,6 @@ function FerramentasPanel() {
         <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>DRIVES E SISTEMAS</span>
       </div>
       <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
-        
         <a href="https://account.huhsp.org.br/portal/auth/access" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>💊</div>
           <div>
@@ -2351,15 +2349,7 @@ function FerramentasPanel() {
           <div style={{fontSize:32}}>📁</div>
           <div>
             <div style={{fontWeight:700, color:"#34d399", marginBottom:2}}>Drive Geral UTI</div>
-            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Repositório de ficheiros e guias da unidade</div>
-          </div>
-        </a>
-
-        <a href="https://www.mdcalc.com/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(167,139,250,0.08)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
-          <div style={{fontSize:32}}>🧮</div>
-          <div>
-            <div style={{fontWeight:700, color:"#c4b5fd", marginBottom:2}}>MDCalc</div>
-            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Calculadoras médicas, escores (APACHE, SAPS)</div>
+            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Ficheiros e guias da unidade</div>
           </div>
         </a>
       </div>
