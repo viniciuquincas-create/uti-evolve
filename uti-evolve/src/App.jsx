@@ -1566,7 +1566,7 @@ function aplicarIA(dadosIA) {
   };
 }
 
-function EvolucaoEditor({ leito, campos, onCampoEdit }) {
+function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
@@ -1579,13 +1579,20 @@ function EvolucaoEditor({ leito, campos, onCampoEdit }) {
   const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
   const dias = diasInternacao(leito.dataInternacao);
   const disps = leito.dispositivos || {};
+
+  // Adicionando o leitor de configuração:
+  const getAlertaDias = (key, defaultDias) => {
+    const map = {cvc:"alertaCVC", dialise:"alertaDialise", dreno:"alertaDreno", tot:"alertaTOT", tqt:"alertaTQT", svd:"alertaSVD", pai:"alertaPAI", sng:"alertaSNG"};
+    return config[map[key]] ?? defaultDias;
+  };
+
   const ativos = [
     ...DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
       label:(Array.isArray(disps[d.key])&&disps[d.key].length>1)?`${d.label} ${i+1}`:d.label,
-      icone:d.icone, alertaDias:d.alertaDias, disp:inst
+      icone:d.icone, alertaDias:getAlertaDias(d.key, d.alertaDias), disp:inst
     }))),
     ...DISP_SINGULAR.filter(d=>disps[d.key]?.ativo).map(d=>({
-      label:d.label, icone:d.icone, alertaDias:d.alertaDias, disp:disps[d.key]
+      label:d.label, icone:d.icone, alertaDias:getAlertaDias(d.key, d.alertaDias), disp:disps[d.key]
     })),
   ];
 
@@ -1901,7 +1908,7 @@ function MetasPanel() {
 }
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
-function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
+function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, config={} }) {
   const dias = diasInternacao(leito.dataInternacao);
   const vago = !leito.paciente;
   const [editingNome, setEditingNome] = useState(false);
@@ -1910,6 +1917,12 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
   const confirmarNome = () => {
     if (nomeTemp.trim()) onRename(nomeTemp.trim());
     setEditingNome(false);
+  };
+
+  // Regra para buscar o alerta personalizado nas configs
+  const getAlertaDias = (key, defaultDias) => {
+    const map = {cvc:"alertaCVC", dialise:"alertaDialise", dreno:"alertaDreno", tot:"alertaTOT", tqt:"alertaTQT", svd:"alertaSVD", pai:"alertaPAI", sng:"alertaSNG"};
+    return config[map[key]] ?? defaultDias;
   };
 
   return (
@@ -1960,12 +1973,12 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
           const temAlerta =
             DISP_MULTIPLO.some(def=>(Array.isArray(d[def.key])?d[def.key]:[]).some(inst=>{
               const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
-              return dd>def.alertaDias;
+              return dd>getAlertaDias(def.key, def.alertaDias); // Agora respeita a config
             })) ||
             DISP_SINGULAR.some(def=>{
               if (!d[def.key]?.ativo||!d[def.key].data) return false;
               const dd=Math.floor((new Date()-new Date(d[def.key].data+"T00:00:00"))/86400000);
-              return dd>def.alertaDias;
+              return dd>getAlertaDias(def.key, def.alertaDias); // Agora respeita a config
             });
           return temAlerta ? <div style={{marginTop:5,fontSize:10,color:"#f87171",fontFamily:mono}}>⚠️ Dispositivo p/ revisão</div> : null;
         })()}
@@ -1973,7 +1986,6 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
     </div>
   );
 }
-
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -2242,6 +2254,12 @@ export default function App() {
   const dias = diasInternacao(leito.dataInternacao);
   const pp   = pesoPredito(leito.altura, leito.sexo);
 
+  // 1. AQUI ENTRA A FUNÇÃO QUE LÊ AS CONFIGURAÇÕES
+  const getAlertaDias = (key, defaultDias) => {
+    const map = {cvc:"alertaCVC", dialise:"alertaDialise", dreno:"alertaDreno", tot:"alertaTOT", tqt:"alertaTQT", svd:"alertaSVD", pai:"alertaPAI", sng:"alertaSNG"};
+    return config[map[key]] ?? defaultDias;
+  };
+
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
@@ -2300,7 +2318,9 @@ export default function App() {
               title="Adicionar leito"
               style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
           </div>
-          {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId}
+          
+          {/* 2. AQUI O LeitoCard RECEBE A CONFIGURAÇÃO */}
+          {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId} config={config}
             onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("paciente");}}
             onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
             onRemove={leitos.length>1?()=>{
@@ -2325,9 +2345,11 @@ export default function App() {
                   const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
                   return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.12)`,border:`1px solid ${cor}55`,borderRadius:4,padding:"1px 7px"}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
                 })}
+                
+                {/* 3. AQUI O CABEÇALHO LÊ A CONFIGURAÇÃO */}
                 {[
-                  ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:def.alertaDias,data:inst.data}))),
-                  ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:def.alertaDias,data:(leito.dispositivos||{})[def.key].data})),
+                  ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:getAlertaDias(def.key, def.alertaDias),data:inst.data}))),
+                  ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:getAlertaDias(def.key, def.alertaDias),data:(leito.dispositivos||{})[def.key].data})),
                 ].map((a,i)=>{
                   const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
                   const cor=po>a.alertaDias?"#f87171":"#38bdf8";
@@ -2336,7 +2358,7 @@ export default function App() {
               </div>
             </div>
           )}
-
+          
           <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:12,overflowX:"auto",flexShrink:0}}>
             {ABAS.map(a=>(
               <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
@@ -2512,7 +2534,7 @@ export default function App() {
               ) : (
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                  <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
+                  <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`} config={config}
                     onCampoEdit={(field, value)=>{
                       setEvolCamposComPersistencia(c=>({...c, [field]: value}));
                     }}
