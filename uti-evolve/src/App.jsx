@@ -25,78 +25,61 @@ const METAS_SUGESTOES = [
 // concMcgML = mcg de fármaco por mL da solução final
 // unidade = unidade da dose resultante exibida ao usuário
 // modoCalc: "mcg_kg_min" | "mcg_kg_h" | "ui_min" | "mcg_min" (vasopressina, nitroglicerina sem peso)
+// Diluições padrão do protocolo da UTI
 const DROGAS_PROTOCOLO = {
   noradrenalina: {
     label:"Noradrenalina", grupo:"vasoativa",
-    // 4 amp (4mg cada = 16mg) em SG5% 234 mL → total 250mL, 16mg/250mL = 64 mcg/mL
     diluicaoDesc:"4 amp (16 mg) em SG5% 234 mL → 250 mL",
-    concMcgML: 64,          // mcg/mL
-    modoCalc:"mcg_kg_min",  // resultado em mcg/kg/min
-    max:3, unidadeLabel:"mcg/kg/min",
+    concMcgML: 64, modoCalc:"mcg_kg_min", max:3, unidadeLabel:"mcg/kg/min",
   },
   dobutamina: {
     label:"Dobutamina", grupo:"vasoativa",
-    // 80mL (250mg) em SG5% 170mL → 250mL, 250mg/250mL = 1000 mcg/mL
     diluicaoDesc:"80 mL (250 mg) em SG5% 170 mL → 250 mL",
-    concMcgML: 1000,
-    modoCalc:"mcg_kg_min",
-    max:20, unidadeLabel:"mcg/kg/min",
+    concMcgML: 1000, modoCalc:"mcg_kg_min", max:20, unidadeLabel:"mcg/kg/min",
   },
   vasopressina: {
     label:"Vasopressina", grupo:"vasoativa",
-    // 2mL (20UI) em SG5% 98mL → 100mL, 20UI/100mL = 0,2 UI/mL
     diluicaoDesc:"2 mL (20 UI) em SG5% 98 mL → 100 mL",
-    concMcgML: null, concUIML: 0.2,  // UI/mL
-    modoCalc:"ui_min",
-    max:0.04, unidadeLabel:"UI/min",
+    concMcgML: null, concUIML: 0.2, modoCalc:"ui_min", max:0.04, unidadeLabel:"UI/min",
   },
   nitroglicerina: {
     label:"Nitroglicerina", grupo:"vasoativa",
-    // 10mL (50mg) em SG5% 90mL → 100mL, 50mg/100mL = 500mcg/mL
     diluicaoDesc:"10 mL (50 mg) em SG5% 90 mL → 100 mL",
-    concMcgML: 500,
-    modoCalc:"mcg_min",   // mcg/min, sem peso
-    max:400, unidadeLabel:"mcg/min",
+    concMcgML: 500, modoCalc:"mcg_min", max:400, unidadeLabel:"mcg/min",
   },
   nitroprussiato: {
     label:"Nitroprussiato", grupo:"vasoativa",
-    // 2mL (50mg) em SG5% 248mL → 250mL, 50mg/250mL = 200mcg/mL
     diluicaoDesc:"2 mL (50 mg) em SG5% 248 mL → 250 mL",
-    concMcgML: 200,
-    modoCalc:"mcg_kg_min",
-    max:10, unidadeLabel:"mcg/kg/min",
+    concMcgML: 200, modoCalc:"mcg_kg_min", max:10, unidadeLabel:"mcg/kg/min",
   },
   propofol: {
     label:"Propofol", grupo:"sedacao",
-    // 10mg/mL, 100mL puro → 100mL, 10mg/mL = 10000 mcg/mL
     diluicaoDesc:"10 mg/mL — 100 mL puro (sem diluição)",
-    concMcgML: 10000,
-    modoCalc:"mcg_kg_min",
-    max:67, unidadeLabel:"mcg/kg/min",
+    concMcgML: 10000, modoCalc:"mcg_kg_min", max:67, unidadeLabel:"mcg/kg/min",
+    tooltip:"Manutenção: 5-50 mcg/kg/min (0,3-3 mg/kg/h)\nMáximo: 4 mg/kg/h"
   },
   midazolam: {
     label:"Midazolam", grupo:"sedacao",
-    // 5mg/mL, 20mL (100mg) em SG5% 80mL → 100mL, 100mg/100mL = 1000 mcg/mL
     diluicaoDesc:"20 mL (100 mg) em SG5% 80 mL → 100 mL",
-    concMcgML: 1000,
-    modoCalc:"mcg_kg_h",
-    max:150, unidadeLabel:"mcg/kg/h",
-  },
-  fentanil: {
-    label:"Fentanil", grupo:"analgesia",
-    // 0,05mg/mL, 20mL (1000mcg) em SF0,9% 80mL → 100mL, 1000mcg/100mL = 10 mcg/mL
-    diluicaoDesc:"20 mL (1000 mcg) em SF0,9% 80 mL → 100 mL",
-    concMcgML: 10,
-    modoCalc:"mcg_kg_h",
-    max:5, unidadeLabel:"mcg/kg/h",
+    concMcgML: 1000, modoCalc:"mcg_kg_h", max:150, unidadeLabel:"mcg/kg/h",
+    tooltip:"Manutenção: 0,02-0,1 mg/kg/h (1-7 mg/h)"
   },
   precedex: {
     label:"Precedex (Dex)", grupo:"sedacao",
-    // 4mL (200mcg) em SF0,9% 96mL → 100mL, 200mcg/100mL = 2 mcg/mL
     diluicaoDesc:"4 mL (200 mcg) em SF0,9% 96 mL → 100 mL",
-    concMcgML: 2,
-    modoCalc:"mcg_kg_h",
-    max:0.7, unidadeLabel:"mcg/kg/h",
+    concMcgML: 2, modoCalc:"mcg_kg_h", max:1.4, unidadeLabel:"mcg/kg/h",
+    tooltip:"Manutenção: 0,2-0,7 mcg/kg/h (até 1,4 mcg/kg/h em estudos recentes)\n↓ em Hepatopatas e >65 anos"
+  },
+  fentanil: {
+    label:"Fentanil", grupo:"analgesia",
+    diluicaoDesc:"20 mL (1000 mcg) em SF0,9% 80 mL → 100 mL",
+    concMcgML: 10, modoCalc:"mcg_kg_h", max:5, unidadeLabel:"mcg/kg/h",
+  },
+  cetamina: {
+    label:"Cetamina (Escetamina)", grupo:"analgesia",
+    diluicaoDesc:"10 mL (500 mg) em SG5% 90 mL → 100 mL",
+    concMcgML: 5000, modoCalc:"mg_kg_h", max:0.3, unidadeLabel:"mg/kg/h",
+    tooltip:"Início: 0,5 mg/kg IV em bolus\nManutenção: 1-2 mcg/kg/min (0,06-0,12 mg/kg/h)\nDoses baixas: 0,06-0,3 mg/kg/h"
   },
 };
 
@@ -107,8 +90,8 @@ function calcDoseFromMLH(drogaKey, mlh, peso, concCustom) {
   const conf = DROGAS_PROTOCOLO[drogaKey];
   if (!conf) return null;
   const conc = concCustom !== undefined ? parseFloat(concCustom) : conf.concMcgML;
+  
   if (!conc || conc <= 0) {
-    // vasopressina: UI/mL
     if (conf.modoCalc === "ui_min") {
       const uiMin = mlhN * conf.concUIML / 60;
       return { dose: uiMin.toFixed(4), label: conf.unidadeLabel };
@@ -125,13 +108,17 @@ function calcDoseFromMLH(drogaKey, mlh, peso, concCustom) {
     const dose = (mlhN * conc) / p;
     return { dose: dose.toFixed(2), label: conf.unidadeLabel };
   }
+  if (conf.modoCalc === "mg_kg_h") { // Adicionado para a Cetamina
+    if (!p) return null;
+    const dose = (mlhN * (conc / 1000)) / p;
+    return { dose: dose.toFixed(3), label: conf.unidadeLabel };
+  }
   if (conf.modoCalc === "mcg_min") {
     const dose = (mlhN * conc) / 60;
     return { dose: dose.toFixed(1), label: conf.unidadeLabel };
   }
   return null;
 }
-
 
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -407,14 +394,18 @@ function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas
       <div style={{marginTop:14,padding:"14px 16px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div>
-            <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{conf.label}</div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{conf.label}</div>
+              {conf.tooltip && (
+                <span title={conf.tooltip} style={{cursor:"help",fontSize:15}}>📌</span>
+              )}
+            </div>
             <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{conf.diluicaoDesc}</div>
             {conf.concMcgML && <div style={{fontSize:11,color:concCustom?"#f59e0b":"#38bdf8",marginTop:1,fontFamily:mono}}>
               {concCustom ? `★ ${concCustom} mcg/mL (personalizado)` : `= ${conf.concMcgML} mcg/mL`}
             </div>}
             {conf.concUIML && <div style={{fontSize:11,color:"#38bdf8",marginTop:1,fontFamily:mono}}>= {conf.concUIML} UI/mL</div>}
             
-            {/* Exibe a data de atualização */}
             {dState.lastEdit && (
               <div style={{fontSize:10, color:"#94a3b8", marginTop:6, display:"flex", alignItems:"center", gap:4}}>
                 <span style={{color:"#38bdf8"}}>🕒</span> Atualizado em {dState.lastEdit}
@@ -449,12 +440,30 @@ function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas
           </div>
         </div>
 
+        {/* Alertas de Sobredose */}
         {acimaDose && (
           <div style={{marginTop:8,padding:"6px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:6,fontSize:12,color:"#f87171"}}>
             ⚠️ Acima do máximo recomendado: {conf.max} {conf.unidadeLabel}
           </div>
         )}
-        {resultado && !acimaDose && conf.max && (
+        
+        {/* Lembretes Inteligentes para Noradrenalina */}
+        {drogaSel === "noradrenalina" && resultado && (
+          <div style={{marginTop:8, display:"flex", flexDirection:"column", gap:6}}>
+            {parseFloat(resultado.dose) > 0.25 && (
+              <div style={{padding:"6px 10px",background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:6,fontSize:12,color:"#fbbf24"}}>
+                ⚠️ <strong>Dose &gt; 0,25 mcg/kg/min:</strong> Lembrete para associar Vasopressina.
+              </div>
+            )}
+            {parseFloat(resultado.dose) > 0.8 && (
+              <div style={{padding:"6px 10px",background:"rgba(225,29,72,0.08)",border:"1px solid rgba(225,29,72,0.25)",borderRadius:6,fontSize:12,color:"#fb7185"}}>
+                🚨 <strong>Dose &gt; 0,8 mcg/kg/min:</strong> Lembrete para associar Adrenalina em infusão contínua.
+              </div>
+            )}
+          </div>
+        )}
+
+        {resultado && !acimaDose && conf.max && drogaSel !== "noradrenalina" && (
           <div style={{marginTop:6,fontSize:11,color:"#475569"}}>
             Máx. recomendado: {conf.max} {conf.unidadeLabel}
           </div>
@@ -487,6 +496,10 @@ function DietaPanel({ dados, onChange }) {
   const kcalAlto  = kcalKg && parseFloat(kcalKg) > 35;
   const ptnBaixo  = ptnKg  && parseFloat(ptnKg)  < 1.0;
   const ptnAlto   = ptnKg  && parseFloat(ptnKg)  > 2.5;
+
+  // Lógica do Propofol (1.1 kcal/mL)
+  const propofolMLH = parseFloat(dados.drogasCalc?.propofol?.mlh);
+  const kcalPropofol = !isNaN(propofolMLH) && propofolMLH > 0 ? Math.round(propofolMLH * 24 * 1.1) : 0;
 
   const TIPOS = [
     {k:"enteral",   label:"🥤 Enteral"},
@@ -550,6 +563,17 @@ function DietaPanel({ dados, onChange }) {
       ) : (
         <div style={{padding:"12px 14px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:13,color:"#fca5a5",marginBottom:10}}>
           ⛔ Paciente em jejum — registre o motivo nas observações.
+        </div>
+      )}
+
+      {/* Alerta Inteligente do Propofol */}
+      {kcalPropofol > 0 && (
+        <div style={{marginBottom:10,padding:"10px 14px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,fontSize:12,color:"#c4b5fd", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10}}>
+          <span>💡 <strong>Aporte Lipídico (Propofol a {propofolMLH} mL/h):</strong> aprox. <strong>{kcalPropofol} kcal/dia</strong>.</span>
+          <button onClick={() => upd("obs", dieta.obs ? `${dieta.obs} | Aporte Propofol: ${kcalPropofol} kcal/dia` : `Aporte Propofol: ${kcalPropofol} kcal/dia`)} 
+            style={{padding:"6px 12px", background:"rgba(167,139,250,0.15)", border:"1px solid #a78bfa", borderRadius:6, color:"#c4b5fd", cursor:"pointer", fontSize:11, fontWeight:600}}>
+            + Adicionar à Obs
+          </button>
         </div>
       )}
 
