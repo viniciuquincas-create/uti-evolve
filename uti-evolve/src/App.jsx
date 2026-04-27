@@ -2096,19 +2096,23 @@ export default function App() {
   const [dadosIA,    setDadosIA]    = useState(null);
   const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
   const [evolVersion, setEvolVersion] = useState(0);
-  const [evolPorLeito, setEvolPorLeito] = useState({}); // { leitoId: evolCampos }
+  const [evolPorLeito, setEvolPorLeito] = useState({}); 
   const [tabelaData, setTabelaData] = useState({});
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
   });
   const [saving, setSaving] = useState(false);
+  
+  // 🔥 NOVO: Controle da barra lateral (Inicia aberta no PC, fechada no celular)
+  const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
+
   const saveTimer   = useRef(null);
   const evolTimer   = useRef(null);
   const tabelaTimer = useRef(null);
   const configTimer = useRef(null);
 
-  // Trava de segurança para impedir o salvamento automático antes do carregamento
+  // Trava de segurança para impedir o salvamento automático antes do carregamento completo
   const isLoaded = useRef(false);
 
   // ── LOAD ─────────────────────────────────────────────────────────────────────
@@ -2145,8 +2149,6 @@ export default function App() {
         }
       }
     } catch {}
-
-    // Libera a trava após o carregamento de todos os dados do Supabase
     isLoaded.current = true;
   };
 
@@ -2167,7 +2169,7 @@ export default function App() {
 
   const onLogin = async () => { await loadData(); setAuthed(true); };
 
-  // ── SAVES manuais (chamados explicitamente, não por useEffect) ────────────────
+  // ── SAVES manuais ────────────────────────────────────────────────────────────
   const salvarLeitos = (val) => {
     if (!isLoaded.current) return;
     clearTimeout(saveTimer.current);
@@ -2201,7 +2203,7 @@ export default function App() {
       try { await supabase.from("config").upsert({key:"app_config",value:JSON.stringify(val)}); } catch {}
     }, 800);
   };
-  
+
   const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
   const atualizar = (d) => {
     setLeitos(ls=>{
@@ -2212,11 +2214,8 @@ export default function App() {
   };
   const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
 
-  // Sincroniza evolCampos quando troca de leito
   const evolPorLeitoRef = useRef({});
-  useEffect(()=>{
-    evolPorLeitoRef.current = evolPorLeito;
-  },[evolPorLeito]);
+  useEffect(()=>{ evolPorLeitoRef.current = evolPorLeito; },[evolPorLeito]);
 
   useEffect(()=>{
     const saved = evolPorLeitoRef.current[leitoSelId] || evolPorLeito[leitoSelId];
@@ -2224,7 +2223,6 @@ export default function App() {
     setEvolVersion(v=>v+1);
   },[leitoSelId]);
 
-  // Quando evolCampos muda, persiste no evolPorLeito
   const setEvolCamposComPersistencia = (updater) => {
     setEvolCampos(prev => {
       const hoje = new Date().toISOString().split("T")[0];
@@ -2254,7 +2252,6 @@ export default function App() {
   const dias = diasInternacao(leito.dataInternacao);
   const pp   = pesoPredito(leito.altura, leito.sexo);
 
-  // 1. AQUI ENTRA A FUNÇÃO QUE LÊ AS CONFIGURAÇÕES
   const getAlertaDias = (key, defaultDias) => {
     const map = {cvc:"alertaCVC", dialise:"alertaDialise", dreno:"alertaDreno", tot:"alertaTOT", tqt:"alertaTQT", svd:"alertaSVD", pai:"alertaPAI", sng:"alertaSNG"};
     return config[map[key]] ?? defaultDias;
@@ -2262,7 +2259,6 @@ export default function App() {
 
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
       <div style={{color:"#38bdf8",fontSize:14}}>Carregando…</div>
     </div>
   );
@@ -2274,14 +2270,35 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
         *{box-sizing:border-box} textarea,input{outline:none;color-scheme:dark}
-        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.3);border-radius:4px}
+        ::-webkit-scrollbar{width:4px; height:4px} 
+        ::-webkit-scrollbar-track{background:transparent} 
+        ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.3);border-radius:4px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.85}
+
+        /* 🔥 AJUSTES PARA CELULAR (MOBILE) */
+        @media (max-width: 768px) {
+          .mobile-pad { padding-left: 12px !important; padding-right: 12px !important; }
+          .mobile-hide-text { display: none !important; }
+          .mobile-sidebar { 
+            position: absolute; 
+            z-index: 200; 
+            height: calc(100vh - 56px); 
+            background: #0a0f1e; 
+            box-shadow: 4px 0 15px rgba(0,0,0,0.8); 
+          }
+          .mobile-tabs { padding-left: 12px !important; }
+        }
       `}</style>
 
-      <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
+      {/* HEADER PRINCIPAL */}
+      <div className="mobile-pad" style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {/* BOTÃO HAMBURGER P/ CELULAR */}
+          <button onClick={() => setShowSidebar(!showSidebar)} style={{background:"transparent", border:"none", color:"#e2e8f0", fontSize:22, cursor:"pointer", padding:"0 6px 0 0", display:"flex", alignItems:"center"}}>
+            ☰
+          </button>
           <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#0284c7,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚕️</div>
-          <div>
+          <div className="mobile-hide-text">
             <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5}}>UTI Evolve</div>
             <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:1}}>ASSISTENTE DE EVOLUÇÃO</div>
           </div>
@@ -2289,54 +2306,62 @@ export default function App() {
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:16}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":"#22c55e",display:"flex",alignItems:"center",gap:4}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":"#22c55e"}}/>
-            {saving?"Salvando…":"Salvo"}
-          </div>
-          <div style={{fontSize:12,color:"#475569",fontFamily:mono}}>
-            {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase()}
+            <span className="mobile-hide-text">{saving?"Salvando…":"Salvo"}</span>
           </div>
           <button onClick={logout} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
           <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
         </div>
       </div>
 
-      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
-        <div style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
-            <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
-            <button
+      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)",position:"relative"}}>
+        {/* BARRA LATERAL (LEITOS) */}
+        {showSidebar && (
+          <div className="mobile-sidebar" style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
+              <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
+              <button
+                onClick={()=>{
+                  const novoId = Date.now();
+                  const novoNum = leitos.length + 1;
+                  setLeitos(ls=>{
+                    const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+                    salvarLeitos(novo);
+                    return novo;
+                  });
+                  setLeitoSelId(novoId);
+                  setAba("paciente");
+                  if (window.innerWidth <= 768) setShowSidebar(false);
+                }}
+                title="Adicionar leito"
+                style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+            </div>
+            
+            {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId} config={config}
               onClick={()=>{
-                const novoId = Date.now();
-                const novoNum = leitos.length + 1;
+                setLeitoSelId(l.id);
+                setDadosIA(null);
+                setEvolCampos(EVOLUCAO_VAZIA);
+                setEvolVersion(0);
+                setAba("paciente");
+                if (window.innerWidth <= 768) setShowSidebar(false); // Fecha a barra no celular
+              }}
+              onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
+              onRemove={leitos.length>1?()=>{
                 setLeitos(ls=>{
-                  const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+                  const novo = ls.filter(x=>x.id!==l.id);
                   salvarLeitos(novo);
+                  setLeitoSelId(novo[0].id);
                   return novo;
                 });
-                setLeitoSelId(novoId);
-                setAba("paciente");
-              }}
-              title="Adicionar leito"
-              style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+              }:null}
+            />)}
           </div>
-          
-          {/* 2. AQUI O LeitoCard RECEBE A CONFIGURAÇÃO */}
-          {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId} config={config}
-            onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("paciente");}}
-            onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
-            onRemove={leitos.length>1?()=>{
-              setLeitos(ls=>{
-                const novo = ls.filter(x=>x.id!==l.id);
-                salvarLeitos(novo);
-                setLeitoSelId(novo[0].id);
-                return novo;
-              });
-            }:null}
-          />)}
-        </div>
+        )}
 
+        {/* ÁREA PRINCIPAL DO PACIENTE */}
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {leito.paciente && (
-            <div style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
+            <div className="mobile-pad" style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
               <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
               <div style={{fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
@@ -2346,7 +2371,6 @@ export default function App() {
                   return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.12)`,border:`1px solid ${cor}55`,borderRadius:4,padding:"1px 7px"}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
                 })}
                 
-                {/* 3. AQUI O CABEÇALHO LÊ A CONFIGURAÇÃO */}
                 {[
                   ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:getAlertaDias(def.key, def.alertaDias),data:inst.data}))),
                   ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:getAlertaDias(def.key, def.alertaDias),data:(leito.dispositivos||{})[def.key].data})),
@@ -2358,8 +2382,9 @@ export default function App() {
               </div>
             </div>
           )}
-          
-          <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:12,overflowX:"auto",flexShrink:0}}>
+
+          {/* MENUS (ABAS) */}
+          <div className="mobile-tabs" style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:24,overflowX:"auto",flexShrink:0}}>
             {ABAS.map(a=>(
               <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                 {a.label}
@@ -2367,7 +2392,7 @@ export default function App() {
             ))}
           </div>
 
-          <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+          <div className="mobile-pad" style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="paciente" ? (
@@ -2394,24 +2419,21 @@ export default function App() {
                   <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
                   <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
+                {/* ... (O componente UploadAnalyzer continua inalterado) ... */}
                 <UploadAnalyzer onResult={d=>{
                   const hoje = new Date().toISOString().split("T")[0];
-                  // Usa a data de coleta do exame se disponível, senão hoje
                   const dataAlvo = d.dataColeta || hoje;
 
-                  // Merge extras categorizados nos sistemas
                   const sistemasFinais = { ...(d.sistemas||{}) };
                   (d.extras||[]).forEach(ex=>{
                     const cat = ex.categoria || ex.sugestao;
                     if (cat && sistemasFinais[cat] !== undefined) {
                       const linha = `${ex.nome}: ${ex.valor}`;
-                      sistemasFinais[cat] = sistemasFinais[cat]
-                        ? `${sistemasFinais[cat]} / ${linha}` : linha;
+                      sistemasFinais[cat] = sistemasFinais[cat] ? `${sistemasFinais[cat]} / ${linha}` : linha;
                     }
                   });
 
                   const s = sistemasFinais;
-                  // Regex: captura números com vírgula OU ponto como decimal
                   const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
                   const extrair = (texto, patterns) => {
                     if (!texto) return {};
@@ -2426,98 +2448,34 @@ export default function App() {
                   const re = s => new RegExp(s, 'i');
                   const novos = {};
 
-                  Object.assign(novos, extrair(s["Hemodinâmico"]||"", [
-                    ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)],
-                    ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)],
-                    ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [
-                    ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)],
-                    ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)],
-                    ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)],
-                    ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)],
-                    ["mg",   re(`\\bMg[:\\s]+${NUM}`)],
-                    ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)],
-                    ["p",    re(`\\bP[:\\s]+${NUM}`)],
-                    ["ph",   re(`\\bpH[:\\s]+${NUM}`)],
-                    ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)],
-                    ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)],
-                    ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)],
-                    ["lact", re(`\\bLactato[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [
-                    ["hb",    re(`\\bHb[:\\s]+${NUM}`)],
-                    ["ht",    re(`\\bHt[:\\s]+${NUM}`)],
-                    ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)],
-                    ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)],
-                    ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)],
-                    ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)],
-                    ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)],
-                    ["rni",   re(`\\bRNI[:\\s]+${NUM}`)],
-                    ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Respiratório"]||"", [
-                    ["po2",  re(`pO2[:\\s]+${NUM}`)],
-                    ["pco2", re(`pCO2[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Gastrointestinal"]||"", [
-                    ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)],
-                    ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)],
-                    ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)],
-                    ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)],
-                    ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)],
-                    ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)],
-                  ]));
+                  Object.assign(novos, extrair(s["Hemodinâmico"]||"", [ ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)], ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)], ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)] ]));
+                  Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [ ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)], ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)], ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)], ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)], ["mg",   re(`\\bMg[:\\s]+${NUM}`)], ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)], ["p",    re(`\\bP[:\\s]+${NUM}`)], ["ph",   re(`\\bpH[:\\s]+${NUM}`)], ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)], ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)], ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)], ["lact", re(`\\bLactato[:\\s]+${NUM}`)] ]));
+                  Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [ ["hb",    re(`\\bHb[:\\s]+${NUM}`)], ["ht",    re(`\\bHt[:\\s]+${NUM}`)], ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)], ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)], ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)], ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)], ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)], ["rni",   re(`\\bRNI[:\\s]+${NUM}`)], ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)] ]));
+                  Object.assign(novos, extrair(s["Respiratório"]||"", [ ["po2",  re(`pO2[:\\s]+${NUM}`)], ["pco2", re(`pCO2[:\\s]+${NUM}`)] ]));
+                  Object.assign(novos, extrair(s["Gastrointestinal"]||"", [ ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)], ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)], ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)], ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)], ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)], ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)] ]));
 
-                  // Extras com categoria selecionada → também vai para a tabela
                   const EXTRAS_PARA_KEY = {
-                    'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht',
-                    'leucócito':'leuco','leucocito':'leuco',
-                    'neutrófilo':'neut','neutrofilo':'neut',
-                    'bastão':'bast','bastao':'bast','bastonete':'bast',
-                    'linfócito':'linf','linfocito':'linf',
-                    'plaqueta':'plaq',
-                    'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa',
-                    'creatinina':'cr','ureia':'ur','uréia':'ur',
-                    'sódio':'na','sodio':'na','potássio':'k','potassio':'k',
-                    'magnésio':'mg','magnesio':'mg',
-                    'cálcio':'cai','calcio':'cai',
-                    'fósforo':'p','fosforo':'p',
-                    'hco3':'hco3','bicarbonato':'hco3',
-                    'lactato':'lact','troponina':'trop','bnp':'bnp',
-                    'po2':'po2','pco2':'pco2',
-                    'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp',
-                    'albumina':'alb','ggt':'ggt',
-                    'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir',
-                    'diurese':'diur','balanço':'bh','balanco':'bh',
+                    'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht', 'leucócito':'leuco','leucocito':'leuco', 'neutrófilo':'neut','neutrofilo':'neut', 'bastão':'bast','bastao':'bast','bastonete':'bast', 'linfócito':'linf','linfocito':'linf', 'plaqueta':'plaq', 'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa', 'creatinina':'cr','ureia':'ur','uréia':'ur', 'sódio':'na','sodio':'na','potássio':'k','potassio':'k', 'magnésio':'mg','magnesio':'mg', 'cálcio':'cai','calcio':'cai', 'fósforo':'p','fosforo':'p', 'hco3':'hco3','bicarbonato':'hco3', 'lactato':'lact','troponina':'trop','bnp':'bnp', 'po2':'po2','pco2':'pco2', 'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp', 'albumina':'alb','ggt':'ggt', 'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir', 'diurese':'diur','balanço':'bh','balanco':'bh',
                   };
                   (d.extras||[]).forEach(ex=>{
                     const cat = ex.categoria || ex.sugestao;
-                    if (!cat) return; // só lança se categoria foi selecionada
+                    if (!cat) return; 
                     const nl = (ex.nome||'').toLowerCase();
                     const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
                     if (!numMatch) return;
                     const numVal = numMatch[1].replace(',','.');
-                    // Tenta achar key padrão
                     let achou = false;
                     for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
                       if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
                     }
-                    // Se não achou key padrão, usa o nome do exame como key dinâmica
                     if (!achou) {
                       const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-                      novos[keyDinamica] = numVal; // salva só o valor numérico
+                      novos[keyDinamica] = numVal; 
                     }
                   });
 
                   setTabelaData(t=>{
-                    const novo = {
-                      ...t,
-                      [leitoSelId]: {
-                        ...(t[leitoSelId]||{}),
-                        [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos }
-                      }
-                    };
+                    const novo = { ...t, [leitoSelId]: { ...(t[leitoSelId]||{}), [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos } } };
                     salvarTabela(novo);
                     return novo;
                   });
