@@ -2104,7 +2104,9 @@ function FerramentasPanel() {
         <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>CHECKLISTS & PROTOCOLOS</span>
       </div>
       <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
-        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+        
+        {/* ⬇️ LINK DO FORMS ATUALIZADO AQUI ⬇️ */}
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSdGRgBUwki8uJGM2_IAEo1oFHiNlR-QIIZzt9a3oRKa11lPHw/viewform" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>🫁</div>
           <div>
             <div style={{fontWeight:700, color:"#38bdf8", marginBottom:2}}>Checklist de IOT</div>
@@ -2112,7 +2114,7 @@ function FerramentasPanel() {
           </div>
         </a>
 
-        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+        <a href="#" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>🩸</div>
           <div>
             <div style={{fontWeight:700, color:"#f87171", marginBottom:2}}>Protocolo de Transfusão</div>
@@ -2126,7 +2128,7 @@ function FerramentasPanel() {
         <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>DRIVES E SISTEMAS</span>
       </div>
       <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
-        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+        <a href="#" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>💊</div>
           <div>
             <div style={{fontWeight:700, color:"#f59e0b", marginBottom:2}}>Drive de Antimicrobianos</div>
@@ -2134,7 +2136,7 @@ function FerramentasPanel() {
           </div>
         </a>
 
-        <a href="https://www.mdcalc.com/" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(167,139,250,0.08)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+        <a href="https://www.mdcalc.com/" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(167,139,250,0.08)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>🧮</div>
           <div>
             <div style={{fontWeight:700, color:"#c4b5fd", marginBottom:2}}>MDCalc</div>
