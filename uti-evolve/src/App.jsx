@@ -1733,6 +1733,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
         </button>
       </div>
 
+      {/* ADICIONE ESTA LINHA ABAIXO */}
+      <SysB id="n" sigla="== N:" label="Neurológico" color={colors.N} txtFn={txtN}>
+        
+        <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
+      
+
       <SysB id="n" sigla="== N:" label="Neurológico" color={colors.N} txtFn={txtN}>
         <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
         <Row>
