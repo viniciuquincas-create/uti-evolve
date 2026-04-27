@@ -2075,8 +2075,8 @@ function FerramentasPanel() {
           </div>
         </a>
 
-        {/* ATENÇÃO: Certifique-se de que o ficheiro PDF está na pasta "public" com este nome exato */}
-        <a href="/Protocolo-Profilaxia-Cirurgica.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+        {/* Links corrigidos apontando para a subpasta Protocolos */}
+        <a href="/Protocolos/Protocolo de Profilaxia Cirúrgica - Adulto.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>🩸</div>
           <div>
             <div style={{fontWeight:700, color:"#f87171", marginBottom:2}}>Profilaxia Cirúrgica</div>
@@ -2084,8 +2084,7 @@ function FerramentasPanel() {
           </div>
         </a>
 
-        {/* ATENÇÃO: Certifique-se de que o ficheiro PDF está na pasta "public" com este nome exato */}
-        <a href="/Protocolo-Tx-Hepatico.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(251,146,60,0.08)", border:"1px solid rgba(251,146,60,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
+        <a href="/Protocolos/Protocolo-Tx-10-hepatico_230812_084326.pdf" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(251,146,60,0.08)", border:"1px solid rgba(251,146,60,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
           <div style={{fontSize:32}}>🫀</div>
           <div>
             <div style={{fontWeight:700, color:"#fb923c", marginBottom:2}}>Tx Hepático</div>
