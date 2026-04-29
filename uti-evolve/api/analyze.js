@@ -18,13 +18,9 @@ export default async function handler(req, res) {
       'Hematologico_Infeccioso':'Hematológico/Infeccioso','Pele_Acessos':'Pele/Acessos'
     };
 
-    // Try to extract JSON from model response (handles text before/after JSON)
     function extractJSON(text) {
-      // Remove markdown fences
       let clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-      // Try direct parse
       try { return JSON.parse(clean); } catch {}
-      // Try to find first { ... } block
       const start = clean.indexOf('{');
       const end = clean.lastIndexOf('}');
       if (start !== -1 && end !== -1 && end > start) {
@@ -33,16 +29,16 @@ export default async function handler(req, res) {
       return null;
     }
 
-    const prompt = `Voce e medico intensivista. Analise esta imagem de sistema hospitalar e extraia dados clinicos. Retorne SOMENTE o JSON abaixo preenchido, sem nenhum texto adicional antes ou depois:
+    const prompt = `Voce e medico intensivista. Analise esta imagem de sistema hospitalar e extraia dados clinicos. Retorne SOMENTE o JSON abaixo preenchido, sem texto adicional:
 
 {"dataColeta":"YYYY-MM-DD","controles":{"c24_temp":"","c24_fc":"","c24_fr":"","c24_sat":"","c24_pam":"","c24_pas":"","c24_dextro":"","c24_diur":"","c24_bh":"","c24_dreno1":"","c24_dreno2":"","c24_dreno3":"","c24_sng":""},"sistemas":{"Neurologico":"","Respiratorio":"","Hemodinamico":"","Renal_Metabolico":"","Gastrointestinal":"","Hematologico_Infeccioso":"","Pele_Acessos":""},"exames":{},"resumo":""}
 
 REGRAS controles - se tabela com colunas Total/Maxima/Media/Minima:
-Sinais vitais use Minima e Maxima formato "min / max": c24_temp temperatura graus C, c24_fc FC bpm, c24_fr FR irpm, c24_sat SpO2 %, c24_pam PAM mmHg, c24_pas formato "PASmin-PASmax / PADmin-PADmax", c24_dextro glicemia se presente.
-Balanco hidrico use coluna Total: c24_diur diurese mL, c24_bh BH com sinal +/-, c24_dreno1/2/3 drenos mL se presentes, c24_sng SNG mL se presente.
-Campos ausentes deixe string vazia. Sistemas: dados qualitativos nao repetir controles. Exames: pares nome/valor. dataColeta: data YYYY-MM-DD. resumo: frase curta.`;
+Sinais vitais use Minima e Maxima formato "min / max": c24_temp graus C, c24_fc bpm, c24_fr irpm, c24_sat %, c24_pam mmHg, c24_pas formato "PASmin-PASmax / PADmin-PADmax", c24_dextro se presente.
+Balanco hidrico use coluna Total: c24_diur mL, c24_bh com sinal +/-, c24_dreno1/2/3 mL se presentes, c24_sng mL se presente.
+Ausentes: string vazia. Sistemas: dados qualitativos. Exames: pares nome/valor. dataColeta: YYYY-MM-DD. resumo: frase curta.`;
 
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-2.0-flash-lite'];
     const errors = [];
 
     for (const model of models) {
@@ -59,7 +55,7 @@ Campos ausentes deixe string vazia. Sistemas: dados qualitativos nao repetir con
               ]}],
               generationConfig: {
                 temperature: 0.1,
-                maxOutputTokens: 2048,
+                maxOutputTokens: 8192,
                 responseMimeType: 'application/json'
               }
             })
@@ -67,18 +63,14 @@ Campos ausentes deixe string vazia. Sistemas: dados qualitativos nao repetir con
         );
 
         const bodyText = await r.text();
-        if (!r.ok) { errors.push(`${model} HTTP ${r.status}: ${bodyText.slice(0,300)}`); continue; }
+        if (!r.ok) { errors.push(`${model} HTTP ${r.status}: ${bodyText.slice(0,200)}`); continue; }
 
         const data = JSON.parse(bodyText);
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
         const parsed = extractJSON(text);
-        if (!parsed) {
-          errors.push(`${model}: JSON parse failed. Raw: ${text.slice(0,200)}`);
-          continue;
-        }
+        if (!parsed) { errors.push(`${model}: parse failed. Raw: ${text.slice(0,150)}`); continue; }
 
-        // Normalize sistema keys
         if (parsed.sistemas) {
           const s = {};
           for (const [k,v] of Object.entries(parsed.sistemas)) s[SISTEMA_MAP[k]||k]=v;
