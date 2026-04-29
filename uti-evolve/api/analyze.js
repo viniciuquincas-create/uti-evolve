@@ -11,43 +11,36 @@ export default async function handler(req, res) {
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nao configurada no Vercel' });
 
-    const prompt = `Voce e medico intensivista. Analise esta imagem de sistema hospitalar (Tasy, MV, monitor ou planilha de UTI) e extraia dados clinicos.
+    const SISTEMA_MAP = {
+      'Neurologico':'Neurológico','Respiratorio':'Respiratório',
+      'Hemodinamico':'Hemodinâmico','Renal_Metabolico':'Renal/Metabólico',
+      'Gastrointestinal':'Gastrointestinal',
+      'Hematologico_Infeccioso':'Hematológico/Infeccioso','Pele_Acessos':'Pele/Acessos'
+    };
 
-Retorne SOMENTE JSON valido, sem markdown:
-{
-  "dataColeta": "YYYY-MM-DD",
-  "controles": {
-    "c24_temp": "", "c24_fc": "", "c24_fr": "", "c24_sat": "",
-    "c24_pam": "", "c24_pas": "", "c24_dextro": "",
-    "c24_diur": "", "c24_bh": "", "c24_dreno1": "", "c24_dreno2": "", "c24_dreno3": "", "c24_sng": ""
-  },
-  "sistemas": {
-    "Neurologico": "", "Respiratorio": "", "Hemodinamico": "",
-    "Renal_Metabolico": "", "Gastrointestinal": "", "Hematologico_Infeccioso": "", "Pele_Acessos": ""
-  },
-  "exames": {},
-  "resumo": ""
-}
+    // Try to extract JSON from model response (handles text before/after JSON)
+    function extractJSON(text) {
+      // Remove markdown fences
+      let clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+      // Try direct parse
+      try { return JSON.parse(clean); } catch {}
+      // Try to find first { ... } block
+      const start = clean.indexOf('{');
+      const end = clean.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        try { return JSON.parse(clean.slice(start, end + 1)); } catch {}
+      }
+      return null;
+    }
 
-REGRAS para controles - se tabela com colunas Total/Maxima/Media/Minima:
-  Sinais vitais (use Minima e Maxima, formato "min / max"):
-    c24_temp=temperatura "min / max" graus C (ex: "35.8 / 37.3")
-    c24_fc=FC bpm "min / max" (ex: "78 / 99")
-    c24_fr=FR irpm "min / max" (ex: "18 / 24")
-    c24_sat=SpO2 % "min / max" (ex: "96 / 100")
-    c24_pam=PAM mmHg "min / max" (ex: "84 / 96")
-    c24_pas=PAS e PAD formato "PASmin-PASmax / PADmin-PADmax" (ex: "123-141 / 65-76")
-    c24_dextro=glicemia capilar "min / max" se presente
-  Balanco hidrico (use coluna Total):
-    c24_diur=diurese total mL (ex: "2850")
-    c24_bh=BH com sinal +/- (ex: "+450" ou "-200")
-    c24_dreno1/2/3=volume total drenos mL se presentes
-    c24_sng=residuo gastrico SNG total mL se presente
-  Campos ausentes = string vazia.
-REGRAS sistemas: dados qualitativos (gasometria, modos VM, drogas, labs). Nao repetir controles.
-REGRAS exames: pares nome/valor de labs encontrados.
-dataColeta: data YYYY-MM-DD, se ausente string vazia.
-resumo: frase curta sobre o conteudo.`;
+    const prompt = `Voce e medico intensivista. Analise esta imagem de sistema hospitalar e extraia dados clinicos. Retorne SOMENTE o JSON abaixo preenchido, sem nenhum texto adicional antes ou depois:
+
+{"dataColeta":"YYYY-MM-DD","controles":{"c24_temp":"","c24_fc":"","c24_fr":"","c24_sat":"","c24_pam":"","c24_pas":"","c24_dextro":"","c24_diur":"","c24_bh":"","c24_dreno1":"","c24_dreno2":"","c24_dreno3":"","c24_sng":""},"sistemas":{"Neurologico":"","Respiratorio":"","Hemodinamico":"","Renal_Metabolico":"","Gastrointestinal":"","Hematologico_Infeccioso":"","Pele_Acessos":""},"exames":{},"resumo":""}
+
+REGRAS controles - se tabela com colunas Total/Maxima/Media/Minima:
+Sinais vitais use Minima e Maxima formato "min / max": c24_temp temperatura graus C, c24_fc FC bpm, c24_fr FR irpm, c24_sat SpO2 %, c24_pam PAM mmHg, c24_pas formato "PASmin-PASmax / PADmin-PADmax", c24_dextro glicemia se presente.
+Balanco hidrico use coluna Total: c24_diur diurese mL, c24_bh BH com sinal +/-, c24_dreno1/2/3 drenos mL se presentes, c24_sng SNG mL se presente.
+Campos ausentes deixe string vazia. Sistemas: dados qualitativos nao repetir controles. Exames: pares nome/valor. dataColeta: data YYYY-MM-DD. resumo: frase curta.`;
 
     const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
     const errors = [];
@@ -64,35 +57,35 @@ resumo: frase curta sobre o conteudo.`;
                 { text: prompt },
                 { inline_data: { mime_type: mimeType || 'image/png', data: imageBase64 } }
               ]}],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+              generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 2048,
+                responseMimeType: 'application/json'
+              }
             })
           }
         );
 
         const bodyText = await r.text();
-        if (!r.ok) { errors.push(`${model} HTTP ${r.status}: ${bodyText.slice(0,200)}`); continue; }
+        if (!r.ok) { errors.push(`${model} HTTP ${r.status}: ${bodyText.slice(0,300)}`); continue; }
 
         const data = JSON.parse(bodyText);
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const clean = text.replace(/```json|```/g, '').trim();
 
-        try {
-          const parsed = JSON.parse(clean);
-          if (parsed.sistemas) {
-            const map = {
-              'Neurologico':'Neurológico','Respiratorio':'Respiratório',
-              'Hemodinamico':'Hemodinâmico','Renal_Metabolico':'Renal/Metabólico',
-              'Gastrointestinal':'Gastrointestinal',
-              'Hematologico_Infeccioso':'Hematológico/Infeccioso','Pele_Acessos':'Pele/Acessos'
-            };
-            const s = {};
-            for (const [k,v] of Object.entries(parsed.sistemas)) s[map[k]||k]=v;
-            parsed.sistemas = s;
-          }
-          return res.status(200).json(parsed);
-        } catch {
-          return res.status(200).json({ raw: text, error: 'parse_failed', model });
+        const parsed = extractJSON(text);
+        if (!parsed) {
+          errors.push(`${model}: JSON parse failed. Raw: ${text.slice(0,200)}`);
+          continue;
         }
+
+        // Normalize sistema keys
+        if (parsed.sistemas) {
+          const s = {};
+          for (const [k,v] of Object.entries(parsed.sistemas)) s[SISTEMA_MAP[k]||k]=v;
+          parsed.sistemas = s;
+        }
+        return res.status(200).json(parsed);
+
       } catch(e) { errors.push(`${model}: ${e.message}`); }
     }
 
