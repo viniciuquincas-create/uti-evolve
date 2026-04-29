@@ -1,2562 +1,4401 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import React from "react";
-import { supabase } from './supabase.js';
+import { useState, useRef, useCallback, useEffect } from “react”;
+import React from “react”;
+import { supabase } from ‘./supabase.js’;
 
 const SISTEMAS = [
-  "Neurológico","Respiratório","Hemodinâmico",
-  "Renal/Metabólico","Gastrointestinal","Hematológico/Infeccioso","Pele/Acessos",
+“Neurológico”,“Respiratório”,“Hemodinâmico”,
+“Renal/Metabólico”,“Gastrointestinal”,“Hematológico/Infeccioso”,“Pele/Acessos”,
 ];
 
 const LEITOS_INICIAIS = [
-  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+{ id:1, nome:“Leito 01”, paciente:””, diagnostico:””, dataInternacao:””, peso:””, altura:””, sexo:“M”, procedimentos:[], dispositivos:{} },
+{ id:2, nome:“Leito 02”, paciente:””, diagnostico:””, dataInternacao:””, peso:””, altura:””, sexo:“M”, procedimentos:[], dispositivos:{} },
+{ id:3, nome:“Leito 03”, paciente:””, diagnostico:””, dataInternacao:””, peso:””, altura:””, sexo:“M”, procedimentos:[], dispositivos:{} },
+{ id:4, nome:“Leito 04”, paciente:””, diagnostico:””, dataInternacao:””, peso:””, altura:””, sexo:“M”, procedimentos:[], dispositivos:{} },
 ];
 
 const METAS_SUGESTOES = [
-  "Meta de diurese > 0,5 mL/kg/h","Desmame ventilatório — reduzir FiO2",
-  "Controle glicêmico 140-180 mg/dL","Mobilização precoce",
-  "Reposição de K+ se < 3,5","Hemoculturas antes de ATB",
-  "Ecocardiograma beira-leito","Discutir retirada de DVA",
+“Meta de diurese > 0,5 mL/kg/h”,“Desmame ventilatório — reduzir FiO2”,
+“Controle glicêmico 140-180 mg/dL”,“Mobilização precoce”,
+“Reposição de K+ se < 3,5”,“Hemoculturas antes de ATB”,
+“Ecocardiograma beira-leito”,“Discutir retirada de DVA”,
 ];
 
 // Diluições padrão do protocolo da UTI
 // concMcgML = mcg de fármaco por mL da solução final
 // unidade = unidade da dose resultante exibida ao usuário
-// modoCalc: "mcg_kg_min" | "mcg_kg_h" | "ui_min" | "mcg_min" (vasopressina, nitroglicerina sem peso)
+// modoCalc: “mcg_kg_min” | “mcg_kg_h” | “ui_min” | “mcg_min” (vasopressina, nitroglicerina sem peso)
 const DROGAS_PROTOCOLO = {
-  noradrenalina: {
-    label:"Noradrenalina", grupo:"vasoativa",
-    // 4 amp (4mg cada = 16mg) em SG5% 234 mL → total 250mL, 16mg/250mL = 64 mcg/mL
-    diluicaoDesc:"4 amp (16 mg) em SG5% 234 mL → 250 mL",
-    concMcgML: 64,          // mcg/mL
-    modoCalc:"mcg_kg_min",  // resultado em mcg/kg/min
-    max:3, unidadeLabel:"mcg/kg/min",
-  },
-  dobutamina: {
-    label:"Dobutamina", grupo:"vasoativa",
-    // 80mL (250mg) em SG5% 170mL → 250mL, 250mg/250mL = 1000 mcg/mL
-    diluicaoDesc:"80 mL (250 mg) em SG5% 170 mL → 250 mL",
-    concMcgML: 1000,
-    modoCalc:"mcg_kg_min",
-    max:20, unidadeLabel:"mcg/kg/min",
-  },
-  vasopressina: {
-    label:"Vasopressina", grupo:"vasoativa",
-    // 2mL (20UI) em SG5% 98mL → 100mL, 20UI/100mL = 0,2 UI/mL
-    diluicaoDesc:"2 mL (20 UI) em SG5% 98 mL → 100 mL",
-    concMcgML: null, concUIML: 0.2,  // UI/mL
-    modoCalc:"ui_min",
-    max:0.04, unidadeLabel:"UI/min",
-  },
-  nitroglicerina: {
-    label:"Nitroglicerina", grupo:"vasoativa",
-    // 10mL (50mg) em SG5% 90mL → 100mL, 50mg/100mL = 500mcg/mL
-    diluicaoDesc:"10 mL (50 mg) em SG5% 90 mL → 100 mL",
-    concMcgML: 500,
-    modoCalc:"mcg_min",   // mcg/min, sem peso
-    max:400, unidadeLabel:"mcg/min",
-  },
-  nitroprussiato: {
-    label:"Nitroprussiato", grupo:"vasoativa",
-    // 2mL (50mg) em SG5% 248mL → 250mL, 50mg/250mL = 200mcg/mL
-    diluicaoDesc:"2 mL (50 mg) em SG5% 248 mL → 250 mL",
-    concMcgML: 200,
-    modoCalc:"mcg_kg_min",
-    max:10, unidadeLabel:"mcg/kg/min",
-  },
-  propofol: {
-    label:"Propofol", grupo:"sedacao",
-    // 10mg/mL, 100mL puro → 100mL, 10mg/mL = 10000 mcg/mL
-    diluicaoDesc:"10 mg/mL — 100 mL puro (sem diluição)",
-    concMcgML: 10000,
-    modoCalc:"mcg_kg_min",
-    max:67, unidadeLabel:"mcg/kg/min",
-  },
-  midazolam: {
-    label:"Midazolam", grupo:"sedacao",
-    // 5mg/mL, 20mL (100mg) em SG5% 80mL → 100mL, 100mg/100mL = 1000 mcg/mL
-    diluicaoDesc:"20 mL (100 mg) em SG5% 80 mL → 100 mL",
-    concMcgML: 1000,
-    modoCalc:"mcg_kg_h",
-    max:150, unidadeLabel:"mcg/kg/h",
-  },
-  fentanil: {
-    label:"Fentanil", grupo:"analgesia",
-    // 0,05mg/mL, 20mL (1000mcg) em SF0,9% 80mL → 100mL, 1000mcg/100mL = 10 mcg/mL
-    diluicaoDesc:"20 mL (1000 mcg) em SF0,9% 80 mL → 100 mL",
-    concMcgML: 10,
-    modoCalc:"mcg_kg_h",
-    max:5, unidadeLabel:"mcg/kg/h",
-  },
-  precedex: {
-    label:"Precedex (Dex)", grupo:"sedacao",
-    // 4mL (200mcg) em SF0,9% 96mL → 100mL, 200mcg/100mL = 2 mcg/mL
-    diluicaoDesc:"4 mL (200 mcg) em SF0,9% 96 mL → 100 mL",
-    concMcgML: 2,
-    modoCalc:"mcg_kg_h",
-    max:0.7, unidadeLabel:"mcg/kg/h",
-  },
+noradrenalina: {
+label:“Noradrenalina”, grupo:“vasoativa”,
+// 4 amp (4mg cada = 16mg) em SG5% 234 mL → total 250mL, 16mg/250mL = 64 mcg/mL
+diluicaoDesc:“4 amp (16 mg) em SG5% 234 mL → 250 mL”,
+concMcgML: 64,          // mcg/mL
+modoCalc:“mcg_kg_min”,  // resultado em mcg/kg/min
+max:3, unidadeLabel:“mcg/kg/min”,
+},
+dobutamina: {
+label:“Dobutamina”, grupo:“vasoativa”,
+// 80mL (250mg) em SG5% 170mL → 250mL, 250mg/250mL = 1000 mcg/mL
+diluicaoDesc:“80 mL (250 mg) em SG5% 170 mL → 250 mL”,
+concMcgML: 1000,
+modoCalc:“mcg_kg_min”,
+max:20, unidadeLabel:“mcg/kg/min”,
+},
+vasopressina: {
+label:“Vasopressina”, grupo:“vasoativa”,
+// 2mL (20UI) em SG5% 98mL → 100mL, 20UI/100mL = 0,2 UI/mL
+diluicaoDesc:“2 mL (20 UI) em SG5% 98 mL → 100 mL”,
+concMcgML: null, concUIML: 0.2,  // UI/mL
+modoCalc:“ui_min”,
+max:0.04, unidadeLabel:“UI/min”,
+},
+nitroglicerina: {
+label:“Nitroglicerina”, grupo:“vasoativa”,
+// 10mL (50mg) em SG5% 90mL → 100mL, 50mg/100mL = 500mcg/mL
+diluicaoDesc:“10 mL (50 mg) em SG5% 90 mL → 100 mL”,
+concMcgML: 500,
+modoCalc:“mcg_min”,   // mcg/min, sem peso
+max:400, unidadeLabel:“mcg/min”,
+},
+nitroprussiato: {
+label:“Nitroprussiato”, grupo:“vasoativa”,
+// 2mL (50mg) em SG5% 248mL → 250mL, 50mg/250mL = 200mcg/mL
+diluicaoDesc:“2 mL (50 mg) em SG5% 248 mL → 250 mL”,
+concMcgML: 200,
+modoCalc:“mcg_kg_min”,
+max:10, unidadeLabel:“mcg/kg/min”,
+},
+propofol: {
+label:“Propofol”, grupo:“sedacao”,
+// 10mg/mL, 100mL puro → 100mL, 10mg/mL = 10000 mcg/mL
+diluicaoDesc:“10 mg/mL — 100 mL puro (sem diluição)”,
+concMcgML: 10000,
+modoCalc:“mcg_kg_min”,
+max:67, unidadeLabel:“mcg/kg/min”,
+},
+midazolam: {
+label:“Midazolam”, grupo:“sedacao”,
+// 5mg/mL, 20mL (100mg) em SG5% 80mL → 100mL, 100mg/100mL = 1000 mcg/mL
+diluicaoDesc:“20 mL (100 mg) em SG5% 80 mL → 100 mL”,
+concMcgML: 1000,
+modoCalc:“mcg_kg_h”,
+max:150, unidadeLabel:“mcg/kg/h”,
+},
+fentanil: {
+label:“Fentanil”, grupo:“analgesia”,
+// 0,05mg/mL, 20mL (1000mcg) em SF0,9% 80mL → 100mL, 1000mcg/100mL = 10 mcg/mL
+diluicaoDesc:“20 mL (1000 mcg) em SF0,9% 80 mL → 100 mL”,
+concMcgML: 10,
+modoCalc:“mcg_kg_h”,
+max:5, unidadeLabel:“mcg/kg/h”,
+},
+precedex: {
+label:“Precedex (Dex)”, grupo:“sedacao”,
+// 4mL (200mcg) em SF0,9% 96mL → 100mL, 200mcg/100mL = 2 mcg/mL
+diluicaoDesc:“4 mL (200 mcg) em SF0,9% 96 mL → 100 mL”,
+concMcgML: 2,
+modoCalc:“mcg_kg_h”,
+max:0.7, unidadeLabel:“mcg/kg/h”,
+},
 };
 
 // mL/h → dose: dado vazão e concentração, calcula dose por kg
 function calcDoseFromMLH(drogaKey, mlh, peso, concCustom) {
-  const mlhN = parseFloat(mlh), p = parseFloat(peso);
-  if (!mlhN || mlhN <= 0) return null;
-  const conf = DROGAS_PROTOCOLO[drogaKey];
-  if (!conf) return null;
-  const conc = concCustom !== undefined ? parseFloat(concCustom) : conf.concMcgML;
-  if (!conc || conc <= 0) {
-    // vasopressina: UI/mL
-    if (conf.modoCalc === "ui_min") {
-      const uiMin = mlhN * conf.concUIML / 60;
-      return { dose: uiMin.toFixed(4), label: conf.unidadeLabel };
-    }
-    return null;
-  }
-  if (conf.modoCalc === "mcg_kg_min") {
-    if (!p) return null;
-    const dose = (mlhN * conc) / (p * 60);
-    return { dose: dose.toFixed(4), label: conf.unidadeLabel };
-  }
-  if (conf.modoCalc === "mcg_kg_h") {
-    if (!p) return null;
-    const dose = (mlhN * conc) / p;
-    return { dose: dose.toFixed(2), label: conf.unidadeLabel };
-  }
-  if (conf.modoCalc === "mcg_min") {
-    const dose = (mlhN * conc) / 60;
-    return { dose: dose.toFixed(1), label: conf.unidadeLabel };
-  }
-  return null;
+const mlhN = parseFloat(mlh), p = parseFloat(peso);
+if (!mlhN || mlhN <= 0) return null;
+const conf = DROGAS_PROTOCOLO[drogaKey];
+if (!conf) return null;
+const conc = concCustom !== undefined ? parseFloat(concCustom) : conf.concMcgML;
+if (!conc || conc <= 0) {
+// vasopressina: UI/mL
+if (conf.modoCalc === “ui_min”) {
+const uiMin = mlhN * conf.concUIML / 60;
+return { dose: uiMin.toFixed(4), label: conf.unidadeLabel };
 }
+return null;
+}
+if (conf.modoCalc === “mcg_kg_min”) {
+if (!p) return null;
+const dose = (mlhN * conc) / (p * 60);
+return { dose: dose.toFixed(4), label: conf.unidadeLabel };
+}
+if (conf.modoCalc === “mcg_kg_h”) {
+if (!p) return null;
+const dose = (mlhN * conc) / p;
+return { dose: dose.toFixed(2), label: conf.unidadeLabel };
+}
+if (conf.modoCalc === “mcg_min”) {
+const dose = (mlhN * conc) / 60;
+return { dose: dose.toFixed(1), label: conf.unidadeLabel };
+}
+return null;
+import { useState, useEffect, useRef } from "react";
 
 
+// ── Supabase Sync ─────────────────────────────────────────────
+const SUPABASE_URL = "https://jrzcbthmmkaaeyuakhsb.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyemNidGhtbWthYWV5dWFraHNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTM3NDEsImV4cCI6MjA5MjY4OTc0MX0.YXSdk38JHCRB7A6xxokUWlJW4Rv7yuXTlcFnP2esIxM";
+
+async function supabaseLoad() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/financas?id=eq.vinicius&select=dados`, {
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+    }
+  });
+  const data = await res.json();
+  if(!data?.length || !data[0]?.dados) return null;
+  const raw = data[0].dados;
+  // Normalize string values
+  const normalized = {};
+  for(const [k,v] of Object.entries(raw)) {
+    try { normalized[k] = typeof v==="string" ? JSON.parse(v) : v; }
+    catch { normalized[k] = v; }
+  }
+  return normalized;
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function diasInternacao(ds) {
-  if (!ds) return null;
-  const d = Math.floor((new Date() - new Date(ds+"T00:00:00")) / 86400000);
-  return d >= 0 ? d : null;
+if (!ds) return null;
+const d = Math.floor((new Date() - new Date(ds+“T00:00:00”)) / 86400000);
+return d >= 0 ? d : null;
 }
 function pesoPredito(alt, sexo) {
-  const h = parseFloat(alt);
-  if (!h || h < 100) return null;
-  return sexo === "M" ? (50 + 0.91*(h-152.4)).toFixed(1) : (45.5 + 0.91*(h-152.4)).toFixed(1);
+const h = parseFloat(alt);
+if (!h || h < 100) return null;
+return sexo === “M” ? (50 + 0.91*(h-152.4)).toFixed(1) : (45.5 + 0.91*(h-152.4)).toFixed(1);
+async function supabaseSave(dados) {
+  await fetch(`${SUPABASE_URL}/rest/v1/financas?id=eq.vinicius`, {
+    method: "PATCH",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": "return=minimal",
+    },
+    body: JSON.stringify({ dados, atualizado_em: new Date().toISOString() })
+  });
 }
 
-
 // ── UI atoms ─────────────────────────────────────────────────────────────────
-const mono = "'DM Mono', monospace";
+const mono = “‘DM Mono’, monospace”;
+const CATS_DEFAULT = ["Mercado","Comer fora","Delivery","Carro","Uber","Farmácia","Empresa","Casa","Apps","Lazer","Compras","Pet","Família/Presentes","Impostos","Educação","Viagem","Saúde","Outro"];
+// CATS will be loaded dynamically; this is the fallback
+let CATS = [...CATS_DEFAULT];
+const CARDS = [
+  { id:"inter", label:"Inter",             color:"#E05A00", bg:"#FFF0E6", emoji:"🟠" },
+  { id:"itau",  label:"Itaú Personnalité", color:"#0D2B6E", bg:"#E8EDF7", emoji:"🔵" },
+  { id:"will",  label:"Will",              color:"#B8860B", bg:"#FFFBE6", emoji:"🟡" },
+];
+const FIXAS_BASE = [
+  { nome:"Aluguel",         venc:"Dia 05", cat:"Casa",      duracao:"sempre" },
+  { nome:"Condomínio",      venc:"Dia 05", cat:"Casa",      duracao:"sempre" },
+  { nome:"Internet",        venc:"Dia 05", cat:"Casa",      duracao:"sempre" },
+  { nome:"Energia",         venc:"Dia 05", cat:"Casa",      duracao:"sempre" },
+  { nome:"Vaga de Garagem", venc:"Dia 05", cat:"Casa",      duracao:"sempre" },
+  { nome:"Personal",        venc:"Dia 01", cat:"Saúde",     duracao:"sempre" },
+  { nome:"Nana (Faxina)",   venc:"Dia 10", cat:"Casa",      duracao:"sempre" },
+  { nome:"Ana (Chef)",      venc:"Dia 10", cat:"Casa",      duracao:"sempre" },
+  { nome:"Unimed",          venc:"Dia 10", cat:"Saúde",     duracao:"sempre" },
+  { nome:"Vivo",            venc:"Dia 20", cat:"Apps",      duracao:"sempre" },
+  { nome:"Consórcio",       venc:"Dia 05", cat:"Impostos",  duracao:"sempre" },
+  { nome:"FIES",            venc:"Dia 10", cat:"Educação",  duracao:"sempre" },
+];
+const LOCAIS = ["Leonor","CDT","SEPACO"];
+const AGENDA_URL = "https://script.google.com/macros/s/AKfycbxDfXcA9Fs8KUM8yEU0cVkZXdlIQFfs0n0Q9J5NMtCtTf0u_z5mcp-nIyMM_9aSYe1txA/exec";
+const MESES  = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
-function Pill({ label, value, unit, color="#38bdf8", warn=false }) {
-  return (
-    <div style={{ background: warn?"rgba(248,113,113,0.08)":"rgba(255,255,255,0.04)", border:`1px solid ${warn?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"8px 12px", minWidth:90, textAlign:"center" }}>
-      <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:3 }}>{label}</div>
-      <div style={{ fontSize:18, fontWeight:700, color: warn?"#f87171":color }}>{value??"-"}</div>
-      {unit&&<div style={{ fontSize:10, color:"#64748b", marginTop:1 }}>{unit}</div>}
-    </div>
-  );
+const fmtBRL = v => new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);
+const today  = () => new Date().toISOString().split("T")[0];
+const curMes = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; };
+const mesLabel = k => { const[y,m]=k.split("-"); return `${MESES[+m-1].toUpperCase()} / ${y}`; };
+
+const load = async (key,fb=null) => { try{ const r=await window.storage.get(key); return r?JSON.parse(r.value):fb; }catch{ return fb; }};
+const save = async (key,val)     => { try{ await window.storage.set(key,JSON.stringify(val)); }catch{} };
+
+const seedMonth = key => ({
+  key,
+  plantoes: LOCAIS.map((l,i)=>({
+    local:l, n:0, horas:0, valorH:0, fromAgenda:false, ativo:true,
+    diaReceb: l==="Leonor"?15:0,
+    statusReceb:"aguardando",
+  })),
+  bolsa: 0,
+  bolsaDia: 5,
+  bolsaStatus: "aguardando",
+  auxilio: 0,
+  auxilioDia: 5,
+  auxilioStatus: "aguardando",
+  receitasExtra: [],
+  fixas: FIXAS_BASE.map((f,i)=>({...f,id:i+1,status:"pendente",forma:"",banco:"",dataPgto:"",valor:0,extra:false,duracao:f.duracao||"sempre",mesesRestantes:null})),
+  cartoes: {inter:[],itau:[],will:[]},
+  variaveis: [],
+  investimentos: [
+    {id:1,produto:"CDB / Tesouro Direto",tipo:"Renda Fixa",aplicado:0,atual:0},
+    {id:2,produto:"Fundo de Investimento",tipo:"Fundo",aplicado:0,atual:0},
+  ],
+});
+
+function Pill({ label, value, unit, color=”#38bdf8”, warn=false }) {
+return (
+<div style={{ background: warn?“rgba(248,113,113,0.08)”:“rgba(255,255,255,0.04)”, border:`1px solid ${warn?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:“8px 12px”, minWidth:90, textAlign:“center” }}>
+<div style={{ fontSize:10, color:”#64748b”, fontFamily:mono, letterSpacing:1, marginBottom:3 }}>{label}</div>
+<div style={{ fontSize:18, fontWeight:700, color: warn?”#f87171”:color }}>{value??”-”}</div>
+{unit&&<div style={{ fontSize:10, color:”#64748b”, marginTop:1 }}>{unit}</div>}
+</div>
+const G = `
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:'Sora',sans-serif;background:#0a0a0f;color:#f0f0f5;min-height:100vh;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  input,select,button{font-family:'Sora',sans-serif;}
+  ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-thumb{background:#222;}
+`;
+
+const Card = ({children,style={}}) => (
+  <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:16,padding:16,...style}}>
+    {children}
+  </div>
+);
 }
 
 function SecTitle({ children }) {
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, margin:"20px 0 10px" }}>
-      <div style={{ width:3, height:14, background:"#38bdf8", borderRadius:2 }}/>
-      <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>{children}</span>
-    </div>
-  );
+return (
+<div style={{ display:“flex”, alignItems:“center”, gap:8, margin:“20px 0 10px” }}>
+<div style={{ width:3, height:14, background:”#38bdf8”, borderRadius:2 }}/>
+<span style={{ fontSize:11, color:”#38bdf8”, fontFamily:mono, letterSpacing:2 }}>{children}</span>
+</div>
+const Inp = ({label,type="text",value,onChange,placeholder,style={}}) => (
+  <div style={{display:"flex",flexDirection:"column",gap:4,...style}}>
+    {label&&<label style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8}}>{label}</label>}
+    <input type={type} value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+      style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"10px 12px",color:"#f0f0f5",fontSize:14,outline:"none",width:"100%"}}/>
+  </div>
+);
 }
 
-function Field({ label, value, onChange, type="text", placeholder="", suffix="" }) {
-  return (
-    <div style={{ flex:1 }}>
-      <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>{label}</div>
-      <div style={{ display:"flex", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, overflow:"hidden" }}>
-        <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-          style={{ flex:1, background:"none", border:"none", padding:"8px 10px", color:"#e2e8f0", fontSize:13, fontFamily:"inherit", width:"100%" }}/>
-        {suffix&&<span style={{ paddingRight:10, color:"#475569", fontSize:12, alignSelf:"center" }}>{suffix}</span>}
-      </div>
-    </div>
-  );
+function Field({ label, value, onChange, type=“text”, placeholder=””, suffix=”” }) {
+return (
+<div style={{ flex:1 }}>
+<div style={{ fontSize:10, color:”#64748b”, fontFamily:mono, letterSpacing:1, marginBottom:4 }}>{label}</div>
+<div style={{ display:“flex”, background:“rgba(255,255,255,0.04)”, border:“1px solid rgba(255,255,255,0.1)”, borderRadius:8, overflow:“hidden” }}>
+<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+style={{ flex:1, background:“none”, border:“none”, padding:“8px 10px”, color:”#e2e8f0”, fontSize:13, fontFamily:“inherit”, width:“100%” }}/>
+{suffix&&<span style={{ paddingRight:10, color:”#475569”, fontSize:12, alignSelf:“center” }}>{suffix}</span>}
+</div>
+</div>
+const Sel = ({label,value,onChange,options,style={}}) => (
+  <div style={{display:"flex",flexDirection:"column",gap:4,...style}}>
+    {label&&<label style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8}}>{label}</label>}
+    <select value={value??""} onChange={e=>onChange(e.target.value)}
+      style={{background:"#111118",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"10px 12px",color:"#f0f0f5",fontSize:14,outline:"none",width:"100%"}}>
+      {options.map(o=><option key={o.value??o} value={o.value??o}>{o.label??o}</option>)}
+    </select>
+  </div>
+);
+const Btn = ({children,onClick,color="#7c6af7",outline,style={}}) => (
+  <button onClick={onClick} style={{padding:"11px 16px",borderRadius:11,border:outline?`1px solid ${color}55`:"none",
+    background:outline?"transparent":color,color:outline?color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",width:"100%",...style}}>
+    {children}
+  </button>
+);
 }
 
 const PROC_SUGESTOES = [
-  "Laparotomia exploradora","Laparotomia de controle de dano","Relaparotomia",
-  "Craniotomia descompressiva","Traqueostomia","Toracotomia",
-  "Drenagem de tórax","Amputação","Fasciotomia","Embolectomia",
-  "Bypass coronariano","Troca valvar","ECMO","Diálise — início",
-  "Acesso venoso central","Cateter de artéria pulmonar",
+“Laparotomia exploradora”,“Laparotomia de controle de dano”,“Relaparotomia”,
+“Craniotomia descompressiva”,“Traqueostomia”,“Toracotomia”,
+“Drenagem de tórax”,“Amputação”,“Fasciotomia”,“Embolectomia”,
+“Bypass coronariano”,“Troca valvar”,“ECMO”,“Diálise — início”,
+“Acesso venoso central”,“Cateter de artéria pulmonar”,
 ];
 
 // ── ProcedimentosPanel ────────────────────────────────────────────────────────
 function ProcedimentosPanel({ procedimentos=[], onChange }) {
-  const [nome, setNome]         = useState("");
-  const [data, setData]         = useState(new Date().toISOString().split("T")[0]);
-  const [showSug, setShowSug]   = useState(false);
-  const [editId, setEditId]     = useState(null);
+const [nome, setNome]         = useState(””);
+const [data, setData]         = useState(new Date().toISOString().split(“T”)[0]);
+const [showSug, setShowSug]   = useState(false);
+const [editId, setEditId]     = useState(null);
 
-  const diasPO = (ds) => {
-    if (!ds) return null;
-    const d = Math.floor((new Date() - new Date(ds+"T00:00:00")) / 86400000);
-    return d >= 0 ? d : null;
-  };
+const diasPO = (ds) => {
+if (!ds) return null;
+const d = Math.floor((new Date() - new Date(ds+“T00:00:00”)) / 86400000);
+return d >= 0 ? d : null;
+};
 
-  const addProc = (n = nome) => {
-    if (!n.trim() || !data) return;
-    const novo = { id: Date.now(), nome: n.trim(), data };
-    onChange([...procedimentos, novo]);
-    setNome(""); setShowSug(false);
-  };
+const addProc = (n = nome) => {
+if (!n.trim() || !data) return;
+const novo = { id: Date.now(), nome: n.trim(), data };
+onChange([…procedimentos, novo]);
+setNome(””); setShowSug(false);
+};
 
-  const removeProc = (id) => onChange(procedimentos.filter(p=>p.id!==id));
+const removeProc = (id) => onChange(procedimentos.filter(p=>p.id!==id));
 
-  const updateProc = (id, field, val) =>
-    onChange(procedimentos.map(p=>p.id===id?{...p,[field]:val}:p));
+const updateProc = (id, field, val) =>
+onChange(procedimentos.map(p=>p.id===id?{…p,[field]:val}:p));
+
+return (
+<div>
+<SecTitle>PROCEDIMENTOS CIRÚRGICOS / INVASIVOS</SecTitle>
+
+```
+  {/* Lista de procedimentos */}
+  {procedimentos.length === 0 && (
+    <div style={{padding:"18px 14px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:8,textAlign:"center",color:"#334155",fontSize:13,marginBottom:12}}>
+      Nenhum procedimento registrado
+function MonthNav({mesKey,setMesKey}) {
+  const [y,m]=mesKey.split("-").map(Number);
+  const go=d=>{ const dt=new Date(y,m-1+d); setMesKey(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`); };
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(255,255,255,.04)",borderRadius:12,padding:"8px 14px",border:"1px solid rgba(255,255,255,.07)"}}>
+      <button onClick={()=>go(-1)} style={{background:"none",border:"none",color:"#555",fontSize:22,cursor:"pointer",lineHeight:1}}>‹</button>
+      <span style={{fontSize:14,fontWeight:700,letterSpacing:.5}}>{mesLabel(mesKey)}</span>
+      <button onClick={()=>go(+1)} style={{background:"none",border:"none",color:"#555",fontSize:22,cursor:"pointer",lineHeight:1}}>›</button>
+    </div>
+  )}
+
+  {procedimentos.map((p, pidx)=>{
+    const po = diasPO(p.data);
+    const editing = editId === p.id;
+    return (
+      <div key={p.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:8}}>
+        {/* Botões de reordenação */}
+        <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center"}}>
+          <button onClick={()=>{
+            if(pidx===0) return;
+            const n=[...procedimentos];[n[pidx-1],n[pidx]]=[n[pidx],n[pidx-1]];onChange(n);
+          }} style={{background:"none",border:"none",color:pidx===0?"#1e293b":"#64748b",cursor:pidx===0?"default":"pointer",fontSize:11,padding:"2px 4px"}}>▲</button>
+          <button onClick={()=>{
+            if(pidx===procedimentos.length-1) return;
+            const n=[...procedimentos];[n[pidx],n[pidx+1]]=[n[pidx+1],n[pidx]];onChange(n);
+          }} style={{background:"none",border:"none",color:pidx===procedimentos.length-1?"#1e293b":"#64748b",cursor:pidx===procedimentos.length-1?"default":"pointer",fontSize:11,padding:"2px 4px"}}>▼</button>
+  );
+}
+
+function Dashboard({month,setView}) {
+  const plantaoT=month.plantoes.filter(p=>p.ativo!==false).reduce((s,p)=>s+(p.horas*p.valorH),0);
+  const recT=plantaoT+Number(month.bolsa||0)+Number(month.auxilio||0)+(month.receitasExtra||[]).reduce((s,r)=>s+Number(r.valor||0),0);
+  const fixT=month.fixas.reduce((s,f)=>s+Number(f.valor||0),0);
+  const carT=Object.values(month.cartoes).flat().reduce((s,t)=>s+Number(t.valor||0),0);
+  const pixT=(month.variaveis||[]).reduce((s,p)=>s+Number(p.valor||0),0);
+  const invT=month.investimentos.reduce((s,i)=>s+Number(i.aplicado||0),0);
+  const saldo=recT-fixT-carT-pixT-invT;
+  const despT=fixT+carT+pixT;
+  const fixPend=month.fixas.filter(f=>f.status==="pendente"&&Number(f.valor)>0).length;
+  const catMap={};
+  [...Object.values(month.cartoes).flat(),...(month.variaveis||[])].forEach(t=>{ catMap[t.cat]=(catMap[t.cat]||0)+Number(t.valor||0); });
+  const topCats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const agendaOk=(month.plantoes||[]).some(p=>p.fromAgenda&&p.ativo!==false);
+  const recAtrasado=[
+    ...(month.plantoes||[]).filter(p=>p.ativo!==false&&p.statusReceb==="atrasado"),
+    ...(month.bolsaStatus==="atrasado"?[{local:"Bolsa"}]:[]),
+    ...(month.auxilioStatus==="atrasado"?[{local:"Auxílio"}]:[]),
+    ...((month.receitasExtra||[]).filter(r=>r.status==="atrasado")),
+  ];
 
   return (
-    <div>
-      <SecTitle>PROCEDIMENTOS CIRÚRGICOS / INVASIVOS</SecTitle>
-
-      {/* Lista de procedimentos */}
-      {procedimentos.length === 0 && (
-        <div style={{padding:"18px 14px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:8,textAlign:"center",color:"#334155",fontSize:13,marginBottom:12}}>
-          Nenhum procedimento registrado
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <Card style={{background:"linear-gradient(135deg,rgba(124,106,247,.12),rgba(0,180,150,.08))",borderColor:"rgba(124,106,247,.18)"}}>
+        <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>Saldo livre do mês</div>
+        <div className="mono" style={{fontSize:36,fontWeight:600,letterSpacing:-2,color:saldo>=0?"#4ade80":"#f87171"}}>{fmtBRL(saldo)}</div>
+        <div style={{height:1,background:"rgba(255,255,255,.05)",margin:"12px 0"}}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {[["Receita",recT,"#4ade80"],["Despesas",despT,"#f87171"]].map(([l,v,c])=>(
+            <div key={l}><div style={{fontSize:10,color:"#444"}}>{l}</div><div className="mono" style={{fontSize:19,color:c,fontWeight:600}}>{fmtBRL(v)}</div></div>
+          ))}
         </div>
+        <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,position:"relative",overflow:"hidden"}}>
+        {/* barra lateral colorida por tempo */}
+        <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background: po===0?"#f87171":po<=3?"#fb923c":po<=7?"#f59e0b":"#34d399",borderRadius:"3px 0 0 3px"}}/>
+        <div style={{flex:1,paddingLeft:4}}>
+          {editing ? (
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+              <input value={p.nome} onChange={e=>updateProc(p.id,"nome",e.target.value)}
+                style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+              <input type="date" value={p.data} onChange={e=>updateProc(p.id,"data",e.target.value)}
+                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
+              <button onClick={()=>setEditId(null)} style={{padding:"5px 10px",borderRadius:6,border:"1px solid #22c55e",background:"rgba(34,197,94,0.1)",color:"#22c55e",cursor:"pointer",fontSize:12}}>✓ Ok</button>
+            </div>
+          ) : (
+            <>
+              <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0"}}>{p.nome}</div>
+              <div style={{fontSize:11,color:"#64748b",marginTop:2,fontFamily:mono}}>
+                {new Date(p.data+"T00:00:00").toLocaleDateString("pt-BR")}
+              </div>
+            </>
+          )}
+      </Card>
+
+      <Card style={{padding:"12px 14px",borderColor:agendaOk?"rgba(74,222,128,.15)":"rgba(255,255,255,.07)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{fontSize:22}}>📅</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:600,color:agendaOk?"#4ade80":"#f0f0f5"}}>{agendaOk?"Plantões sincronizados":"Plantões não sincronizados"}</div>
+            <div style={{fontSize:11,color:"#444"}}>{agendaOk?`${month.plantoes.reduce((s,p)=>s+p.horas,0)}h · ${fmtBRL(recT)}`:"Configure o Apps Script para sincronizar"}</div>
+          </div>
+          <button onClick={()=>setView("plantoes")} style={{background:"rgba(124,106,247,.15)",border:"1px solid rgba(124,106,247,.2)",borderRadius:8,padding:"6px 10px",color:"#a89cf7",fontSize:11,cursor:"pointer"}}>{agendaOk?"Ver":"Config"}</button>
+        </div>
+        {!editing && po !== null && (
+          <div style={{textAlign:"center",minWidth:56,padding:"4px 10px",borderRadius:8,background: po===0?"rgba(248,113,113,0.12)":po<=3?"rgba(251,146,60,0.12)":po<=7?"rgba(245,158,11,0.12)":"rgba(52,211,153,0.12)", border:`1px solid ${po===0?"rgba(248,113,113,0.35)":po<=3?"rgba(251,146,60,0.35)":po<=7?"rgba(245,158,11,0.35)":"rgba(52,211,153,0.35)"}`}}>
+            <div style={{fontSize:16,fontWeight:700,color: po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399",lineHeight:1}}>
+              {po===0?"POI":`PO${po}`}
+            </div>
+            <div style={{fontSize:9,color:"#64748b",fontFamily:mono,marginTop:1}}>
+              {po===0?"HOJE":po===1?"1 DIA":`${po} DIAS`}
+      </Card>
+
+      {recAtrasado.length>0&&(
+        <Card style={{borderColor:"rgba(239,68,68,.2)",background:"rgba(239,68,68,.04)",padding:"12px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{fontSize:22}}>⚠️</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,color:"#f87171"}}>{recAtrasado.length} recebimento{recAtrasado.length>1?"s":""} atrasado{recAtrasado.length>1?"s":""}</div>
+              <div style={{fontSize:11,color:"#666"}}>{recAtrasado.map(r=>r.local||r.desc).join(", ")}</div>
+            </div>
+            <button onClick={()=>setView("plantoes")} style={{background:"rgba(239,68,68,.12)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,padding:"6px 10px",color:"#f87171",fontSize:11,cursor:"pointer"}}>Ver</button>
+          </div>
+        )}
+        {!editing && (
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <button onClick={()=>setEditId(p.id)} title="Editar" style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:13,padding:2}}>✏️</button>
+            <button onClick={()=>removeProc(p.id)} title="Remover" style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:13,padding:2}}>🗑️</button>
+        </Card>
       )}
 
-      {procedimentos.map((p, pidx)=>{
-        const po = diasPO(p.data);
-        const editing = editId === p.id;
-        return (
-          <div key={p.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:8}}>
-            {/* Botões de reordenação */}
-            <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center"}}>
-              <button onClick={()=>{
-                if(pidx===0) return;
-                const n=[...procedimentos];[n[pidx-1],n[pidx]]=[n[pidx],n[pidx-1]];onChange(n);
-              }} style={{background:"none",border:"none",color:pidx===0?"#1e293b":"#64748b",cursor:pidx===0?"default":"pointer",fontSize:11,padding:"2px 4px"}}>▲</button>
-              <button onClick={()=>{
-                if(pidx===procedimentos.length-1) return;
-                const n=[...procedimentos];[n[pidx],n[pidx+1]]=[n[pidx+1],n[pidx]];onChange(n);
-              }} style={{background:"none",border:"none",color:pidx===procedimentos.length-1?"#1e293b":"#64748b",cursor:pidx===procedimentos.length-1?"default":"pointer",fontSize:11,padding:"2px 4px"}}>▼</button>
+      {fixPend>0&&(
+        <Card style={{borderColor:"rgba(251,191,36,.2)",background:"rgba(251,191,36,.04)",padding:"12px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{fontSize:22}}>⏳</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,color:"#fbbf24"}}>{fixPend} despesa{fixPend>1?"s":""} pendente{fixPend>1?"s":""}</div>
+              <div style={{fontSize:11,color:"#666"}}>Com valor lançado mas não pagas</div>
             </div>
-            <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,position:"relative",overflow:"hidden"}}>
-            {/* barra lateral colorida por tempo */}
-            <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background: po===0?"#f87171":po<=3?"#fb923c":po<=7?"#f59e0b":"#34d399",borderRadius:"3px 0 0 3px"}}/>
-            <div style={{flex:1,paddingLeft:4}}>
-              {editing ? (
-                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                  <input value={p.nome} onChange={e=>updateProc(p.id,"nome",e.target.value)}
-                    style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-                  <input type="date" value={p.data} onChange={e=>updateProc(p.id,"data",e.target.value)}
-                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
-                  <button onClick={()=>setEditId(null)} style={{padding:"5px 10px",borderRadius:6,border:"1px solid #22c55e",background:"rgba(34,197,94,0.1)",color:"#22c55e",cursor:"pointer",fontSize:12}}>✓ Ok</button>
-                </div>
-              ) : (
-                <>
-                  <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0"}}>{p.nome}</div>
-                  <div style={{fontSize:11,color:"#64748b",marginTop:2,fontFamily:mono}}>
-                    {new Date(p.data+"T00:00:00").toLocaleDateString("pt-BR")}
-                  </div>
-                </>
-              )}
-            </div>
-            {!editing && po !== null && (
-              <div style={{textAlign:"center",minWidth:56,padding:"4px 10px",borderRadius:8,background: po===0?"rgba(248,113,113,0.12)":po<=3?"rgba(251,146,60,0.12)":po<=7?"rgba(245,158,11,0.12)":"rgba(52,211,153,0.12)", border:`1px solid ${po===0?"rgba(248,113,113,0.35)":po<=3?"rgba(251,146,60,0.35)":po<=7?"rgba(245,158,11,0.35)":"rgba(52,211,153,0.35)"}`}}>
-                <div style={{fontSize:16,fontWeight:700,color: po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399",lineHeight:1}}>
-                  {po===0?"POI":`PO${po}`}
-                </div>
-                <div style={{fontSize:9,color:"#64748b",fontFamily:mono,marginTop:1}}>
-                  {po===0?"HOJE":po===1?"1 DIA":`${po} DIAS`}
-                </div>
-              </div>
-            )}
-            {!editing && (
-              <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                <button onClick={()=>setEditId(p.id)} title="Editar" style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:13,padding:2}}>✏️</button>
-                <button onClick={()=>removeProc(p.id)} title="Remover" style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:13,padding:2}}>🗑️</button>
-              </div>
-            )}
-          </div>
-          </div>
-        );
-      })}
-
-      {/* Adicionar novo */}
-      <div style={{marginTop:12,padding:"14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:10}}>
-        <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5,marginBottom:10}}>+ REGISTRAR PROCEDIMENTO</div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-          <div style={{flex:2,minWidth:160}}>
-            <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>PROCEDIMENTO</div>
-            <input value={nome} onChange={e=>setNome(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addProc()} placeholder="Ex: Laparotomia exploradora"
-              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-          </div>
-          <div style={{flex:1,minWidth:130}}>
-            <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DATA DO PROCEDIMENTO</div>
-            <input type="date" value={data} onChange={e=>setData(e.target.value)}
-              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-          </div>
-          <div style={{display:"flex",alignItems:"flex-end"}}>
-            <button onClick={()=>addProc()} style={{padding:"8px 18px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>
-              + Adicionar
-            </button>
-          </div>
-        </div>
-
-        {/* Sugestões rápidas */}
-        <button onClick={()=>setShowSug(s=>!s)} style={{background:"none",border:"none",color:"#475569",fontSize:11,cursor:"pointer",padding:0,fontFamily:mono,letterSpacing:0.5}}>
-          {showSug?"▲ ocultar sugestões":"▼ sugestões rápidas"}
-        </button>
-        {showSug && (
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>
-            {PROC_SUGESTOES.map(s=>(
-              <button key={s} onClick={()=>{setNome(s);setShowSug(false);}}
-                style={{padding:"4px 10px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#94a3b8",fontSize:11,cursor:"pointer"}}>
-                {s}
-              </button>
-            ))}
+            <button onClick={()=>setView("fixas")} style={{background:"rgba(251,191,36,.12)",border:"1px solid rgba(251,191,36,.25)",borderRadius:8,padding:"6px 10px",color:"#fbbf24",fontSize:11,cursor:"pointer"}}>Ver</button>
           </div>
         )}
       </div>
+      </div>
+    );
+  })}
 
-      {/* Legenda */}
-      {procedimentos.length > 0 && (
-        <div style={{display:"flex",gap:14,marginTop:10,flexWrap:"wrap"}}>
-          {[["#f87171","POI / D0"],["#fb923c","PO1–3"],["#fbbf24","PO4–7"],["#34d399","PO8+"]].map(([c,l])=>(
-            <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}>
-              <div style={{width:8,height:8,borderRadius:2,background:c}}/>
-              {l}
-            </div>
-          ))}
+  {/* Adicionar novo */}
+  <div style={{marginTop:12,padding:"14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:10}}>
+    <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5,marginBottom:10}}>+ REGISTRAR PROCEDIMENTO</div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+      <div style={{flex:2,minWidth:160}}>
+        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>PROCEDIMENTO</div>
+        <input value={nome} onChange={e=>setNome(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addProc()} placeholder="Ex: Laparotomia exploradora"
+          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+      </div>
+      <div style={{flex:1,minWidth:130}}>
+        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DATA DO PROCEDIMENTO</div>
+        <input type="date" value={data} onChange={e=>setData(e.target.value)}
+          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+      </div>
+      <div style={{display:"flex",alignItems:"flex-end"}}>
+        <button onClick={()=>addProc()} style={{padding:"8px 18px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>
+          + Adicionar
+        </button>
+      </div>
+    </div>
+        </Card>
+      )}
+
+    {/* Sugestões rápidas */}
+    <button onClick={()=>setShowSug(s=>!s)} style={{background:"none",border:"none",color:"#475569",fontSize:11,cursor:"pointer",padding:0,fontFamily:mono,letterSpacing:0.5}}>
+      {showSug?"▲ ocultar sugestões":"▼ sugestões rápidas"}
+    </button>
+    {showSug && (
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>
+        {PROC_SUGESTOES.map(s=>(
+          <button key={s} onClick={()=>{setNome(s);setShowSug(false);}}
+            style={{padding:"4px 10px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#94a3b8",fontSize:11,cursor:"pointer"}}>
+            {s}
+          </button>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {[{label:"Fixas",val:fixT,color:"#818cf8",icon:"📋",v:"fixas"},{label:"Cartões",val:carT,color:"#f97316",icon:"💳",v:"cartoes"},{label:"Pix/Var.",val:pixT,color:"#22d3ee",icon:"📱",v:"variaveis"},{label:"Investido",val:invT,color:"#a78bfa",icon:"📈",v:"investimentos"}].map(b=>(
+          <Card key={b.label} style={{cursor:"pointer"}} onClick={()=>setView(b.v)}>
+            <div style={{fontSize:20,marginBottom:4}}>{b.icon}</div>
+            <div className="mono" style={{fontSize:16,fontWeight:600,color:b.color}}>{fmtBRL(b.val)}</div>
+            <div style={{fontSize:11,color:"#444",marginTop:2}}>{b.label}</div>
+          </Card>
+        ))}
+      </div>
+    )}
+  </div>
+
+  {/* Legenda */}
+  {procedimentos.length > 0 && (
+    <div style={{display:"flex",gap:14,marginTop:10,flexWrap:"wrap"}}>
+      {[["#f87171","POI / D0"],["#fb923c","PO1–3"],["#fbbf24","PO4–7"],["#34d399","PO8+"]].map(([c,l])=>(
+        <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}>
+          <div style={{width:8,height:8,borderRadius:2,background:c}}/>
+          {l}
         </div>
+      ))}
+      {topCats.length>0&&(
+        <Card>
+          <div style={{fontSize:10,color:"#444",fontWeight:600,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Top Categorias</div>
+          {topCats.map(([cat,val])=>{
+            const pct=despT>0?Math.round(val/despT*100):0;
+            return (
+              <div key={cat} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:13,color:"#ccc"}}>{cat}</span>
+                  <span className="mono" style={{fontSize:12,color:"#666"}}>{fmtBRL(val)} · {pct}%</span>
+                </div>
+                <div style={{height:3,background:"rgba(255,255,255,.05)",borderRadius:2}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:"#7c6af7",borderRadius:2}}/>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  )}
+</div>
+```
+  );
+}
+
+);
+
+// Status badge helper for receitas
+const STATUS_OPTS = [
+  {value:"aguardando", label:"⏳ Aguardando", color:"#fbbf24", bg:"rgba(251,191,36,.1)", border:"rgba(251,191,36,.2)"},
+  {value:"recebido",   label:"✓ Recebido",   color:"#4ade80", bg:"rgba(74,222,128,.1)", border:"rgba(74,222,128,.2)"},
+  {value:"atrasado",   label:"⚠ Atrasado",   color:"#f87171", bg:"rgba(239,68,68,.1)",  border:"rgba(239,68,68,.2)"},
+];
+function StatusBadge({value, onChange}) {
+  const cur = STATUS_OPTS.find(s=>s.value===value)||STATUS_OPTS[0];
+  const next = STATUS_OPTS[(STATUS_OPTS.indexOf(cur)+1)%STATUS_OPTS.length];
+  return (
+    <button onClick={()=>onChange(next.value)} style={{
+      background:cur.bg, border:`1px solid ${cur.border}`,
+      borderRadius:8, padding:"4px 10px", cursor:"pointer",
+      fontSize:11, fontWeight:600, color:cur.color,
+      whiteSpace:"nowrap",
+    }}>{cur.label}</button>
+  );
+}
+
+// ── DrogasCalculadora ─────────────────────────────────────────────────────────
+const GRUPOS = { vasoativa:“Vasoativas”, sedacao:“Sedação”, analgesia:“Analgesia” };
+
+function DrogasCalculadora({ peso, onLancarDroga }) {
+const [drogaSel, setDrogaSel] = useState(“noradrenalina”);
+const [mlh, setMlh]           = useState(””);
+const [concCustom, setConcCustom] = useState(””);
+const [editandoConc, setEditandoConc] = useState(false);
+const [lancado, setLancado]   = useState(false);
+
+const conf = DROGAS_PROTOCOLO[drogaSel];
+const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== “” ? parseFloat(concCustom) : undefined);
+const acimaDose = resultado && conf.max && parseFloat(resultado.dose) > conf.max;
+const resBg     = acimaDose ? “rgba(248,113,113,0.1)” : resultado ? “rgba(56,189,248,0.08)” : “rgba(255,255,255,0.04)”;
+const resBorder = acimaDose ? “rgba(248,113,113,0.4)” : resultado ? “rgba(56,189,248,0.3)”  : “rgba(255,255,255,0.08)”;
+const resCor    = acimaDose ? “#f87171” : resultado ? “#38bdf8” : “#475569”;
+
+const porGrupo = Object.entries(DROGAS_PROTOCOLO).reduce((acc,[k,v])=>{
+(acc[v.grupo]||(acc[v.grupo]=[])).push([k,v]); return acc;
+},{});
+
+const fmtDose = (d) => {
+const n = parseFloat(d);
+if (isNaN(n)) return d;
+if (n < 0.001) return n.toExponential(2);
+if (n < 0.01)  return n.toFixed(4);
+if (n < 1)     return n.toFixed(3);
+return n.toFixed(2);
+};
+
+// Mapeia grupo → campo da evolução
+const CAMPO_EVOLUCAO = {
+vasoativa: “cvDVA”,
+sedacao:   “nSeda”,
+analgesia: “nAnalg”,
+};
+
+const lancarNaEvolucao = () => {
+if (!resultado || !onLancarDroga) return;
+const dose = `${fmtDose(resultado.dose)} ${resultado.label}`;
+const linha = `${conf.label} ${mlh}mL/h (${dose})`;
+const campo = CAMPO_EVOLUCAO[conf.grupo] || “cvDVA”;
+onLancarDroga(linha, campo);
+setLancado(true);
+setTimeout(()=>setLancado(false), 2000);
+};
+
+return (
+<div>
+<div style={{fontSize:12,color:”#64748b”,marginBottom:12}}>
+Informe a <strong style={{color:”#e2e8f0”}}>vazão da bomba (mL/h)</strong> — o sistema calcula a dose com base na diluição padrão do protocolo.
+</div>
+{Object.entries(porGrupo).map(([grupo, drogas])=>(
+<div key={grupo} style={{marginBottom:10}}>
+<div style={{fontSize:9,color:”#475569”,fontFamily:mono,letterSpacing:2,marginBottom:5,textTransform:“uppercase”}}>{GRUPOS[grupo]||grupo}</div>
+<div style={{display:“flex”,gap:5,flexWrap:“wrap”}}>
+{drogas.map(([key,d])=>(
+<button key={key} onClick={()=>{setDrogaSel(key);setMlh(””);setConcCustom(””);setEditandoConc(false);}}
+style={{padding:“5px 11px”,borderRadius:20,border:`1px solid ${drogaSel===key?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:drogaSel===key?“rgba(56,189,248,0.14)”:“rgba(255,255,255,0.02)”,color:drogaSel===key?”#38bdf8”:”#64748b”,fontSize:11,cursor:“pointer”,fontFamily:mono,transition:“all 0.15s”}}>
+{d.label}
+</button>
+))}
+</div>
+</div>
+))}
+
+```
+  <div style={{marginTop:14,padding:"14px 16px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
+      <div>
+        <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{conf.label}</div>
+        <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{conf.diluicaoDesc}</div>
+        {conf.concMcgML && <div style={{fontSize:11,color:concCustom?"#f59e0b":"#38bdf8",marginTop:1,fontFamily:mono}}>
+          {concCustom ? `★ ${concCustom} mcg/mL (personalizado)` : `= ${conf.concMcgML} mcg/mL`}
+        </div>}
+        {conf.concUIML && <div style={{fontSize:11,color:"#38bdf8",marginTop:1,fontFamily:mono}}>= {conf.concUIML} UI/mL</div>}
+function PlantoesView({month,setMonth,mesKey}) {
+  const [showPaste,setShowPaste]=useState(false);
+  const [pasteJson,setPasteJson]=useState("");
+  const [syncMsg,setSyncMsg]=useState(null);
+  const [syncPeriodos,setSyncPeriodos]=useState(null);
+  const [showAddExtra,setShowAddExtra]=useState(false);
+  const [novaExtra,setNovaExtra]=useState({desc:"",valor:"",dia:"",status:"aguardando"});
+  const [agendaLoading,setAgendaLoading]=useState(false);
+  const [agendaMsg,setAgendaMsg]=useState(null);
+
+  const plantaoT=(month.plantoes||[]).filter(p=>p.ativo!==false).reduce((s,p)=>s+(p.horas*p.valorH),0);
+  const bolsaV=Number(month.bolsa||0);
+  const auxilioV=Number(month.auxilio||0);
+  const extrasT=(month.receitasExtra||[]).reduce((s,r)=>s+Number(r.valor||0),0);
+  const total=plantaoT+bolsaV+auxilioV+extrasT;
+
+  const updPlantao=(i,f,v)=>{
+    const p=[...month.plantoes];
+    const editManual = ["n","horas"].includes(f) ? {editadoManualmente:true} : {};
+    p[i]={...p[i],[f]:["n","horas","valorH"].includes(f)?Number(v)||0:v,...editManual};
+    setMonth({...month,plantoes:p});
+  };
+  const togglePlantao=(i)=>{
+    const p=[...month.plantoes];
+    p[i]={...p[i],ativo:p[i].ativo===false?true:false};
+    setMonth({...month,plantoes:p});
+  };
+  const syncAgenda = async () => {
+    setAgendaLoading(true);
+    setAgendaMsg(null);
+    try {
+      const res = await fetch(`/api/agenda?mes=${mesKey}`);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      // data format: {"plantoes":{"Leonor":{"n":9,"horas":153},...}, "periodos":{...}}
+      const plantoes = data.plantoes || {};
+      const locais = Object.keys(plantoes);
+      if(!locais.length) throw new Error("Nenhum plantão encontrado");
+      const updated = month.plantoes.map(p => {
+        const d = plantoes[p.local];
+        if(!d) return p;
+        // Se está fixado, nunca sobrescreve
+        if(p.bloqueadoSync || p.editadoManualmente) return p;
+        return {...p, n: d.n||0, horas: d.horas||0, fromAgenda:true};
+      });
+      setMonth({...month, plantoes: updated});
+      const resumo = locais.map(l=>`${l}: ${plantoes[l].n} plant. ${plantoes[l].horas}h`).join(" · ");
+      setAgendaMsg({ok:true, txt:`✓ Sincronizado — ${resumo}`});
+    } catch(e) {
+      setAgendaMsg({ok:false, txt:"Erro: "+e.message});
+    } finally {
+      setAgendaLoading(false);
+    }
+  };
+
+  const addExtra=()=>{
+    if(!novaExtra.desc||!novaExtra.valor) return;
+    const extras=[...(month.receitasExtra||[]),{...novaExtra,valor:Number(novaExtra.valor),dia:Number(novaExtra.dia)||0,id:Date.now()}];
+    setMonth({...month,receitasExtra:extras});
+    setNovaExtra({desc:"",valor:""});
+    setShowAddExtra(false);
+  };
+  const removeExtra=(id)=>setMonth({...month,receitasExtra:(month.receitasExtra||[]).filter(r=>r.id!==id)});
+
+  const importJson=()=>{
+    try {
+      const data=JSON.parse(pasteJson);
+      if(!data.plantoes) throw new Error("JSON inválido — campo 'plantoes' não encontrado");
+      const novos=month.plantoes.map(p=>{
+        const d=data.plantoes?.[p.local];
+        if(!d) return p;
+        return {...p,n:d.n,horas:d.horas,fromAgenda:true};
+      });
+      setMonth({...month,plantoes:novos});
+      setSyncPeriodos(data.periodos||null);
+      setSyncMsg({ok:true,txt:`Importado! ${novos.filter(p=>p.fromAgenda&&p.ativo!==false).map(p=>p.local+": "+p.horas+"h").join(" · ")}`});
+      setShowPaste(false);
+      setPasteJson("");
+    } catch(err) {
+      setSyncMsg({ok:false,txt:"Erro: "+err.message});
+    }
+  };
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+      {/* Total receita */}
+      <Card style={{background:"linear-gradient(135deg,rgba(74,222,128,.1),rgba(0,150,100,.06))",borderColor:"rgba(74,222,128,.2)"}}>
+        <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>Total receita do mês</div>
+        <div className="mono" style={{fontSize:34,fontWeight:600,color:"#4ade80",letterSpacing:-1}}>{fmtBRL(total)}</div>
+        <div style={{height:1,background:"rgba(255,255,255,.05)",margin:"10px 0"}}/>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {plantaoT>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"#555"}}>Plantões</span><span className="mono" style={{fontSize:11,color:"#4ade80"}}>{fmtBRL(plantaoT)}</span></div>}
+          {bolsaV>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"#555"}}>Bolsa residência</span><span className="mono" style={{fontSize:11,color:"#4ade80"}}>{fmtBRL(bolsaV)}</span></div>}
+          {auxilioV>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"#555"}}>Auxílio moradia</span><span className="mono" style={{fontSize:11,color:"#4ade80"}}>{fmtBRL(auxilioV)}</span></div>}
+          {extrasT>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"#555"}}>Receitas extras</span><span className="mono" style={{fontSize:11,color:"#4ade80"}}>{fmtBRL(extrasT)}</span></div>}
+        </div>
+      </Card>
+
+      {/* ── BOLSA + AUXÍLIO ── */}
+      <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:1,padding:"2px 0"}}>Receitas fixas mensais</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <Card style={{padding:"12px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:11,color:"#a89cf7",fontWeight:600}}>🎓 Bolsa residência</div>
+            <StatusBadge value={month.bolsaStatus||"aguardando"} onChange={v=>setMonth({...month,bolsaStatus:v})}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
+            <Inp label="Valor (R$)" type="number" value={month.bolsa||""} onChange={v=>setMonth({...month,bolsa:Number(v)||0})} placeholder="0,00"/>
+            <Inp label="Dia receb." type="number" value={month.bolsaDia||""} onChange={v=>setMonth({...month,bolsaDia:Number(v)||0})} placeholder="5"/>
+          </div>
+        </Card>
+        <Card style={{padding:"12px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:11,color:"#a89cf7",fontWeight:600}}>🏠 Auxílio moradia</div>
+            <StatusBadge value={month.auxilioStatus||"aguardando"} onChange={v=>setMonth({...month,auxilioStatus:v})}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
+            <Inp label="Valor (R$)" type="number" value={month.auxilio||""} onChange={v=>setMonth({...month,auxilio:Number(v)||0})} placeholder="0,00"/>
+            <Inp label="Dia receb." type="number" value={month.auxilioDia||""} onChange={v=>setMonth({...month,auxilioDia:Number(v)||0})} placeholder="5"/>
+          </div>
+        </Card>
+      </div>
+      <button onClick={()=>setEditandoConc(e=>!e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>
+        {editandoConc?"✕ Fechar":"✏️ Diluição personalizada"}
+      </button>
+    </div>
+
+    {editandoConc && (
+      <div style={{marginBottom:14,padding:"10px 12px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8}}>
+        <div style={{fontSize:10,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:8}}>CONCENTRAÇÃO PERSONALIZADA (mcg/mL)</div>
+        <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
+          <Field label="CONCENTRAÇÃO" value={concCustom} onChange={setConcCustom} type="number" placeholder={String(conf.concMcgML||"")} suffix="mcg/mL"/>
+          <button onClick={()=>setConcCustom("")} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:1}}>
+            Resetar
+      {/* ── PLANTÕES ── */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"2px 0"}}>
+        <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>Plantões</div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={syncAgenda} disabled={agendaLoading} style={{background:"rgba(74,222,128,.15)",border:"1px solid rgba(74,222,128,.25)",borderRadius:8,padding:"4px 10px",color:"#4ade80",fontSize:10,fontWeight:600,cursor:agendaLoading?"not-allowed":"pointer"}}>
+            {agendaLoading?"⏳":"🗓"} {agendaLoading?"Sincronizando...":"Sincronizar"}
+          </button>
+          <button onClick={()=>setShowPaste(!showPaste)} style={{background:"rgba(124,106,247,.15)",border:"1px solid rgba(124,106,247,.25)",borderRadius:8,padding:"4px 10px",color:"#a89cf7",fontSize:10,fontWeight:600,cursor:"pointer"}}>📋 JSON</button>
+        </div>
+        <div style={{fontSize:11,color:"#64748b",marginTop:6}}>Padrão do protocolo: {conf.concMcgML} mcg/mL</div>
+      </div>
+    )}
+
+    <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+      <Field label="VAZÃO DA BOMBA (mL/h)" value={mlh} onChange={setMlh} type="number" placeholder="5.0" suffix="mL/h"/>
+      <div style={{flex:1,minWidth:150}}>
+        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DOSE RESULTANTE</div>
+        <div style={{padding:"9px 14px",borderRadius:8,textAlign:"center",background:resBg,border:`1px solid ${resBorder}`,fontSize:16,fontWeight:700,color:resCor,minHeight:38,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          {resultado ? `${fmtDose(resultado.dose)} ${resultado.label}` : "—"}
+
+      {/* Sync result */}
+      {agendaMsg&&(
+        <div style={{padding:"8px 12px",borderRadius:10,background:agendaMsg.ok?"rgba(74,222,128,.08)":"rgba(239,68,68,.08)",fontSize:12,color:agendaMsg.ok?"#4ade80":"#f87171",border:`1px solid ${agendaMsg.ok?"rgba(74,222,128,.2)":"rgba(239,68,68,.2)"}`}}>
+          {agendaMsg.txt}
+        </div>
+      </div>
+      )}
+      {syncMsg&&(
+        <div style={{padding:"8px 12px",borderRadius:10,background:syncMsg.ok?"rgba(74,222,128,.08)":"rgba(239,68,68,.08)",fontSize:12,color:syncMsg.ok?"#4ade80":"#f87171"}}>
+          {syncMsg.txt}
+          {syncPeriodos&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:2}}>
+            {Object.entries(syncPeriodos).map(([l,p])=>(
+              <span key={l} style={{fontSize:10,color:"#444"}}>{l}: {p.inicio} → {p.fim}</span>
+            ))}
+          </div>}
+        </div>
+      )}
+
+      {/* Paste JSON panel */}
+      {showPaste&&(
+        <Card style={{borderColor:"rgba(124,106,247,.2)"}}>
+          <div style={{fontSize:12,color:"#a89cf7",fontWeight:600,marginBottom:10}}>📋 Importar da Google Agenda</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{fontSize:11,color:"#666",lineHeight:1.7}}>
+              1. Abra este link no navegador:<br/>
+              <span style={{wordBreak:"break-all",color:"#7c6af7",fontSize:10}}>{`${AGENDA_URL}?mes=${mesKey}`}</span>
+            </div>
+            <div style={{fontSize:11,color:"#666"}}>2. Copie o JSON e cole abaixo</div>
+            <textarea value={pasteJson} onChange={e=>setPasteJson(e.target.value)}
+              placeholder={`{"plantoes":{"Leonor":{"n":3,"horas":36},...}}`}
+              style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",borderRadius:10,
+                padding:"10px",color:"#f0f0f5",fontSize:11,outline:"none",width:"100%",
+                minHeight:80,resize:"vertical",fontFamily:"'JetBrains Mono',monospace"}}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <button onClick={()=>{setShowPaste(false);setPasteJson("");}} style={{padding:"10px",borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:"transparent",color:"#555",fontSize:13,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={importJson} style={{padding:"10px",borderRadius:10,border:"none",background:"#7c6af7",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Importar</button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Cards por local */}
+      {(month.plantoes||[]).map((p,i)=>{
+        const ativo=p.ativo!==false;
+        return (
+          <Card key={p.local} style={{opacity:ativo?1:.5,borderColor:ativo?"rgba(255,255,255,.07)":"rgba(255,255,255,.03)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:ativo?10:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{fontSize:14,fontWeight:600,color:ativo?"#a89cf7":"#444"}}>{p.local}</div>
+                {p.fromAgenda&&ativo&&<span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,.1)",padding:"2px 7px",borderRadius:10}}>📅 agenda</span>}
+                {p.bloqueadoSync&&ativo&&<span onClick={()=>{const pl=[...month.plantoes];pl[i]={...pl[i],bloqueadoSync:false,editadoManualmente:false};setMonth({...month,plantoes:pl});}} style={{fontSize:10,color:"#f97316",background:"rgba(249,115,22,.1)",padding:"2px 7px",borderRadius:10,cursor:"pointer",border:"1px solid rgba(249,115,22,.2)"}}>🔒 fixo ✕</span>}
+                {p.editadoManualmente&&!p.bloqueadoSync&&ativo&&<span onClick={()=>{const pl=[...month.plantoes];pl[i]={...pl[i],bloqueadoSync:true};setMonth({...month,plantoes:pl});}} style={{fontSize:10,color:"#fbbf24",background:"rgba(251,191,36,.1)",padding:"2px 7px",borderRadius:10,cursor:"pointer",border:"1px solid rgba(251,191,36,.2)"}}>✏ manual → fixar</span>}
+              </div>
+              <button onClick={()=>togglePlantao(i)} style={{
+                background:ativo?"rgba(239,68,68,.08)":"rgba(74,222,128,.08)",
+                border:`1px solid ${ativo?"rgba(239,68,68,.2)":"rgba(74,222,128,.2)"}`,
+                borderRadius:8,padding:"3px 10px",cursor:"pointer",fontSize:11,
+                color:ativo?"#f87171":"#4ade80",
+              }}>{ativo?"Desativar":"Ativar"}</button>
+            </div>
+            {ativo&&(
+              <>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                  <Inp label="Nº Plant." type="number" value={p.n||""} onChange={v=>updPlantao(i,"n",v)} placeholder="0"/>
+                  <Inp label="Horas" type="number" value={p.horas||""} onChange={v=>updPlantao(i,"horas",v)} placeholder="0"/>
+                  <Inp label="Valor/h (R$)" type="number" value={p.valorH||""} onChange={v=>updPlantao(i,"valorH",v)} placeholder="0"/>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,paddingTop:8,borderTop:"1px solid rgba(255,255,255,.05)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:11,color:"#444"}}>Recebimento:</span>
+                    <span style={{fontSize:11,color:"#666"}}>dia</span>
+                    <input type="number" value={p.diaReceb||""} onChange={e=>updPlantao(i,"diaReceb",e.target.value)}
+                      placeholder="25" style={{width:40,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.08)",
+                      borderRadius:6,padding:"3px 6px",color:"#f0f0f5",fontSize:11,outline:"none",textAlign:"center"}}/>
+                  </div>
+                  <StatusBadge value={p.statusReceb||"aguardando"} onChange={v=>updPlantao(i,"statusReceb",v)}/>
+                </div>
+                {p.horas>0&&p.valorH>0&&(
+                  <div style={{marginTop:8,padding:"7px 10px",background:"rgba(74,222,128,.07)",borderRadius:8,display:"flex",justifyContent:"space-between"}}>
+                    <span style={{fontSize:12,color:"#555"}}>{p.horas}h × {fmtBRL(p.valorH)}</span>
+                    <span className="mono" style={{fontSize:13,color:"#4ade80",fontWeight:600}}>{fmtBRL(p.horas*p.valorH)}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        );
+      })}
+
+      {/* ── RECEITAS EXTRAS ── */}
+      <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:1,padding:"2px 0"}}>Receitas extras do mês</div>
+
+      {(month.receitasExtra||[]).map(r=>(
+        <Card key={r.id} style={{padding:"10px 14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,color:"#f0f0f5"}}>{r.desc}</div>
+              {r.dia>0&&<div style={{fontSize:10,color:"#444",marginTop:2}}>Dia {r.dia}</div>}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+              <StatusBadge value={r.status||"aguardando"} onChange={v=>{
+                const extras=(month.receitasExtra||[]).map(x=>x.id===r.id?{...x,status:v}:x);
+                setMonth({...month,receitasExtra:extras});
+              }}/>
+              <span className="mono" style={{fontSize:14,color:"#4ade80",fontWeight:500}}>{fmtBRL(r.valor)}</span>
+              <button onClick={()=>removeExtra(r.id)} style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.15)",borderRadius:6,padding:"3px 7px",color:"#f87171",fontSize:11,cursor:"pointer"}}>✕</button>
+            </div>
+          </div>
+        </Card>
+      ))}
+
+      {showAddExtra?(
+        <Card style={{borderColor:"rgba(74,222,128,.2)"}}>
+          <div style={{fontSize:12,color:"#4ade80",fontWeight:600,marginBottom:10}}>+ Nova receita extra</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <Inp label="Descrição" value={novaExtra.desc} onChange={v=>setNovaExtra({...novaExtra,desc:v})} placeholder="Ex: Consulta particular, plantão extra..."/>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
+              <Inp label="Valor (R$)" type="number" value={novaExtra.valor} onChange={v=>setNovaExtra({...novaExtra,valor:v})} placeholder="0,00"/>
+              <Inp label="Dia receb." type="number" value={novaExtra.dia} onChange={v=>setNovaExtra({...novaExtra,dia:v})} placeholder="0"/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+              <button onClick={()=>setShowAddExtra(false)} style={{padding:"10px",borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:"transparent",color:"#555",fontSize:13,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={addExtra} style={{padding:"10px",borderRadius:10,border:"none",background:"#4ade80",color:"#0a0a0f",fontSize:13,fontWeight:600,cursor:"pointer"}}>Adicionar</button>
+            </div>
+          </div>
+        </Card>
+      ):(
+        <button onClick={()=>setShowAddExtra(true)} style={{padding:"12px",borderRadius:12,border:"1px dashed rgba(74,222,128,.3)",background:"transparent",color:"#4ade80",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          + Adicionar receita extra
+        </button>
       )}
     </div>
   );
 }
 
-
-// ── DrogasCalculadora ─────────────────────────────────────────────────────────
-const GRUPOS = { vasoativa:"Vasoativas", sedacao:"Sedação", analgesia:"Analgesia" };
-
-function DrogasCalculadora({ peso, onLancarDroga }) {
-  const [drogaSel, setDrogaSel] = useState("noradrenalina");
-  const [mlh, setMlh]           = useState("");
-  const [concCustom, setConcCustom] = useState("");
-  const [editandoConc, setEditandoConc] = useState(false);
-  const [lancado, setLancado]   = useState(false);
-
-  const conf = DROGAS_PROTOCOLO[drogaSel];
-  const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined);
-  const acimaDose = resultado && conf.max && parseFloat(resultado.dose) > conf.max;
-  const resBg     = acimaDose ? "rgba(248,113,113,0.1)" : resultado ? "rgba(56,189,248,0.08)" : "rgba(255,255,255,0.04)";
-  const resBorder = acimaDose ? "rgba(248,113,113,0.4)" : resultado ? "rgba(56,189,248,0.3)"  : "rgba(255,255,255,0.08)";
-  const resCor    = acimaDose ? "#f87171" : resultado ? "#38bdf8" : "#475569";
-
-  const porGrupo = Object.entries(DROGAS_PROTOCOLO).reduce((acc,[k,v])=>{
-    (acc[v.grupo]||(acc[v.grupo]=[])).push([k,v]); return acc;
-  },{});
-
-  const fmtDose = (d) => {
-    const n = parseFloat(d);
-    if (isNaN(n)) return d;
-    if (n < 0.001) return n.toExponential(2);
-    if (n < 0.01)  return n.toFixed(4);
-    if (n < 1)     return n.toFixed(3);
-    return n.toFixed(2);
-  };
-
-  // Mapeia grupo → campo da evolução
-  const CAMPO_EVOLUCAO = {
-    vasoativa: "cvDVA",
-    sedacao:   "nSeda",
-    analgesia: "nAnalg",
-  };
-
-  const lancarNaEvolucao = () => {
-    if (!resultado || !onLancarDroga) return;
-    const dose = `${fmtDose(resultado.dose)} ${resultado.label}`;
-    const linha = `${conf.label} ${mlh}mL/h (${dose})`;
-    const campo = CAMPO_EVOLUCAO[conf.grupo] || "cvDVA";
-    onLancarDroga(linha, campo);
-    setLancado(true);
-    setTimeout(()=>setLancado(false), 2000);
-  };
-
+    {acimaDose && (
+      <div style={{marginTop:8,padding:"6px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:6,fontSize:12,color:"#f87171"}}>
+        ⚠️ Acima do máximo recomendado: {conf.max} {conf.unidadeLabel}
+      </div>
+    )}
+    {resultado && !acimaDose && conf.max && (
+      <div style={{marginTop:6,fontSize:11,color:"#475569"}}>
+        Máx. recomendado: {conf.max} {conf.unidadeLabel}
+// FixaCard fora do FixasView para evitar recriação a cada render (causa do bug "edita todas")
+function FixaCard({f, editing, setEditing, onUpd, onRemove}) {
+  const isOpen = editing === f.id;
   return (
-    <div>
-      <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>
-        Informe a <strong style={{color:"#e2e8f0"}}>vazão da bomba (mL/h)</strong> — o sistema calcula a dose com base na diluição padrão do protocolo.
+    <Card style={{
+      borderColor: f.status==="pago"?"rgba(74,222,128,.12)":f.extra?"rgba(251,191,36,.12)":"rgba(255,255,255,.07)",
+      background:  f.status==="pago"?"rgba(74,222,128,.03)":"rgba(255,255,255,.04)",
+      marginBottom:8,
+    }}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+            <span style={{fontSize:14,fontWeight:600,color:f.status==="pago"?"#4ade80":"#f0f0f5"}}>{f.nome}</span>
+            {f.extra&&<span style={{fontSize:9,color:"#fbbf24",background:"rgba(251,191,36,.12)",padding:"1px 6px",borderRadius:6}}>extra</span>}
+          </div>
+          <div style={{fontSize:11,color:"#444",marginTop:1}}>{f.venc&&`${f.venc} · `}{f.cat}{f.duracao&&f.duracao!=="sempre"?` · ${f.duracao==="mes"?"só este mês":f.duracao}`:""}</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+          <span className="mono" style={{fontSize:14,color:f.status==="pago"?"#4ade80":"#888"}}>
+            {Number(f.valor)>0?fmtBRL(f.valor):"—"}
+          </span>
+          <button onClick={()=>onUpd(f.id,"status",f.status==="pago"?"pendente":"pago")} style={{
+            background:f.status==="pago"?"rgba(74,222,128,.12)":"rgba(251,191,36,.1)",
+            border:`1px solid ${f.status==="pago"?"rgba(74,222,128,.25)":"rgba(251,191,36,.2)"}`,
+            borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:11,
+            color:f.status==="pago"?"#4ade80":"#fbbf24",
+          }}>{f.status==="pago"?"✓":"⏳"}</button>
+        </div>
       </div>
-      {Object.entries(porGrupo).map(([grupo, drogas])=>(
-        <div key={grupo} style={{marginBottom:10}}>
-          <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:2,marginBottom:5,textTransform:"uppercase"}}>{GRUPOS[grupo]||grupo}</div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {drogas.map(([key,d])=>(
-              <button key={key} onClick={()=>{setDrogaSel(key);setMlh("");setConcCustom("");setEditandoConc(false);}}
-                style={{padding:"5px 11px",borderRadius:20,border:`1px solid ${drogaSel===key?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:drogaSel===key?"rgba(56,189,248,0.14)":"rgba(255,255,255,0.02)",color:drogaSel===key?"#38bdf8":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,transition:"all 0.15s"}}>
-                {d.label}
-              </button>
-            ))}
+    )}
+    {resultado && onLancarDroga && (
+      <button onClick={lancarNaEvolucao} style={{
+        width:"100%", marginTop:10, padding:"9px",
+        background: lancado ? "rgba(34,197,94,0.15)" : "rgba(56,189,248,0.1)",
+        border: `1px solid ${lancado ? "#22c55e" : "#38bdf8"}`,
+        borderRadius:8, color: lancado ? "#22c55e" : "#38bdf8",
+        fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s",
+      }}>
+        {lancado ? "✅ Lançado na evolução!" : `📋 Lançar na evolução (${conf.grupo === "vasoativa" ? "== Cv: DVA" : conf.grupo === "sedacao" ? "== N: Sedação" : "== N: Analgesia"})`}
+      <button onClick={()=>setEditing(isOpen?null:f.id)} style={{marginTop:8,background:"transparent",
+        border:"1px solid rgba(255,255,255,.06)",borderRadius:8,padding:"4px 12px",
+        color:"#444",fontSize:11,cursor:"pointer",width:"100%"}}>
+        {isOpen?"▲ fechar":"▼ editar"}
+      </button>
+    )}
+  </div>
+</div>
+```
+
+);
+      {isOpen&&(
+        <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:8}}>
+          <Inp label="Valor (R$)" type="number" value={f.valor||""} onChange={v=>onUpd(f.id,"valor",v)} placeholder="0,00"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <Inp label="Vencimento" value={f.venc||""} onChange={v=>onUpd(f.id,"venc",v)} placeholder="Dia 10"/>
+            <Sel label="Categoria" value={f.cat} onChange={v=>onUpd(f.id,"cat",v)} options={CATS}/>
           </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <Sel label="Forma" value={f.forma} onChange={v=>onUpd(f.id,"forma",v)}
+              options={[{value:"",label:"—"},{value:"Pix",label:"Variáveis"},{value:"Boleto",label:"Boleto"},{value:"Débito",label:"Débito auto."},{value:"Cartão",label:"Cartão"}]}/>
+            <Sel label="Banco" value={f.banco} onChange={v=>onUpd(f.id,"banco",v)}
+              options={[{value:"",label:"—"},{value:"Inter",label:"Inter"},{value:"Itaú",label:"Itaú"},{value:"Will",label:"Will"},{value:"Outro",label:"Outro"}]}/>
+          </div>
+          <Inp label="Data do pagamento" type="date" value={f.dataPgto||""} onChange={v=>onUpd(f.id,"dataPgto",v)}/>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <label style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8}}>Duração</label>
+            <select value={f.duracao||"sempre"} onChange={e=>{
+              const v=e.target.value;
+              onUpd(f.id,"duracao",v);
+              onUpd(f.id,"mesesRestantes",v==="sempre"?null:v==="mes"?1:Number(v.replace("x",""))||null);
+            }} style={{background:"#111118",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"8px 12px",color:"#f0f0f5",fontSize:13,outline:"none"}}>
+              <option value="sempre">Todo mês (recorrente)</option>
+              <option value="mes">Só este mês</option>
+              <option value="2x">2 meses</option>
+              <option value="3x">3 meses</option>
+              <option value="4x">4 meses</option>
+              <option value="6x">6 meses</option>
+              <option value="12x">12 meses</option>
+            </select>
+            {f.duracao&&f.duracao!=="sempre"&&f.duracao!=="mes"&&(
+              <div style={{fontSize:10,color:"#555"}}>
+                {f.mesesRestantes!=null?`${f.mesesRestantes} mês(es) restante(s)`:""}
+              </div>
+            )}
+          </div>
+          {f.extra&&(
+            <button onClick={()=>onRemove(f.id)} style={{background:"rgba(239,68,68,.08)",
+              border:"1px solid rgba(239,68,68,.15)",borderRadius:8,padding:"6px",
+              color:"#f87171",fontSize:12,cursor:"pointer"}}>
+              Remover esta despesa
+            </button>
+          )}
         </div>
-      ))}
-
-      <div style={{marginTop:14,padding:"14px 16px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{conf.label}</div>
-            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{conf.diluicaoDesc}</div>
-            {conf.concMcgML && <div style={{fontSize:11,color:concCustom?"#f59e0b":"#38bdf8",marginTop:1,fontFamily:mono}}>
-              {concCustom ? `★ ${concCustom} mcg/mL (personalizado)` : `= ${conf.concMcgML} mcg/mL`}
-            </div>}
-            {conf.concUIML && <div style={{fontSize:11,color:"#38bdf8",marginTop:1,fontFamily:mono}}>= {conf.concUIML} UI/mL</div>}
-          </div>
-          <button onClick={()=>setEditandoConc(e=>!e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>
-            {editandoConc?"✕ Fechar":"✏️ Diluição personalizada"}
-          </button>
-        </div>
-
-        {editandoConc && (
-          <div style={{marginBottom:14,padding:"10px 12px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8}}>
-            <div style={{fontSize:10,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:8}}>CONCENTRAÇÃO PERSONALIZADA (mcg/mL)</div>
-            <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
-              <Field label="CONCENTRAÇÃO" value={concCustom} onChange={setConcCustom} type="number" placeholder={String(conf.concMcgML||"")} suffix="mcg/mL"/>
-              <button onClick={()=>setConcCustom("")} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:1}}>
-                Resetar
-              </button>
-            </div>
-            <div style={{fontSize:11,color:"#64748b",marginTop:6}}>Padrão do protocolo: {conf.concMcgML} mcg/mL</div>
-          </div>
-        )}
-
-        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-          <Field label="VAZÃO DA BOMBA (mL/h)" value={mlh} onChange={setMlh} type="number" placeholder="5.0" suffix="mL/h"/>
-          <div style={{flex:1,minWidth:150}}>
-            <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DOSE RESULTANTE</div>
-            <div style={{padding:"9px 14px",borderRadius:8,textAlign:"center",background:resBg,border:`1px solid ${resBorder}`,fontSize:16,fontWeight:700,color:resCor,minHeight:38,display:"flex",alignItems:"center",justifyContent:"center"}}>
-              {resultado ? `${fmtDose(resultado.dose)} ${resultado.label}` : "—"}
-            </div>
-          </div>
-        </div>
-
-        {acimaDose && (
-          <div style={{marginTop:8,padding:"6px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:6,fontSize:12,color:"#f87171"}}>
-            ⚠️ Acima do máximo recomendado: {conf.max} {conf.unidadeLabel}
-          </div>
-        )}
-        {resultado && !acimaDose && conf.max && (
-          <div style={{marginTop:6,fontSize:11,color:"#475569"}}>
-            Máx. recomendado: {conf.max} {conf.unidadeLabel}
-          </div>
-        )}
-        {resultado && onLancarDroga && (
-          <button onClick={lancarNaEvolucao} style={{
-            width:"100%", marginTop:10, padding:"9px",
-            background: lancado ? "rgba(34,197,94,0.15)" : "rgba(56,189,248,0.1)",
-            border: `1px solid ${lancado ? "#22c55e" : "#38bdf8"}`,
-            borderRadius:8, color: lancado ? "#22c55e" : "#38bdf8",
-            fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s",
-          }}>
-            {lancado ? "✅ Lançado na evolução!" : `📋 Lançar na evolução (${conf.grupo === "vasoativa" ? "== Cv: DVA" : conf.grupo === "sedacao" ? "== N: Sedação" : "== N: Analgesia"})`}
-          </button>
-        )}
-      </div>
-    </div>
+      )}
+    </Card>
   );
 }
 
 // ── DietaPanel ────────────────────────────────────────────────────────────────
 function DietaPanel({ dados, onChange }) {
-  const dieta = dados.dieta || { tipo:"enteral", vazao:"", formula:"", kcalTotal:"", ptnTotal:"", obs:"" };
-  const upd = (field, val) => onChange({ ...dados, dieta: { ...dieta, [field]: val } });
+const dieta = dados.dieta || { tipo:“enteral”, vazao:””, formula:””, kcalTotal:””, ptnTotal:””, obs:”” };
+const upd = (field, val) => onChange({ …dados, dieta: { …dieta, [field]: val } });
 
-  const peso = parseFloat(dados.peso);
-  const kcalKg = (dieta.kcalTotal && peso) ? (parseFloat(dieta.kcalTotal)/peso).toFixed(1) : null;
-  const ptnKg  = (dieta.ptnTotal  && peso) ? (parseFloat(dieta.ptnTotal) /peso).toFixed(2) : null;
-  const kcalBaixo = kcalKg && parseFloat(kcalKg) < 20;
-  const kcalAlto  = kcalKg && parseFloat(kcalKg) > 35;
-  const ptnBaixo  = ptnKg  && parseFloat(ptnKg)  < 1.0;
-  const ptnAlto   = ptnKg  && parseFloat(ptnKg)  > 2.5;
+const peso = parseFloat(dados.peso);
+const kcalKg = (dieta.kcalTotal && peso) ? (parseFloat(dieta.kcalTotal)/peso).toFixed(1) : null;
+const ptnKg  = (dieta.ptnTotal  && peso) ? (parseFloat(dieta.ptnTotal) /peso).toFixed(2) : null;
+const kcalBaixo = kcalKg && parseFloat(kcalKg) < 20;
+const kcalAlto  = kcalKg && parseFloat(kcalKg) > 35;
+const ptnBaixo  = ptnKg  && parseFloat(ptnKg)  < 1.0;
+const ptnAlto   = ptnKg  && parseFloat(ptnKg)  > 2.5;
 
-  const TIPOS = [
-    {k:"enteral",   label:"🥤 Enteral"},
-    {k:"parenteral",label:"💉 Parenteral"},
-    {k:"oral",      label:"🍽️ Oral"},
-    {k:"mista",     label:"🔀 Mista"},
-    {k:"jejum",     label:"⛔ Jejum"},
-  ];
+const TIPOS = [
+{k:“enteral”,   label:“🥤 Enteral”},
+{k:“parenteral”,label:“💉 Parenteral”},
+{k:“oral”,      label:“🍽️ Oral”},
+{k:“mista”,     label:“🔀 Mista”},
+{k:“jejum”,     label:“⛔ Jejum”},
+];
+
+return (
+<div>
+<SecTitle>SUPORTE NUTRICIONAL</SecTitle>
+<div style={{display:“flex”,gap:6,flexWrap:“wrap”,marginBottom:14}}>
+{TIPOS.map(t=>(
+<button key={t.k} onClick={()=>upd(“tipo”,t.k)}
+style={{padding:“6px 13px”,borderRadius:20,border:`1px solid ${dieta.tipo===t.k?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:dieta.tipo===t.k?“rgba(56,189,248,0.12)”:“rgba(255,255,255,0.02)”,color:dieta.tipo===t.k?”#38bdf8”:”#64748b”,fontSize:12,cursor:“pointer”,fontWeight:dieta.tipo===t.k?700:400,transition:“all 0.15s”}}>
+{t.label}
+</button>
+))}
+</div>
+
+```
+  {dieta.tipo !== "jejum" ? (
+    <>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <Field label="FÓRMULA / DIETA" value={dieta.formula} onChange={v=>upd("formula",v)} placeholder="Ex: Isosource 1.5, NPT 3 em 1…"/>
+        <Field label="VAZÃO (mL/h)" value={dieta.vazao} onChange={v=>upd("vazao",v)} type="number" placeholder="50" suffix="mL/h"/>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
+        <Field label="TOTAL KCAL/DIA" value={dieta.kcalTotal} onChange={v=>upd("kcalTotal",v)} type="number" placeholder="1800" suffix="kcal"/>
+        <Field label="PROTEÍNA TOTAL/DIA" value={dieta.ptnTotal} onChange={v=>upd("ptnTotal",v)} type="number" placeholder="90" suffix="g/dia"/>
+function FixasView({month,setMonth}) {
+  const [editing,setEditing]=useState(null);
+  const [showAdd,setShowAdd]=useState(false);
+  const [nova,setNova]=useState({nome:"",venc:"",cat:CATS[0],valor:"",forma:"",banco:"",dataPgto:""});
+
+  const upd=(id,field,val)=>setMonth({...month,fixas:month.fixas.map(x=>x.id===id?{...x,[field]:field==="valor"?Number(val)||0:val}:x)});
+  const remove=id=>setMonth({...month,fixas:month.fixas.filter(f=>f.id!==id)});
+  const addFixa=()=>{
+    if(!nova.nome) return;
+    setMonth({...month,fixas:[...month.fixas,{...nova,valor:Number(nova.valor)||0,id:Date.now(),status:"pendente",extra:true}]});
+    setNova({nome:"",venc:"",cat:CATS[0],valor:"",forma:"",banco:"",dataPgto:""});
+    setShowAdd(false);
+  };
+
+  const total=month.fixas.reduce((s,f)=>s+Number(f.valor||0),0);
+  const pend=month.fixas.filter(f=>f.status==="pendente").length;
+  const grupos=[["pendente","⏳ Pendentes","#fbbf24"],["pago","✓ Pagas","#4ade80"]];
 
   return (
-    <div>
-      <SecTitle>SUPORTE NUTRICIONAL</SecTitle>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-        {TIPOS.map(t=>(
-          <button key={t.k} onClick={()=>upd("tipo",t.k)}
-            style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${dieta.tipo===t.k?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:dieta.tipo===t.k?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.02)",color:dieta.tipo===t.k?"#38bdf8":"#64748b",fontSize:12,cursor:"pointer",fontWeight:dieta.tipo===t.k?700:400,transition:"all 0.15s"}}>
-            {t.label}
-          </button>
-        ))}
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Card style={{background:"rgba(251,191,36,.04)",borderColor:"rgba(251,191,36,.12)"}}>
+          <div style={{fontSize:10,color:"#666"}}>Pendentes</div>
+          <div style={{fontSize:26,fontWeight:700,color:"#fbbf24"}}>{pend}</div>
+        </Card>
+        <Card style={{background:"rgba(129,140,248,.04)",borderColor:"rgba(129,140,248,.12)"}}>
+          <div style={{fontSize:10,color:"#666"}}>Total do mês</div>
+          <div className="mono" style={{fontSize:18,color:"#818cf8",fontWeight:600}}>{fmtBRL(total)}</div>
+        </Card>
       </div>
 
-      {dieta.tipo !== "jejum" ? (
-        <>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
-            <Field label="FÓRMULA / DIETA" value={dieta.formula} onChange={v=>upd("formula",v)} placeholder="Ex: Isosource 1.5, NPT 3 em 1…"/>
-            <Field label="VAZÃO (mL/h)" value={dieta.vazao} onChange={v=>upd("vazao",v)} type="number" placeholder="50" suffix="mL/h"/>
-          </div>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
-            <Field label="TOTAL KCAL/DIA" value={dieta.kcalTotal} onChange={v=>upd("kcalTotal",v)} type="number" placeholder="1800" suffix="kcal"/>
-            <Field label="PROTEÍNA TOTAL/DIA" value={dieta.ptnTotal} onChange={v=>upd("ptnTotal",v)} type="number" placeholder="90" suffix="g/dia"/>
-          </div>
-
-          {(kcalKg||ptnKg) && (
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
-              {kcalKg && (
-                <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",background:kcalBaixo||kcalAlto?"rgba(248,113,113,0.08)":"rgba(34,197,94,0.08)",border:`1px solid ${kcalBaixo||kcalAlto?"rgba(248,113,113,0.3)":"rgba(34,197,94,0.3)"}`}}>
-                  <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>KCAL/KG/DIA</div>
-                  <div style={{fontSize:22,fontWeight:700,color:kcalBaixo||kcalAlto?"#f87171":"#4ade80"}}>{kcalKg}</div>
-                  <div style={{fontSize:10,color:"#64748b",marginTop:1}}>meta 25–30</div>
-                </div>
-              )}
-              {ptnKg && (
-                <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",background:ptnBaixo||ptnAlto?"rgba(248,113,113,0.08)":"rgba(34,197,94,0.08)",border:`1px solid ${ptnBaixo||ptnAlto?"rgba(248,113,113,0.3)":"rgba(34,197,94,0.3)"}`}}>
-                  <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PTN/KG/DIA</div>
-                  <div style={{fontSize:22,fontWeight:700,color:ptnBaixo||ptnAlto?"#f87171":"#4ade80"}}>{ptnKg}</div>
-                  <div style={{fontSize:10,color:"#64748b",marginTop:1}}>meta 1,2–2,0 g/kg</div>
-                </div>
-              )}
+      {(kcalKg||ptnKg) && (
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+          {kcalKg && (
+            <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",background:kcalBaixo||kcalAlto?"rgba(248,113,113,0.08)":"rgba(34,197,94,0.08)",border:`1px solid ${kcalBaixo||kcalAlto?"rgba(248,113,113,0.3)":"rgba(34,197,94,0.3)"}`}}>
+              <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>KCAL/KG/DIA</div>
+              <div style={{fontSize:22,fontWeight:700,color:kcalBaixo||kcalAlto?"#f87171":"#4ade80"}}>{kcalKg}</div>
+              <div style={{fontSize:10,color:"#64748b",marginTop:1}}>meta 25–30</div>
+      {grupos.map(([status,label,color])=>{
+        const items=month.fixas.filter(f=>f.status===status);
+        if(!items.length) return null;
+        return (
+          <div key={status}>
+            <div style={{fontSize:10,color,fontWeight:600,textTransform:"uppercase",letterSpacing:1,padding:"4px 0 6px"}}>
+              {label}
             </div>
           )}
+          {ptnKg && (
+            <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",background:ptnBaixo||ptnAlto?"rgba(248,113,113,0.08)":"rgba(34,197,94,0.08)",border:`1px solid ${ptnBaixo||ptnAlto?"rgba(248,113,113,0.3)":"rgba(34,197,94,0.3)"}`}}>
+              <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PTN/KG/DIA</div>
+              <div style={{fontSize:22,fontWeight:700,color:ptnBaixo||ptnAlto?"#f87171":"#4ade80"}}>{ptnKg}</div>
+              <div style={{fontSize:10,color:"#64748b",marginTop:1}}>meta 1,2–2,0 g/kg</div>
+            {items.map(f=>(
+              <FixaCard key={f.id} f={f} editing={editing} setEditing={setEditing} onUpd={upd} onRemove={remove}/>
+            ))}
+          </div>
+        );
+      })}
 
-          {(kcalBaixo||kcalAlto||ptnBaixo||ptnAlto) && (
-            <div style={{padding:"8px 12px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:12,color:"#fca5a5",lineHeight:1.8,marginBottom:10}}>
-              {kcalBaixo && <div>⚠️ Hipocaloria — aporte abaixo de 20 kcal/kg/dia</div>}
-              {kcalAlto  && <div>⚠️ Hipercaloria — aporte acima de 35 kcal/kg/dia</div>}
-              {ptnBaixo  && <div>⚠️ Aporte proteico insuficiente ({"<"} 1,0 g/kg/dia)</div>}
-              {ptnAlto   && <div>⚠️ Aporte proteico muito elevado ({">"}2,5 g/kg/dia)</div>}
+      {showAdd?(
+        <Card style={{borderColor:"rgba(251,191,36,.2)"}}>
+          <div style={{fontSize:12,color:"#fbbf24",fontWeight:600,marginBottom:10}}>+ Nova despesa fixa (só este mês)</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <Inp label="Nome" value={nova.nome} onChange={v=>setNova({...nova,nome:v})} placeholder="Ex: Assinatura Adobe"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Inp label="Vencimento" value={nova.venc} onChange={v=>setNova({...nova,venc:v})} placeholder="Dia 15"/>
+              <Sel label="Categoria" value={nova.cat} onChange={v=>setNova({...nova,cat:v})} options={CATS}/>
             </div>
           )}
-        </>
-      ) : (
-        <div style={{padding:"12px 14px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:13,color:"#fca5a5",marginBottom:10}}>
-          ⛔ Paciente em jejum — registre o motivo nas observações.
         </div>
       )}
 
-      <Field label="OBSERVAÇÕES" value={dieta.obs} onChange={v=>upd("obs",v)} placeholder="Tolerando bem, vômitos, resíduo gástrico elevado, data de introdução…"/>
+      {(kcalBaixo||kcalAlto||ptnBaixo||ptnAlto) && (
+        <div style={{padding:"8px 12px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:12,color:"#fca5a5",lineHeight:1.8,marginBottom:10}}>
+          {kcalBaixo && <div>⚠️ Hipocaloria — aporte abaixo de 20 kcal/kg/dia</div>}
+          {kcalAlto  && <div>⚠️ Hipercaloria — aporte acima de 35 kcal/kg/dia</div>}
+          {ptnBaixo  && <div>⚠️ Aporte proteico insuficiente ({"<"} 1,0 g/kg/dia)</div>}
+          {ptnAlto   && <div>⚠️ Aporte proteico muito elevado ({">"}2,5 g/kg/dia)</div>}
+        </div>
+            <Inp label="Valor (R$)" type="number" value={nova.valor} onChange={v=>setNova({...nova,valor:v})} placeholder="0,00"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+              <Btn outline color="#555" onClick={()=>setShowAdd(false)}>Cancelar</Btn>
+              <Btn color="#fbbf24" onClick={addFixa} style={{color:"#0a0a0f"}}>Adicionar</Btn>
+            </div>
+          </div>
+        </Card>
+      ):(
+        <button onClick={()=>setShowAdd(true)} style={{padding:"12px",borderRadius:12,border:"1px dashed rgba(251,191,36,.3)",background:"transparent",color:"#fbbf24",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          + Adicionar despesa fixa (este mês)
+        </button>
+      )}
+    </>
+  ) : (
+    <div style={{padding:"12px 14px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:13,color:"#fca5a5",marginBottom:10}}>
+      ⛔ Paciente em jejum — registre o motivo nas observações.
+      <div style={{fontSize:10,color:"#2a2a35",textAlign:"center"}}>Despesas "extra" são exclusivas deste mês e podem ser removidas</div>
     </div>
+  )}
+
+  <Field label="OBSERVAÇÕES" value={dieta.obs} onChange={v=>upd("obs",v)} placeholder="Tolerando bem, vômitos, resíduo gástrico elevado, data de introdução…"/>
+</div>
+```
+
+);
   );
 }
 
 // ── DispositivosPanel ─────────────────────────────────────────────────────────
 // Dispositivos singulares (máx 1 ativo por vez)
 const DISP_SINGULAR = [
-  { key:"tot",   label:"Tubo Orotraqueal (TOT)", icone:"🫁", siteDefault:"",         alertaDias:99 },
-  { key:"tqt",   label:"Traqueostomia (TQT)",    icone:"🫁", siteDefault:"",         alertaDias:99 },
-  { key:"svd",   label:"Sonda Vesical de Demora",icone:"💧", siteDefault:"",         alertaDias:14 },
-  { key:"pai",   label:"Cateter Arterial (PAI)", icone:"📈", siteDefault:"Radial D", alertaDias:7  },
-  { key:"sng",   label:"Sonda Naso/Nasoenteral", icone:"🔧", siteDefault:"",         alertaDias:21 },
+{ key:“tot”,   label:“Tubo Orotraqueal (TOT)”, icone:“🫁”, siteDefault:””,         alertaDias:99 },
+{ key:“tqt”,   label:“Traqueostomia (TQT)”,    icone:“🫁”, siteDefault:””,         alertaDias:99 },
+{ key:“svd”,   label:“Sonda Vesical de Demora”,icone:“💧”, siteDefault:””,         alertaDias:14 },
+{ key:“pai”,   label:“Cateter Arterial (PAI)”, icone:“📈”, siteDefault:“Radial D”, alertaDias:7  },
+{ key:“sng”,   label:“Sonda Naso/Nasoenteral”, icone:“🔧”, siteDefault:””,         alertaDias:21 },
 ];
 
 // Dispositivos múltiplos (podem ter N instâncias)
 const DISP_MULTIPLO = [
-  { key:"cvc",    label:"Cateter Venoso Central", icone:"🩸", siteDefault:"Jugular interna D", alertaDias:7  },
-  { key:"dialise",label:"Cateter de Diálise",     icone:"🔴", siteDefault:"Jugular interna D", alertaDias:14 },
-  { key:"dreno",  label:"Dreno",                  icone:"🏥", siteDefault:"",                  alertaDias:21 },
+{ key:“cvc”,    label:“Cateter Venoso Central”, icone:“🩸”, siteDefault:“Jugular interna D”, alertaDias:7  },
+{ key:“dialise”,label:“Cateter de Diálise”,     icone:“🔴”, siteDefault:“Jugular interna D”, alertaDias:14 },
+{ key:“dreno”,  label:“Dreno”,                  icone:“🏥”, siteDefault:””,                  alertaDias:21 },
 ];
+function CartoesView({month,setMonth}) {
+  const [activeCard,setActiveCard]=useState("inter");
+  const [showForm,setShowForm]=useState(false);
+  const [showImport,setShowImport]=useState(false);
+  const [showPdfUpload,setShowPdfUpload]=useState(false);
+  const [importJson,setImportJson]=useState("");
+  const [importMsg,setImportMsg]=useState(null);
+  const [pdfFile,setPdfFile]=useState(null);
+  const [pdfProcessing,setPdfProcessing]=useState(false);
+  const [pdfMsg,setPdfMsg]=useState("");
+  const [pdfPreview,setPdfPreview]=useState([]);
+  const pdfInputRef=useRef();
+
+  // Limpa erros ao montar o componente
+  useEffect(()=>{ setImportMsg(null); setPdfFile(null); setPdfPreview([]); },[]);
+  const [form,setForm]=useState({desc:"",cat:CATS[0],parcela:"",valor:""});
+  const card=CARDS.find(c=>c.id===activeCard);
+  const items=month.cartoes[activeCard]||[];
+  const total=items.reduce((s,t)=>s+Number(t.valor||0),0);
+  const totalAll=Object.values(month.cartoes).flat().reduce((s,t)=>s+Number(t.valor||0),0);
+  const onPdfSelect=e=>{
+    const f=e.target.files?.[0];
+    if(f&&f.type==="application/pdf"){setPdfFile(f);setPdfPreview([]);}
+  };
+
+  const RULES_CAT = [
+    [["market4u","carrefour","assai","padaria","panificadora","piriquito","hortifruti","atacadao","pao de acucar","supermercado","minuto pa"],"Mercado"],
+    [["sampa cafe","oxxo","hamburger","osnir","mani ","cantina","churrascaria","restaurante","lanchonete","pizza","delta quality","cafe ","lanche"],"Comer fora"],
+    [["ifd*","ifood","rappi","zee now","delivery"],"Delivery"],
+    [["paypal *uber","uber br","uber do brasi","uber ","99app"],"Uber"],
+    [["sem parar","estacionamento","blz estacion","posto ","auto posto","shellbox","intertag","combustivel"],"Carro"],
+    [["applecombill","netflix","amazon kindle","google one","youtube","disney","mubi","openai","timeleft","granazen","viki","paypal *google","paypal *disney","spotify","conta vivo","vivo ","deezer","apple "],"Apps"],
+    [["drogaria","farmacia","droga raia","drogasil"],"Farmácia"],
+    [["smartfit","academia","n2b nutri","med park","hospital","clinica","amib","associacao paulista","uhuu"],"Saúde"],
+    [["francisco lourenco","campea admin","danielle carvalho","peri construcoes","ana gomes","elizabeth lopes","faxin","condominio","energia"],"Casa"],
+    [["conselho reg","conselho regional","medicina do estado","associacao de medicina","contabilizeasy","governo do parana","caixa economica federal","pagar me"],"Empresa"],
+    [["mercadolivre","shopee","netshoes","redvirtua","maxspeed","grupo elite","americanas","magazine","amazon "],"Compras"],
+    [["zig*","candeia","mikael","cinema","teatro","show ","evento","ingresso"],"Lazer"],
+    [["zee dog","petshop","pet ","racao","veterinario"],"Pet"],
+    [["iof "],"Impostos"],
+    [["carolina rodrigues"],"Família/Presentes"],
+  ];
+  const categorizarLocal=desc=>{
+    const d=(desc||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    for(const [keys,cat] of RULES_CAT) if(keys.some(k=>d.includes(k))) return cat;
+    return "Outro";
+  };
+
+  const processPdf=async()=>{
+    if(!pdfFile){ pdfInputRef.current?.click(); return; }
+    setPdfProcessing(true); setPdfMsg("Lendo o PDF...");
+    try{
+      const base64=await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=()=>res(r.result.split(",")[1]);
+        r.onerror=()=>rej(new Error("Falha ao ler"));
+        r.readAsDataURL(pdfFile);
+      });
+      setPdfMsg("Claude analisando a fatura...");
+      const prompt=`Analise esta fatura do cartão ${card.label} e extraia os lançamentos de compras.
+IGNORE: PAGTO DEBITO AUTOMATICO, créditos/estornos (com "+"), IOF INTERNACIONAL isolado, encargos/juros/multas, seção "Fatura anterior", seção "Recebidos".
+Para cada compra extraia: {"desc":"nome limpo","valor":0.00,"parcela":"X/Y ou vazio","data":"DD/MM/YYYY"}
+Limpe os nomes: remova "MLP*","IFD*","PAYPAL *","MARKET4U*COMPRA*123456". Market4U sem nome = "Mercado (Market4U)".
+Retorne SOMENTE o array JSON.`;
+      const res=await fetch("/api/claude",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-haiku-4-5-20251001",
+          max_tokens:4000,
+          messages:[{role:"user",content:[
+            {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
+            {type:"text",text:prompt}
+          ]}]
+        })
+      });
+      if(!res.ok) throw new Error(`API error ${res.status}`);
+      const data=await res.json();
+      const txt=data.content?.map(b=>b.text||"").join("")||"";
+      const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+      const comCat=parsed.map(t=>({...t,valor:Number(t.valor||0),cat:categorizarLocal(t.desc),id:Date.now()+Math.random()}));
+      setPdfPreview(comCat);
+      setPdfMsg("");
+    }catch(e){
+      setImportMsg({ok:false,txt:"Erro ao processar PDF: "+e.message});
+      setShowPdfUpload(false);
+    }finally{
+      setPdfProcessing(false);
+    }
+  };
+
+  const confirmPdfImport=()=>{
+    const cartaoAlvo=activeCard;
+    const novos=[...(month.cartoes[cartaoAlvo]||[]),...pdfPreview];
+    setMonth({...month,cartoes:{...month.cartoes,[cartaoAlvo]:novos}});
+    setImportMsg({ok:true,txt:`✓ ${pdfPreview.length} lançamentos importados para ${card.label} · ${fmtBRL(pdfPreview.reduce((s,t)=>s+t.valor,0))}`});
+    setShowPdfUpload(false); setPdfFile(null); setPdfPreview([]);
+  };
+
+  const add=()=>{
+    if(!form.desc||!form.valor) return;
+    setMonth({...month,cartoes:{...month.cartoes,[activeCard]:[...items,{...form,valor:Number(form.valor),id:Date.now()}]}});
+    setForm({desc:"",cat:CATS[0],parcela:"",valor:""});
+    setShowForm(false);
+  };
+  const remove=id=>setMonth({...month,cartoes:{...month.cartoes,[activeCard]:items.filter(t=>t.id!==id)}});
+  const doImport=()=>{
+    try{
+      const data=JSON.parse(importJson);
+      if(!data.lancamentos) throw new Error("JSON inválido");
+      const cartaoAlvo=data.cartao||activeCard;
+      const novos=data.lancamentos.map(l=>({...l,id:Date.now()+Math.random(),valor:Number(l.valor||0)}));
+      setMonth({...month,cartoes:{...month.cartoes,[cartaoAlvo]:[...(month.cartoes[cartaoAlvo]||[]),...novos]}});
+      if(cartaoAlvo!==activeCard) setActiveCard(cartaoAlvo);
+      setImportMsg({ok:true,txt:`✓ ${novos.length} lançamentos importados para ${CARD_LABELS[cartaoAlvo]||cartaoAlvo} · R$ ${data.total?.toFixed(2)||""}`});
+      setImportJson(""); setShowImport(false);
+    }catch(e){
+      setImportMsg({ok:false,txt:"Erro: "+e.message});
+    }
+  };
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{display:"flex",gap:6}}>
+        {CARDS.map(c=>{
+          const sub=(month.cartoes[c.id]||[]).reduce((s,t)=>s+Number(t.valor||0),0);
+          return (
+            <button key={c.id} onClick={()=>{setActiveCard(c.id);setImportMsg(null);setShowPdfUpload(false);setShowImport(false);setPdfFile(null);setPdfPreview([]);}} style={{flex:1,padding:"10px 4px",borderRadius:12,cursor:"pointer",border:`2px solid ${activeCard===c.id?c.color:"transparent"}`,background:activeCard===c.id?`${c.color}18`:"rgba(255,255,255,.03)"}}>
+              <div style={{fontSize:20}}>{c.emoji}</div>
+              <div style={{fontSize:10,color:activeCard===c.id?c.color:"#444",fontWeight:600,marginTop:2}}>{c.label.split(" ")[0]}</div>
+              <div className="mono" style={{fontSize:11,color:activeCard===c.id?c.color:"#333",marginTop:1}}>{fmtBRL(sub)}</div>
+            </button>
+          );
+        })}
+      </div>
+      <Card style={{background:`${card.color}11`,borderColor:`${card.color}33`,padding:"12px 14px"}}>
+        <div style={{display:"flex",justifyContent:"space-between"}}>
+          <div><div style={{fontSize:10,color:"#666"}}>{card.label}</div><div className="mono" style={{fontSize:22,color:card.color,fontWeight:600}}>{fmtBRL(total)}</div></div>
+          <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#666"}}>Total cartões</div><div className="mono" style={{fontSize:16,color:"#f87171"}}>{fmtBRL(totalAll)}</div></div>
+        </div>
+      </Card>
+      {/* Import buttons */}
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={()=>{setShowPdfUpload(!showPdfUpload);setShowImport(false);setImportMsg(null);setPdfFile(null);setPdfPreview([]);setPdfProcessing(false);}} style={{flex:1,padding:"9px",borderRadius:10,border:`1px solid ${card.color}44`,background:showPdfUpload?`${card.color}18`:"transparent",color:card.color,fontSize:12,fontWeight:600,cursor:"pointer"}}>
+          📄 Importar PDF
+        </button>
+        <button onClick={()=>{setShowImport(!showImport);setShowPdfUpload(false);setImportMsg(null);}} style={{flex:1,padding:"9px",borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:showImport?"rgba(255,255,255,.06)":"transparent",color:"#888",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+          { } JSON
+        </button>
+        <button onClick={()=>setMonth({...month,cartoes:{...month.cartoes,[activeCard]:[]}})} style={{padding:"9px 14px",borderRadius:10,border:"1px solid rgba(239,68,68,.2)",background:"transparent",color:"#f87171",fontSize:11,cursor:"pointer"}}>
+          🗑
+        </button>
+      </div>
 
 const diasDisp = (ds) => {
-  if (!ds) return null;
-  const d = Math.floor((new Date() - new Date(ds+"T00:00:00")) / 86400000);
-  return d >= 0 ? d : null;
+if (!ds) return null;
+const d = Math.floor((new Date() - new Date(ds+“T00:00:00”)) / 86400000);
+return d >= 0 ? d : null;
 };
 
 function DispCard({ label, icone, alertaDias, disp, onUpdate, onRemove }) {
-  const dias = diasDisp(disp.data);
-  const alerta = dias !== null && dias > alertaDias;
-  return (
-    <div style={{
-      borderRadius:10,
-      border:`1px solid ${alerta?"rgba(248,113,113,0.4)":"rgba(56,189,248,0.2)"}`,
-      background:alerta?"rgba(248,113,113,0.04)":"rgba(56,189,248,0.03)",
-      overflow:"hidden", marginBottom:8,
-    }}>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px"}}>
-        <span style={{fontSize:15}}>{icone}</span>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0"}}>{label}</div>
-          {disp.site && <div style={{fontSize:11,color:"#64748b",marginTop:1}}>{disp.site}</div>}
-        </div>
-        {dias !== null && (
-          <div style={{textAlign:"center",padding:"4px 10px",borderRadius:8,minWidth:50,
-            background:alerta?"rgba(248,113,113,0.12)":"rgba(56,189,248,0.1)",
-            border:`1px solid ${alerta?"rgba(248,113,113,0.35)":"rgba(56,189,248,0.25)"}`}}>
-            <div style={{fontSize:15,fontWeight:700,color:alerta?"#f87171":"#38bdf8",lineHeight:1}}>
-              {dias===0?"D0":`D${dias}`}
-            </div>
-            {alerta&&<div style={{fontSize:9,color:"#f87171",fontFamily:mono,marginTop:1}}>REVISAR</div>}
-          </div>
-        )}
-        <button onClick={onRemove} style={{
-          background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.25)",
-          borderRadius:8,color:"#f87171",cursor:"pointer",fontSize:11,padding:"4px 10px",fontWeight:600,
-        }}>Retirar</button>
-      </div>
-      <div style={{padding:"0 14px 12px",borderTop:"1px solid rgba(255,255,255,0.04)",paddingTop:10,display:"flex",gap:8,flexWrap:"wrap"}}>
-        <div style={{flex:1,minWidth:120}}>
-          <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DATA INSERÇÃO</div>
-          <input type="date" value={disp.data||""} onChange={e=>onUpdate("data",e.target.value)}
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
-        </div>
-        <div style={{flex:1,minWidth:130}}>
-          <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>SÍTIO / LOCALIZAÇÃO</div>
-          <input value={disp.site||""} onChange={e=>onUpdate("site",e.target.value)} placeholder="Ex: Femoral E / Tórax D / Peritônio"
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
-        </div>
-        <div style={{flex:2,minWidth:160}}>
-          <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>OBSERVAÇÕES</div>
-          <input value={disp.obs||""} onChange={e=>onUpdate("obs",e.target.value)} placeholder="Curativo ok, sem sinais de infecção…"
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
-        </div>
-      </div>
-    </div>
-  );
+const dias = diasDisp(disp.data);
+const alerta = dias !== null && dias > alertaDias;
+return (
+<div style={{
+borderRadius:10,
+border:`1px solid ${alerta?"rgba(248,113,113,0.4)":"rgba(56,189,248,0.2)"}`,
+background:alerta?“rgba(248,113,113,0.04)”:“rgba(56,189,248,0.03)”,
+overflow:“hidden”, marginBottom:8,
+}}>
+<div style={{display:“flex”,alignItems:“center”,gap:10,padding:“10px 14px”}}>
+<span style={{fontSize:15}}>{icone}</span>
+<div style={{flex:1,minWidth:0}}>
+<div style={{fontSize:13,fontWeight:600,color:”#e2e8f0”}}>{label}</div>
+{disp.site && <div style={{fontSize:11,color:”#64748b”,marginTop:1}}>{disp.site}</div>}
+</div>
+{dias !== null && (
+<div style={{textAlign:“center”,padding:“4px 10px”,borderRadius:8,minWidth:50,
+background:alerta?“rgba(248,113,113,0.12)”:“rgba(56,189,248,0.1)”,
+border:`1px solid ${alerta?"rgba(248,113,113,0.35)":"rgba(56,189,248,0.25)"}`}}>
+<div style={{fontSize:15,fontWeight:700,color:alerta?”#f87171”:”#38bdf8”,lineHeight:1}}>
+{dias===0?“D0”:`D${dias}`}
+</div>
+{alerta&&<div style={{fontSize:9,color:”#f87171”,fontFamily:mono,marginTop:1}}>REVISAR</div>}
+</div>
+)}
+<button onClick={onRemove} style={{
+background:“rgba(248,113,113,0.1)”,border:“1px solid rgba(248,113,113,0.25)”,
+borderRadius:8,color:”#f87171”,cursor:“pointer”,fontSize:11,padding:“4px 10px”,fontWeight:600,
+}}>Retirar</button>
+</div>
+<div style={{padding:“0 14px 12px”,borderTop:“1px solid rgba(255,255,255,0.04)”,paddingTop:10,display:“flex”,gap:8,flexWrap:“wrap”}}>
+<div style={{flex:1,minWidth:120}}>
+<div style={{fontSize:10,color:”#64748b”,fontFamily:mono,letterSpacing:1,marginBottom:4}}>DATA INSERÇÃO</div>
+<input type=“date” value={disp.data||””} onChange={e=>onUpdate(“data”,e.target.value)}
+style={{width:“100%”,background:“rgba(255,255,255,0.04)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:8,padding:“7px 10px”,color:”#e2e8f0”,fontSize:12,fontFamily:“inherit”}}/>
+</div>
+<div style={{flex:1,minWidth:130}}>
+<div style={{fontSize:10,color:”#64748b”,fontFamily:mono,letterSpacing:1,marginBottom:4}}>SÍTIO / LOCALIZAÇÃO</div>
+<input value={disp.site||””} onChange={e=>onUpdate(“site”,e.target.value)} placeholder=“Ex: Femoral E / Tórax D / Peritônio”
+style={{width:“100%”,background:“rgba(255,255,255,0.04)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:8,padding:“7px 10px”,color:”#e2e8f0”,fontSize:12,fontFamily:“inherit”}}/>
+</div>
+<div style={{flex:2,minWidth:160}}>
+<div style={{fontSize:10,color:”#64748b”,fontFamily:mono,letterSpacing:1,marginBottom:4}}>OBSERVAÇÕES</div>
+<input value={disp.obs||””} onChange={e=>onUpdate(“obs”,e.target.value)} placeholder=“Curativo ok, sem sinais de infecção…”
+style={{width:“100%”,background:“rgba(255,255,255,0.04)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:8,padding:“7px 10px”,color:”#e2e8f0”,fontSize:12,fontFamily:“inherit”}}/>
+</div>
+</div>
+</div>
+);
 }
-
-function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
-  const [showPicker, setShowPicker] = useState(false);
-
-  const getAlerta = (key) => {
-    const map = {cvc:"cvc",dialise:"dialise",dreno:"dreno",tot:"tot",tqt:"tqt",svd:"svd",pai:"pai",sng:"sng"};
-    return alertas[map[key]] ?? DISP_SINGULAR.find(d=>d.key===key)?.alertaDias ?? DISP_MULTIPLO.find(d=>d.key===key)?.alertaDias ?? 99;
-  };
-
-  // helpers
-  const novoDisp = (siteDefault="") => ({
-    id: Date.now() + Math.random(),
-    data: new Date().toISOString().split("T")[0],
-    site: siteDefault,
-    obs: "",
-  });
-
-  // Singular: dispositivos[key] = { ativo, data, site, obs } | undefined
-  const isSingularAtivo = (key) => !!dispositivos[key]?.ativo;
-
-  const inserirSingular = (key, siteDefault="") => {
-    onChange({ ...dispositivos, [key]: { ativo:true, data:new Date().toISOString().split("T")[0], site:siteDefault, obs:"" }});
-    setShowPicker(false);
-  };
-  const retirarSingular = (key) =>
-    onChange({ ...dispositivos, [key]: { ativo:false, data:"", site:"", obs:"" }});
-  const updSingular = (key, field, val) =>
-    onChange({ ...dispositivos, [key]: { ...(dispositivos[key]||{}), [field]:val }});
-
-  // Múltiplo: dispositivos[key] = [ { id, data, site, obs }, ... ]
-  const getMultiplos = (key) => Array.isArray(dispositivos[key]) ? dispositivos[key] : [];
-
-  const inserirMultiplo = (key, siteDefault="") => {
-    const lista = getMultiplos(key);
-    onChange({ ...dispositivos, [key]: [...lista, novoDisp(siteDefault)] });
-    setShowPicker(false);
-  };
-  const retirarMultiplo = (key, id) =>
-    onChange({ ...dispositivos, [key]: getMultiplos(key).filter(d=>d.id!==id) });
-  const updMultiplo = (key, id, field, val) =>
-    onChange({ ...dispositivos, [key]: getMultiplos(key).map(d=>d.id===id?{...d,[field]:val}:d) });
-
-  // Quais singulares ainda não foram inseridos
-  const singularesDisponiveis = DISP_SINGULAR.filter(d => !isSingularAtivo(d.key));
-  // Múltiplos sempre disponíveis para adicionar mais
-  const temAlgumAtivo =
-    DISP_SINGULAR.some(d=>isSingularAtivo(d.key)) ||
-    DISP_MULTIPLO.some(d=>getMultiplos(d.key).length>0);
-
-  return (
-    <div>
-      <SecTitle>DISPOSITIVOS INVASIVOS</SecTitle>
-
-      {!temAlgumAtivo && !showPicker && (
-        <div style={{padding:"14px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.07)",borderRadius:10,color:"#334155",fontSize:13,textAlign:"center",marginBottom:10}}>
-          Nenhum dispositivo ativo
+      {importMsg&&(
+        <div style={{padding:"8px 12px",borderRadius:10,background:importMsg.ok?"rgba(74,222,128,.08)":"rgba(239,68,68,.08)",fontSize:12,color:importMsg.ok?"#4ade80":"#f87171",border:`1px solid ${importMsg.ok?"rgba(74,222,128,.2)":"rgba(239,68,68,.2)"}`}}>
+          {importMsg.txt}
         </div>
       )}
 
-      {/* Múltiplos */}
-      {DISP_MULTIPLO.map(({key,label,icone})=>{
-        const lista = getMultiplos(key);
-        if (!lista.length) return null;
-        return (
-          <div key={key}>
-            {lista.map((disp,i)=>(
-              <DispCard key={disp.id}
-                label={lista.length>1?`${label} ${i+1}`:label}
-                icone={icone} alertaDias={getAlerta(key)} disp={disp}
-                onUpdate={(f,v)=>updMultiplo(key,disp.id,f,v)}
-                onRemove={()=>retirarMultiplo(key,disp.id)}
-              />
-            ))}
+function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
+const [showPicker, setShowPicker] = useState(false);
+      {/* PDF Upload panel */}
+      {showPdfUpload&&(
+        <Card style={{borderColor:`${card.color}33`}}>
+          <div style={{fontSize:12,color:card.color,fontWeight:600,marginBottom:8}}>{card.emoji} Importar fatura — {card.label}</div>
+          <div style={{fontSize:11,color:"#555",marginBottom:10,lineHeight:1.6}}>
+            Selecione o PDF da fatura do cartão. O Claude vai ler, extrair e categorizar todos os lançamentos automaticamente.
           </div>
-        );
-      })}
 
-      {/* Singulares */}
-      {DISP_SINGULAR.map(({key,label,icone})=>{
-        if (!isSingularAtivo(key)) return null;
-        const disp = dispositivos[key];
-        return (
-          <DispCard key={key} label={label} icone={icone} alertaDias={getAlerta(key)} disp={disp}
-            onUpdate={(f,v)=>updSingular(key,f,v)}
-            onRemove={()=>retirarSingular(key)}
+const getAlerta = (key) => {
+const map = {cvc:“cvc”,dialise:“dialise”,dreno:“dreno”,tot:“tot”,tqt:“tqt”,svd:“svd”,pai:“pai”,sng:“sng”};
+return alertas[map[key]] ?? DISP_SINGULAR.find(d=>d.key===key)?.alertaDias ?? DISP_MULTIPLO.find(d=>d.key===key)?.alertaDias ?? 99;
+};
+          {/* File drop area */}
+          <div onClick={()=>{if(!pdfFile)pdfInputRef.current?.click();}} style={{
+            border:`2px dashed ${card.color}44`,borderRadius:12,padding:"20px",
+            textAlign:"center",cursor:"pointer",background:`${card.color}08`,
+            transition:"all .2s",
+          }}>
+            <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf"
+              onChange={onPdfSelect} style={{display:"none"}}/>
+            <div style={{fontSize:28,marginBottom:6}}>{pdfFile?"📄":"📂"}</div>
+            {pdfFile
+              ?<><div style={{fontSize:13,fontWeight:600,color:card.color}}>{pdfFile.name}</div>
+                 <div style={{fontSize:10,color:"#555",marginTop:2}}>{(pdfFile.size/1024).toFixed(0)} KB · toque para trocar</div></>
+              :<><div style={{fontSize:13,color:"#555",fontWeight:500}}>Toque para selecionar o PDF</div>
+                 <div style={{fontSize:10,color:"#333",marginTop:2}}>Fatura {card.label}</div></>
+            }
+          </div>
+
+// helpers
+const novoDisp = (siteDefault=””) => ({
+id: Date.now() + Math.random(),
+data: new Date().toISOString().split(“T”)[0],
+site: siteDefault,
+obs: “”,
+});
+          {pdfProcessing&&(
+            <div style={{marginTop:10,padding:"10px 12px",borderRadius:10,background:"rgba(124,106,247,.08)",border:"1px solid rgba(124,106,247,.2)",fontSize:12,color:"#a89cf7",textAlign:"center"}}>
+              ⚙️ {pdfMsg||"Processando..."}
+            </div>
+          )}
+
+// Singular: dispositivos[key] = { ativo, data, site, obs } | undefined
+const isSingularAtivo = (key) => !!dispositivos[key]?.ativo;
+
+const inserirSingular = (key, siteDefault=””) => {
+onChange({ …dispositivos, [key]: { ativo:true, data:new Date().toISOString().split(“T”)[0], site:siteDefault, obs:”” }});
+setShowPicker(false);
+};
+const retirarSingular = (key) =>
+onChange({ …dispositivos, [key]: { ativo:false, data:””, site:””, obs:”” }});
+const updSingular = (key, field, val) =>
+onChange({ …dispositivos, [key]: { …(dispositivos[key]||{}), [field]:val }});
+
+// Múltiplo: dispositivos[key] = [ { id, data, site, obs }, … ]
+const getMultiplos = (key) => Array.isArray(dispositivos[key]) ? dispositivos[key] : [];
+
+const inserirMultiplo = (key, siteDefault=””) => {
+const lista = getMultiplos(key);
+onChange({ …dispositivos, [key]: […lista, novoDisp(siteDefault)] });
+setShowPicker(false);
+};
+const retirarMultiplo = (key, id) =>
+onChange({ …dispositivos, [key]: getMultiplos(key).filter(d=>d.id!==id) });
+const updMultiplo = (key, id, field, val) =>
+onChange({ …dispositivos, [key]: getMultiplos(key).map(d=>d.id===id?{…d,[field]:val}:d) });
+
+// Quais singulares ainda não foram inseridos
+const singularesDisponiveis = DISP_SINGULAR.filter(d => !isSingularAtivo(d.key));
+// Múltiplos sempre disponíveis para adicionar mais
+const temAlgumAtivo =
+DISP_SINGULAR.some(d=>isSingularAtivo(d.key)) ||
+DISP_MULTIPLO.some(d=>getMultiplos(d.key).length>0);
+
+return (
+<div>
+<SecTitle>DISPOSITIVOS INVASIVOS</SecTitle>
+
+```
+  {!temAlgumAtivo && !showPicker && (
+    <div style={{padding:"14px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.07)",borderRadius:10,color:"#334155",fontSize:13,textAlign:"center",marginBottom:10}}>
+      Nenhum dispositivo ativo
+    </div>
+  )}
+
+  {/* Múltiplos */}
+  {DISP_MULTIPLO.map(({key,label,icone})=>{
+    const lista = getMultiplos(key);
+    if (!lista.length) return null;
+    return (
+      <div key={key}>
+        {lista.map((disp,i)=>(
+          <DispCard key={disp.id}
+            label={lista.length>1?`${label} ${i+1}`:label}
+            icone={icone} alertaDias={getAlerta(key)} disp={disp}
+            onUpdate={(f,v)=>updMultiplo(key,disp.id,f,v)}
+            onRemove={()=>retirarMultiplo(key,disp.id)}
           />
-        );
-      })}
+        ))}
+      </div>
+    );
+  })}
 
-      {/* Botão + picker */}
-      <div style={{position:"relative"}}>
-        <button onClick={()=>setShowPicker(v=>!v)} style={{
-          display:"flex",alignItems:"center",gap:8,padding:"9px 16px",width:"100%",
-          background:showPicker?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
-          border:`1px solid ${showPicker?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
-          borderRadius:10,color:showPicker?"#38bdf8":"#64748b",
-          cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.15s",
-        }}>
-          <span style={{fontSize:16}}>{showPicker?"✕":"+"}</span>
-          {showPicker?"Fechar":"Adicionar dispositivo"}
-        </button>
+  {/* Singulares */}
+  {DISP_SINGULAR.map(({key,label,icone})=>{
+    if (!isSingularAtivo(key)) return null;
+    const disp = dispositivos[key];
+    return (
+      <DispCard key={key} label={label} icone={icone} alertaDias={getAlerta(key)} disp={disp}
+        onUpdate={(f,v)=>updSingular(key,f,v)}
+        onRemove={()=>retirarSingular(key)}
+      />
+    );
+  })}
 
-        {showPicker && (
-          <div style={{marginTop:8,padding:"8px",background:"#0f1929",border:"1px solid rgba(56,189,248,0.2)",borderRadius:12,display:"flex",flexDirection:"column",gap:4}}>
-            {/* Múltiplos sempre disponíveis */}
-            {DISP_MULTIPLO.map(({key,label,icone,siteDefault})=>(
-              <button key={key} onClick={()=>inserirMultiplo(key,siteDefault)} style={{
-                display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
+  {/* Botão + picker */}
+  <div style={{position:"relative"}}>
+    <button onClick={()=>setShowPicker(v=>!v)} style={{
+      display:"flex",alignItems:"center",gap:8,padding:"9px 16px",width:"100%",
+      background:showPicker?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
+      border:`1px solid ${showPicker?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
+      borderRadius:10,color:showPicker?"#38bdf8":"#64748b",
+      cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.15s",
+    }}>
+      <span style={{fontSize:16}}>{showPicker?"✕":"+"}</span>
+      {showPicker?"Fechar":"Adicionar dispositivo"}
+    </button>
+
+    {showPicker && (
+      <div style={{marginTop:8,padding:"8px",background:"#0f1929",border:"1px solid rgba(56,189,248,0.2)",borderRadius:12,display:"flex",flexDirection:"column",gap:4}}>
+        {/* Múltiplos sempre disponíveis */}
+        {DISP_MULTIPLO.map(({key,label,icone,siteDefault})=>(
+          <button key={key} onClick={()=>inserirMultiplo(key,siteDefault)} style={{
+            display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
+            background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",
+            borderRadius:8,cursor:"pointer",textAlign:"left",
+          }}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
+            onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
+            <span style={{fontSize:18}}>{icone}</span>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:"#cbd5e1"}}>{label}</div>
+              <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,marginTop:1}}>pode adicionar múltiplos</div>
+          {/* Preview dos lançamentos antes de confirmar */}
+          {pdfPreview.length>0&&!pdfProcessing&&(
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:11,color:"#555",marginBottom:6,display:"flex",justifyContent:"space-between"}}>
+                <span>{pdfPreview.length} lançamentos encontrados</span>
+                <span className="mono" style={{color:"#f87171"}}>R$ {pdfPreview.reduce((s,t)=>s+t.valor,0).toFixed(2)}</span>
+              </div>
+              <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+                {pdfPreview.map((t,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:"rgba(255,255,255,.03)",borderRadius:8}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11,color:"#f0f0f5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
+                      <div style={{fontSize:9,color:"#444"}}>{t.cat}{t.parcela?` · ${t.parcela}`:""}</div>
+                    </div>
+                    <span className="mono" style={{fontSize:11,color:card.color,marginLeft:8,flexShrink:0}}>{fmtBRL(t.valor)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </button>
+        ))}
+        {/* Separador se houver os dois grupos */}
+        {singularesDisponiveis.length>0 && (
+          <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",margin:"4px 0",paddingTop:4}}>
+            <div style={{fontSize:9,color:"#334155",fontFamily:mono,letterSpacing:2,paddingLeft:14,paddingBottom:4}}>DISPOSITIVO ÚNICO</div>
+            {singularesDisponiveis.map(({key,label,icone,siteDefault})=>(
+              <button key={key} onClick={()=>inserirSingular(key,siteDefault)} style={{
+                display:"flex",alignItems:"center",gap:10,padding:"10px 14px",width:"100%",
                 background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",
-                borderRadius:8,cursor:"pointer",textAlign:"left",
+                borderRadius:8,cursor:"pointer",textAlign:"left",marginBottom:4,
               }}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
                 onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
                 <span style={{fontSize:18}}>{icone}</span>
                 <div>
                   <div style={{fontSize:13,fontWeight:600,color:"#cbd5e1"}}>{label}</div>
-                  <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,marginTop:1}}>pode adicionar múltiplos</div>
+                  {siteDefault&&<div style={{fontSize:11,color:"#475569",marginTop:1}}>Sítio padrão: {siteDefault}</div>}
                 </div>
               </button>
             ))}
-            {/* Separador se houver os dois grupos */}
-            {singularesDisponiveis.length>0 && (
-              <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",margin:"4px 0",paddingTop:4}}>
-                <div style={{fontSize:9,color:"#334155",fontFamily:mono,letterSpacing:2,paddingLeft:14,paddingBottom:4}}>DISPOSITIVO ÚNICO</div>
-                {singularesDisponiveis.map(({key,label,icone,siteDefault})=>(
-                  <button key={key} onClick={()=>inserirSingular(key,siteDefault)} style={{
-                    display:"flex",alignItems:"center",gap:10,padding:"10px 14px",width:"100%",
-                    background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",
-                    borderRadius:8,cursor:"pointer",textAlign:"left",marginBottom:4,
-                  }}
-                    onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
-                    onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
-                    <span style={{fontSize:18}}>{icone}</span>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:600,color:"#cbd5e1"}}>{label}</div>
-                      {siteDefault&&<div style={{fontSize:11,color:"#475569",marginTop:1}}>Sítio padrão: {siteDefault}</div>}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
+    )}
+  </div>
+          )}
 
-      {temAlgumAtivo && (
-        <div style={{marginTop:10,fontSize:11,color:"#475569",display:"flex",gap:12,flexWrap:"wrap"}}>
-          <span>🔵 Em uso</span>
-          <span style={{color:"#f87171"}}>🔴 CVC/PAI &gt;7d · SVD &gt;14d · Diálise &gt;14d — revisar</span>
-        </div>
-      )}
+  {temAlgumAtivo && (
+    <div style={{marginTop:10,fontSize:11,color:"#475569",display:"flex",gap:12,flexWrap:"wrap"}}>
+      <span>🔵 Em uso</span>
+      <span style={{color:"#f87171"}}>🔴 CVC/PAI &gt;7d · SVD &gt;14d · Diálise &gt;14d — revisar</span>
     </div>
-  );
+  )}
+</div>
+```
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
+            <button onClick={()=>{setShowPdfUpload(false);setPdfFile(null);setPdfPreview([]);}} style={{padding:"10px",borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"transparent",color:"#555",fontSize:13,cursor:"pointer"}}>Cancelar</button>
+            <button onClick={pdfPreview.length>0?confirmPdfImport:(!pdfFile?(()=>pdfInputRef.current?.click()):processPdf)} disabled={pdfProcessing}
+              style={{padding:"10px",borderRadius:10,border:"none",background:!pdfFile||pdfProcessing?"#1a1a2a":card.color,color:!pdfFile||pdfProcessing?"#333":"#fff",fontSize:13,fontWeight:600,cursor:!pdfFile||pdfProcessing?"not-allowed":"pointer"}}>
+              {pdfProcessing?"Processando...":pdfPreview.length>0?"✅ Confirmar":"🤖 Processar"}
+            </button>
+          </div>
+        </Card>
+      )}
+
+);
 }
+      {/* JSON Import panel */}
+      {showImport&&(
+        <Card style={{borderColor:"rgba(255,255,255,.1)"}}>
+          <div style={{fontSize:12,color:"#888",fontWeight:600,marginBottom:8}}>Importar via JSON</div>
+          <textarea value={importJson} onChange={e=>setImportJson(e.target.value)}
+            placeholder='{"tipo":"cartao","cartao":"inter","lancamentos":[...]}'
+            style={{width:"100%",minHeight:80,background:"rgba(0,0,0,.4)",border:"1px solid rgba(255,255,255,.1)",borderRadius:10,padding:10,color:"#f0f0f5",fontSize:10,outline:"none",resize:"vertical",fontFamily:"'JetBrains Mono',monospace",lineHeight:1.5}}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
+            <button onClick={()=>{setShowImport(false);setImportJson("");}} style={{padding:"10px",borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"transparent",color:"#555",fontSize:13,cursor:"pointer"}}>Cancelar</button>
+            <button onClick={doImport} style={{padding:"10px",borderRadius:10,border:"none",background:"#555",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Importar</button>
+          </div>
+        </Card>
+      )}
 
 // ── PacientePanel ─────────────────────────────────────────────────────────────
 function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
-  const dias  = diasInternacao(dados.dataInternacao);
-  const pp    = pesoPredito(dados.altura, dados.sexo);
-  const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
-  const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
+const dias  = diasInternacao(dados.dataInternacao);
+const pp    = pesoPredito(dados.altura, dados.sexo);
+const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
+const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
 
-  const [volUrina, setVolUrina] = useState("");
-  const [hUrina,   setHUrina]   = useState("6");
-  const diurese = (volUrina && hUrina && dados.peso)
-    ? (parseFloat(volUrina)/(parseFloat(hUrina)*parseFloat(dados.peso))).toFixed(2) : null;
+const [volUrina, setVolUrina] = useState(””);
+const [hUrina,   setHUrina]   = useState(“6”);
+const diurese = (volUrina && hUrina && dados.peso)
+? (parseFloat(volUrina)/(parseFloat(hUrina)*parseFloat(dados.peso))).toFixed(2) : null;
 
-  return (
-    <div>
-      <SecTitle>DADOS DO PACIENTE</SecTitle>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
-        <Field label="NOME / ID"      value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuário"/>
-        <Field label="DIAGNÓSTICO"    value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="Diagnóstico principal"/>
-      </div>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
-        <Field label="DATA INTERNAÇÃO" value={dados.dataInternacao} onChange={v=>onChange({...dados,dataInternacao:v})} type="date"/>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÓGICO</div>
-          <div style={{ display:"flex", gap:6 }}>
-            {["M","F"].map(s=>(
-              <button key={s} onClick={()=>onChange({...dados,sexo:s})} style={{ flex:1, padding:"8px", borderRadius:8, border:`1px solid ${dados.sexo===s?"#38bdf8":"rgba(255,255,255,0.1)"}`, background:dados.sexo===s?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.03)", color:dados.sexo===s?"#38bdf8":"#64748b", fontWeight:700, cursor:"pointer", fontSize:13 }}>
-                {s==="M"?"♂ Masculino":"♀ Feminino"}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-        <Field label="PESO ATUAL (kg)" value={dados.peso}   onChange={v=>onChange({...dados,peso:v})}   type="number" placeholder="70" suffix="kg"/>
-        <Field label="ALTURA (cm)"     value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm"/>
-      </div>
+return (
+<div>
+<SecTitle>DADOS DO PACIENTE</SecTitle>
+<div style={{ display:“flex”, gap:10, flexWrap:“wrap”, marginBottom:10 }}>
+<Field label=“NOME / ID”      value={dados.paciente}    onChange={v=>onChange({…dados,paciente:v})}    placeholder=“Nome ou prontuário”/>
+<Field label=“DIAGNÓSTICO”    value={dados.diagnostico} onChange={v=>onChange({…dados,diagnostico:v})} placeholder=“Diagnóstico principal”/>
+</div>
+<div style={{ display:“flex”, gap:10, flexWrap:“wrap”, marginBottom:10 }}>
+<Field label=“DATA INTERNAÇÃO” value={dados.dataInternacao} onChange={v=>onChange({…dados,dataInternacao:v})} type=“date”/>
+<div style={{ flex:1 }}>
+<div style={{ fontSize:10, color:”#64748b”, fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÓGICO</div>
+<div style={{ display:“flex”, gap:6 }}>
+{[“M”,“F”].map(s=>(
+<button key={s} onClick={()=>onChange({…dados,sexo:s})} style={{ flex:1, padding:“8px”, borderRadius:8, border:`1px solid ${dados.sexo===s?"#38bdf8":"rgba(255,255,255,0.1)"}`, background:dados.sexo===s?“rgba(56,189,248,0.12)”:“rgba(255,255,255,0.03)”, color:dados.sexo===s?”#38bdf8”:”#64748b”, fontWeight:700, cursor:“pointer”, fontSize:13 }}>
+{s===“M”?“♂ Masculino”:“♀ Feminino”}
+</button>
+))}
+</div>
+</div>
+</div>
+<div style={{ display:“flex”, gap:10, flexWrap:“wrap” }}>
+<Field label=“PESO ATUAL (kg)” value={dados.peso}   onChange={v=>onChange({…dados,peso:v})}   type=“number” placeholder=“70” suffix=“kg”/>
+<Field label=“ALTURA (cm)”     value={dados.altura} onChange={v=>onChange({…dados,altura:v})} type=“number” placeholder=“170” suffix=“cm”/>
+</div>
 
-      {(dias!==null||pp||dados.peso) && <>
-        <SecTitle>PARÂMETROS CALCULADOS</SecTitle>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {dias!==null && <Pill label="INTERNAÇÃO"   value={`D${dias}`}   unit="dias"            color="#a78bfa"/>}
-          {dados.peso  && <Pill label="PESO ATUAL"   value={dados.peso}   unit="kg"              color="#f59e0b"/>}
-          {pp          && <Pill label="PESO PREDITO" value={pp}           unit="kg (ARDSNet)"    color="#fb923c"/>}
-          {vc6         && <Pill label="VC 6 mL/kg"   value={vc6}          unit="mL (protetor)"   color="#34d399"/>}
-          {vc8         && <Pill label="VC 8 mL/kg"   value={vc8}          unit="mL (máx ARDSNet)"color="#34d399"/>}
-        </div>
-        {pp && (
-          <div style={{ marginTop:10, padding:"10px 14px", background:"rgba(251,146,60,0.07)", border:"1px solid rgba(251,146,60,0.25)", borderRadius:8, fontSize:12, color:"#fdba74" }}>
-            💡 <strong>Peso predito (ARDSNet):</strong> {dados.sexo==="M"?"♂":"♀"} {dados.altura} cm → {pp} kg.
-            Use <strong>{vc6} mL</strong> como ponto de partida para VM protetora (6 mL/kg PP) e não ultrapasse <strong>{vc8} mL</strong> (8 mL/kg PP) no SDRA.
-          </div>
-        )}
-      </>}
-
-      {dados.peso && <>
-        <SecTitle>CALCULADORA DE DIURESE</SecTitle>
-        <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
-          <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={setVolUrina} type="number" placeholder="300"/>
-          <Field label="PERÍODO (horas)"     value={hUrina}   onChange={setHUrina}   type="number" placeholder="6"/>
-          <div style={{ flex:1, minWidth:110 }}>
-            <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>RESULTADO</div>
-            <div style={{ padding:"8px 12px", borderRadius:8, textAlign:"center",
-              background: diurese ? (parseFloat(diurese)<0.5?"rgba(248,113,113,0.1)":"rgba(34,197,94,0.1)") : "rgba(255,255,255,0.04)",
-              border:`1px solid ${diurese ? (parseFloat(diurese)<0.5?"rgba(248,113,113,0.35)":"rgba(34,197,94,0.35)") : "rgba(255,255,255,0.08)"}`,
-              fontSize:17, fontWeight:700, color: diurese ? (parseFloat(diurese)<0.5?"#f87171":"#4ade80") : "#475569" }}>
-              {diurese ? `${diurese} mL/kg/h` : "—"}
-            </div>
-          </div>
-        </div>
-        {diurese && (
-          <div style={{ marginTop:6, fontSize:12, color: parseFloat(diurese)<0.5?"#f87171":"#4ade80" }}>
-            {parseFloat(diurese)<0.5 ? "⚠️ Oligúria — diurese abaixo de 0,5 mL/kg/h. Avaliar volemia e função renal." : "✅ Diurese adequada (≥ 0,5 mL/kg/h)."}
-          </div>
-        )}
-      </>}
-
-      {dados.peso && <>
-        <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga} />
-      </>}
-
-      <DietaPanel dados={dados} onChange={onChange} />
-
-      <DispositivosPanel
-        dispositivos={dados.dispositivos||{}}
-        onChange={disps=>onChange({...dados,dispositivos:disps})}
-        alertas={{
-          cvc:config.alertaCVC||7, pai:config.alertaPAI||7,
-          svd:config.alertaSVD||14, dialise:config.alertaDialise||14,
-          tot:config.alertaTOT||99, tqt:config.alertaTQT||99,
-          sng:config.alertaSNG||21, dreno:config.alertaDreno||21,
-        }}
-      />
-
-      <ProcedimentosPanel
-        procedimentos={dados.procedimentos||[]}
-        onChange={procs=>onChange({...dados,procedimentos:procs})}
-      />
+```
+  {(dias!==null||pp||dados.peso) && <>
+    <SecTitle>PARÂMETROS CALCULADOS</SecTitle>
+    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+      {dias!==null && <Pill label="INTERNAÇÃO"   value={`D${dias}`}   unit="dias"            color="#a78bfa"/>}
+      {dados.peso  && <Pill label="PESO ATUAL"   value={dados.peso}   unit="kg"              color="#f59e0b"/>}
+      {pp          && <Pill label="PESO PREDITO" value={pp}           unit="kg (ARDSNet)"    color="#fb923c"/>}
+      {vc6         && <Pill label="VC 6 mL/kg"   value={vc6}          unit="mL (protetor)"   color="#34d399"/>}
+      {vc8         && <Pill label="VC 8 mL/kg"   value={vc8}          unit="mL (máx ARDSNet)"color="#34d399"/>}
     </div>
-  );
+    {pp && (
+      <div style={{ marginTop:10, padding:"10px 14px", background:"rgba(251,146,60,0.07)", border:"1px solid rgba(251,146,60,0.25)", borderRadius:8, fontSize:12, color:"#fdba74" }}>
+        💡 <strong>Peso predito (ARDSNet):</strong> {dados.sexo==="M"?"♂":"♀"} {dados.altura} cm → {pp} kg.
+        Use <strong>{vc6} mL</strong> como ponto de partida para VM protetora (6 mL/kg PP) e não ultrapasse <strong>{vc8} mL</strong> (8 mL/kg PP) no SDRA.
+      </div>
+    )}
+  </>}
+
+  {dados.peso && <>
+    <SecTitle>CALCULADORA DE DIURESE</SecTitle>
+    <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
+      <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={setVolUrina} type="number" placeholder="300"/>
+      <Field label="PERÍODO (horas)"     value={hUrina}   onChange={setHUrina}   type="number" placeholder="6"/>
+      <div style={{ flex:1, minWidth:110 }}>
+        <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>RESULTADO</div>
+        <div style={{ padding:"8px 12px", borderRadius:8, textAlign:"center",
+          background: diurese ? (parseFloat(diurese)<0.5?"rgba(248,113,113,0.1)":"rgba(34,197,94,0.1)") : "rgba(255,255,255,0.04)",
+          border:`1px solid ${diurese ? (parseFloat(diurese)<0.5?"rgba(248,113,113,0.35)":"rgba(34,197,94,0.35)") : "rgba(255,255,255,0.08)"}`,
+          fontSize:17, fontWeight:700, color: diurese ? (parseFloat(diurese)<0.5?"#f87171":"#4ade80") : "#475569" }}>
+          {diurese ? `${diurese} mL/kg/h` : "—"}
+      {/* Contador */}
+      {items.length>0&&(
+        <div style={{fontSize:10,color:"#444",textAlign:"center",padding:"2px 0"}}>
+          {items.length} lançamento{items.length>1?"s":""} · toque na categoria para editar
+        </div>
+      </div>
+    </div>
+    {diurese && (
+      <div style={{ marginTop:6, fontSize:12, color: parseFloat(diurese)<0.5?"#f87171":"#4ade80" }}>
+        {parseFloat(diurese)<0.5 ? "⚠️ Oligúria — diurese abaixo de 0,5 mL/kg/h. Avaliar volemia e função renal." : "✅ Diurese adequada (≥ 0,5 mL/kg/h)."}
+      </div>
+    )}
+  </>}
+
+  {dados.peso && <>
+    <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
+    <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga} />
+  </>}
+
+  <DietaPanel dados={dados} onChange={onChange} />
+
+  <DispositivosPanel
+    dispositivos={dados.dispositivos||{}}
+    onChange={disps=>onChange({...dados,dispositivos:disps})}
+    alertas={{
+      cvc:config.alertaCVC||7, pai:config.alertaPAI||7,
+      svd:config.alertaSVD||14, dialise:config.alertaDialise||14,
+      tot:config.alertaTOT||99, tqt:config.alertaTQT||99,
+      sng:config.alertaSNG||21, dreno:config.alertaDreno||21,
+    }}
+  />
+
+  <ProcedimentosPanel
+    procedimentos={dados.procedimentos||[]}
+    onChange={procs=>onChange({...dados,procedimentos:procs})}
+  />
+</div>
+```
+
+);
 }
+      )}
 
 // ── UploadAnalyzer ────────────────────────────────────────────────────────────
 function UploadAnalyzer({ onResult }) {
-  const [loading, setLoading] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [draft,   setDraft]   = useState(null);
-  const [rev,     setRev]     = useState(false);
-  const fileRef = useRef();
-  const areaRef = useRef();
+const [loading, setLoading] = useState(false);
+const [preview, setPreview] = useState(null);
+const [draft,   setDraft]   = useState(null);
+const [rev,     setRev]     = useState(false);
+const fileRef = useRef();
+const areaRef = useRef();
 
-  const handleFile = useCallback(async (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const b64 = e.target.result.split(",")[1];
-      setPreview(e.target.result); setLoading(true); setDraft(null); setRev(false);
-      try {
-        const r = await fetch("/api/analyze", {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ imageBase64: b64, mimeType: file.type || "image/png" })
-        });
-        const data = await r.json();
-        if (data.error && data.error !== 'parse_failed') throw new Error(data.error);
-        if (data.raw) throw new Error("Resposta inválida da IA");
-        setDraft(data);
-        setRev(true);
-      } catch(err) { setDraft({error:`Erro ao analisar imagem: ${err.message}`}); }
-      setLoading(false);
-    };
-    reader.readAsDataURL(file);
-  }, []);
+const handleFile = useCallback(async (file) => {
+if (!file) return;
+const reader = new FileReader();
+reader.onload = async (e) => {
+const b64 = e.target.result.split(”,”)[1];
+setPreview(e.target.result); setLoading(true); setDraft(null); setRev(false);
+try {
+const r = await fetch(”/api/analyze”, {
+method:“POST”,
+headers:{“Content-Type”:“application/json”},
+body: JSON.stringify({ imageBase64: b64, mimeType: file.type || “image/png” })
+});
+const data = await r.json();
+if (data.error && data.error !== ‘parse_failed’) throw new Error(data.error);
+if (data.raw) throw new Error(“Resposta inválida da IA”);
+setDraft(data);
+setRev(true);
+} catch(err) { setDraft({error:`Erro ao analisar imagem: ${err.message}`}); }
+setLoading(false);
+};
+reader.readAsDataURL(file);
+}, []);
 
-  // Paste anywhere on the page
-  useEffect(() => {
-    const onPaste = (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (const item of items) {
-        if (item.type.startsWith("image/")) {
-          e.preventDefault();
-          handleFile(item.getAsFile());
-          return;
-        }
-      }
-    };
-    window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
-  }, [handleFile]);
+// Paste anywhere on the page
+useEffect(() => {
+const onPaste = (e) => {
+const items = e.clipboardData?.items;
+if (!items) return;
+for (const item of items) {
+if (item.type.startsWith(“image/”)) {
+e.preventDefault();
+handleFile(item.getAsFile());
+return;
+}
+}
+};
+window.addEventListener(“paste”, onPaste);
+return () => window.removeEventListener(“paste”, onPaste);
+}, [handleFile]);
 
-  return (
-    <div>
-      <div onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} onDragOver={e=>e.preventDefault()} onClick={()=>fileRef.current?.click()}
-        style={{ border:"1.5px dashed rgba(56,189,248,0.3)", borderRadius:12, padding:24, textAlign:"center", cursor:"pointer", background:"rgba(56,189,248,0.03)", marginBottom:16 }}>
-        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
-        <div style={{fontSize:28,marginBottom:8}}>📋</div>
-        <div style={{color:"#38bdf8",fontSize:14,fontWeight:600}}>Cole o print com Ctrl+V</div>
-        <div style={{color:"#64748b",fontSize:12,marginTop:6}}>ou arraste · ou clique para selecionar arquivo</div>
-        <div style={{marginTop:10,display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:1}}>
-          CTRL + V  em qualquer momento nesta aba
-        </div>
-      </div>
-      {preview && <img src={preview} alt="preview" style={{width:"100%",borderRadius:8,marginBottom:12,maxHeight:180,objectFit:"contain",background:"#0f172a"}}/>}
-      {loading && <div style={{textAlign:"center",color:"#38bdf8",padding:16,fontSize:14}}>⏳ Analisando imagem com IA…</div>}
-      {draft && !draft.error && rev && (
-        <div>
-          {draft.resumo && !draft.resumo.startsWith('{') && !draft.resumo.startsWith('[ERRO') && !draft.resumo.startsWith('[SEM') && (
-            <div style={{background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#7dd3fc"}}>
-              <strong>Resumo IA:</strong> {draft.resumo}
-            </div>
-          )}
-          {draft.dataColeta && (
-            <div style={{background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"#4ade80",display:"flex",alignItems:"center",gap:8}}>
-              📅 <strong>Data/hora de coleta detectada:</strong> {(() => {
-                const [datePart, timePart] = draft.dataColeta.split('T');
-                const [y,m,d] = datePart.split('-');
-                return `${d}/${m}/${y}${timePart ? ` às ${timePart}h` : ''}`;
-              })()} — os valores serão lançados nesta coluna da tabela
-            </div>
-          )}
-          <div style={{fontSize:12,color:"#94a3b8",marginBottom:8,fontFamily:mono}}>REVISÃO — edite se necessário</div>
-          {SISTEMAS.map(s=>(
-            <div key={s} style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"#38bdf8",marginBottom:4,fontFamily:mono}}>{s.toUpperCase()}</div>
-              <textarea value={draft.sistemas?.[s]||""} onChange={e=>setDraft(d=>({...d,sistemas:{...d.sistemas,[s]:e.target.value}}))}
-                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,resize:"vertical",fontFamily:"inherit",minHeight:46,boxSizing:"border-box"}}
-                placeholder={`Dados de ${s}...`}/>
+return (
+<div>
+<div onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} onDragOver={e=>e.preventDefault()} onClick={()=>fileRef.current?.click()}
+style={{ border:“1.5px dashed rgba(56,189,248,0.3)”, borderRadius:12, padding:24, textAlign:“center”, cursor:“pointer”, background:“rgba(56,189,248,0.03)”, marginBottom:16 }}>
+<input ref={fileRef} type=“file” accept=“image/*” style={{display:“none”}} onChange={e=>handleFile(e.target.files[0])}/>
+<div style={{fontSize:28,marginBottom:8}}>📋</div>
+<div style={{color:”#38bdf8”,fontSize:14,fontWeight:600}}>Cole o print com Ctrl+V</div>
+<div style={{color:”#64748b”,fontSize:12,marginTop:6}}>ou arraste · ou clique para selecionar arquivo</div>
+<div style={{marginTop:10,display:“inline-block”,padding:“4px 14px”,borderRadius:20,background:“rgba(56,189,248,0.08)”,border:“1px solid rgba(56,189,248,0.2)”,fontSize:11,color:”#38bdf8”,fontFamily:mono,letterSpacing:1}}>
+CTRL + V  em qualquer momento nesta aba
+</div>
+</div>
+{preview && <img src={preview} alt=“preview” style={{width:“100%”,borderRadius:8,marginBottom:12,maxHeight:180,objectFit:“contain”,background:”#0f172a”}}/>}
+{loading && <div style={{textAlign:“center”,color:”#38bdf8”,padding:16,fontSize:14}}>⏳ Analisando imagem com IA…</div>}
+{draft && !draft.error && rev && (
+<div>
+{draft.resumo && !draft.resumo.startsWith(’{’) && !draft.resumo.startsWith(’[ERRO’) && !draft.resumo.startsWith(’[SEM’) && (
+<div style={{background:“rgba(56,189,248,0.08)”,border:“1px solid rgba(56,189,248,0.2)”,borderRadius:8,padding:“10px 14px”,marginBottom:12,fontSize:13,color:”#7dd3fc”}}>
+<strong>Resumo IA:</strong> {draft.resumo}
+</div>
+)}
+{draft.dataColeta && (
+<div style={{background:“rgba(34,197,94,0.08)”,border:“1px solid rgba(34,197,94,0.25)”,borderRadius:8,padding:“8px 14px”,marginBottom:12,fontSize:12,color:”#4ade80”,display:“flex”,alignItems:“center”,gap:8}}>
+📅 <strong>Data/hora de coleta detectada:</strong> {(() => {
+const [datePart, timePart] = draft.dataColeta.split(‘T’);
+const [y,m,d] = datePart.split(’-’);
+return `${d}/${m}/${y}${timePart ? ` às ${timePart}h` : ''}`;
+})()} — os valores serão lançados nesta coluna da tabela
+</div>
+)}
+<div style={{fontSize:12,color:”#94a3b8”,marginBottom:8,fontFamily:mono}}>REVISÃO — edite se necessário</div>
+{SISTEMAS.map(s=>(
+<div key={s} style={{marginBottom:10}}>
+<div style={{fontSize:11,color:”#38bdf8”,marginBottom:4,fontFamily:mono}}>{s.toUpperCase()}</div>
+<textarea value={draft.sistemas?.[s]||””} onChange={e=>setDraft(d=>({…d,sistemas:{…d.sistemas,[s]:e.target.value}}))}
+style={{width:“100%”,background:“rgba(255,255,255,0.04)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:8,padding:“8px 10px”,color:”#e2e8f0”,fontSize:13,resize:“vertical”,fontFamily:“inherit”,minHeight:46,boxSizing:“border-box”}}
+placeholder={`Dados de ${s}...`}/>
+</div>
+))}
+
+```
+      {/* Exames extras não categorizados */}
+      {(draft.extras||[]).length > 0 && (
+        <div style={{marginTop:4,marginBottom:12,padding:"12px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10}}>
+          <div style={{fontSize:11,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:10}}>⚠️ EXAMES NÃO CATEGORIZADOS — selecione onde lançar</div>
+          {(draft.extras||[]).map((ex,i)=>(
+            <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+              <div style={{flex:2,minWidth:140,fontSize:13,color:"#e2e8f0",fontWeight:600}}>{ex.nome}: <span style={{color:"#fcd34d"}}>{ex.valor}</span></div>
+              <select value={ex.categoria||ex.sugestao||""} onChange={e=>setDraft(d=>({...d,extras:d.extras.map((x,j)=>j===i?{...x,categoria:e.target.value}:x)}))}
+                style={{flex:1,minWidth:160,background:"#1e2a3a",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
+                <option value="" style={{background:"#1e2a3a",color:"#94a3b8"}}>— Ignorar —</option>
+                {SISTEMAS.map(s=><option key={s} value={s} style={{background:"#1e2a3a",color:"#e2e8f0"}}>{s}</option>)}
+              </select>
+      {items.map(t=>(
+        <Card key={t.id} style={{padding:"10px 14px"}}>
+          {/* Linha 1: descrição + valor + remover */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,color:"#f0f0f5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
+              <div style={{fontSize:10,color:"#555",marginTop:1}}>{t.data||""}{t.parcela?` · Parcela ${t.parcela}`:""}</div>
             </div>
           ))}
-
-          {/* Exames extras não categorizados */}
-          {(draft.extras||[]).length > 0 && (
-            <div style={{marginTop:4,marginBottom:12,padding:"12px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10}}>
-              <div style={{fontSize:11,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:10}}>⚠️ EXAMES NÃO CATEGORIZADOS — selecione onde lançar</div>
-              {(draft.extras||[]).map((ex,i)=>(
-                <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
-                  <div style={{flex:2,minWidth:140,fontSize:13,color:"#e2e8f0",fontWeight:600}}>{ex.nome}: <span style={{color:"#fcd34d"}}>{ex.valor}</span></div>
-                  <select value={ex.categoria||ex.sugestao||""} onChange={e=>setDraft(d=>({...d,extras:d.extras.map((x,j)=>j===i?{...x,categoria:e.target.value}:x)}))}
-                    style={{flex:1,minWidth:160,background:"#1e2a3a",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
-                    <option value="" style={{background:"#1e2a3a",color:"#94a3b8"}}>— Ignorar —</option>
-                    {SISTEMAS.map(s=><option key={s} value={s} style={{background:"#1e2a3a",color:"#e2e8f0"}}>{s}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-          )}
-          <button onClick={()=>{onResult(draft);setRev(false);}}
-            style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
-            📊 Confirmar e adicionar à Tabela Clínica
-          </button>
         </div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+              <span className="mono" style={{fontSize:14,color:card.color,fontWeight:600}}>{fmtBRL(t.valor)}</span>
+              <button onClick={()=>remove(t.id)} style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.15)",borderRadius:6,padding:"3px 7px",color:"#f87171",fontSize:11,cursor:"pointer"}}>✕</button>
+            </div>
+          </div>
+          {/* Linha 2: categoria editável */}
+          <div style={{marginTop:8}}>
+            <select value={t.cat||"Outro"} onChange={e=>{
+              const updated=(month.cartoes[activeCard]||[]).map(x=>x.id===t.id?{...x,cat:e.target.value}:x);
+              setMonth({...month,cartoes:{...month.cartoes,[activeCard]:updated}});
+            }} style={{
+              background:`${card.color}11`,border:`1px solid ${card.color}33`,
+              borderRadius:8,padding:"5px 10px",color:card.color,
+              fontSize:11,fontWeight:600,outline:"none",width:"100%",cursor:"pointer",
+            }}>
+              {CATS.map(cat=><option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+        </Card>
+      ))}
+      {showForm&&(
+        <Card style={{borderColor:`${card.color}33`}}>
+          <div style={{fontSize:12,color:card.color,fontWeight:600,marginBottom:10}}>{card.emoji} Novo — {card.label}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <Inp label="Descrição" value={form.desc} onChange={v=>setForm({...form,desc:v})} placeholder="Ex: Supermercado"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Sel label="Categoria" value={form.cat} onChange={v=>setForm({...form,cat:v})} options={CATS}/>
+              <Inp label="Parcela" value={form.parcela} onChange={v=>setForm({...form,parcela:v})} placeholder="Ex: 2/6"/>
+            </div>
+            <Inp label="Valor (R$)" type="number" value={form.valor} onChange={v=>setForm({...form,valor:v})} placeholder="0,00"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+              <Btn outline color="#555" onClick={()=>setShowForm(false)}>Cancelar</Btn>
+              <Btn color={card.color} onClick={add}>Salvar</Btn>
+            </div>
+          </div>
+        </Card>
       )}
-      {draft?.error && <div style={{color:"#f87171",fontSize:13}}>{draft.error}</div>}
+      <button onClick={()=>{onResult(draft);setRev(false);}}
+        style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
+        📊 Confirmar e adicionar à Tabela Clínica
+      <button onClick={()=>setShowForm(!showForm)} style={{padding:"12px",borderRadius:12,border:`1px dashed ${card.color}55`,background:"transparent",color:card.color,fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+        + Adicionar lançamento
+      </button>
+      <div style={{fontSize:10,color:"#1e1e28",textAlign:"center"}}>💡 Envie o extrato PDF/CSV ao Claude para importar automaticamente</div>
     </div>
+  )}
+  {draft?.error && <div style={{color:"#f87171",fontSize:13}}>{draft.error}</div>}
+</div>
+```
+
+);
   );
 }
 
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 // ── Helpers de evolução ───────────────────────────────────────────────────────
-const v = (s) => s?.trim() || "";
+const v = (s) => s?.trim() || “”;
 
 function TA({ fieldRef, defaultValue, placeholder, rows=2, isAntigo=false, fieldName, onBlurSave }) {
-  return (
-    <div style={{position:"relative"}}>
-      <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={placeholder} rows={rows}
-        style={{width:"100%",
-          background: isAntigo ? "rgba(100,116,139,0.08)" : "rgba(255,255,255,0.03)",
-          border: isAntigo ? "1px solid rgba(100,116,139,0.25)" : "1px solid rgba(255,255,255,0.07)",
-          borderRadius:8,padding:"8px 10px",
-          color: isAntigo ? "#64748b" : "#cbd5e1",
-          fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",lineHeight:1.5}}
-        onFocus={e=>e.target.style.borderColor="rgba(56,189,248,0.4)"}
-        onBlur={e=>{
-          e.target.style.borderColor = isAntigo ? "rgba(100,116,139,0.25)" : "rgba(255,255,255,0.07)";
-          if (onBlurSave && fieldName) onBlurSave(fieldName, e.target.value);
-        }}/>
-      {isAntigo && (
-        <span style={{position:"absolute",top:4,right:6,fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:0.5,pointerEvents:"none"}}>
-          dia anterior
-        </span>
-      )}
-    </div>
-  );
+return (
+<div style={{position:“relative”}}>
+<textarea ref={fieldRef} defaultValue={defaultValue||””} placeholder={placeholder} rows={rows}
+style={{width:“100%”,
+background: isAntigo ? “rgba(100,116,139,0.08)” : “rgba(255,255,255,0.03)”,
+border: isAntigo ? “1px solid rgba(100,116,139,0.25)” : “1px solid rgba(255,255,255,0.07)”,
+borderRadius:8,padding:“8px 10px”,
+color: isAntigo ? “#64748b” : “#cbd5e1”,
+fontSize:12,resize:“vertical”,fontFamily:“inherit”,boxSizing:“border-box”,lineHeight:1.5}}
+onFocus={e=>e.target.style.borderColor=“rgba(56,189,248,0.4)”}
+onBlur={e=>{
+e.target.style.borderColor = isAntigo ? “rgba(100,116,139,0.25)” : “rgba(255,255,255,0.07)”;
+if (onBlurSave && fieldName) onBlurSave(fieldName, e.target.value);
+}}/>
+{isAntigo && (
+<span style={{position:“absolute”,top:4,right:6,fontSize:9,color:”#475569”,fontFamily:mono,letterSpacing:0.5,pointerEvents:“none”}}>
+dia anterior
+</span>
+)}
+</div>
+);
 }
 function FLabel({ children }) {
-  return <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
+return <div style={{fontSize:10,color:”#64748b”,fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
 }
 function Row({ children }) {
-  return <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>{children}</div>;
+return <div style={{display:“flex”,gap:8,flexWrap:“wrap”,marginBottom:8}}>{children}</div>;
 }
 function Col({ children, flex=1, min=120 }) {
-  return <div style={{flex,minWidth:min}}>{children}</div>;
+return <div style={{flex,minWidth:min}}>{children}</div>;
 }
 
 // Bloco de sistema com preview corrido + botão copiar individual
-function SysBlock({ sigla, label, color="#38bdf8", preview, children }) {
-  const [open,     setOpen]     = useState(true);
-  const [copiado,  setCopiado]  = useState(false);
+function SysBlock({ sigla, label, color=”#38bdf8”, preview, children }) {
+const [open,     setOpen]     = useState(true);
+const [copiado,  setCopiado]  = useState(false);
 
-  const copiarBloco = () => {
-    if (!preview?.trim()) return;
-    navigator.clipboard.writeText(preview.trim());
-    setCopiado(true);
-    setTimeout(()=>setCopiado(false), 2000);
+const copiarBloco = () => {
+if (!preview?.trim()) return;
+navigator.clipboard.writeText(preview.trim());
+setCopiado(true);
+setTimeout(()=>setCopiado(false), 2000);
+};
+
+return (
+<div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:10,overflow:“hidden”}}>
+{/* Header */}
+<div style={{display:“flex”,alignItems:“center”,background:“rgba(255,255,255,0.03)”}}>
+<button onClick={()=>setOpen(o=>!o)} style={{
+flex:1,display:“flex”,alignItems:“center”,gap:8,padding:“10px 14px”,
+background:“none”,border:“none”,cursor:“pointer”,textAlign:“left”,
+}}>
+<div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
+<span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
+<span style={{fontSize:12,color:”#475569”,fontWeight:400}}>{label}</span>
+<span style={{marginLeft:“auto”,color:”#475569”,fontSize:11}}>{open?“▲”:“▼”}</span>
+</button>
+{/* Botão copiar do bloco */}
+<button onClick={copiarBloco} disabled={!preview?.trim()} style={{
+margin:“6px 10px”, padding:“4px 12px”, borderRadius:6, fontSize:11, fontWeight:600,
+background: copiado?“rgba(34,197,94,0.15)”:“rgba(255,255,255,0.05)”,
+border:`1px solid ${copiado?"#22c55e":preview?.trim()?"rgba(255,255,255,0.12)":"rgba(255,255,255,0.05)"}`,
+color: copiado?”#22c55e”:preview?.trim()?”#94a3b8”:”#334155”,
+cursor: preview?.trim()?“pointer”:“default”, whiteSpace:“nowrap”, fontFamily:“inherit”,
+}}>
+{copiado ? “✓ Copiado” : “📋 Copiar”}
+</button>
+</div>
+
+```
+  {open && (
+    <div style={{borderTop:"1px solid rgba(255,255,255,0.05)"}}>
+      {/* Campos de entrada */}
+      <div style={{padding:"12px 14px"}}>{children}</div>
+
+      {/* Preview do texto corrido */}
+      {preview?.trim() && (
+        <div style={{
+          margin:"0 14px 14px",padding:"10px 12px",
+          background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.06)",
+          borderRadius:8,
+        }}>
+          <div style={{fontSize:9,color:"#334155",fontFamily:mono,letterSpacing:1.5,marginBottom:6}}>PRÉ-VISUALIZAÇÃO — texto que será colado no Tasy</div>
+          <pre style={{margin:0,fontSize:12,color:"#94a3b8",fontFamily:"inherit",whiteSpace:"pre-wrap",lineHeight:1.6}}>{preview.trim()}</pre>
+        </div>
+function PixView({month,setMonth}) {
+  const [showForm,setShowForm]=useState(false);
+  const [form,setForm]=useState({desc:"",cat:CATS[0],data:today(),banco:"Inter",valor:""});
+  const total=(month.variaveis||[]).reduce((s,p)=>s+Number(p.valor||0),0);
+  const onPdfSelect=e=>{
+    const f=e.target.files?.[0];
+    if(f&&f.type==="application/pdf"){setPdfFile(f);setPdfPreview([]);}
   };
 
+  const RULES_CAT = [
+    [["market4u","carrefour","assai","padaria","panificadora","piriquito","hortifruti","atacadao","pao de acucar","supermercado","minuto pa"],"Mercado"],
+    [["sampa cafe","oxxo","hamburger","osnir","mani ","cantina","churrascaria","restaurante","lanchonete","pizza","delta quality","cafe ","lanche"],"Comer fora"],
+    [["ifd*","ifood","rappi","zee now","delivery"],"Delivery"],
+    [["paypal *uber","uber br","uber do brasi","uber ","99app"],"Uber"],
+    [["sem parar","estacionamento","blz estacion","posto ","auto posto","shellbox","intertag","combustivel"],"Carro"],
+    [["applecombill","netflix","amazon kindle","google one","youtube","disney","mubi","openai","timeleft","granazen","viki","paypal *google","paypal *disney","spotify","conta vivo","vivo ","deezer","apple "],"Apps"],
+    [["drogaria","farmacia","droga raia","drogasil"],"Farmácia"],
+    [["smartfit","academia","n2b nutri","med park","hospital","clinica","amib","associacao paulista","uhuu"],"Saúde"],
+    [["francisco lourenco","campea admin","danielle carvalho","peri construcoes","ana gomes","elizabeth lopes","faxin","condominio","energia"],"Casa"],
+    [["conselho reg","conselho regional","medicina do estado","associacao de medicina","contabilizeasy","governo do parana","caixa economica federal","pagar me"],"Empresa"],
+    [["mercadolivre","shopee","netshoes","redvirtua","maxspeed","grupo elite","americanas","magazine","amazon "],"Compras"],
+    [["zig*","candeia","mikael","cinema","teatro","show ","evento","ingresso"],"Lazer"],
+    [["zee dog","petshop","pet ","racao","veterinario"],"Pet"],
+    [["iof "],"Impostos"],
+    [["carolina rodrigues"],"Família/Presentes"],
+  ];
+  const categorizarLocal=desc=>{
+    const d=(desc||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    for(const [keys,cat] of RULES_CAT) if(keys.some(k=>d.includes(k))) return cat;
+    return "Outro";
+  };
+
+  const processPdf=async()=>{
+    if(!pdfFile){ pdfInputRef.current?.click(); return; }
+    setPdfProcessing(true); setPdfMsg("Lendo o PDF...");
+    try{
+      const base64=await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=()=>res(r.result.split(",")[1]);
+        r.onerror=()=>rej(new Error("Falha ao ler"));
+        r.readAsDataURL(pdfFile);
+      });
+      setPdfMsg("Claude analisando a fatura...");
+      const prompt=`Analise esta fatura do cartão ${card.label} e extraia os lançamentos de compras.
+IGNORE: PAGTO DEBITO AUTOMATICO, créditos/estornos (com "+"), IOF INTERNACIONAL isolado, encargos/juros/multas, seção "Fatura anterior", seção "Recebidos".
+Para cada compra extraia: {"desc":"nome limpo","valor":0.00,"parcela":"X/Y ou vazio","data":"DD/MM/YYYY"}
+Limpe os nomes: remova "MLP*","IFD*","PAYPAL *","MARKET4U*COMPRA*123456". Market4U sem nome = "Mercado (Market4U)".
+Retorne SOMENTE o array JSON.`;
+      const res=await fetch("/api/claude",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-haiku-4-5-20251001",
+          max_tokens:4000,
+          messages:[{role:"user",content:[
+            {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
+            {type:"text",text:prompt}
+          ]}]
+        })
+      });
+      if(!res.ok) throw new Error(`API error ${res.status}`);
+      const data=await res.json();
+      const txt=data.content?.map(b=>b.text||"").join("")||"";
+      const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+      const comCat=parsed.map(t=>({...t,valor:Number(t.valor||0),cat:categorizarLocal(t.desc),id:Date.now()+Math.random()}));
+      setPdfPreview(comCat);
+      setPdfMsg("");
+    }catch(e){
+      setImportMsg({ok:false,txt:"Erro ao processar PDF: "+e.message});
+      setShowPdfUpload(false);
+    }finally{
+      setPdfProcessing(false);
+    }
+  };
+
+  const confirmPdfImport=()=>{
+    const cartaoAlvo=activeCard;
+    const novos=[...(month.cartoes[cartaoAlvo]||[]),...pdfPreview];
+    setMonth({...month,cartoes:{...month.cartoes,[cartaoAlvo]:novos}});
+    setImportMsg({ok:true,txt:`✓ ${pdfPreview.length} lançamentos importados para ${card.label} · ${fmtBRL(pdfPreview.reduce((s,t)=>s+t.valor,0))}`});
+    setShowPdfUpload(false); setPdfFile(null); setPdfPreview([]);
+  };
+
+  const add=()=>{
+    if(!form.desc||!form.valor) return;
+    setMonth({...month,variaveis:[...(month.variaveis||[]),{...form,valor:Number(form.valor),id:Date.now()}]});
+    setForm({desc:"",cat:CATS[0],data:today(),banco:"Inter",valor:""});
+    setShowForm(false);
+  };
   return (
-    <div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:10,overflow:"hidden"}}>
-      {/* Header */}
-      <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
-        <button onClick={()=>setOpen(o=>!o)} style={{
-          flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",
-          background:"none",border:"none",cursor:"pointer",textAlign:"left",
-        }}>
-          <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
-          <span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
-          <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
-          <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
-        </button>
-        {/* Botão copiar do bloco */}
-        <button onClick={copiarBloco} disabled={!preview?.trim()} style={{
-          margin:"6px 10px", padding:"4px 12px", borderRadius:6, fontSize:11, fontWeight:600,
-          background: copiado?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.05)",
-          border:`1px solid ${copiado?"#22c55e":preview?.trim()?"rgba(255,255,255,0.12)":"rgba(255,255,255,0.05)"}`,
-          color: copiado?"#22c55e":preview?.trim()?"#94a3b8":"#334155",
-          cursor: preview?.trim()?"pointer":"default", whiteSpace:"nowrap", fontFamily:"inherit",
-        }}>
-          {copiado ? "✓ Copiado" : "📋 Copiar"}
-        </button>
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <Card style={{background:"rgba(34,211,238,.05)",borderColor:"rgba(34,211,238,.15)"}}>
+        <div style={{fontSize:10,color:"#666"}}>Total Pix / Variáveis</div>
+        <div className="mono" style={{fontSize:24,color:"#22d3ee",fontWeight:600}}>{fmtBRL(total)}</div>
+      </Card>
+      {(month.variaveis||[]).map(p=>(
+        <Card key={p.id} style={{padding:"10px 14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,color:"#f0f0f5"}}>{p.desc}</div>
+              <div style={{fontSize:11,color:"#444"}}>{p.cat} · {p.banco} · {p.data}</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:8,flexShrink:0}}>
+              <span className="mono" style={{fontSize:14,color:"#22d3ee",fontWeight:500}}>{fmtBRL(p.valor)}</span>
+              <button onClick={()=>setMonth({...month,variaveis:(month.variaveis||[]).filter(x=>x.id!==p.id)})} style={{background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.15)",borderRadius:6,padding:"3px 7px",color:"#f87171",fontSize:11,cursor:"pointer"}}>✕</button>
+            </div>
+          </div>
+        </Card>
+      ))}
+      {showForm&&(
+        <Card style={{borderColor:"rgba(34,211,238,.2)"}}>
+          <div style={{fontSize:12,color:"#22d3ee",fontWeight:600,marginBottom:10}}>📱 Novo Pix / Variável</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <Inp label="Descrição" value={form.desc} onChange={v=>setForm({...form,desc:v})} placeholder="Ex: Farmácia"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Sel label="Categoria" value={form.cat} onChange={v=>setForm({...form,cat:v})} options={CATS}/>
+              <Sel label="Banco" value={form.banco} onChange={v=>setForm({...form,banco:v})} options={["Inter","Itaú","Will","Outro"]}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Inp label="Data" type="date" value={form.data} onChange={v=>setForm({...form,data:v})}/>
+              <Inp label="Valor (R$)" type="number" value={form.valor} onChange={v=>setForm({...form,valor:v})} placeholder="0,00"/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+              <Btn outline color="#555" onClick={()=>setShowForm(false)}>Cancelar</Btn>
+              <Btn color="#22d3ee" onClick={add} style={{color:"#0a0a0f"}}>Salvar</Btn>
+            </div>
+          </div>
+        </Card>
+      )}
+      <button onClick={()=>setShowForm(!showForm)} style={{padding:"12px",borderRadius:12,border:"1px dashed rgba(34,211,238,.35)",background:"transparent",color:"#22d3ee",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+        + Adicionar pagamento
+      </button>
+    </div>
+  )}
+</div>
+```
+  );
+}
+
+);
+function InvestView({month,setMonth}) {
+  const upd=(id,f,v)=>setMonth({...month,investimentos:month.investimentos.map(i=>i.id===id?{...i,[f]:Number(v)||0}:i)});
+  const totalApl=month.investimentos.reduce((s,i)=>s+Number(i.aplicado||0),0);
+  const totalAtu=month.investimentos.reduce((s,i)=>s+Number(i.atual||0),0);
+  const rend=totalAtu-totalApl;
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Card style={{background:"rgba(167,139,250,.05)",borderColor:"rgba(167,139,250,.15)"}}>
+          <div style={{fontSize:10,color:"#666"}}>Total Aplicado</div>
+          <div className="mono" style={{fontSize:18,color:"#a78bfa",fontWeight:600}}>{fmtBRL(totalApl)}</div>
+        </Card>
+        <Card style={{background:rend>=0?"rgba(74,222,128,.05)":"rgba(239,68,68,.05)",borderColor:rend>=0?"rgba(74,222,128,.15)":"rgba(239,68,68,.15)"}}>
+          <div style={{fontSize:10,color:"#666"}}>Rendimento Mês</div>
+          <div className="mono" style={{fontSize:18,color:rend>=0?"#4ade80":"#f87171",fontWeight:600}}>{fmtBRL(rend)}</div>
+        </Card>
       </div>
-
-      {open && (
-        <div style={{borderTop:"1px solid rgba(255,255,255,0.05)"}}>
-          {/* Campos de entrada */}
-          <div style={{padding:"12px 14px"}}>{children}</div>
-
-          {/* Preview do texto corrido */}
-          {preview?.trim() && (
-            <div style={{
-              margin:"0 14px 14px",padding:"10px 12px",
-              background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.06)",
-              borderRadius:8,
-            }}>
-              <div style={{fontSize:9,color:"#334155",fontFamily:mono,letterSpacing:1.5,marginBottom:6}}>PRÉ-VISUALIZAÇÃO — texto que será colado no Tasy</div>
-              <pre style={{margin:0,fontSize:12,color:"#94a3b8",fontFamily:"inherit",whiteSpace:"pre-wrap",lineHeight:1.6}}>{preview.trim()}</pre>
+      {month.investimentos.map(inv=>(
+        <Card key={inv.id}>
+          <div style={{fontSize:13,fontWeight:600,color:"#a78bfa",marginBottom:8}}>{inv.produto}<span style={{fontSize:10,color:"#444",fontWeight:400,marginLeft:6}}>{inv.tipo}</span></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <Inp label="Valor Aplicado" type="number" value={inv.aplicado||""} onChange={v=>upd(inv.id,"aplicado",v)} placeholder="0,00"/>
+            <Inp label="Valor Atual" type="number" value={inv.atual||""} onChange={v=>upd(inv.id,"atual",v)} placeholder="0,00"/>
+          </div>
+          {inv.aplicado>0&&(
+            <div style={{marginTop:8,padding:"7px 10px",borderRadius:8,background:inv.atual>=inv.aplicado?"rgba(74,222,128,.07)":"rgba(239,68,68,.07)",display:"flex",justifyContent:"space-between"}}>
+              <span style={{fontSize:12,color:"#555"}}>Rendimento</span>
+              <span className="mono" style={{fontSize:13,fontWeight:600,color:inv.atual>=inv.aplicado?"#4ade80":"#f87171"}}>{fmtBRL(inv.atual-inv.aplicado)} ({((inv.atual-inv.aplicado)/inv.aplicado*100).toFixed(1)}%)</span>
             </div>
           )}
-        </div>
-      )}
+        </Card>
+      ))}
     </div>
   );
 }
 
 // ── ConfigPanel ───────────────────────────────────────────────────────────────
 const DISP_CONFIG_ITEMS = [
-  { key:"alertaCVC",    label:"Cateter Venoso Central",    icone:"🩸" },
-  { key:"alertaPAI",    label:"Cateter Arterial (PAI)",    icone:"📈" },
-  { key:"alertaSVD",    label:"Sonda Vesical de Demora",   icone:"💧" },
-  { key:"alertaDialise",label:"Cateter de Diálise",        icone:"🔴" },
-  { key:"alertaTOT",    label:"Tubo Orotraqueal (TOT)",    icone:"🫁" },
-  { key:"alertaTQT",    label:"Traqueostomia (TQT)",       icone:"🫁" },
-  { key:"alertaSNG",    label:"Sonda Naso/Nasoenteral",    icone:"🔧" },
-  { key:"alertaDreno",  label:"Dreno",                     icone:"🏥" },
+{ key:“alertaCVC”,    label:“Cateter Venoso Central”,    icone:“🩸” },
+{ key:“alertaPAI”,    label:“Cateter Arterial (PAI)”,    icone:“📈” },
+{ key:“alertaSVD”,    label:“Sonda Vesical de Demora”,   icone:“💧” },
+{ key:“alertaDialise”,label:“Cateter de Diálise”,        icone:“🔴” },
+{ key:“alertaTOT”,    label:“Tubo Orotraqueal (TOT)”,    icone:“🫁” },
+{ key:“alertaTQT”,    label:“Traqueostomia (TQT)”,       icone:“🫁” },
+{ key:“alertaSNG”,    label:“Sonda Naso/Nasoenteral”,    icone:“🔧” },
+{ key:“alertaDreno”,  label:“Dreno”,                     icone:“🏥” },
 ];
 
 function ConfigPanel({ config, onChange, onVoltar }) {
-  const upd = (key, val) => onChange({...config, [key]: parseInt(val)||0});
+const upd = (key, val) => onChange({…config, [key]: parseInt(val)||0});
+
+return (
+<div style={{maxWidth:560}}>
+<div style={{display:“flex”,alignItems:“center”,gap:12,marginBottom:20}}>
+<button onClick={onVoltar} style={{background:“rgba(255,255,255,0.04)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:8,color:”#64748b”,cursor:“pointer”,fontSize:12,padding:“6px 12px”}}>← Voltar</button>
+<div>
+<div style={{fontSize:15,fontWeight:700}}>⚙️ Configurações</div>
+<div style={{fontSize:12,color:”#64748b”}}>Personalize os alertas de revisão de dispositivos invasivos</div>
+</div>
+</div>
+
+```
+  <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
+    <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
+      <div style={{fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:2}}>ALERTAS DE DISPOSITIVOS (dias)</div>
+      <div style={{fontSize:11,color:"#64748b",marginTop:2}}>O dispositivo ficará vermelho ⚠️ após este número de dias</div>
+    </div>
+    {DISP_CONFIG_ITEMS.map(({key,label,icone})=>(
+      <div key={key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+        <span style={{fontSize:18,width:24}}>{icone}</span>
+        <div style={{flex:1,fontSize:13,color:"#cbd5e1"}}>{label}</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <button onClick={()=>upd(key,Math.max(1,(config[key]||7)-1))} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+          <div style={{textAlign:"center",minWidth:60}}>
+            <div style={{fontSize:18,fontWeight:700,color:"#38bdf8",fontFamily:mono}}>{config[key]||7}</div>
+            <div style={{fontSize:10,color:"#475569",fontFamily:mono}}>{(config[key]||7)===99?"sem limite":"dias"}</div>
+          </div>
+          <button onClick={()=>upd(key,Math.min(99,(config[key]||7)+1))} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+        </div>
+        {config[key]===99 && <span style={{fontSize:10,color:"#475569",fontFamily:mono}}>∞</span>}
+function AnáliseView({month, mesKey, setMonth}) {
+  const [catSel, setCatSel] = useState(null);
+  const [visao, setVisao] = useState("mes"); // "mes" | "anual"
+  const [allMonths, setAllMonths] = useState({});
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [catAnual, setCatAnual] = useState(null);
+
+  const CORES_CAT = {
+    "Mercado":"#4ade80","Comer fora":"#f97316","Delivery":"#fb923c",
+    "Carro":"#94a3b8","Uber":"#64748b","Farmácia":"#f87171",
+    "Empresa":"#818cf8","Casa":"#a78bfa","Apps":"#22d3ee",
+    "Lazer":"#fbbf24","Compras":"#e879f9","Pet":"#86efac",
+    "Família/Presentes":"#f9a8d4","Impostos":"#6b7280",
+    "Educação":"#34d399","Viagem":"#38bdf8","Outro":"#475569","Saúde":"#4ade80",
+  };
+
+  const TAGS = [
+    {id:"indispensavel", label:"✓ Indispensável", color:"#4ade80", bg:"rgba(74,222,128,.12)"},
+    {id:"evitavel",      label:"✗ Evitável",      color:"#f87171", bg:"rgba(239,68,68,.12)"},
+    {id:"indefinido",    label:"? Indefinido",    color:"#fbbf24", bg:"rgba(251,191,36,.12)"},
+  ];
+
+  useEffect(()=>{
+    const [y,m] = mesKey.split("-").map(Number);
+    const keys = [];
+    for(let i=0;i<12;i++){
+      const d = new Date(y, m-1-i, 1);
+      keys.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);
+    }
+    Promise.all(keys.map(k=>load(`month:${k}`).then(d=>({k,d})))).then(results=>{
+      const map = {};
+      results.forEach(({k,d})=>{ if(d) map[k]=d; });
+      map[mesKey] = month;
+      setAllMonths(map);
+      setLoadingHistory(false);
+    });
+  },[mesKey]);
+
+  // Atualiza tag de um lançamento
+  const setTag = (lancId, tag) => {
+    const novoCartoes = {};
+    for(const [k,arr] of Object.entries(month.cartoes||{})) {
+      novoCartoes[k] = arr.map(t => t.id===lancId ? {...t, tag} : t);
+    }
+    const novasVar = (month.variaveis||[]).map(t => t.id===lancId ? {...t, tag} : t);
+    setMonth({...month, cartoes:novoCartoes, variaveis:novasVar});
+  };
+
+  const todosAtual = [
+    ...Object.values(month.cartoes||{}).flat(),
+    ...(month.variaveis||[]),
+  ];
+  const catTotaisAtual = {};
+  todosAtual.forEach(t=>{ catTotaisAtual[t.cat]=(catTotaisAtual[t.cat]||0)+Number(t.valor||0); });
+  const sortedAtual = Object.entries(catTotaisAtual).sort((a,b)=>b[1]-a[1]);
+  const grandTotal = sortedAtual.reduce((s,[,v])=>s+v, 0);
+
+  const fixT  = (month.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  const carT  = Object.values(month.cartoes||{}).flat().reduce((s,t)=>s+Number(t.valor||0),0);
+  const varT  = (month.variaveis||[]).reduce((s,p)=>s+Number(p.valor||0),0);
+  const recT  = (month.plantoes||[]).filter(p=>p.ativo!==false).reduce((s,p)=>s+(p.horas*p.valorH),0)
+              + Number(month.bolsa||0) + Number(month.auxilio||0)
+              + (month.receitasExtra||[]).reduce((s,r)=>s+Number(r.valor||0),0);
+  const totalDesp = fixT+carT+varT;
+  const saldo = recT - totalDesp;
+
+  // Economia potencial (evitáveis)
+  const evitavel = todosAtual.filter(t=>t.tag==="evitavel").reduce((s,t)=>s+Number(t.valor||0),0);
+  const semTag = todosAtual.filter(t=>!t.tag).length;
+
+  // Lançamentos da categoria selecionada
+  const lancCatSel = catSel ? todosAtual.filter(t=>t.cat===catSel).sort((a,b)=>Number(b.valor||0)-Number(a.valor||0)) : [];
+
+  // Anual
+  const mesesOrdenados = Object.keys(allMonths).sort();
+  const mesesLabel2 = mesesOrdenados.map(k=>{
+    const [y,m]=k.split("-");
+    return `${MESES[+m-1]}/${String(y).slice(-2)}`;
+  });
+  const getRecT = md => {
+    if(!md) return 0;
+    return (md.plantoes||[]).filter(p=>p.ativo!==false).reduce((s,p)=>s+(p.horas*p.valorH),0)
+      + Number(md.bolsa||0) + Number(md.auxilio||0)
+      + (md.receitasExtra||[]).reduce((s,r)=>s+Number(r.valor||0),0);
+  };
+  const getDespT = md => {
+    if(!md) return 0;
+    return (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0)
+      + Object.values(md.cartoes||{}).flat().reduce((s,t)=>s+Number(t.valor||0),0)
+      + (md.variaveis||[]).reduce((s,p)=>s+Number(p.valor||0),0);
+  };
+  const receitasMeses = mesesOrdenados.map(k=>getRecT(allMonths[k]));
+  const despesasMeses = mesesOrdenados.map(k=>getDespT(allMonths[k]));
+  const saldosMeses   = mesesOrdenados.map((k,i)=>receitasMeses[i]-despesasMeses[i]);
+  const maxBar = Math.max(...receitasMeses,...despesasMeses,1);
+
+  const todasCatsAnual = new Set();
+  Object.values(allMonths).forEach(md=>{
+    [...Object.values(md?.cartoes||{}).flat(),...(md?.variaveis||[])].forEach(t=>{ if(t.cat) todasCatsAnual.add(t.cat); });
+  });
+  const catDados = catAnual ? mesesOrdenados.map(k=>{
+    const md=allMonths[k]; if(!md) return 0;
+    return [...Object.values(md.cartoes||{}).flat(),...(md.variaveis||[])].filter(t=>t.cat===catAnual).reduce((s,t)=>s+Number(t.valor||0),0);
+  }) : [];
+  const maxCat = Math.max(...catDados,1);
+
+  const mesLabelAtual = mesLabel(mesKey);
 
   return (
-    <div style={{maxWidth:560}}>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-        <button onClick={onVoltar} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",cursor:"pointer",fontSize:12,padding:"6px 12px"}}>← Voltar</button>
-        <div>
-          <div style={{fontSize:15,fontWeight:700}}>⚙️ Configurações</div>
-          <div style={{fontSize:12,color:"#64748b"}}>Personalize os alertas de revisão de dispositivos invasivos</div>
-        </div>
-      </div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
-      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
-        <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
-          <div style={{fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:2}}>ALERTAS DE DISPOSITIVOS (dias)</div>
-          <div style={{fontSize:11,color:"#64748b",marginTop:2}}>O dispositivo ficará vermelho ⚠️ após este número de dias</div>
-        </div>
-        {DISP_CONFIG_ITEMS.map(({key,label,icone})=>(
-          <div key={key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-            <span style={{fontSize:18,width:24}}>{icone}</span>
-            <div style={{flex:1,fontSize:13,color:"#cbd5e1"}}>{label}</div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <button onClick={()=>upd(key,Math.max(1,(config[key]||7)-1))} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
-              <div style={{textAlign:"center",minWidth:60}}>
-                <div style={{fontSize:18,fontWeight:700,color:"#38bdf8",fontFamily:mono}}>{config[key]||7}</div>
-                <div style={{fontSize:10,color:"#475569",fontFamily:mono}}>{(config[key]||7)===99?"sem limite":"dias"}</div>
-              </div>
-              <button onClick={()=>upd(key,Math.min(99,(config[key]||7)+1))} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
-            </div>
-            {config[key]===99 && <span style={{fontSize:10,color:"#475569",fontFamily:mono}}>∞</span>}
-          </div>
+      {/* Toggle Mês / Anual */}
+      <div style={{display:"flex",gap:4,background:"rgba(255,255,255,.04)",borderRadius:12,padding:4}}>
+        {[["mes","📅 Mês"],["anual","📊 Anual"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setVisao(v)} style={{
+            flex:1,padding:"8px",borderRadius:9,border:"none",
+            background:visao===v?"rgba(124,106,247,.3)":"transparent",
+            color:visao===v?"#a89cf7":"#444",fontSize:13,fontWeight:600,cursor:"pointer"
+          }}>{l}</button>
         ))}
       </div>
+    ))}
+  </div>
 
-      <div style={{marginTop:12,padding:"10px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,fontSize:12,color:"#fcd34d"}}>
-        💡 Dica: para dispositivos sem limite de troca (TOT, TQT), deixe em 99 dias — o alerta não será disparado.
-      </div>
-    </div>
-  );
+  <div style={{marginTop:12,padding:"10px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,fontSize:12,color:"#fcd34d"}}>
+    💡 Dica: para dispositivos sem limite de troca (TOT, TQT), deixe em 99 dias — o alerta não será disparado.
+  </div>
+</div>
+```
+
+);
 }
+      {visao==="mes"&&<>
+        {/* Balanço */}
+        <Card style={{padding:"12px"}}>
+          <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,marginBottom:10}}>
+            Balanço — {mesLabelAtual}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10}}>
+            {[["Receita",recT,"#4ade80"],["Despesas",totalDesp,"#f87171"],["Saldo",saldo,saldo>=0?"#4ade80":"#f87171"]].map(([l,v,cor])=>(
+              <div key={l} style={{textAlign:"center",background:"rgba(255,255,255,.03)",borderRadius:10,padding:"8px 4px"}}>
+                <div style={{fontSize:9,color:"#444",textTransform:"uppercase",letterSpacing:.6}}>{l}</div>
+                <div className="mono" style={{fontSize:13,fontWeight:600,color:cor,marginTop:3}}>{fmtBRL(v)}</div>
+              </div>
+            ))}
+          </div>
+          {recT>0&&(
+            <>
+              <div style={{height:5,borderRadius:3,background:"rgba(255,255,255,.06)",overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${Math.min(totalDesp/recT*100,100)}%`,background:saldo>=0?"#f97316":"#f87171",borderRadius:3}}/>
+              </div>
+              <div style={{fontSize:10,color:"#444",marginTop:4,textAlign:"right"}}>
+                {(totalDesp/recT*100).toFixed(0)}% da receita comprometida
+              </div>
+            </>
+          )}
+        </Card>
 
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
 const GRUPOS_LAB = [
-  { grupo:"🩸 Hematológico", params:[
-    {key:"hb",    label:"Hemoglobina",      unit:"g/dL"},
-    {key:"ht",    label:"Hematócrito",      unit:"%"},
-    {key:"leuco", label:"Leucócitos",       unit:"mil/mm³"},
-    {key:"neut",  label:"Neutrófilos",      unit:"%"},
-    {key:"bast",  label:"Bastões",          unit:"%"},
-    {key:"linf",  label:"Linfócitos",       unit:"%"},
-    {key:"plaq",  label:"Plaquetas",        unit:"mil/mm³"},
-    {key:"rni",   label:"RNI",              unit:""},
-    {key:"ttpa",  label:"TTPA",             unit:"s"},
-    {key:"fibri", label:"Fibrinogênio",     unit:"mg/dL"},
-  ]},
-  { grupo:"🫘 Renal / Metabólico", params:[
-    {key:"cr",    label:"Creatinina",       unit:"mg/dL"},
-    {key:"ur",    label:"Ureia",            unit:"mg/dL"},
-    {key:"na",    label:"Sódio",            unit:"mEq/L"},
-    {key:"k",     label:"Potássio",         unit:"mEq/L"},
-    {key:"mg",    label:"Magnésio",         unit:"mg/dL"},
-    {key:"cai",   label:"Cálcio iônico",    unit:"mmol/L"},
-    {key:"p",     label:"Fósforo",          unit:"mg/dL"},
-    {key:"ph",    label:"pH",               unit:""},
-    {key:"hco3",  label:"HCO3",             unit:"mEq/L"},
-  ]},
-  { grupo:"❤️ Cardiovascular", params:[
-    {key:"trop",  label:"Troponina",        unit:"ng/mL"},
-    {key:"bnp",   label:"BNP",              unit:"pg/mL"},
-    {key:"ntpro", label:"NT-proBNP",        unit:"pg/mL"},
-    {key:"be",    label:"BE",               unit:"mEq/L"},
-    {key:"lact",  label:"Lactato",          unit:"mmol/L"},
-  ]},
-  { grupo:"🫁 Respiratório", params:[
-    {key:"po2",   label:"pO2",              unit:"mmHg"},
-    {key:"pco2",  label:"pCO2",             unit:"mmHg"},
-  ]},
-  { grupo:"🫀 TGI / Hepático", params:[
-    {key:"tgo",   label:"TGO (AST)",        unit:"U/L"},
-    {key:"tgp",   label:"TGP (ALT)",        unit:"U/L"},
-    {key:"bttot", label:"Bili. Total",      unit:"mg/dL"},
-    {key:"btdir", label:"Bili. Direta",     unit:"mg/dL"},
-    {key:"btind", label:"Bili. Indireta",   unit:"mg/dL"},
-    {key:"falc",  label:"Fosf. Alcalina",   unit:"U/L"},
-    {key:"ggt",   label:"Gama-GT",          unit:"U/L"},
-    {key:"alb",   label:"Albumina",         unit:"g/dL"},
-  ]},
-  { grupo:"💧 Controles 24h", params:[
-    {key:"diur",  label:"Diurese",          unit:"mL"},
-    {key:"bh",    label:"Balanço Hídrico",  unit:"mL"},
-    {key:"dreno1",label:"Dreno 1",          unit:"mL"},
-    {key:"dreno2",label:"Dreno 2",          unit:"mL"},
-    {key:"dreno3",label:"Dreno 3",          unit:"mL"},
-    {key:"evac",  label:"Evacuações",       unit:"x/dia"},
-  ]},
+{ grupo:“🩸 Hematológico”, params:[
+{key:“hb”,    label:“Hemoglobina”,      unit:“g/dL”},
+{key:“ht”,    label:“Hematócrito”,      unit:”%”},
+{key:“leuco”, label:“Leucócitos”,       unit:“mil/mm³”},
+{key:“neut”,  label:“Neutrófilos”,      unit:”%”},
+{key:“bast”,  label:“Bastões”,          unit:”%”},
+{key:“linf”,  label:“Linfócitos”,       unit:”%”},
+{key:“plaq”,  label:“Plaquetas”,        unit:“mil/mm³”},
+{key:“rni”,   label:“RNI”,              unit:””},
+{key:“ttpa”,  label:“TTPA”,             unit:“s”},
+{key:“fibri”, label:“Fibrinogênio”,     unit:“mg/dL”},
+]},
+{ grupo:“🫘 Renal / Metabólico”, params:[
+{key:“cr”,    label:“Creatinina”,       unit:“mg/dL”},
+{key:“ur”,    label:“Ureia”,            unit:“mg/dL”},
+{key:“na”,    label:“Sódio”,            unit:“mEq/L”},
+{key:“k”,     label:“Potássio”,         unit:“mEq/L”},
+{key:“mg”,    label:“Magnésio”,         unit:“mg/dL”},
+{key:“cai”,   label:“Cálcio iônico”,    unit:“mmol/L”},
+{key:“p”,     label:“Fósforo”,          unit:“mg/dL”},
+{key:“ph”,    label:“pH”,               unit:””},
+{key:“hco3”,  label:“HCO3”,             unit:“mEq/L”},
+]},
+{ grupo:“❤️ Cardiovascular”, params:[
+{key:“trop”,  label:“Troponina”,        unit:“ng/mL”},
+{key:“bnp”,   label:“BNP”,              unit:“pg/mL”},
+{key:“ntpro”, label:“NT-proBNP”,        unit:“pg/mL”},
+{key:“be”,    label:“BE”,               unit:“mEq/L”},
+{key:“lact”,  label:“Lactato”,          unit:“mmol/L”},
+]},
+{ grupo:“🫁 Respiratório”, params:[
+{key:“po2”,   label:“pO2”,              unit:“mmHg”},
+{key:“pco2”,  label:“pCO2”,             unit:“mmHg”},
+]},
+{ grupo:“🫀 TGI / Hepático”, params:[
+{key:“tgo”,   label:“TGO (AST)”,        unit:“U/L”},
+{key:“tgp”,   label:“TGP (ALT)”,        unit:“U/L”},
+{key:“bttot”, label:“Bili. Total”,      unit:“mg/dL”},
+{key:“btdir”, label:“Bili. Direta”,     unit:“mg/dL”},
+{key:“btind”, label:“Bili. Indireta”,   unit:“mg/dL”},
+{key:“falc”,  label:“Fosf. Alcalina”,   unit:“U/L”},
+{key:“ggt”,   label:“Gama-GT”,          unit:“U/L”},
+{key:“alb”,   label:“Albumina”,         unit:“g/dL”},
+]},
+{ grupo:“💧 Controles 24h”, params:[
+{key:“diur”,  label:“Diurese”,          unit:“mL”},
+{key:“bh”,    label:“Balanço Hídrico”,  unit:“mL”},
+{key:“dreno1”,label:“Dreno 1”,          unit:“mL”},
+{key:“dreno2”,label:“Dreno 2”,          unit:“mL”},
+{key:“dreno3”,label:“Dreno 3”,          unit:“mL”},
+{key:“evac”,  label:“Evacuações”,       unit:“x/dia”},
+]},
 ];
+        {/* Economia potencial */}
+        {(evitavel>0||semTag>0)&&(
+          <Card style={{borderColor:"rgba(251,191,36,.2)"}}>
+            <div style={{fontSize:10,color:"#fbbf24",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,marginBottom:8}}>
+              💡 Análise de gastos
+            </div>
+            {evitavel>0&&(
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <span style={{fontSize:12,color:"#888"}}>Gastos evitáveis</span>
+                <span className="mono" style={{fontSize:14,color:"#f87171",fontWeight:700}}>{fmtBRL(evitavel)}</span>
+              </div>
+            )}
+            {semTag>0&&(
+              <div style={{fontSize:11,color:"#555"}}>
+                {semTag} lançamento(s) ainda sem classificação — toque numa categoria abaixo para classificar
+              </div>
+            )}
+            {evitavel>0&&recT>0&&(
+              <div style={{marginTop:6,padding:"6px 10px",background:"rgba(74,222,128,.06)",borderRadius:8,fontSize:11,color:"#4ade80"}}>
+                Sem os gastos evitáveis, seu saldo seria {fmtBRL(saldo+evitavel)}
+              </div>
+            )}
+          </Card>
+        )}
 
 const TODOS_PARAMS = GRUPOS_LAB.flatMap(g=>g.params);
 
 // Abreviações para a evolução e formatação especial
 const ABREV = {
-  hb:"Hb", ht:"Ht", leuco:"Leuco", neut:"Neut", bast:"Bast", linf:"Linf",
-  plaq:"Plaq", rni:"RNI", ttpa:"TTPA", fibri:"Fibri",
-  cr:"Cr", ur:"Ur", na:"Na", k:"K", mg:"Mg", cai:"Cai", p:"P", ph:"pH", hco3:"HCO3",
-  trop:"Trop", bnp:"BNP", ntpro:"NT-proBNP", be:"BE", lact:"Lactato",
-  po2:"pO2", pco2:"pCO2",
-  tgo:"TGO", tgp:"TGP", bttot:"BT", btdir:"BD", btind:"BI",
-  falc:"FA", ggt:"GGT", alb:"Alb",
-  diur:"Diurese", bh:"BH", dreno1:"Dreno1", dreno2:"Dreno2", dreno3:"Dreno3", evac:"Evac",
+hb:“Hb”, ht:“Ht”, leuco:“Leuco”, neut:“Neut”, bast:“Bast”, linf:“Linf”,
+plaq:“Plaq”, rni:“RNI”, ttpa:“TTPA”, fibri:“Fibri”,
+cr:“Cr”, ur:“Ur”, na:“Na”, k:“K”, mg:“Mg”, cai:“Cai”, p:“P”, ph:“pH”, hco3:“HCO3”,
+trop:“Trop”, bnp:“BNP”, ntpro:“NT-proBNP”, be:“BE”, lact:“Lactato”,
+po2:“pO2”, pco2:“pCO2”,
+tgo:“TGO”, tgp:“TGP”, bttot:“BT”, btdir:“BD”, btind:“BI”,
+falc:“FA”, ggt:“GGT”, alb:“Alb”,
+diur:“Diurese”, bh:“BH”, dreno1:“Dreno1”, dreno2:“Dreno2”, dreno3:“Dreno3”, evac:“Evac”,
 };
 
 // Formata valor: plaquetas e leucócitos em k quando >= 100
 const fmtVal = (key, raw) => {
-  if (!raw) return raw;
-  const n = parseFloat(raw.replace(',','.'));
-  if (isNaN(n)) return raw;
-  // Plaquetas e leucócitos: mostrar em k (mil)
-  if (["plaq","leuco"].includes(key)) {
-    if (n >= 100) return `${Math.round(n)}k`;
-    // Já está em mil (ex: 11.17 = 11170 -> mostra 11.170k)
-    if (n < 100) return `${(n).toFixed(n % 1 === 0 ? 0 : 2)}k`;
-  }
-  // Remove casas decimais desnecessárias
-  return n % 1 === 0 ? String(Math.round(n)) : raw.replace(',','.');
+if (!raw) return raw;
+const n = parseFloat(raw.replace(’,’,’.’));
+if (isNaN(n)) return raw;
+// Plaquetas e leucócitos: mostrar em k (mil)
+if ([“plaq”,“leuco”].includes(key)) {
+if (n >= 100) return `${Math.round(n)}k`;
+// Já está em mil (ex: 11.17 = 11170 -> mostra 11.170k)
+if (n < 100) return `${(n).toFixed(n % 1 === 0 ? 0 : 2)}k`;
+}
+// Remove casas decimais desnecessárias
+return n % 1 === 0 ? String(Math.round(n)) : raw.replace(’,’,’.’);
 };
 
 function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
-  const hoje = new Date().toISOString().split("T")[0];
-  const [novaData, setNovaData] = useState("");
-  const [showAddCol, setShowAddCol] = useState(false);
-  const [showAddExame, setShowAddExame] = useState(false);
-  const [novoExame, setNovoExame] = useState("");
+const hoje = new Date().toISOString().split(“T”)[0];
+const [novaData, setNovaData] = useState(””);
+const [showAddCol, setShowAddCol] = useState(false);
+const [showAddExame, setShowAddExame] = useState(false);
+const [novoExame, setNovoExame] = useState(””);
 
-  // Mostra colunas com dados OU marcadas como visíveis, mais hoje sempre
-  // Aceita tanto "2026-04-23" quanto "2026-04-23T05:15"
-  const comDados = Object.keys(data).filter(d => {
-    if (!d.match(/^\d{4}-\d{2}-\d{2}/)) return false; // ignora chaves que não são datas
-    const vals = data[d] || {};
-    // mostra se tem qualquer valor, ou se foi marcada como visível
-    return vals._visivel || Object.entries(vals).some(([k,v]) => k !== '_visivel' && v);
-  });
-  const datas = Array.from(new Set([...comDados, hoje])).sort();
+// Mostra colunas com dados OU marcadas como visíveis, mais hoje sempre
+// Aceita tanto “2026-04-23” quanto “2026-04-23T05:15”
+const comDados = Object.keys(data).filter(d => {
+if (!d.match(/^\d{4}-\d{2}-\d{2}/)) return false; // ignora chaves que não são datas
+const vals = data[d] || {};
+// mostra se tem qualquer valor, ou se foi marcada como visível
+return vals._visivel || Object.entries(vals).some(([k,v]) => k !== ‘_visivel’ && v);
+});
+const datas = Array.from(new Set([…comDados, hoje])).sort();
 
-  // Extrai exames extras dinâmicos (keys começando com _extra_)
-  const extrasKeys = Array.from(new Set(
-    datas.flatMap(d => Object.keys(data[d]||{}).filter(k => k.startsWith('_extra_')))
-  ));
+// Extrai exames extras dinâmicos (keys começando com *extra*)
+const extrasKeys = Array.from(new Set(
+datas.flatMap(d => Object.keys(data[d]||{}).filter(k => k.startsWith(’*extra*’)))
+));
 
-  const getVal = (date, key) => data[date]?.[key] || "";
-  const setVal = (date, key, val) =>
-    onChange({ ...data, [date]: { ...(data[date]||{}), [key]: val } });
+const getVal = (date, key) => data[date]?.[key] || “”;
+const setVal = (date, key, val) =>
+onChange({ …data, [date]: { …(data[date]||{}), [key]: val } });
 
-  const adicionarColuna = () => {
-    if (!novaData) return;
-    // Marca como visível mesmo vazia
-    onChange({ ...data, [novaData]: { ...(data[novaData]||{}), _visivel: true } });
-    setShowAddCol(false); setNovaData("");
-  };
+const adicionarColuna = () => {
+if (!novaData) return;
+// Marca como visível mesmo vazia
+onChange({ …data, [novaData]: { …(data[novaData]||{}), _visivel: true } });
+setShowAddCol(false); setNovaData(””);
+};
 
-  const removerColuna = (date) => {
-    if (date === hoje) return;
-    if (!confirm(`Remover coluna ${fmtData(date)}?`)) return;
-    const novo = { ...data }; delete novo[date]; onChange(novo);
-  };
+const removerColuna = (date) => {
+if (date === hoje) return;
+if (!confirm(`Remover coluna ${fmtData(date)}?`)) return;
+const novo = { …data }; delete novo[date]; onChange(novo);
+};
 
-  // Formata chave de data (pode ser "2026-04-23" ou "2026-04-23T05:15")
-  const fmtData = (ds) => {
-    if (!ds) return "";
-    const [datePart, timePart] = ds.split("T");
-    const [,m,d] = datePart.split("-");
-    if (timePart) return `${d}/${m}\n${timePart}h`;
-    return `${d}/${m}`;
-  };
+// Formata chave de data (pode ser “2026-04-23” ou “2026-04-23T05:15”)
+const fmtData = (ds) => {
+if (!ds) return “”;
+const [datePart, timePart] = ds.split(“T”);
+const [,m,d] = datePart.split(”-”);
+if (timePart) return `${d}/${m}\n${timePart}h`;
+return `${d}/${m}`;
+};
 
-  // Compara datas ignorando hora para determinar "hoje"
-  const isHoje = (ds) => ds === hoje || ds.startsWith(hoje + "T");
+// Compara datas ignorando hora para determinar “hoje”
+const isHoje = (ds) => ds === hoje || ds.startsWith(hoje + “T”);
 
-  const gerarEvolucao = () => {
-    // Encontra a coluna mais recente de hoje (pode ter hora: "2026-04-25T05:15")
-    const datasHoje = datas.filter(d => isHoje(d)).sort();
-    const chaveHoje = datasHoje[datasHoje.length - 1] || hoje;
-    const idxHoje = datas.indexOf(chaveHoje);
-    const dtAnt = idxHoje > 0 ? datas[idxHoje-1] : null;
-    const campos = {};
-    const pegar = (keys) => keys.map(k=>{
-      const abrev = ABREV[k] || TODOS_PARAMS.find(x=>x.key===k)?.label || k;
-      const atuRaw = getVal(chaveHoje, k);
-      const antRaw = dtAnt ? getVal(dtAnt, k) : "";
-      if (!atuRaw && !antRaw) return null;
-      const atu = fmtVal(k, atuRaw);
-      const ant = fmtVal(k, antRaw);
-      const val = (ant && atu && ant !== atu) ? `${ant} > ${atu}` : (atu || ant);
-      return `${abrev} ${val}`;
-    }).filter(Boolean).join(" / ");
+const gerarEvolucao = () => {
+// Encontra a coluna mais recente de hoje (pode ter hora: “2026-04-25T05:15”)
+const datasHoje = datas.filter(d => isHoje(d)).sort();
+const chaveHoje = datasHoje[datasHoje.length - 1] || hoje;
+const idxHoje = datas.indexOf(chaveHoje);
+const dtAnt = idxHoje > 0 ? datas[idxHoje-1] : null;
+const campos = {};
+const pegar = (keys) => keys.map(k=>{
+const abrev = ABREV[k] || TODOS_PARAMS.find(x=>x.key===k)?.label || k;
+const atuRaw = getVal(chaveHoje, k);
+const antRaw = dtAnt ? getVal(dtAnt, k) : “”;
+if (!atuRaw && !antRaw) return null;
+const atu = fmtVal(k, atuRaw);
+const ant = fmtVal(k, antRaw);
+const val = (ant && atu && ant !== atu) ? `${ant} > ${atu}` : (atu || ant);
+return `${abrev} ${val}`;
+}).filter(Boolean).join(” / “);
 
-    const heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
-    const rmStr  = pegar(["cr","ur","na","k","mg","cai","p","ph","hco3"]);
-    const ctStr  = pegar(["diur","bh","dreno1","dreno2","dreno3","evac"]);
-    const cvStr  = pegar(["trop","bnp","ntpro","be","lact"]);
-    const resStr = pegar(["po2","pco2"]);
-    const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
+```
+const heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
+const rmStr  = pegar(["cr","ur","na","k","mg","cai","p","ph","hco3"]);
+const ctStr  = pegar(["diur","bh","dreno1","dreno2","dreno3","evac"]);
+const cvStr  = pegar(["trop","bnp","ntpro","be","lact"]);
+const resStr = pegar(["po2","pco2"]);
+const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
 
-    if (heStr)  campos.heLabs = heStr;
-    if (rmStr)  campos.rmLabs = rmStr;
-    if (ctStr)  campos.rm24h  = ctStr;
-    if (cvStr)  campos.cvPerf = cvStr;
-    if (resStr) campos.reGaso = resStr;
-    if (tgStr)  campos.tgEF   = tgStr;
-    onAplicarEvolucao(campos);
-  };
+if (heStr)  campos.heLabs = heStr;
+if (rmStr)  campos.rmLabs = rmStr;
+if (ctStr)  campos.rm24h  = ctStr;
+if (cvStr)  campos.cvPerf = cvStr;
+if (resStr) campos.reGaso = resStr;
+if (tgStr)  campos.tgEF   = tgStr;
+onAplicarEvolucao(campos);
+```
 
-  const thStyle = (ativo) => ({
-    padding:"6px 8px", fontSize:11, fontFamily:mono, letterSpacing:1,
-    color:ativo?"#38bdf8":"#64748b",
-    background:ativo?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.03)",
-    borderBottom:ativo?"2px solid #38bdf8":"2px solid rgba(255,255,255,0.06)",
-    whiteSpace:"pre", textAlign:"center", minWidth:72, position:"sticky", top:0,
-  });
-  const tdBase = {padding:"2px 3px", borderBottom:"1px solid rgba(255,255,255,0.04)", textAlign:"center"};
+};
 
-  return (
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-        <div>
-          <div style={{fontSize:15,fontWeight:700}}>Tabela Clínica</div>
-          <div style={{fontSize:12,color:"#64748b"}}>Registre valores diários · depois aplique na evolução</div>
-        </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={()=>setShowAddCol(v=>!v)} style={{padding:"8px 14px",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:"#94a3b8",fontWeight:600,fontSize:12,cursor:"pointer"}}>
-            {showAddCol?"✕ Fechar":"📅 Adicionar dia"}
-          </button>
-          <button onClick={()=>setShowAddExame(v=>!v)} style={{padding:"8px 14px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,color:"#c4b5fd",fontWeight:600,fontSize:12,cursor:"pointer"}}>
-            {showAddExame?"✕ Fechar":"🧪 Novo exame"}
-          </button>
-          <button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
-            📝 Aplicar na evolução
-          </button>
-        </div>
-      </div>
+const thStyle = (ativo) => ({
+padding:“6px 8px”, fontSize:11, fontFamily:mono, letterSpacing:1,
+color:ativo?”#38bdf8”:”#64748b”,
+background:ativo?“rgba(56,189,248,0.08)”:“rgba(255,255,255,0.03)”,
+borderBottom:ativo?“2px solid #38bdf8”:“2px solid rgba(255,255,255,0.06)”,
+whiteSpace:“pre”, textAlign:“center”, minWidth:72, position:“sticky”, top:0,
+});
+const tdBase = {padding:“2px 3px”, borderBottom:“1px solid rgba(255,255,255,0.04)”, textAlign:“center”};
 
-      {showAddCol && (
-        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.18)",borderRadius:10}}>
-          <div style={{fontSize:12,color:"#64748b"}}>Data:</div>
-          <input type="date" value={novaData} onChange={e=>setNovaData(e.target.value)}
-            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,padding:"6px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-          <button onClick={adicionarColuna} disabled={!novaData}
-            style={{padding:"6px 14px",background:novaData?"rgba(56,189,248,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novaData?"#38bdf8":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novaData?"#38bdf8":"#475569",fontWeight:600,fontSize:12,cursor:novaData?"pointer":"default"}}>
-            Adicionar
-          </button>
-        </div>
-      )}
+return (
+<div>
+<div style={{display:“flex”,justifyContent:“space-between”,alignItems:“center”,marginBottom:16,flexWrap:“wrap”,gap:8}}>
+<div>
+<div style={{fontSize:15,fontWeight:700}}>Tabela Clínica</div>
+<div style={{fontSize:12,color:”#64748b”}}>Registre valores diários · depois aplique na evolução</div>
+</div>
+<div style={{display:“flex”,gap:8,flexWrap:“wrap”}}>
+<button onClick={()=>setShowAddCol(v=>!v)} style={{padding:“8px 14px”,background:“rgba(255,255,255,0.05)”,border:“1px solid rgba(255,255,255,0.12)”,borderRadius:8,color:”#94a3b8”,fontWeight:600,fontSize:12,cursor:“pointer”}}>
+{showAddCol?“✕ Fechar”:“📅 Adicionar dia”}
+</button>
+<button onClick={()=>setShowAddExame(v=>!v)} style={{padding:“8px 14px”,background:“rgba(167,139,250,0.08)”,border:“1px solid rgba(167,139,250,0.25)”,borderRadius:8,color:”#c4b5fd”,fontWeight:600,fontSize:12,cursor:“pointer”}}>
+{showAddExame?“✕ Fechar”:“🧪 Novo exame”}
+</button>
+<button onClick={gerarEvolucao} style={{padding:“8px 16px”,background:“linear-gradient(135deg,#0284c7,#0369a1)”,border:“none”,borderRadius:8,color:“white”,fontWeight:700,fontSize:12,cursor:“pointer”}}>
+📝 Aplicar na evolução
+</button>
+</div>
+</div>
 
-      {showAddExame && (
-        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10}}>
-          <div style={{fontSize:12,color:"#c4b5fd"}}>Nome do exame:</div>
-          <input value={novoExame} onChange={e=>setNovoExame(e.target.value)}
-            onKeyDown={e=>{
-              if(e.key==="Enter"&&novoExame.trim()){
-                const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-                // Garante que a chave existe para aparecer na tabela
-                const hoje2=new Date().toISOString().split("T")[0];
-                onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""}});
-                setNovoExame(""); setShowAddExame(false);
-              }
-            }}
-            placeholder="Ex: PCR, Procalcitonina, Troponina..."
-            style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"6px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-          <button onClick={()=>{
-            if(!novoExame.trim()) return;
+```
+  {showAddCol && (
+    <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.18)",borderRadius:10}}>
+      <div style={{fontSize:12,color:"#64748b"}}>Data:</div>
+      <input type="date" value={novaData} onChange={e=>setNovaData(e.target.value)}
+        style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,padding:"6px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+      <button onClick={adicionarColuna} disabled={!novaData}
+        style={{padding:"6px 14px",background:novaData?"rgba(56,189,248,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novaData?"#38bdf8":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novaData?"#38bdf8":"#475569",fontWeight:600,fontSize:12,cursor:novaData?"pointer":"default"}}>
+        Adicionar
+      </button>
+    </div>
+  )}
+
+  {showAddExame && (
+    <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10}}>
+      <div style={{fontSize:12,color:"#c4b5fd"}}>Nome do exame:</div>
+      <input value={novoExame} onChange={e=>setNovoExame(e.target.value)}
+        onKeyDown={e=>{
+          if(e.key==="Enter"&&novoExame.trim()){
             const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+            // Garante que a chave existe para aparecer na tabela
             const hoje2=new Date().toISOString().split("T")[0];
             onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""}});
             setNovoExame(""); setShowAddExame(false);
-          }} disabled={!novoExame.trim()}
-            style={{padding:"6px 14px",background:novoExame.trim()?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novoExame.trim()?"#a78bfa":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novoExame.trim()?"#c4b5fd":"#475569",fontWeight:600,fontSize:12,cursor:novoExame.trim()?"pointer":"default"}}>
-            Adicionar
-          </button>
-        </div>
-      )}
-        <div style={{padding:40,textAlign:"center",color:"#334155",fontSize:13}}>
-          Nenhum dado ainda. Cole um print na aba 📤 ou adicione um dia manualmente.
-        </div>
-      ) : (
-        <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead>
-              <tr>
-                <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0d1424"}}>Parâmetro</th>
-                <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0d1424"}}>Un.</th>
-                {datas.map(d=>(
-                  <th key={d} style={thStyle(isHoje(d))}>
-                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-                      {fmtData(d).split('\n').map((linha,i)=>(
-                        <span key={i} style={{fontSize:i===1?10:11}}>{linha}</span>
-                      ))}
-                      {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#38bdf8"}}>HOJE</span>}
-                      {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {GRUPOS_LAB.map(({grupo,params})=>(
-                <React.Fragment key={grupo}>
-                  <tr>
-                    <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-                      {grupo}
-                    </td>
-                  </tr>
-                  {params.map(({key,label,unit})=>(
-                    <tr key={key}
-                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
-                      <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>{unit}</td>
-                      {datas.map(d=>{
-                        const ativo=isHoje(d);
-                        const val=getVal(d,key);
-                        const idxD=datas.indexOf(d);
-                        const ant=idxD>0?getVal(datas[idxD-1],key):"";
-                        const subiu=val&&ant&&val!==ant&&parseFloat(val)>parseFloat(ant);
-                        const caiu=val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
-                        return (
-                          <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
-                            <input value={val} onChange={e=>setVal(d,key,e.target.value)}
-                              style={{width:"100%",background:"transparent",border:"none",
-                                color:ativo&&subiu?"#f87171":ativo&&caiu?"#34d399":"#e2e8f0",
-                                fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
-                                fontWeight:ativo?700:400}}
-                              placeholder="—"
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
+          }
+        }}
+        placeholder="Ex: PCR, Procalcitonina, Troponina..."
+        style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"6px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+      <button onClick={()=>{
+        if(!novoExame.trim()) return;
+        const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+        const hoje2=new Date().toISOString().split("T")[0];
+        onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""}});
+        setNovoExame(""); setShowAddExame(false);
+      }} disabled={!novoExame.trim()}
+        style={{padding:"6px 14px",background:novoExame.trim()?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novoExame.trim()?"#a78bfa":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novoExame.trim()?"#c4b5fd":"#475569",fontWeight:600,fontSize:12,cursor:novoExame.trim()?"pointer":"default"}}>
+        Adicionar
+      </button>
+    </div>
+  )}
+    <div style={{padding:40,textAlign:"center",color:"#334155",fontSize:13}}>
+      Nenhum dado ainda. Cole um print na aba 📤 ou adicione um dia manualmente.
+    </div>
+  ) : (
+    <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
+      <table style={{width:"100%",borderCollapse:"collapse"}}>
+        <thead>
+          <tr>
+            <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0d1424"}}>Parâmetro</th>
+            <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0d1424"}}>Un.</th>
+            {datas.map(d=>(
+              <th key={d} style={thStyle(isHoje(d))}>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                  {fmtData(d).split('\n').map((linha,i)=>(
+                    <span key={i} style={{fontSize:i===1?10:11}}>{linha}</span>
                   ))}
-                </React.Fragment>
-              ))}
-              {/* Exames extras dinâmicos */}
-              {extrasKeys.length > 0 && (
-                <React.Fragment>
-                  <tr>
-                    <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-                      ⭐ Exames Extras
-                    </td>
-                  </tr>
-                  {extrasKeys.map(k=>{
-                    // Nome amigável: remove prefixo _extra_ e underscores
-                    const nomeAmigavel = k.replace(/^_extra_/,'').replace(/_/g,' ');
-                    const nomeCapitalizado = nomeAmigavel.charAt(0).toUpperCase() + nomeAmigavel.slice(1);
+                  {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#38bdf8"}}>HOJE</span>}
+                  {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {GRUPOS_LAB.map(({grupo,params})=>(
+            <React.Fragment key={grupo}>
+              <tr>
+                <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                  {grupo}
+                </td>
+              </tr>
+              {params.map(({key,label,unit})=>(
+                <tr key={key}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
+                  <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>{unit}</td>
+                  {datas.map(d=>{
+                    const ativo=isHoje(d);
+                    const val=getVal(d,key);
+                    const idxD=datas.indexOf(d);
+                    const ant=idxD>0?getVal(datas[idxD-1],key):"";
+                    const subiu=val&&ant&&val!==ant&&parseFloat(val)>parseFloat(ant);
+                    const caiu=val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
                     return (
-                      <tr key={k}
-                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
-                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#fcd34d",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{nomeCapitalizado}</td>
-                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>—</td>
-                        {datas.map(d=>{
-                          const ativo=isHoje(d);
-                          const raw = data[d]?.[k] || "";
-                          return (
-                            <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
-                              <input
-                                value={raw}
-                                onChange={e=>setVal(d,k,e.target.value)}
-                                style={{width:"100%",background:"transparent",border:"none",
-                                  color:ativo?"#fcd34d":"#e2e8f0",
-                                  fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
-                                  fontWeight:ativo?700:400}}
-                                placeholder="—"
-                              />
-                            </td>
-                          );
-                        })}
-                      </tr>
+                      <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
+                        <input value={val} onChange={e=>setVal(d,key,e.target.value)}
+                          style={{width:"100%",background:"transparent",border:"none",
+                            color:ativo&&subiu?"#f87171":ativo&&caiu?"#34d399":"#e2e8f0",
+                            fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
+                            fontWeight:ativo?700:400}}
+                          placeholder="—"
+                        />
+                      </td>
                     );
                   })}
-                </React.Fragment>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div style={{marginTop:8,fontSize:11,color:"#475569",display:"flex",gap:16,flexWrap:"wrap"}}>
-        <span style={{color:"#34d399"}}>▼ verde = queda</span>
-        <span style={{color:"#f87171"}}>▲ vermelho = subida</span>
-        <span>· Clique para editar · ✕ remove a coluna do dia</span>
-      </div>
+                </tr>
+              ))}
+            </React.Fragment>
+          ))}
+          {/* Exames extras dinâmicos */}
+          {extrasKeys.length > 0 && (
+            <React.Fragment>
+              <tr>
+                <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                  ⭐ Exames Extras
+                </td>
+              </tr>
+              {extrasKeys.map(k=>{
+                // Nome amigável: remove prefixo _extra_ e underscores
+                const nomeAmigavel = k.replace(/^_extra_/,'').replace(/_/g,' ');
+                const nomeCapitalizado = nomeAmigavel.charAt(0).toUpperCase() + nomeAmigavel.slice(1);
+        {/* Categorias */}
+        {sortedAtual.length>0&&(
+          <Card>
+            <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,marginBottom:14}}>
+              Gastos por categoria — {mesLabelAtual}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {sortedAtual.map(([cat,val])=>{
+                const pct = grandTotal>0?(val/grandTotal*100):0;
+                const cor = CORES_CAT[cat]||"#7c6af7";
+                const isSelected = catSel===cat;
+                return (
+                  <tr key={k}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#fcd34d",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{nomeCapitalizado}</td>
+                    <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>—</td>
+                    {datas.map(d=>{
+                      const ativo=isHoje(d);
+                      const raw = data[d]?.[k] || "";
+                      return (
+                        <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
+                          <input
+                            value={raw}
+                            onChange={e=>setVal(d,k,e.target.value)}
+                            style={{width:"100%",background:"transparent",border:"none",
+                              color:ativo?"#fcd34d":"#e2e8f0",
+                              fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
+                              fontWeight:ativo?700:400}}
+                            placeholder="—"
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  <div key={cat} onClick={()=>setCatSel(isSelected?null:cat)}
+                    style={{cursor:"pointer",padding:"6px 8px",borderRadius:10,
+                      background:isSelected?`${cor}14`:"transparent",
+                      border:isSelected?`1px solid ${cor}33`:"1px solid transparent",
+                      transition:"all .2s"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7}}>
+                        <div style={{width:9,height:9,borderRadius:3,background:cor,flexShrink:0}}/>
+                        <span style={{fontSize:12,color:isSelected?cor:"#ccc",fontWeight:isSelected?600:400}}>{cat}</span>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:10,color:"#444"}}>{pct.toFixed(1)}%</span>
+                        <span className="mono" style={{fontSize:12,color:cor,fontWeight:600,minWidth:72,textAlign:"right"}}>{fmtBRL(val)}</span>
+                      </div>
+                    </div>
+                    <div style={{height:5,background:"rgba(255,255,255,.05)",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:cor,borderRadius:3,transition:"width .5s"}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          )}
+        </tbody>
+      </table>
     </div>
-  );
-}
+  )}
+  <div style={{marginTop:8,fontSize:11,color:"#475569",display:"flex",gap:16,flexWrap:"wrap"}}>
+    <span style={{color:"#34d399"}}>▼ verde = queda</span>
+    <span style={{color:"#f87171"}}>▲ vermelho = subida</span>
+    <span>· Clique para editar · ✕ remove a coluna do dia</span>
+  </div>
+</div>
+```
+            </div>
+          </Card>
+        )}
 
+);
+}
+        {/* Lista de lançamentos da categoria selecionada */}
+        {catSel&&lancCatSel.length>0&&(
+          <Card style={{borderColor:`${CORES_CAT[catSel]||"#7c6af7"}33`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:11,color:CORES_CAT[catSel]||"#7c6af7",fontWeight:600,textTransform:"uppercase",letterSpacing:.6}}>
+                {catSel}
+              </div>
+              <span className="mono" style={{fontSize:12,color:CORES_CAT[catSel]||"#7c6af7",fontWeight:700}}>
+                {fmtBRL(lancCatSel.reduce((s,t)=>s+Number(t.valor||0),0))}
+              </span>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {lancCatSel.map((t,i)=>{
+                const tagAtual = TAGS.find(tg=>tg.id===t.tag);
+                return (
+                  <div key={t.id||i} style={{padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:10,
+                    borderLeft:`3px solid ${tagAtual?.color||"rgba(255,255,255,.1)"}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,color:"#f0f0f5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
+                        <div style={{fontSize:10,color:"#444",marginTop:2}}>{t.data}{t.parcela?` · ${t.parcela}`:""}</div>
+                      </div>
+                      <span className="mono" style={{fontSize:13,color:"#f87171",fontWeight:600,marginLeft:8,flexShrink:0}}>{fmtBRL(t.valor)}</span>
+                    </div>
+                    {/* Tags */}
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                      {TAGS.map(tg=>(
+                        <button key={tg.id} onClick={e=>{e.stopPropagation();setTag(t.id, t.tag===tg.id?null:tg.id);}}
+                          style={{padding:"3px 8px",borderRadius:8,border:`1px solid ${t.tag===tg.id?tg.color:"rgba(255,255,255,.08)"}`,
+                            background:t.tag===tg.id?tg.bg:"transparent",
+                            color:t.tag===tg.id?tg.color:"#444",fontSize:10,fontWeight:600,cursor:"pointer"}}>
+                          {tg.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 const EVOLUCAO_VAZIA = {
-  nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
-  cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
-  reVM:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
-  rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
-  tgEF:"", tg24h:"", tgLabs:"", tgObs:"",
-  heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
-  probAtivos:"", probResolvidos:"",
-  _datas:{},
+nEF:””, nSeda:””, nAnalg:””, nPsiq:””, nObs:””,
+cvEF:””, cv24h:””, cvDVA:””, cvMed:””, cvPerf:””, cvObs:””,
+reVM:””, reEF:””, re24h:””, reGaso:””, rePocus:””, reObs:””,
+rm24h:””, rmLabs:””, rmTRS:””, rmObs:””,
+tgEF:””, tg24h:””, tgLabs:””, tgObs:””,
+heTemp:””, heLabs:””, heMed:””, heAtb:””, heProf:””, heObs:””, heCulturas:””,
+probAtivos:””, probResolvidos:””,
+_datas:{},
 };
 
 function aplicarIA(dadosIA) {
-  if (!dadosIA?.sistemas) return {};
-  const s = dadosIA.sistemas;
-  return {
-    nEF:    s["Neurológico"]             || "",
-    cvEF:   s["Hemodinâmico"]            || "",
-    cv24h:  s["Hemodinâmico"]            || "",
-    reVM:   s["Respiratório"]            || "",
-    re24h:  s["Respiratório"]            || "",
-    rmLabs: s["Renal/Metabólico"]        || "",
-    rm24h:  s["Renal/Metabólico"]        || "",
-    tgEF:   s["Gastrointestinal"]        || "",
-    heLabs: s["Hematológico/Infeccioso"] || "",
-  };
+if (!dadosIA?.sistemas) return {};
+const s = dadosIA.sistemas;
+return {
+nEF:    s[“Neurológico”]             || “”,
+cvEF:   s[“Hemodinâmico”]            || “”,
+cv24h:  s[“Hemodinâmico”]            || “”,
+reVM:   s[“Respiratório”]            || “”,
+re24h:  s[“Respiratório”]            || “”,
+rmLabs: s[“Renal/Metabólico”]        || “”,
+rm24h:  s[“Renal/Metabólico”]        || “”,
+tgEF:   s[“Gastrointestinal”]        || “”,
+heLabs: s[“Hematológico/Infeccioso”] || “”,
+};
 }
+        {/* Top gastos */}
+        {todosAtual.length>0&&(
+          <Card>
+            <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,marginBottom:10}}>
+              Maiores gastos — {mesLabelAtual}
+            </div>
+            {[...todosAtual].sort((a,b)=>Number(b.valor||0)-Number(a.valor||0)).slice(0,8).map((t,i)=>{
+              const tagAtual = TAGS.find(tg=>tg.id===t.tag);
+              return (
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                  padding:"7px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,color:"#f0f0f5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2}}>
+                      <div style={{width:6,height:6,borderRadius:2,background:CORES_CAT[t.cat]||"#555",flexShrink:0}}/>
+                      <span style={{fontSize:10,color:"#444"}}>{t.cat}</span>
+                      {tagAtual&&<span style={{fontSize:9,color:tagAtual.color,background:tagAtual.bg,padding:"1px 5px",borderRadius:4}}>{tagAtual.label}</span>}
+                    </div>
+                  </div>
+                  <span className="mono" style={{fontSize:13,color:"#f87171",fontWeight:500,marginLeft:8,flexShrink:0}}>{fmtBRL(t.valor)}</span>
+                </div>
+              );
+            })}
+          </Card>
+        )}
+      </>}
 
 function EvolucaoEditor({ leito, campos, onCampoEdit }) {
-  const [copiado, setCopiado] = useState({});
-  const hoje = new Date().toISOString().split("T")[0];
-  const isAntigo = (fieldName) => {
-    const dataEdicao = campos._datas?.[fieldName];
-    return dataEdicao && dataEdicao < hoje;
-  };
-  const salvar = onCampoEdit || (()=>{});
-  const peso = parseFloat(leito.peso) || null;
-  const pp   = pesoPredito(leito.altura, leito.sexo);
-  const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
-  const dias = diasInternacao(leito.dataInternacao);
-  const disps = leito.dispositivos || {};
-  const ativos = [
-    ...DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
-      label:(Array.isArray(disps[d.key])&&disps[d.key].length>1)?`${d.label} ${i+1}`:d.label,
-      icone:d.icone, alertaDias:d.alertaDias, disp:inst
-    }))),
-    ...DISP_SINGULAR.filter(d=>disps[d.key]?.ativo).map(d=>({
-      label:d.label, icone:d.icone, alertaDias:d.alertaDias, disp:disps[d.key]
-    })),
-  ];
+const [copiado, setCopiado] = useState({});
+const hoje = new Date().toISOString().split(“T”)[0];
+const isAntigo = (fieldName) => {
+const dataEdicao = campos._datas?.[fieldName];
+return dataEdicao && dataEdicao < hoje;
+};
+const salvar = onCampoEdit || (()=>{});
+const peso = parseFloat(leito.peso) || null;
+const pp   = pesoPredito(leito.altura, leito.sexo);
+const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
+const dias = diasInternacao(leito.dataInternacao);
+const disps = leito.dispositivos || {};
+const ativos = [
+…DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
+label:(Array.isArray(disps[d.key])&&disps[d.key].length>1)?`${d.label} ${i+1}`:d.label,
+icone:d.icone, alertaDias:d.alertaDias, disp:inst
+}))),
+…DISP_SINGULAR.filter(d=>disps[d.key]?.ativo).map(d=>({
+label:d.label, icone:d.icone, alertaDias:d.alertaDias, disp:disps[d.key]
+})),
+];
+      {visao==="anual"&&<>
+        {/* Receita vs Despesa */}
+        <Card>
+          <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,marginBottom:14}}>
+            Receita vs Despesa — 12 meses
+          </div>
+          {loadingHistory?(
+            <div style={{textAlign:"center",padding:"20px 0",color:"#333",fontSize:12}}>Carregando…</div>
+          ):(
+            <>
+              <div style={{display:"flex",alignItems:"flex-end",gap:4,height:120}}>
+                {mesesOrdenados.map((k,i)=>{
+                  const rec=receitasMeses[i], desp=despesasMeses[i];
+                  const isCur=k===mesKey;
+                  return (
+                    <div key={k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div style={{width:"100%",display:"flex",gap:1,alignItems:"flex-end",height:100}}>
+                        <div style={{flex:1,background:"#4ade8088",borderRadius:"3px 3px 0 0",height:`${rec/maxBar*100}%`,minHeight:rec>0?2:0}}/>
+                        <div style={{flex:1,background:"#f8717188",borderRadius:"3px 3px 0 0",height:`${desp/maxBar*100}%`,minHeight:desp>0?2:0}}/>
+                      </div>
+                      <span style={{fontSize:8,color:isCur?"#f0f0f5":"#444",fontWeight:isCur?700:400}}>{mesesLabel2[i]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{display:"flex",gap:12,marginTop:8,justifyContent:"center"}}>
+                {[["#4ade80","Receita"],["#f87171","Despesa"]].map(([cor,l])=>(
+                  <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
+                    <div style={{width:8,height:8,borderRadius:2,background:cor}}/>
+                    <span style={{fontSize:10,color:"#555"}}>{l}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
 
-  // Refs para cada campo
-  const refs = {
-    nEF:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nObs:useRef(),
-    cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
-    reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
-    rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
-    tgEF:useRef(), tg24h:useRef(), tgLabs:useRef(), tgObs:useRef(),
-    heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(), heCulturas:useRef(),
-    probAtivos:useRef(), probResolvidos:useRef(),
-  };
+// Refs para cada campo
+const refs = {
+nEF:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nObs:useRef(),
+cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
+reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
+rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
+tgEF:useRef(), tg24h:useRef(), tgLabs:useRef(), tgObs:useRef(),
+heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(), heCulturas:useRef(),
+probAtivos:useRef(), probResolvidos:useRef(),
+};
 
-  const get = (key) => refs[key]?.current?.value?.trim() || "";
+const get = (key) => refs[key]?.current?.value?.trim() || “”;
 
-  const txtN = () => {
-    const p=[];
-    if(get("nEF"))    p.push(`- EF: ${get("nEF")}`);
-    if(get("nSeda"))  p.push(`- P: ${get("nSeda")}`);
-    if(get("nAnalg")) p.push(`- A: ${get("nAnalg")}`);
-    if(get("nPsiq"))  p.push(`- Psiq: ${get("nPsiq")}`);
-    if(get("nObs"))   p.push(`*${get("nObs")}`);
-    return p.join("\n");
-  };
-  const txtCv = () => {
-    const p=[];
-    if(get("cvEF"))   p.push(`- EF: ${get("cvEF")}`);
-    if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
-    if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
-    if(get("cvMed"))  p.push(`- P: ${get("cvMed")}`);
-    if(get("cvPerf")) p.push(`- Perfusão: ${get("cvPerf")}`);
-    if(get("cvObs"))  p.push(`*${get("cvObs")}`);
-    return p.join("\n");
-  };
-  const txtRes = () => {
-    const p=[];
-    if(get("reVM"))    p.push(`- Ventilação: ${get("reVM")}`);
-    if(get("reEF"))    p.push(`- EF: ${get("reEF")}`);
-    if(get("re24h"))   p.push(`- 24h: ${get("re24h")}`);
-    if(get("reGaso"))  p.push(`- *nova* Gaso: ${get("reGaso")}`);
-    if(get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
-    if(get("reObs"))   p.push(`*${get("reObs")}`);
-    return p.join("\n");
-  };
-  const txtReMe = () => {
-    const p=[];
-    if(get("rm24h"))  p.push(`- 24h: ${get("rm24h")}`);
-    if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
-    if(get("rmTRS"))  p.push(`- TRS: ${get("rmTRS")}`);
-    if(get("rmObs"))  p.push(`*${get("rmObs")}`);
-    return p.join("\n");
-  };
-  const txtTGI = () => {
-    const p=[];
-    const d=leito.dieta;
-    if(d?.tipo&&d.tipo!=="jejum"){
-      const tl={enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
-      let dl=`Dieta: ${tl}`;
-      if(d.formula) dl+=` ${d.formula}`;
-      if(d.vazao)   dl+=` ${d.vazao}ml/h`;
-      if(d.kcalTotal&&peso) dl+=` (${(parseFloat(d.kcalTotal)/peso).toFixed(1)} kcal/kg/d`;
-      if(d.ptnTotal&&peso)  dl+=` / ${(parseFloat(d.ptnTotal)/peso).toFixed(2)} g ptn/kg/d)`;
-      p.push(`- ${dl}`);
-    }else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
-    if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
-    if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
-    if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
-    if(get("tgObs"))  p.push(`*${get("tgObs")}`);
-    return p.join("\n");
-  };
-  const txtHe = () => {
-    const p=[];
-    if(get("heTemp"))  p.push(`T ${get("heTemp")}`);
-    if(get("heLabs"))  p.push(`- Labs: ${get("heLabs")}`);
-    if(get("heProf"))  p.push(`** ${get("heProf")}`);
-    if(get("heObs"))   p.push(`*${get("heObs")}`);
-    return p.join("\n");
-  };
-  const txtIn = () => {
-    const p=[];
-    if(get("heMed")) p.push(get("heMed"));
-    if(ativos.length){
-      const lista=ativos.map(a=>{
-        const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
-        return `${a.label}${a.disp.site?` ${a.disp.site}`:""} D${dd}`;
-      }).join(", ");
-      p.push(`Dispositivos: ${lista}`);
-    }
-    if(get("heAtb"))      p.push(get("heAtb"));
-    if(get("heCulturas")) p.push(`- Culturas: ${get("heCulturas")}`);
-    return p.join("\n");
-  };
-
-  const txtProblemas = () => {
-    const p=[];
-    if(get("probAtivos"))    p.push(`ATIVOS:\n${get("probAtivos")}`);
-    if(get("probResolvidos")) p.push(`RESOLVIDOS:\n${get("probResolvidos")}`);
-    return p.join("\n");
-  };
-
-  const copiarBloco = (id, txt) => {
-    const text = txt();
-    if(!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiado(c=>({...c,[id]:true}));
-    setTimeout(()=>setCopiado(c=>({...c,[id]:false})),2000);
-  };
-
-  const copiarTudo = () => {
-    const dt=new Date().toLocaleDateString("pt-BR");
-    let t=`EVOLUÇÃO UTI — ${dt}`;
-    if(leito.paciente)    t+=`\nPaciente: ${leito.paciente}`;
-    if(leito.diagnostico) t+=` | ${leito.diagnostico}`;
-    if(dias!==null)       t+=` | D${dias} UTI`;
-    if(leito.peso)        t+=` | ${leito.peso} kg`;
-    if(pp)                t+=` | PP ${pp} kg`;
-    const procs=leito.procedimentos||[];
-    if(procs.length) t+="\n"+procs.map(p=>{
-      const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-      return `${p.nome} (${po===0?"POI":`PO${po}`})`;
-    }).join(" · ");
-    t+="\n\n";
-    const blocos=[["== N:",txtN],["== Cv:",txtCv],["== Res:",txtRes],["== ReMe:",txtReMe],["== TGI:",txtTGI],["== He:",txtHe],["== In:",txtIn]];
-    blocos.forEach(([h,fn])=>{ const c=fn(); if(c) t+=`${h}\n${c}\n\n`; });
-    navigator.clipboard.writeText(t);
-    setCopiado(c=>({...c,tudo:true}));
-    setTimeout(()=>setCopiado(c=>({...c,tudo:false})),2500);
-  };
-
-  const colors={N:"#a78bfa",Cv:"#f87171",Res:"#38bdf8",ReMe:"#34d399",TGI:"#fb923c",He:"#f59e0b",In:"#94a3b8"};
-
-  const SysB = ({id,sigla,label,color,txtFn,children}) => {
-    const [open,setOpen]=useState(true);
-    const cp=copiado[id];
-    return (
-      <div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:10,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
-          <button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
-            <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
-            <span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
-            <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
-            <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
-          </button>
-          <button onClick={()=>copiarBloco(id,txtFn)} style={{margin:"6px 10px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,background:cp?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${cp?"#22c55e":"rgba(255,255,255,0.1)"}`,color:cp?"#22c55e":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
-            {cp?"✓ Copiado":"📋 Copiar"}
-          </button>
-        </div>
-        {open&&<div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>{children}</div>}
-      </div>
-    );
-  };
-
-  const Row=({children})=><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>{children}</div>;
-  const Col=({children,flex=1,min=120})=><div style={{flex,minWidth:min}}>{children}</div>;
-  const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
-
-  return (
-    <div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-        {dias!==null&&<Pill label="D UTI" value={`D${dias}`} unit="" color="#a78bfa"/>}
-        {leito.peso&&<Pill label="PESO" value={leito.peso} unit="kg" color="#f59e0b"/>}
-        {pp&&<Pill label="PP" value={pp} unit="kg" color="#fb923c"/>}
-        {vc6&&<Pill label="VC 6×" value={vc6} unit="mL" color="#34d399"/>}
-        {(leito.procedimentos||[]).map(p=>{
-          const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-          const cor=po<=0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
-          return <span key={p.id} style={{padding:"4px 10px",borderRadius:20,fontSize:11,fontFamily:mono,fontWeight:700,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
-        })}
-        {ativos.map((a,i)=>{
-          const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
-          const al=dd>a.alertaDias;
-          return <span key={i} style={{padding:"4px 10px",borderRadius:20,fontSize:11,fontFamily:mono,color:al?"#f87171":"#64748b",background:al?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.04)",border:`1px solid ${al?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`}}>{a.icone} D{dd}{al?" ⚠️":""}</span>;
-        })}
-      </div>
-
-      {/* Legenda */}
-      <div style={{display:"flex",gap:16,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
-          <div style={{width:12,height:12,borderRadius:3,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.15)"}}/>
-          Editado hoje
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
-          <div style={{width:12,height:12,borderRadius:3,background:"rgba(100,116,139,0.15)",border:"1px solid rgba(100,116,139,0.3)"}}/>
-          Dia anterior — edite para atualizar
-        </div>
-        <button onClick={()=>{
-          if(confirm("Limpar toda a evolução deste leito?")) {
-            onCampoEdit && Object.keys(EVOLUCAO_VAZIA).filter(k=>k!=='_datas').forEach(k=>onCampoEdit(k,''));
-          }
-        }} style={{marginLeft:"auto",padding:"4px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",fontSize:11,cursor:"pointer"}}>
-          🗑 Limpar evolução
-        </button>
-      </div>
-        <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
-        <Row>
-          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
-          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} placeholder="Metadona 22,5mg/d + Lido 140mg 12/12h" rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>PSIQ / OUTROS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} placeholder="Diazepam 40mg/d + Sertralina 50mg/d" rows={1} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} placeholder="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1} fieldName="nObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={colors.Cv} txtFn={txtCv}>
-        <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} placeholder="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2} fieldName="cvEF" onBlurSave={salvar}/></Col></Row>
-        <Row>
-          <Col><FL>24h — FC / PAM (min-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} placeholder="FC 109 - 58 / PAM 121 - 58" rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
-          <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} placeholder="Nora 5ml/h (0,08 mcg/kg/min)" rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row>
-          <Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} placeholder="Atenolol 25mg" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col>
-          <Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} placeholder="TEC 2 seg / Lactato 12 > 22" rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} placeholder="Eco beira-leito amanhã" rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="res" sigla="== Res:" label="Respiratório" color={colors.Res} txtFn={txtRes}>
-        <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} placeholder="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
-        <Row>
-          <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} placeholder="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — FR / Sat</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} placeholder="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row>
-          <Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} isAntigo={isAntigo("reGaso")} placeholder="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SataO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col>
-          <Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} placeholder="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} placeholder="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} txtFn={txtReMe}>
-        <Row>
-          <Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} placeholder="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
-          <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} placeholder="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} placeholder="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={colors.TGI} txtFn={txtTGI}>
-        {leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>🍽 Dieta cadastrada: <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`}</div>}
-        <Row>
-          <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} placeholder="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} placeholder="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="he" sigla="== He:" label="Hematológico" color={colors.He} txtFn={txtHe}>
-        <Row>
-          <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} placeholder="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
-          <Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} placeholder="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1} fieldName="heProf" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} placeholder="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} placeholder="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="in" sigla="== In:" label="Infeccioso / Dispositivos" color={colors.In} txtFn={txtIn}>
-        {ativos.length>0&&<div style={{padding:"6px 10px",background:"rgba(148,163,184,0.07)",border:"1px solid rgba(148,163,184,0.15)",borderRadius:6,fontSize:11,color:"#94a3b8",marginBottom:8}}>
-          📎 {ativos.map(a=>{const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;}).join(" / ")}
-        </div>}
-        <Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} placeholder={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
-      </SysB>
-
-      <SysB id="prob" sigla="📋 Prob:" label="Problemas" color="#94a3b8" txtFn={txtProblemas}>
-        <Row>
-          <Col>
-            <FL>🔴 Problemas Ativos</FL>
-            <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} placeholder={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"} rows={4} fieldName="probAtivos" onBlurSave={salvar}/>
-          </Col>
-          <Col>
-            <FL>✅ Problemas Resolvidos</FL>
-            <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} placeholder={"1. Choque séptico (resolvido D5)\n2. Acidose metabólica"} rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
-          </Col>
-        </Row>
-      </SysB>
-
-      <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
-        {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
-      </button>
-    </div>
-  );
+const txtN = () => {
+const p=[];
+if(get(“nEF”))    p.push(`- EF: ${get("nEF")}`);
+if(get(“nSeda”))  p.push(`- P: ${get("nSeda")}`);
+if(get(“nAnalg”)) p.push(`- A: ${get("nAnalg")}`);
+if(get(“nPsiq”))  p.push(`- Psiq: ${get("nPsiq")}`);
+if(get(“nObs”))   p.push(`*${get("nObs")}`);
+return p.join(”\n”);
+};
+const txtCv = () => {
+const p=[];
+if(get(“cvEF”))   p.push(`- EF: ${get("cvEF")}`);
+if(get(“cv24h”))  p.push(`- 24h: ${get("cv24h")}`);
+if(get(“cvDVA”))  p.push(`- DVA: ${get("cvDVA")}`);
+if(get(“cvMed”))  p.push(`- P: ${get("cvMed")}`);
+if(get(“cvPerf”)) p.push(`- Perfusão: ${get("cvPerf")}`);
+if(get(“cvObs”))  p.push(`*${get("cvObs")}`);
+return p.join(”\n”);
+};
+const txtRes = () => {
+const p=[];
+if(get(“reVM”))    p.push(`- Ventilação: ${get("reVM")}`);
+if(get(“reEF”))    p.push(`- EF: ${get("reEF")}`);
+if(get(“re24h”))   p.push(`- 24h: ${get("re24h")}`);
+if(get(“reGaso”))  p.push(`- *nova* Gaso: ${get("reGaso")}`);
+if(get(“rePocus”)) p.push(`- POCUS: ${get("rePocus")}`);
+if(get(“reObs”))   p.push(`*${get("reObs")}`);
+return p.join(”\n”);
+};
+const txtReMe = () => {
+const p=[];
+if(get(“rm24h”))  p.push(`- 24h: ${get("rm24h")}`);
+if(get(“rmLabs”)) p.push(`- Labs: ${get("rmLabs")}`);
+if(get(“rmTRS”))  p.push(`- TRS: ${get("rmTRS")}`);
+if(get(“rmObs”))  p.push(`*${get("rmObs")}`);
+return p.join(”\n”);
+};
+const txtTGI = () => {
+const p=[];
+const d=leito.dieta;
+if(d?.tipo&&d.tipo!==“jejum”){
+const tl={enteral:“via SNE”,parenteral:“NPT”,oral:“VO”,mista:“Mista”}[d.tipo]||d.tipo;
+let dl=`Dieta: ${tl}`;
+if(d.formula) dl+=` ${d.formula}`;
+if(d.vazao)   dl+=` ${d.vazao}ml/h`;
+if(d.kcalTotal&&peso) dl+=` (${(parseFloat(d.kcalTotal)/peso).toFixed(1)} kcal/kg/d`;
+if(d.ptnTotal&&peso)  dl+=` / ${(parseFloat(d.ptnTotal)/peso).toFixed(2)} g ptn/kg/d)`;
+p.push(`- ${dl}`);
+}else if(d?.tipo===“jejum”) p.push(`- Dieta: Jejum`);
+if(get(“tgEF”))   p.push(`- EF: ${get("tgEF")}`);
+if(get(“tg24h”))  p.push(`- 24h: ${get("tg24h")}`);
+if(get(“tgLabs”)) p.push(`- Labs: ${get("tgLabs")}`);
+if(get(“tgObs”))  p.push(`*${get("tgObs")}`);
+return p.join(”\n”);
+};
+const txtHe = () => {
+const p=[];
+if(get(“heTemp”))  p.push(`T ${get("heTemp")}`);
+if(get(“heLabs”))  p.push(`- Labs: ${get("heLabs")}`);
+if(get(“heProf”))  p.push(`** ${get("heProf")}`);
+if(get(“heObs”))   p.push(`*${get("heObs")}`);
+return p.join(”\n”);
+};
+const txtIn = () => {
+const p=[];
+if(get(“heMed”)) p.push(get(“heMed”));
+if(ativos.length){
+const lista=ativos.map(a=>{
+const dd=Math.floor((new Date()-new Date(a.disp.data+“T00:00:00”))/86400000);
+return `${a.label}${a.disp.site?` ${a.disp.site}`:""} D${dd}`;
+}).join(”, “);
+p.push(`Dispositivos: ${lista}`);
 }
+if(get(“heAtb”))      p.push(get(“heAtb”));
+if(get(“heCulturas”)) p.push(`- Culturas: ${get("heCulturas")}`);
+return p.join(”\n”);
+};
+
+const txtProblemas = () => {
+const p=[];
+if(get(“probAtivos”))    p.push(`ATIVOS:\n${get("probAtivos")}`);
+if(get(“probResolvidos”)) p.push(`RESOLVIDOS:\n${get("probResolvidos")}`);
+return p.join(”\n”);
+};
+
+const copiarBloco = (id, txt) => {
+const text = txt();
+if(!text) return;
+navigator.clipboard.writeText(text);
+setCopiado(c=>({…c,[id]:true}));
+setTimeout(()=>setCopiado(c=>({…c,[id]:false})),2000);
+};
+
+const copiarTudo = () => {
+const dt=new Date().toLocaleDateString(“pt-BR”);
+let t=`EVOLUÇÃO UTI — ${dt}`;
+if(leito.paciente)    t+=`\nPaciente: ${leito.paciente}`;
+if(leito.diagnostico) t+=` | ${leito.diagnostico}`;
+if(dias!==null)       t+=` | D${dias} UTI`;
+if(leito.peso)        t+=` | ${leito.peso} kg`;
+if(pp)                t+=` | PP ${pp} kg`;
+const procs=leito.procedimentos||[];
+if(procs.length) t+=”\n”+procs.map(p=>{
+const po=Math.floor((new Date()-new Date(p.data+“T00:00:00”))/86400000);
+return `${p.nome} (${po===0?"POI":`PO${po}`})`;
+}).join(” · “);
+t+=”\n\n”;
+const blocos=[[”== N:”,txtN],[”== Cv:”,txtCv],[”== Res:”,txtRes],[”== ReMe:”,txtReMe],[”== TGI:”,txtTGI],[”== He:”,txtHe],[”== In:”,txtIn]];
+blocos.forEach(([h,fn])=>{ const c=fn(); if(c) t+=`${h}\n${c}\n\n`; });
+navigator.clipboard.writeText(t);
+setCopiado(c=>({…c,tudo:true}));
+setTimeout(()=>setCopiado(c=>({…c,tudo:false})),2500);
+};
+
+const colors={N:”#a78bfa”,Cv:”#f87171”,Res:”#38bdf8”,ReMe:”#34d399”,TGI:”#fb923c”,He:”#f59e0b”,In:”#94a3b8”};
+
+const SysB = ({id,sigla,label,color,txtFn,children}) => {
+const [open,setOpen]=useState(true);
+const cp=copiado[id];
+return (
+<div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:10,overflow:“hidden”}}>
+<div style={{display:“flex”,alignItems:“center”,background:“rgba(255,255,255,0.03)”}}>
+<button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:“flex”,alignItems:“center”,gap:8,padding:“10px 14px”,background:“none”,border:“none”,cursor:“pointer”,textAlign:“left”}}>
+<div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
+<span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
+<span style={{fontSize:12,color:”#475569”,fontWeight:400}}>{label}</span>
+<span style={{marginLeft:“auto”,color:”#475569”,fontSize:11}}>{open?“▲”:“▼”}</span>
+</button>
+<button onClick={()=>copiarBloco(id,txtFn)} style={{margin:“6px 10px”,padding:“4px 12px”,borderRadius:6,fontSize:11,fontWeight:600,background:cp?“rgba(34,197,94,0.15)”:“rgba(255,255,255,0.05)”,border:`1px solid ${cp?"#22c55e":"rgba(255,255,255,0.1)"}`,color:cp?”#22c55e”:”#94a3b8”,cursor:“pointer”,whiteSpace:“nowrap”,fontFamily:“inherit”}}>
+{cp?“✓ Copiado”:“📋 Copiar”}
+</button>
+</div>
+{open&&<div style={{padding:“12px 14px”,borderTop:“1px solid rgba(255,255,255,0.05)”}}>{children}</div>}
+</div>
+);
+};
+
+const Row=({children})=><div style={{display:“flex”,gap:8,flexWrap:“wrap”,marginBottom:8}}>{children}</div>;
+const Col=({children,flex=1,min=120})=><div style={{flex,minWidth:min}}>{children}</div>;
+const FL=({children})=><div style={{fontSize:10,color:”#64748b”,fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
+
+return (
+<div>
+<div style={{display:“flex”,gap:6,flexWrap:“wrap”,marginBottom:14}}>
+{dias!==null&&<Pill label=“D UTI” value={`D${dias}`} unit=”” color=”#a78bfa”/>}
+{leito.peso&&<Pill label="PESO" value={leito.peso} unit="kg" color="#f59e0b"/>}
+{pp&&<Pill label="PP" value={pp} unit="kg" color="#fb923c"/>}
+{vc6&&<Pill label="VC 6×" value={vc6} unit="mL" color="#34d399"/>}
+{(leito.procedimentos||[]).map(p=>{
+const po=Math.floor((new Date()-new Date(p.data+“T00:00:00”))/86400000);
+const cor=po<=0?”#f87171”:po<=3?”#fb923c”:po<=7?”#fbbf24”:”#34d399”;
+return <span key={p.id} style={{padding:“4px 10px”,borderRadius:20,fontSize:11,fontFamily:mono,fontWeight:700,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`}}>{p.nome.split(” “)[0]} {po===0?“POI”:`PO${po}`}</span>;
+})}
+{ativos.map((a,i)=>{
+const dd=Math.floor((new Date()-new Date(a.disp.data+“T00:00:00”))/86400000);
+const al=dd>a.alertaDias;
+return <span key={i} style={{padding:“4px 10px”,borderRadius:20,fontSize:11,fontFamily:mono,color:al?”#f87171”:”#64748b”,background:al?“rgba(248,113,113,0.1)”:“rgba(255,255,255,0.04)”,border:`1px solid ${al?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`}}>{a.icone} D{dd}{al?” ⚠️”:””}</span>;
+})}
+</div>
+
+```
+  {/* Legenda */}
+  <div style={{display:"flex",gap:16,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+    <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
+      <div style={{width:12,height:12,borderRadius:3,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.15)"}}/>
+      Editado hoje
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
+      <div style={{width:12,height:12,borderRadius:3,background:"rgba(100,116,139,0.15)",border:"1px solid rgba(100,116,139,0.3)"}}/>
+      Dia anterior — edite para atualizar
+    </div>
+    <button onClick={()=>{
+      if(confirm("Limpar toda a evolução deste leito?")) {
+        onCampoEdit && Object.keys(EVOLUCAO_VAZIA).filter(k=>k!=='_datas').forEach(k=>onCampoEdit(k,''));
+      }
+    }} style={{marginLeft:"auto",padding:"4px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",fontSize:11,cursor:"pointer"}}>
+      🗑 Limpar evolução
+    </button>
+  </div>
+    <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
+    <Row>
+      <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
+      <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} placeholder="Metadona 22,5mg/d + Lido 140mg 12/12h" rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
+    </Row>
+    <Row><Col><FL>PSIQ / OUTROS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} placeholder="Diazepam 40mg/d + Sertralina 50mg/d" rows={1} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>
+    <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} placeholder="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1} fieldName="nObs" onBlurSave={salvar}/></Col></Row>
+  </SysB>
+
+  <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={colors.Cv} txtFn={txtCv}>
+    <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} placeholder="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2} fieldName="cvEF" onBlurSave={salvar}/></Col></Row>
+    <Row>
+      <Col><FL>24h — FC / PAM (min-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} placeholder="FC 109 - 58 / PAM 121 - 58" rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
+      <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} placeholder="Nora 5ml/h (0,08 mcg/kg/min)" rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
+    </Row>
+    <Row>
+      <Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} placeholder="Atenolol 25mg" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col>
+      <Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} placeholder="TEC 2 seg / Lactato 12 > 22" rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col>
+    </Row>
+    <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} placeholder="Eco beira-leito amanhã" rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>
+  </SysB>
+
+  <SysB id="res" sigla="== Res:" label="Respiratório" color={colors.Res} txtFn={txtRes}>
+    <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} placeholder="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
+    <Row>
+      <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} placeholder="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
+      <Col><FL>24h — FR / Sat</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} placeholder="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
+    </Row>
+    <Row>
+      <Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} isAntigo={isAntigo("reGaso")} placeholder="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SataO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col>
+      <Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} placeholder="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col>
+    </Row>
+    <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} placeholder="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>
+  </SysB>
+
+  <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} txtFn={txtReMe}>
+    <Row>
+      <Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} placeholder="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
+      <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} placeholder="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col>
+    </Row>
+    <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
+    <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} placeholder="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>
+  </SysB>
+
+  <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={colors.TGI} txtFn={txtTGI}>
+    {leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>🍽 Dieta cadastrada: <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`}</div>}
+    <Row>
+      <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
+      <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
+    </Row>
+    <Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} placeholder="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
+    <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} placeholder="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>
+  </SysB>
+
+  <SysB id="he" sigla="== He:" label="Hematológico" color={colors.He} txtFn={txtHe}>
+    <Row>
+      <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} placeholder="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
+      <Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} placeholder="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1} fieldName="heProf" onBlurSave={salvar}/></Col>
+    </Row>
+    <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} placeholder="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
+    <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} placeholder="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>
+  </SysB>
+
+  <SysB id="in" sigla="== In:" label="Infeccioso / Dispositivos" color={colors.In} txtFn={txtIn}>
+    {ativos.length>0&&<div style={{padding:"6px 10px",background:"rgba(148,163,184,0.07)",border:"1px solid rgba(148,163,184,0.15)",borderRadius:6,fontSize:11,color:"#94a3b8",marginBottom:8}}>
+      📎 {ativos.map(a=>{const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;}).join(" / ")}
+    </div>}
+    <Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>
+    <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
+    <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} placeholder={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
+  </SysB>
+
+  <SysB id="prob" sigla="📋 Prob:" label="Problemas" color="#94a3b8" txtFn={txtProblemas}>
+    <Row>
+      <Col>
+        <FL>🔴 Problemas Ativos</FL>
+        <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} placeholder={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"} rows={4} fieldName="probAtivos" onBlurSave={salvar}/>
+      </Col>
+      <Col>
+        <FL>✅ Problemas Resolvidos</FL>
+        <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} placeholder={"1. Choque séptico (resolvido D5)\n2. Acidose metabólica"} rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
+      </Col>
+    </Row>
+  </SysB>
+
+  <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+    {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
+  </button>
+</div>
+```
+        {/* Saldo mensal */}
+        <Card>
+          <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,marginBottom:12}}>
+            Saldo mensal
+          </div>
+          {mesesOrdenados.map((k,i)=>{
+            const saldoM=saldosMeses[i];
+            const isCur=k===mesKey;
+            return (
+              <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"6px 10px",borderRadius:8,marginBottom:4,
+                background:isCur?"rgba(255,255,255,.05)":"transparent",
+                border:isCur?"1px solid rgba(255,255,255,.08)":"1px solid transparent"}}>
+                <span style={{fontSize:12,color:isCur?"#f0f0f5":"#666",fontWeight:isCur?600:400}}>{mesesLabel2[i]}</span>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span className="mono" style={{fontSize:10,color:"#555"}}>{fmtBRL(receitasMeses[i])}</span>
+                  <span style={{fontSize:10,color:"#333"}}>–</span>
+                  <span className="mono" style={{fontSize:10,color:"#555"}}>{fmtBRL(despesasMeses[i])}</span>
+                  <span style={{fontSize:10,color:"#333"}}>=</span>
+                  <span className="mono" style={{fontSize:12,color:saldoM>=0?"#4ade80":"#f87171",fontWeight:600}}>{fmtBRL(saldoM)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+
+        {/* Categoria por mês */}
+        <Card>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8}}>
+              Categoria por mês
+            </div>
+            <select value={catAnual||""} onChange={e=>setCatAnual(e.target.value||null)}
+              style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:8,
+                padding:"5px 10px",color:"#a89cf7",fontSize:11,fontWeight:600,outline:"none",cursor:"pointer"}}>
+              <option value="">Selecionar</option>
+              {Array.from(todasCatsAnual).sort().map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          {catAnual&&(
+            <>
+              <div style={{display:"flex",alignItems:"flex-end",gap:4,height:110}}>
+                {mesesOrdenados.map((k,i)=>{
+                  const val=catDados[i];
+                  const isCur=k===mesKey;
+                  const cor=CORES_CAT[catAnual]||"#7c6af7";
+                  return (
+                    <div key={k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      {val>0&&<span className="mono" style={{fontSize:7,color:cor}}>{val>=1000?`${(val/1000).toFixed(1)}k`:val.toFixed(0)}</span>}
+                      <div style={{width:"100%",height:80,display:"flex",alignItems:"flex-end"}}>
+                        <div style={{width:"100%",background:isCur?cor:`${cor}66`,borderRadius:"3px 3px 0 0",
+                          height:`${val/maxCat*100}%`,minHeight:val>0?2:0}}/>
+                      </div>
+                      <span style={{fontSize:8,color:isCur?"#f0f0f5":"#444",fontWeight:isCur?700:400}}>{mesesLabel2[i]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:10,padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:8,display:"flex",justifyContent:"space-between"}}>
+                <span style={{fontSize:11,color:"#555"}}>{catAnual} — média</span>
+                <span className="mono" style={{fontSize:12,color:CORES_CAT[catAnual]||"#7c6af7",fontWeight:600}}>
+                  {fmtBRL(catDados.filter(v=>v>0).reduce((s,v,_,a)=>s+v/a.length,0))}
+                </span>
+              </div>
+            </>
+          )}
+          {!catAnual&&<div style={{textAlign:"center",padding:"20px 0",color:"#333",fontSize:12}}>Selecione uma categoria</div>}
+        </Card>
+
+);
+}
+        {/* Ranking */}
+        <Card>
+          <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,marginBottom:12}}>
+            Total por categoria — período
+          </div>
+          {Array.from(todasCatsAnual).sort().map(cat=>{
+            const total=mesesOrdenados.reduce((s,k)=>{
+              const md=allMonths[k]; if(!md) return s;
+              return s+[...Object.values(md.cartoes||{}).flat(),...(md.variaveis||[])].filter(t=>t.cat===cat).reduce((ss,t)=>ss+Number(t.valor||0),0);
+            },0);
+            const cor=CORES_CAT[cat]||"#7c6af7";
+            const maxTotal=Math.max(...Array.from(todasCatsAnual).map(c=>mesesOrdenados.reduce((s,k)=>{
+              const md=allMonths[k]; if(!md) return s;
+              return s+[...Object.values(md.cartoes||{}).flat(),...(md.variaveis||[])].filter(t=>t.cat===c).reduce((ss,t)=>ss+Number(t.valor||0),0);
+            },0)),1);
+            return (
+              <div key={cat} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>{setCatAnual(cat===catAnual?null:cat);}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{width:8,height:8,borderRadius:2,background:cor,flexShrink:0}}/>
+                    <span style={{fontSize:12,color:catAnual===cat?cor:"#ccc",fontWeight:catAnual===cat?600:400}}>{cat}</span>
+                  </div>
+                  <span className="mono" style={{fontSize:11,color:cor}}>{fmtBRL(total)}</span>
+                </div>
+                <div style={{height:3,background:"rgba(255,255,255,.05)",borderRadius:2}}>
+                  <div style={{height:"100%",width:`${total/maxTotal*100}%`,background:cor,borderRadius:2}}/>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      </>}
 
 // ── MetasPanel ────────────────────────────────────────────────────────────────
 function MetasPanel({ metas, onChange }) {
-  const [nova, setNova] = useState("");
-  const [show, setShow] = useState(false);
-  
-  const add = (t) => {
-    if (!t.trim()) return;
-    onChange([...metas, { id: Date.now(), texto: t.trim(), status: "pendente" }]);
-    setNova(""); setShow(false);
-  };
-  const s = { total:metas.length, ok:metas.filter(m=>m.status==="cumprido").length, pend:metas.filter(m=>m.status==="pendente").length };
+const [nova, setNova] = useState(””);
+const [show, setShow] = useState(false);
 
-  return (
-    <div>
-      {metas.length>0 && (
-        <div style={{display:"flex",gap:12,marginBottom:16,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:8}}>
-          {[["TOTAL",s.total,"#e2e8f0"],["CUMPRIDAS",s.ok,"#22c55e"],["PENDENTES",s.pend,"#f59e0b"]].map(([l,v,c])=>(
-            <div key={l} style={{textAlign:"center",flex:1}}>
-              <div style={{fontSize:20,fontWeight:700,color:c}}>{v}</div>
-              <div style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{l}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div style={{display:"flex",gap:8,marginBottom:8}}>
-        <input value={nova} onChange={e=>setNova(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add(nova)} placeholder="Nova meta ou pendência…"
-          style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-        <button onClick={()=>add(nova)} style={{padding:"9px 14px",background:"rgba(56,189,248,0.15)",border:"1px solid #38bdf8",borderRadius:8,color:"#38bdf8",fontWeight:700,cursor:"pointer",fontSize:16}}>+</button>
-      </div>
-      <button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:12}}>
-        {show?"▲ Ocultar sugestões":"▼ Ver sugestões de metas comuns"}
-      </button>
-      {show && <div style={{marginBottom:14}}>{METAS_SUGESTOES.map(sg=><div key={sg} onClick={()=>add(sg)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,color:"#94a3b8",cursor:"pointer",background:"rgba(255,255,255,0.02)",marginBottom:4,border:"1px solid rgba(255,255,255,0.05)"}}>+ {sg}</div>)}</div>}
-      {metas.length===0 && <div style={{textAlign:"center",padding:24,color:"#334155",fontSize:13}}>Nenhuma meta cadastrada para este plantão</div>}
-      {metas.map(m=>(
-        <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:8,marginBottom:6,border:"1px solid rgba(255,255,255,0.06)"}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:13,color:"#cbd5e1",marginBottom:6}}>{m.texto}</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {["pendente","andamento","cumprido"].map(st=>(
-                <button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,status:st}:x))}
-                  style={{padding:"2px 10px",borderRadius:20,border:`1px solid ${m.status===st?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:m.status===st?"rgba(56,189,248,0.12)":"transparent",color:m.status===st?"#38bdf8":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono}}>
-                  {st==="pendente"?"● Pendente":st==="andamento"?"◑ Andamento":"✓ Cumprido"}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button onClick={()=>onChange(metas.filter(x=>x.id!==m.id))} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:16,padding:2}}>✕</button>
-        </div>
-      ))}
+const add = (t) => {
+if (!t.trim()) return;
+onChange([…metas, { id: Date.now(), texto: t.trim(), status: “pendente” }]);
+setNova(””); setShow(false);
+};
+const s = { total:metas.length, ok:metas.filter(m=>m.status===“cumprido”).length, pend:metas.filter(m=>m.status===“pendente”).length };
+
+return (
+<div>
+{metas.length>0 && (
+<div style={{display:“flex”,gap:12,marginBottom:16,padding:“10px 14px”,background:“rgba(255,255,255,0.03)”,borderRadius:8}}>
+{[[“TOTAL”,s.total,”#e2e8f0”],[“CUMPRIDAS”,s.ok,”#22c55e”],[“PENDENTES”,s.pend,”#f59e0b”]].map(([l,v,c])=>(
+<div key={l} style={{textAlign:“center”,flex:1}}>
+<div style={{fontSize:20,fontWeight:700,color:c}}>{v}</div>
+<div style={{fontSize:10,color:”#64748b”,fontFamily:mono}}>{l}</div>
+</div>
+))}
+</div>
+)}
+<div style={{display:“flex”,gap:8,marginBottom:8}}>
+<input value={nova} onChange={e=>setNova(e.target.value)} onKeyDown={e=>e.key===“Enter”&&add(nova)} placeholder=“Nova meta ou pendência…”
+style={{flex:1,background:“rgba(255,255,255,0.04)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:8,padding:“9px 12px”,color:”#e2e8f0”,fontSize:13,fontFamily:“inherit”}}/>
+<button onClick={()=>add(nova)} style={{padding:“9px 14px”,background:“rgba(56,189,248,0.15)”,border:“1px solid #38bdf8”,borderRadius:8,color:”#38bdf8”,fontWeight:700,cursor:“pointer”,fontSize:16}}>+</button>
+</div>
+<button onClick={()=>setShow(s=>!s)} style={{width:“100%”,padding:“7px”,background:“transparent”,border:“1px dashed rgba(255,255,255,0.1)”,borderRadius:8,color:”#64748b”,fontSize:12,cursor:“pointer”,marginBottom:12}}>
+{show?“▲ Ocultar sugestões”:“▼ Ver sugestões de metas comuns”}
+</button>
+{show && <div style={{marginBottom:14}}>{METAS_SUGESTOES.map(sg=><div key={sg} onClick={()=>add(sg)} style={{padding:“7px 12px”,borderRadius:6,fontSize:12,color:”#94a3b8”,cursor:“pointer”,background:“rgba(255,255,255,0.02)”,marginBottom:4,border:“1px solid rgba(255,255,255,0.05)”}}>+ {sg}</div>)}</div>}
+{metas.length===0 && <div style={{textAlign:“center”,padding:24,color:”#334155”,fontSize:13}}>Nenhuma meta cadastrada para este plantão</div>}
+{metas.map(m=>(
+<div key={m.id} style={{display:“flex”,alignItems:“flex-start”,gap:10,padding:“10px 14px”,background:“rgba(255,255,255,0.03)”,borderRadius:8,marginBottom:6,border:“1px solid rgba(255,255,255,0.06)”}}>
+<div style={{flex:1}}>
+<div style={{fontSize:13,color:”#cbd5e1”,marginBottom:6}}>{m.texto}</div>
+<div style={{display:“flex”,gap:6,flexWrap:“wrap”}}>
+{[“pendente”,“andamento”,“cumprido”].map(st=>(
+<button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{…x,status:st}:x))}
+style={{padding:“2px 10px”,borderRadius:20,border:`1px solid ${m.status===st?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:m.status===st?“rgba(56,189,248,0.12)”:“transparent”,color:m.status===st?”#38bdf8”:”#64748b”,fontSize:11,cursor:“pointer”,fontFamily:mono}}>
+{st===“pendente”?“● Pendente”:st===“andamento”?“◑ Andamento”:“✓ Cumprido”}
+</button>
+))}
+</div>
+</div>
+<button onClick={()=>onChange(metas.filter(x=>x.id!==m.id))} style={{background:“none”,border:“none”,color:”#475569”,cursor:“pointer”,fontSize:16,padding:2}}>✕</button>
+</div>
+))}
+</div>
+);
     </div>
   );
 }
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
 function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
-  const dias = diasInternacao(leito.dataInternacao);
-  const vago = !leito.paciente;
-  const [editingNome, setEditingNome] = useState(false);
-  const [nomeTemp, setNomeTemp] = useState(leito.nome);
+const dias = diasInternacao(leito.dataInternacao);
+const vago = !leito.paciente;
+const [editingNome, setEditingNome] = useState(false);
+const [nomeTemp, setNomeTemp] = useState(leito.nome);
 
-  const confirmarNome = () => {
-    if (nomeTemp.trim()) onRename(nomeTemp.trim());
-    setEditingNome(false);
+const confirmarNome = () => {
+if (nomeTemp.trim()) onRename(nomeTemp.trim());
+setEditingNome(false);
+};
+
+return (
+<div style={{cursor:“pointer”,borderRadius:12,padding:“14px 16px”,background:selecionado?“rgba(56,189,248,0.1)”:“rgba(255,255,255,0.03)”,border:selecionado?“1.5px solid #38bdf8”:“1.5px solid rgba(255,255,255,0.08)”,transition:“all 0.2s”,marginBottom:8}} onClick={e=>{if(!editingNome) onClick();}}>
+<div style={{display:“flex”,justifyContent:“space-between”,alignItems:“center”,marginBottom:2}}>
+{editingNome ? (
+<input autoFocus value={nomeTemp}
+onChange={e=>setNomeTemp(e.target.value)}
+onKeyDown={e=>{if(e.key===“Enter”)confirmarNome(); if(e.key===“Escape”){setEditingNome(false);setNomeTemp(leito.nome);}}}
+onBlur={confirmarNome}
+onClick={e=>e.stopPropagation()}
+style={{fontSize:11,fontFamily:mono,letterSpacing:1,color:”#38bdf8”,background:“rgba(56,189,248,0.1)”,border:“1px solid rgba(56,189,248,0.4)”,borderRadius:4,padding:“2px 6px”,width:“100%”}}/>
+) : (
+<span style={{fontSize:11,color:”#64748b”,fontFamily:mono,letterSpacing:2}}
+onDoubleClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}>
+{leito.nome}
+</span>
+)}
+<div style={{display:“flex”,alignItems:“center”,gap:4}}>
+{!editingNome && dias!==null && !vago && <span style={{fontSize:11,color:”#a78bfa”,fontWeight:700}}>D{dias}</span>}
+{!editingNome && (
+<button onClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}
+title=“Renomear leito”
+style={{background:“none”,border:“none”,color:”#334155”,cursor:“pointer”,fontSize:11,padding:“0 2px”,lineHeight:1}}>✏️</button>
+)}
+{onRemove && (
+<button onClick={e=>{e.stopPropagation();if(confirm(`Remover ${leito.nome}?`))onRemove();}}
+title=“Remover leito”
+style={{background:“none”,border:“none”,color:”#334155”,cursor:“pointer”,fontSize:11,padding:“0 2px”,lineHeight:1}}>🗑️</button>
+)}
+</div>
+</div>
+{vago ? <div style={{fontSize:13,color:”#334155”,marginTop:4,fontStyle:“italic”}}>Vago</div> : <>
+<div style={{fontSize:14,color:”#e2e8f0”,marginTop:2,fontWeight:600}}>{leito.paciente}</div>
+<div style={{fontSize:12,color:”#94a3b8”,marginTop:2}}>{leito.diagnostico}</div>
+{(leito.peso||leito.altura)&&<div style={{fontSize:11,color:”#475569”,marginTop:3}}>{leito.peso?`${leito.peso} kg`:””}{leito.peso&&leito.altura?” · “:””}{leito.altura?`${leito.altura} cm`:””}</div>}
+{(leito.procedimentos||[]).length>0&&(
+<div style={{display:“flex”,gap:4,flexWrap:“wrap”,marginTop:5}}>
+{leito.procedimentos.map(p=>{
+const po=Math.floor((new Date()-new Date(p.data+“T00:00:00”))/86400000);
+const cor=po===0?”#f87171”:po<=3?”#fb923c”:po<=7?”#fbbf24”:”#34d399”;
+return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.1)`,border:`1px solid ${cor}44`,borderRadius:4,padding:“1px 6px”}}>{po===0?“POI”:`PO${po}`}</span>;
+})}
+</div>
+)}
+{(() => {
+const d = leito.dispositivos || {};
+const temAlerta =
+DISP_MULTIPLO.some(def=>(Array.isArray(d[def.key])?d[def.key]:[]).some(inst=>{
+const dd=Math.floor((new Date()-new Date(inst.data+“T00:00:00”))/86400000);
+return dd>def.alertaDias;
+})) ||
+DISP_SINGULAR.some(def=>{
+if (!d[def.key]?.ativo||!d[def.key].data) return false;
+const dd=Math.floor((new Date()-new Date(d[def.key].data+“T00:00:00”))/86400000);
+return dd>def.alertaDias;
+});
+return temAlerta ? <div style={{marginTop:5,fontSize:10,color:”#f87171”,fontFamily:mono}}>⚠️ Dispositivo p/ revisão</div> : null;
+})()}
+</>}
+</div>
+);
+function ConfigView({cats,setCats}) {
+  const [nova,setNova]=useState("");
+  const [editIdx,setEditIdx]=useState(null);
+  const [editVal,setEditVal]=useState("");
+
+  const addCat=()=>{
+    if(!nova.trim()||cats.includes(nova.trim())) return;
+    const updated=[...cats,nova.trim()];
+    setCats(updated);
+    save("config:cats",updated);
+    setNova("");
+  };
+  const removeCat=(cat)=>{
+    const updated=cats.filter(c=>c!==cat);
+    setCats(updated);
+    save("config:cats",updated);
+  };
+  const saveEdit=(idx)=>{
+    if(!editVal.trim()) return;
+    const updated=cats.map((c,i)=>i===idx?editVal.trim():c);
+    setCats(updated);
+    save("config:cats",updated);
+    setEditIdx(null);
   };
 
   return (
-    <div style={{cursor:"pointer",borderRadius:12,padding:"14px 16px",background:selecionado?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",border:selecionado?"1.5px solid #38bdf8":"1.5px solid rgba(255,255,255,0.08)",transition:"all 0.2s",marginBottom:8}} onClick={e=>{if(!editingNome) onClick();}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-        {editingNome ? (
-          <input autoFocus value={nomeTemp}
-            onChange={e=>setNomeTemp(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter")confirmarNome(); if(e.key==="Escape"){setEditingNome(false);setNomeTemp(leito.nome);}}}
-            onBlur={confirmarNome}
-            onClick={e=>e.stopPropagation()}
-            style={{fontSize:11,fontFamily:mono,letterSpacing:1,color:"#38bdf8",background:"rgba(56,189,248,0.1)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:4,padding:"2px 6px",width:"100%"}}/>
-        ) : (
-          <span style={{fontSize:11,color:"#64748b",fontFamily:mono,letterSpacing:2}}
-            onDoubleClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}>
-            {leito.nome}
-          </span>
-        )}
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          {!editingNome && dias!==null && !vago && <span style={{fontSize:11,color:"#a78bfa",fontWeight:700}}>D{dias}</span>}
-          {!editingNome && (
-            <button onClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}
-              title="Renomear leito"
-              style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>✏️</button>
-          )}
-          {onRemove && (
-            <button onClick={e=>{e.stopPropagation();if(confirm(`Remover ${leito.nome}?`))onRemove();}}
-              title="Remover leito"
-              style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>🗑️</button>
-          )}
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <Card>
+        <div style={{fontSize:10,color:"#555",fontWeight:600,textTransform:"uppercase",letterSpacing:.8,marginBottom:12}}>
+          Categorias de gastos
         </div>
-      </div>
-      {vago ? <div style={{fontSize:13,color:"#334155",marginTop:4,fontStyle:"italic"}}>Vago</div> : <>
-        <div style={{fontSize:14,color:"#e2e8f0",marginTop:2,fontWeight:600}}>{leito.paciente}</div>
-        <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{leito.diagnostico}</div>
-        {(leito.peso||leito.altura)&&<div style={{fontSize:11,color:"#475569",marginTop:3}}>{leito.peso?`${leito.peso} kg`:""}{leito.peso&&leito.altura?" · ":""}{leito.altura?`${leito.altura} cm`:""}</div>}
-        {(leito.procedimentos||[]).length>0&&(
-          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
-            {leito.procedimentos.map(p=>{
-              const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-              const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
-              return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.1)`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 6px"}}>{po===0?"POI":`PO${po}`}</span>;
-            })}
-          </div>
-        )}
-        {(() => {
-          const d = leito.dispositivos || {};
-          const temAlerta =
-            DISP_MULTIPLO.some(def=>(Array.isArray(d[def.key])?d[def.key]:[]).some(inst=>{
-              const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
-              return dd>def.alertaDias;
-            })) ||
-            DISP_SINGULAR.some(def=>{
-              if (!d[def.key]?.ativo||!d[def.key].data) return false;
-              const dd=Math.floor((new Date()-new Date(d[def.key].data+"T00:00:00"))/86400000);
-              return dd>def.alertaDias;
-            });
-          return temAlerta ? <div style={{marginTop:5,fontSize:10,color:"#f87171",fontFamily:mono}}>⚠️ Dispositivo p/ revisão</div> : null;
-        })()}
-      </>}
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {cats.map((cat,i)=>(
+            <div key={cat} style={{display:"flex",alignItems:"center",gap:8}}>
+              {editIdx===i?(
+                <>
+                  <input value={editVal} onChange={e=>setEditVal(e.target.value)}
+                    style={{flex:1,background:"rgba(255,255,255,.06)",border:"1px solid rgba(124,106,247,.3)",borderRadius:8,padding:"6px 10px",color:"#f0f0f5",fontSize:13,outline:"none"}}/>
+                  <button onClick={()=>saveEdit(i)} style={{background:"rgba(124,106,247,.2)",border:"1px solid rgba(124,106,247,.3)",borderRadius:7,padding:"5px 10px",color:"#a89cf7",fontSize:11,cursor:"pointer"}}>✓</button>
+                  <button onClick={()=>setEditIdx(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,.08)",borderRadius:7,padding:"5px 10px",color:"#555",fontSize:11,cursor:"pointer"}}>✕</button>
+                </>
+              ):(
+                <>
+                  <span style={{flex:1,fontSize:13,color:"#f0f0f5"}}>{cat}</span>
+                  <button onClick={()=>{setEditIdx(i);setEditVal(cat);}} style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.08)",borderRadius:7,padding:"4px 9px",color:"#666",fontSize:11,cursor:"pointer"}}>✏</button>
+                  <button onClick={()=>removeCat(cat)} style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.15)",borderRadius:7,padding:"4px 9px",color:"#f87171",fontSize:11,cursor:"pointer"}}>✕</button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:12}}>
+          <input value={nova} onChange={e=>setNova(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&addCat()}
+            placeholder="Nova categoria..."
+            style={{flex:1,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"9px 12px",color:"#f0f0f5",fontSize:13,outline:"none"}}/>
+          <button onClick={addCat} style={{background:"#7c6af7",border:"none",borderRadius:10,padding:"9px 14px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>+</button>
+        </div>
+        <button onClick={()=>{setCats([...CATS_DEFAULT]);save("config:cats",[...CATS_DEFAULT]);}} style={{marginTop:8,background:"transparent",border:"1px solid rgba(255,255,255,.06)",borderRadius:8,padding:"6px",color:"#333",fontSize:11,cursor:"pointer",width:"100%"}}>
+          Restaurar categorias padrão
+        </button>
+      </Card>
     </div>
   );
 }
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 async function sha256(text) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+const buf = await crypto.subtle.digest(“SHA-256”, new TextEncoder().encode(text));
+return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,“0”)).join(””);
 }
-const SESSION_KEY = "uti_session_hash";
+const SESSION_KEY = “uti_session_hash”;
 
 // ── LoginScreen ───────────────────────────────────────────────────────────────
 function LoginScreen({ onLogin }) {
-  const [senha,    setSenha]    = useState("");
-  const [confirma, setConfirma] = useState("");
-  const [erro,     setErro]     = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [mode,     setMode]     = useState(null);
+const [senha,    setSenha]    = useState(””);
+const [confirma, setConfirma] = useState(””);
+const [erro,     setErro]     = useState(””);
+const [loading,  setLoading]  = useState(false);
+const [mode,     setMode]     = useState(null);
 
-  useEffect(()=>{
-    (async()=>{
-      try {
-        const { data } = await supabase.from("config").select("value").eq("key","pwd_hash").single();
-        setMode(data ? "login" : "setup");
-      } catch { setMode("setup"); }
-    })();
-  },[]);
+useEffect(()=>{
+(async()=>{
+try {
+const { data } = await supabase.from(“config”).select(“value”).eq(“key”,“pwd_hash”).single();
+setMode(data ? “login” : “setup”);
+} catch { setMode(“setup”); }
+})();
+},[]);
 
-  const handleLogin = async () => {
-    setLoading(true); setErro("");
-    try {
-      const hash = await sha256(senha);
-      const { data } = await supabase.from("config").select("value").eq("key","pwd_hash").single();
-      if (data && hash === data.value) {
-        sessionStorage.setItem(SESSION_KEY, hash);
-        onLogin(hash);
-      } else { setErro("Senha incorreta."); }
-    } catch { setErro("Erro ao verificar senha."); }
-    setLoading(false);
-  };
+const handleLogin = async () => {
+setLoading(true); setErro(””);
+try {
+const hash = await sha256(senha);
+const { data } = await supabase.from(“config”).select(“value”).eq(“key”,“pwd_hash”).single();
+if (data && hash === data.value) {
+sessionStorage.setItem(SESSION_KEY, hash);
+onLogin(hash);
+} else { setErro(“Senha incorreta.”); }
+} catch { setErro(“Erro ao verificar senha.”); }
+setLoading(false);
+};
 
-  const handleSetup = async () => {
-    if (senha.length < 4) { setErro("Use ao menos 4 caracteres."); return; }
-    if (senha !== confirma) { setErro("As senhas não coincidem."); return; }
-    setLoading(true); setErro("");
-    try {
-      const hash = await sha256(senha);
-      await supabase.from("config").upsert({ key:"pwd_hash", value:hash });
-      sessionStorage.setItem(SESSION_KEY, hash);
-      onLogin(hash);
-    } catch { setErro("Erro ao salvar senha."); }
-    setLoading(false);
-  };
+const handleSetup = async () => {
+if (senha.length < 4) { setErro(“Use ao menos 4 caracteres.”); return; }
+if (senha !== confirma) { setErro(“As senhas não coincidem.”); return; }
+setLoading(true); setErro(””);
+try {
+const hash = await sha256(senha);
+await supabase.from(“config”).upsert({ key:“pwd_hash”, value:hash });
+sessionStorage.setItem(SESSION_KEY, hash);
+onLogin(hash);
+} catch { setErro(“Erro ao salvar senha.”); }
+setLoading(false);
+};
 
-  if (mode === null) return (
-    <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
-      <div style={{color:"#38bdf8"}}>Carregando…</div>
-    </div>
-  );
+if (mode === null) return (
+<div style={{minHeight:“100vh”,background:”#0a0f1e”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontFamily:”‘Sora’,sans-serif”}}>
+<style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
+<div style={{color:”#38bdf8”}}>Carregando…</div>
+</div>
+);
 
-  return (
-    <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora','DM Sans',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}input{outline:none;color-scheme:dark}`}</style>
-      <div style={{width:"100%",maxWidth:380,padding:32}}>
-        <div style={{textAlign:"center",marginBottom:36}}>
-          <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#0284c7,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px"}}>⚕️</div>
-          <div style={{fontSize:22,fontWeight:700,color:"#e2e8f0",letterSpacing:0.3}}>UTI Evolve</div>
-          <div style={{fontSize:12,color:"#475569",fontFamily:"'DM Mono',monospace",letterSpacing:1.5,marginTop:4}}>ASSISTENTE DE EVOLUÇÃO</div>
-        </div>
-        <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:28}}>
-          <div style={{fontSize:14,fontWeight:600,color:"#cbd5e1",marginBottom:20,textAlign:"center"}}>
-            {mode==="setup" ? "🔐 Criar senha de acesso" : "🔒 Acesso restrito"}
-          </div>
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:5}}>SENHA</div>
-            <input type="password" value={senha} onChange={e=>setSenha(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&(mode==="setup"?handleSetup():handleLogin())}
-              placeholder="••••••••" autoFocus
-              style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 14px",color:"#e2e8f0",fontSize:14,fontFamily:"inherit"}}/>
-          </div>
-          {mode==="setup" && (
-            <div style={{marginBottom:14}}>
-              <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:5}}>CONFIRMAR SENHA</div>
-              <input type="password" value={confirma} onChange={e=>setConfirma(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&handleSetup()} placeholder="••••••••"
-                style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 14px",color:"#e2e8f0",fontSize:14,fontFamily:"inherit"}}/>
-            </div>
-          )}
-          {erro && <div style={{padding:"8px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:8,fontSize:12,color:"#f87171",marginBottom:14}}>{erro}</div>}
-          <button onClick={mode==="setup"?handleSetup:handleLogin} disabled={loading||!senha}
-            style={{width:"100%",padding:"11px",background:loading||!senha?"rgba(56,189,248,0.1)":"linear-gradient(135deg,#0284c7,#0369a1)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,color:loading||!senha?"#475569":"white",fontWeight:700,fontSize:14,cursor:loading||!senha?"not-allowed":"pointer",fontFamily:"inherit"}}>
-            {loading?"Verificando…":mode==="setup"?"Criar senha e entrar":"Entrar"}
-          </button>
-        </div>
-        {mode==="setup"&&<div style={{marginTop:16,padding:"10px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,fontSize:12,color:"#fcd34d",lineHeight:1.6}}>
-          🔐 A senha é salva de forma criptografada no banco de dados. Funciona em qualquer dispositivo.
-        </div>}
-      </div>
-    </div>
-  );
+return (
+<div style={{minHeight:“100vh”,background:”#0a0f1e”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontFamily:”‘Sora’,‘DM Sans’,sans-serif”}}>
+<style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}input{outline:none;color-scheme:dark}`}</style>
+<div style={{width:“100%”,maxWidth:380,padding:32}}>
+<div style={{textAlign:“center”,marginBottom:36}}>
+<div style={{width:52,height:52,borderRadius:14,background:“linear-gradient(135deg,#0284c7,#0ea5e9)”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:26,margin:“0 auto 14px”}}>⚕️</div>
+<div style={{fontSize:22,fontWeight:700,color:”#e2e8f0”,letterSpacing:0.3}}>UTI Evolve</div>
+<div style={{fontSize:12,color:”#475569”,fontFamily:”‘DM Mono’,monospace”,letterSpacing:1.5,marginTop:4}}>ASSISTENTE DE EVOLUÇÃO</div>
+</div>
+<div style={{background:“rgba(255,255,255,0.03)”,border:“1px solid rgba(255,255,255,0.08)”,borderRadius:14,padding:28}}>
+<div style={{fontSize:14,fontWeight:600,color:”#cbd5e1”,marginBottom:20,textAlign:“center”}}>
+{mode===“setup” ? “🔐 Criar senha de acesso” : “🔒 Acesso restrito”}
+</div>
+<div style={{marginBottom:14}}>
+<div style={{fontSize:10,color:”#64748b”,fontFamily:”‘DM Mono’,monospace”,letterSpacing:1,marginBottom:5}}>SENHA</div>
+<input type=“password” value={senha} onChange={e=>setSenha(e.target.value)}
+onKeyDown={e=>e.key===“Enter”&&(mode===“setup”?handleSetup():handleLogin())}
+placeholder=”••••••••” autoFocus
+style={{width:“100%”,background:“rgba(255,255,255,0.05)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:8,padding:“10px 14px”,color:”#e2e8f0”,fontSize:14,fontFamily:“inherit”}}/>
+</div>
+{mode===“setup” && (
+<div style={{marginBottom:14}}>
+<div style={{fontSize:10,color:”#64748b”,fontFamily:”‘DM Mono’,monospace”,letterSpacing:1,marginBottom:5}}>CONFIRMAR SENHA</div>
+<input type=“password” value={confirma} onChange={e=>setConfirma(e.target.value)}
+onKeyDown={e=>e.key===“Enter”&&handleSetup()} placeholder=”••••••••”
+style={{width:“100%”,background:“rgba(255,255,255,0.05)”,border:“1px solid rgba(255,255,255,0.1)”,borderRadius:8,padding:“10px 14px”,color:”#e2e8f0”,fontSize:14,fontFamily:“inherit”}}/>
+</div>
+)}
+{erro && <div style={{padding:“8px 12px”,background:“rgba(248,113,113,0.1)”,border:“1px solid rgba(248,113,113,0.25)”,borderRadius:8,fontSize:12,color:”#f87171”,marginBottom:14}}>{erro}</div>}
+<button onClick={mode===“setup”?handleSetup:handleLogin} disabled={loading||!senha}
+style={{width:“100%”,padding:“11px”,background:loading||!senha?“rgba(56,189,248,0.1)”:“linear-gradient(135deg,#0284c7,#0369a1)”,border:“1px solid rgba(56,189,248,0.3)”,borderRadius:8,color:loading||!senha?”#475569”:“white”,fontWeight:700,fontSize:14,cursor:loading||!senha?“not-allowed”:“pointer”,fontFamily:“inherit”}}>
+{loading?“Verificando…”:mode===“setup”?“Criar senha e entrar”:“Entrar”}
+</button>
+</div>
+{mode===“setup”&&<div style={{marginTop:16,padding:“10px 14px”,background:“rgba(245,158,11,0.07)”,border:“1px solid rgba(245,158,11,0.2)”,borderRadius:8,fontSize:12,color:”#fcd34d”,lineHeight:1.6}}>
+🔐 A senha é salva de forma criptografada no banco de dados. Funciona em qualquer dispositivo.
+</div>}
+</div>
+</div>
+);
 }
+const NAV=[{id:"dashboard",label:"Início"},{id:"plantoes",label:"Receita"},{id:"fixas",label:"Fixas"},{id:"cartoes",label:"Cartões"},{id:"variaveis",label:"Variáveis"},{id:"investimentos",label:"Invest."},{id:"analise",label:"Análise"},{id:"config",label:"Config"}];
 
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [authed,     setAuthed]     = useState(false);
-  const [appReady,   setAppReady]   = useState(false);
-  const [leitos,     setLeitos]     = useState(LEITOS_INICIAIS);
-  const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
-  const [aba,        setAba]        = useState("paciente");
-  const [dadosIA,    setDadosIA]    = useState(null);
-  const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
-  const [evolVersion, setEvolVersion] = useState(0);
-  const [evolPorLeito, setEvolPorLeito] = useState({}); // { leitoId: evolCampos }
-  const [tabelaData, setTabelaData] = useState({});
-  const [metasPorLeito, setMetasPorLeito] = useState({}); // { leitoId: [metas] }
-  const [config, setConfig] = useState({
-    alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
-    alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
-  });
-  const [saving, setSaving] = useState(false);
-  const saveTimer   = useRef(null);
-  const evolTimer   = useRef(null);
-  const tabelaTimer = useRef(null);
-  const configTimer = useRef(null);
-  const metasTimer  = useRef(null);
+const [authed,     setAuthed]     = useState(false);
+const [appReady,   setAppReady]   = useState(false);
+const [leitos,     setLeitos]     = useState(LEITOS_INICIAIS);
+const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
+const [aba,        setAba]        = useState(“paciente”);
+const [dadosIA,    setDadosIA]    = useState(null);
+const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
+const [evolVersion, setEvolVersion] = useState(0);
+const [evolPorLeito, setEvolPorLeito] = useState({}); // { leitoId: evolCampos }
+const [tabelaData, setTabelaData] = useState({});
+const [metasPorLeito, setMetasPorLeito] = useState({}); // { leitoId: [metas] }
+const [config, setConfig] = useState({
+alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
+alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
+});
+const [saving, setSaving] = useState(false);
+const saveTimer   = useRef(null);
+const evolTimer   = useRef(null);
+const tabelaTimer = useRef(null);
+const configTimer = useRef(null);
+const metasTimer  = useRef(null);
 
-  // ── LOAD ─────────────────────────────────────────────────────────────────────
-  const loadData = async () => {
-    let leitoAtualId = LEITOS_INICIAIS[0].id;
-    try {
-      const { data: ld } = await supabase.from("config").select("value").eq("key","leitos_data").single();
-      if (ld?.value) {
-        const p = JSON.parse(ld.value);
-        if (Array.isArray(p) && p.length) {
-          setLeitos(p);
-          leitoAtualId = p[0].id;
-          setLeitoSelId(p[0].id);
-        }
-      }
-    } catch {}
-    try {
-      const { data: td } = await supabase.from("config").select("value").eq("key","tabela_data").single();
-      if (td?.value) {
-        const p = JSON.parse(td.value);
-        if (p && typeof p === 'object') setTabelaData(p);
-      }
-    } catch {}
-    try {
-      const { data: cd } = await supabase.from("config").select("value").eq("key","app_config").single();
-      if (cd?.value) {
-        const p = JSON.parse(cd.value);
-        if (p && typeof p === 'object') setConfig(c=>({...c,...p}));
-      }
-    } catch {}
-    try {
-      const { data: ed } = await supabase.from("config").select("value").eq("key","evolucao_data").single();
-      if (ed?.value) {
-        const p = JSON.parse(ed.value);
-        if (p && typeof p === 'object') {
-          setEvolPorLeito(p);
-          if (p[leitoAtualId]) { setEvolCampos(p[leitoAtualId]); setEvolVersion(v=>v+1); }
-        }
-      }
-    } catch {}
-    try {
-      const { data: md } = await supabase.from("config").select("value").eq("key","metas_data").single();
-      if (md?.value) {
-        const p = JSON.parse(md.value);
-        if (p && typeof p === 'object') setMetasPorLeito(p);
-      }
-    } catch {}
-    // Libera saves apenas após load completo
-    setTimeout(() => { isLoaded.current = true; }, 300);
-  };
+// ── LOAD ─────────────────────────────────────────────────────────────────────
+const loadData = async () => {
+let leitoAtualId = LEITOS_INICIAIS[0].id;
+try {
+const { data: ld } = await supabase.from(“config”).select(“value”).eq(“key”,“leitos_data”).single();
+if (ld?.value) {
+const p = JSON.parse(ld.value);
+if (Array.isArray(p) && p.length) {
+setLeitos(p);
+leitoAtualId = p[0].id;
+setLeitoSelId(p[0].id);
+}
+}
+} catch {}
+try {
+const { data: td } = await supabase.from(“config”).select(“value”).eq(“key”,“tabela_data”).single();
+if (td?.value) {
+const p = JSON.parse(td.value);
+if (p && typeof p === ‘object’) setTabelaData(p);
+}
+} catch {}
+try {
+const { data: cd } = await supabase.from(“config”).select(“value”).eq(“key”,“app_config”).single();
+if (cd?.value) {
+const p = JSON.parse(cd.value);
+if (p && typeof p === ‘object’) setConfig(c=>({…c,…p}));
+}
+} catch {}
+try {
+const { data: ed } = await supabase.from(“config”).select(“value”).eq(“key”,“evolucao_data”).single();
+if (ed?.value) {
+const p = JSON.parse(ed.value);
+if (p && typeof p === ‘object’) {
+setEvolPorLeito(p);
+if (p[leitoAtualId]) { setEvolCampos(p[leitoAtualId]); setEvolVersion(v=>v+1); }
+}
+}
+} catch {}
+try {
+const { data: md } = await supabase.from(“config”).select(“value”).eq(“key”,“metas_data”).single();
+if (md?.value) {
+const p = JSON.parse(md.value);
+if (p && typeof p === ‘object’) setMetasPorLeito(p);
+}
+} catch {}
+// Libera saves apenas após load completo
+setTimeout(() => { isLoaded.current = true; }, 300);
+};
 
-  // ── INIT ──────────────────────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────────────────────
+useEffect(()=>{
+(async()=>{
+const sess = sessionStorage.getItem(SESSION_KEY);
+if (sess) {
+try {
+const { data } = await supabase.from(“config”).select(“value”).eq(“key”,“pwd_hash”).single();
+if (data && data.value === sess) { await loadData(); setAuthed(true); }
+} catch {}
+}
+setAppReady(true);
+})();
+// eslint-disable-next-line
+},[]);
+
+const onLogin = async () => { await loadData(); setAuthed(true); };
+
+const isLoaded    = useRef(false);
+
+// ── SAVES manuais (chamados explicitamente, não por useEffect) ────────────────
+const salvarLeitos = (val) => {
+if (!isLoaded.current) return;
+clearTimeout(saveTimer.current);
+setSaving(true);
+saveTimer.current = setTimeout(async()=>{
+try { await supabase.from(“config”).upsert({key:“leitos_data”,value:JSON.stringify(val)}); } catch {}
+setSaving(false);
+}, 800);
+};
+
+const salvarEvol = (val) => {
+if (!isLoaded.current) return;
+clearTimeout(evolTimer.current);
+evolTimer.current = setTimeout(async()=>{
+try { await supabase.from(“config”).upsert({key:“evolucao_data”,value:JSON.stringify(val)}); } catch {}
+}, 800);
+};
+
+const salvarTabela = (val) => {
+if (!isLoaded.current) return;
+clearTimeout(tabelaTimer.current);
+tabelaTimer.current = setTimeout(async()=>{
+try { await supabase.from(“config”).upsert({key:“tabela_data”,value:JSON.stringify(val)}); } catch {}
+}, 800);
+};
+
+const salvarConfig = (val) => {
+if (!isLoaded.current) return;
+clearTimeout(configTimer.current);
+configTimer.current = setTimeout(async()=>{
+try { await supabase.from(“config”).upsert({key:“app_config”,value:JSON.stringify(val)}); } catch {}
+}, 800);
+};
+
+const salvarMetas = (val) => {
+if (!isLoaded.current) return;
+clearTimeout(metasTimer.current);
+metasTimer.current = setTimeout(async()=>{
+try { await supabase.from(“config”).upsert({key:“metas_data”,value:JSON.stringify(val)}); } catch {}
+}, 800);
+};
+
+const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
+const atualizar = (d) => {
+setLeitos(ls=>{
+const novo = ls.map(l=>l.id===leitoSelId?{…l,…d}:l);
+salvarLeitos(novo);
+return novo;
+});
+};
+const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
+
+// Sincroniza evolCampos quando troca de leito
+const evolPorLeitoRef = useRef({});
+useEffect(()=>{
+evolPorLeitoRef.current = evolPorLeito;
+},[evolPorLeito]);
+
+useEffect(()=>{
+const saved = evolPorLeitoRef.current[leitoSelId] || evolPorLeito[leitoSelId];
+setEvolCampos(saved || EVOLUCAO_VAZIA);
+setEvolVersion(v=>v+1);
+},[leitoSelId]);
+
+// Quando evolCampos muda, persiste no evolPorLeito
+const setEvolCamposComPersistencia = (updater) => {
+setEvolCampos(prev => {
+const hoje = new Date().toISOString().split(“T”)[0];
+const next = typeof updater === ‘function’ ? updater(prev) : updater;
+const novasDatas = { …(prev._datas||{}) };
+Object.keys(next).forEach(k => {
+if (k !== ‘_datas’ && next[k] !== prev[k]) novasDatas[k] = hoje;
+});
+const comData = { …next, _datas: novasDatas };
+setEvolPorLeito(ep => {
+const novo = { …ep, [leitoSelId]: comData };
+salvarEvol(novo);
+return novo;
+});
+return comData;
+});
+};
+
+const ABAS = [
+{id:“paciente”, label:“👤 Paciente & Cálculos”},
+{id:“tabela”,   label:“📊 Tabela Clínica”},
+{id:“upload”,   label:“📤 Importar Print”},
+{id:“evolucao”, label:“📝 Evolução”},
+{id:“metas”,    label:“🎯 Metas & Pendências”},
+];
+
+const dias = diasInternacao(leito.dataInternacao);
+const pp   = pesoPredito(leito.altura, leito.sexo);
+
+if (!appReady) return (
+<div style={{minHeight:“100vh”,background:”#0a0f1e”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontFamily:”‘Sora’,sans-serif”}}>
+<style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
+<div style={{color:”#38bdf8”,fontSize:14}}>Carregando…</div>
+</div>
+);
+
+if (!authed) return <LoginScreen onLogin={onLogin}/>;
+
+return (
+<div style={{minHeight:“100vh”,background:”#0a0f1e”,fontFamily:”‘Sora’,‘DM Sans’,sans-serif”,color:”#e2e8f0”,display:“flex”,flexDirection:“column”}}>
+<style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap'); *{box-sizing:border-box} textarea,input{outline:none;color-scheme:dark} ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.3);border-radius:4px} input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.85}`}</style>
+
+```
+  <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
+    <div style={{display:"flex",alignItems:"center",gap:10}}>
+      <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#0284c7,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚕️</div>
+      <div>
+        <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5}}>UTI Evolve</div>
+        <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:1}}>ASSISTENTE DE EVOLUÇÃO</div>
+      </div>
+    </div>
+    <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:16}}>
+      <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":"#22c55e",display:"flex",alignItems:"center",gap:4}}>
+        <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":"#22c55e"}}/>
+        {saving?"Salvando…":"Salvo"}
+      </div>
+      <div style={{fontSize:12,color:"#475569",fontFamily:mono}}>
+        {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase()}
+  const [mesKey,setMesKeyRaw]=useState(curMes());
+  const [month,setMonthRaw]=useState(null);
+  const [view,setView]=useState("dashboard");
+  const [saving,setSaving]=useState(false);
+  const [gdriveStatus,setGdriveStatus]=useState("idle");
+  const [cats,setCatsState]=useState(CATS_DEFAULT);
+  const storageKey=`month:${mesKey}`;
+
+  const setCats=(newCats)=>{ CATS=newCats; setCatsState(newCats); };
+
+  // Load cats from storage
   useEffect(()=>{
-    (async()=>{
-      const sess = sessionStorage.getItem(SESSION_KEY);
-      if (sess) {
-        try {
-          const { data } = await supabase.from("config").select("value").eq("key","pwd_hash").single();
-          if (data && data.value === sess) { await loadData(); setAuthed(true); }
-        } catch {}
-      }
-      setAppReady(true);
-    })();
-  // eslint-disable-next-line
+    load("config:cats").then(d=>{ if(d&&Array.isArray(d)){ CATS=d; setCatsState(d); } });
   },[]);
 
-  const onLogin = async () => { await loadData(); setAuthed(true); };
+  // Auto-load from Supabase on first open if localStorage is empty
+  useEffect(()=>{
+    const hasLocal = Object.keys(localStorage).some(k=>k.startsWith("month:"));
+    if(!hasLocal) {
+      setGdriveStatus("connecting");
+      supabaseLoad().then(remoteData=>{
+        if(remoteData) {
+          for(const [key,val] of Object.entries(remoteData)) {
+            localStorage.setItem(key, typeof val==="string"?val:JSON.stringify(val));
+          }
+        }
+        setGdriveStatus("idle");
+      }).catch(()=>setGdriveStatus("idle"));
+    }
+  },[]);
 
-  const isLoaded    = useRef(false);
-
-  // ── SAVES manuais (chamados explicitamente, não por useEffect) ────────────────
-  const salvarLeitos = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(saveTimer.current);
+  useEffect(()=>{
+    setMonthRaw(null);
+    load(storageKey).then(d=>{
+      if(!d){ setMonthRaw(seedMonth(mesKey)); return; }
+      // Migrate: ensure all fields exist (handles old 'pix' format)
+      const seed=seedMonth(mesKey);
+      const migrated={
+        ...seed,
+        ...d,
+        variaveis: d.variaveis||d.pix||[],
+        cartoes: d.cartoes||seed.cartoes,
+        plantoes: (d.plantoes||seed.plantoes).map((p,i)=>({
+          ativo:true,
+          diaReceb: seed.plantoes[i]?.diaReceb||0,
+          statusReceb:"aguardando",
+          ...p,
+        })),
+        bolsaDia: d.bolsaDia||5,
+        bolsaStatus: d.bolsaStatus||"aguardando",
+        auxilioDia: d.auxilioDia||5,
+        auxilioStatus: d.auxilioStatus||"aguardando",
+        fixas: d.fixas||seed.fixas,
+        investimentos: d.investimentos||seed.investimentos,
+        bolsa: d.bolsa||0,
+        auxilio: d.auxilio||0,
+        receitasExtra: d.receitasExtra||[],
+      };
+      setMonthRaw(migrated);
+    });
+    setView("dashboard");
+  },[mesKey]);
+  useEffect(()=>{
+    if(!month) return;
     setSaving(true);
-    saveTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(val)}); } catch {}
+    const t=setTimeout(async()=>{
+      await save(storageKey,month);
+      // Auto-sync to Supabase (debounced 3s)
+      try {
+        const allKeys = Object.keys(localStorage).filter(k=>k.startsWith("month:"));
+        const localData = {};
+        for(const key of allKeys) {
+          try { localData[key] = JSON.parse(localStorage.getItem(key)); } catch {}
+        }
+        await supabaseSave(localData);
+      } catch(e) { console.warn("Auto-sync failed:", e); }
       setSaving(false);
-    }, 800);
+    }, 3000);
+    return()=>clearTimeout(t);
+  },[month]);
+
+  const migrateMonth = (d, key) => {
+    if(!d) return null;
+    const seed = seedMonth(key);
+    return {
+      ...seed, ...d,
+      variaveis: d.variaveis||d.pix||[],
+      cartoes: d.cartoes||seed.cartoes,
+      plantoes: (d.plantoes||seed.plantoes).map((p,i)=>({
+        ativo:true, diaReceb:seed.plantoes[i]?.diaReceb||0, statusReceb:"aguardando", ...p,
+      })),
+      bolsaDia:d.bolsaDia||5, bolsaStatus:d.bolsaStatus||"aguardando",
+      auxilioDia:d.auxilioDia||5, auxilioStatus:d.auxilioStatus||"aguardando",
+      fixas:d.fixas||seed.fixas, investimentos:d.investimentos||seed.investimentos,
+      bolsa:d.bolsa||0, auxilio:d.auxilio||0, receitasExtra:d.receitasExtra||[],
+    };
   };
 
-  const salvarEvol = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(evolTimer.current);
-    evolTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(val)}); } catch {}
-    }, 800);
+  const countData = (d) => {
+    if(!d) return 0;
+    return Object.values(d.cartoes||{}).flat().length
+      + (d.variaveis||[]).length
+      + (d.receitasExtra||[]).length
+      + (d.plantoes||[]).filter(p=>p.n>0||p.horas>0).length
+      + (d.fixas||[]).filter(f=>f.valor>0).length;
   };
 
-  const salvarTabela = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(tabelaTimer.current);
-    tabelaTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(val)}); } catch {}
-    }, 800);
+  // Salva dados locais no Supabase
+  const backupToDrive = async () => {
+    setGdriveStatus("connecting");
+    try {
+      const allKeys = Object.keys(localStorage).filter(k=>k.startsWith("month:"));
+      const localData = {};
+      for(const key of allKeys) {
+        try { localData[key] = JSON.parse(localStorage.getItem(key)); } catch {}
+      }
+      await supabaseSave(localData);
+      setGdriveStatus("synced");
+      setTimeout(()=>setGdriveStatus("idle"), 3000);
+    } catch(e) {
+      console.error("Backup error:", e);
+      setGdriveStatus("error");
+      setTimeout(()=>setGdriveStatus("idle"), 3000);
+    }
   };
 
-  const salvarConfig = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(configTimer.current);
-    configTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"app_config",value:JSON.stringify(val)}); } catch {}
-    }, 800);
+  // Baixa dados do Supabase — só preenche meses ausentes localmente
+  const restoreFromDrive = async () => {
+    setGdriveStatus("connecting");
+    try {
+      const remoteData = await supabaseLoad() || {};
+      for(const [key,val] of Object.entries(remoteData)) {
+        localStorage.setItem(key, typeof val==="string"?val:JSON.stringify(val));
+      }
+      // Recarrega mês atual
+      const cur = localStorage.getItem(storageKey);
+      if(cur) {
+        try { setMonthRaw(migrateMonth(JSON.parse(cur), mesKey)); } catch {}
+      }
+      setGdriveStatus("synced");
+      setTimeout(()=>setGdriveStatus("idle"), 3000);
+    } catch(e) {
+      console.error("Restore error:", e);
+      setGdriveStatus("error");
+      setTimeout(()=>setGdriveStatus("idle"), 3000);
+    }
   };
 
-  const salvarMetas = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(metasTimer.current);
-    metasTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(val)}); } catch {}
-    }, 800);
+  const [autenticado, setAutenticado] = useState(()=>sessionStorage.getItem("auth")==="ok");
+  const [senha, setSenha] = useState("");
+  const [erroSenha, setErroSenha] = useState(false);
+
+  const tentarLogin = () => {
+    if(senha === "1821") {
+      sessionStorage.setItem("auth","ok");
+      setAutenticado(true);
+    } else {
+      setErroSenha(true);
+      setSenha("");
+      setTimeout(()=>setErroSenha(false), 2000);
+    }
   };
 
-  const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
-  const atualizar = (d) => {
-    setLeitos(ls=>{
-      const novo = ls.map(l=>l.id===leitoSelId?{...l,...d}:l);
-      salvarLeitos(novo);
-      return novo;
-    });
-  };
-  const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
-
-  // Sincroniza evolCampos quando troca de leito
-  const evolPorLeitoRef = useRef({});
-  useEffect(()=>{
-    evolPorLeitoRef.current = evolPorLeito;
-  },[evolPorLeito]);
-
-  useEffect(()=>{
-    const saved = evolPorLeitoRef.current[leitoSelId] || evolPorLeito[leitoSelId];
-    setEvolCampos(saved || EVOLUCAO_VAZIA);
-    setEvolVersion(v=>v+1);
-  },[leitoSelId]);
-
-  // Quando evolCampos muda, persiste no evolPorLeito
-  const setEvolCamposComPersistencia = (updater) => {
-    setEvolCampos(prev => {
-      const hoje = new Date().toISOString().split("T")[0];
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      const novasDatas = { ...(prev._datas||{}) };
-      Object.keys(next).forEach(k => {
-        if (k !== '_datas' && next[k] !== prev[k]) novasDatas[k] = hoje;
-      });
-      const comData = { ...next, _datas: novasDatas };
-      setEvolPorLeito(ep => {
-        const novo = { ...ep, [leitoSelId]: comData };
-        salvarEvol(novo);
-        return novo;
-      });
-      return comData;
-    });
-  };
-
-  const ABAS = [
-    {id:"paciente", label:"👤 Paciente & Cálculos"},
-    {id:"tabela",   label:"📊 Tabela Clínica"},
-    {id:"upload",   label:"📤 Importar Print"},
-    {id:"evolucao", label:"📝 Evolução"},
-    {id:"metas",    label:"🎯 Metas & Pendências"},
-  ];
-
-  const dias = diasInternacao(leito.dataInternacao);
-  const pp   = pesoPredito(leito.altura, leito.sexo);
-
-  if (!appReady) return (
-    <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
-      <div style={{color:"#38bdf8",fontSize:14}}>Carregando…</div>
-    </div>
-  );
-
-  if (!authed) return <LoginScreen onLogin={onLogin}/>;
-
-  return (
-    <div style={{minHeight:"100vh",background:"#0a0f1e",fontFamily:"'Sora','DM Sans',sans-serif",color:"#e2e8f0",display:"flex",flexDirection:"column"}}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
-        *{box-sizing:border-box} textarea,input{outline:none;color-scheme:dark}
-        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.3);border-radius:4px}
-        input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.85}
-      `}</style>
-
-      <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#0284c7,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚕️</div>
-          <div>
-            <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5}}>UTI Evolve</div>
-            <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:1}}>ASSISTENTE DE EVOLUÇÃO</div>
-          </div>
-        </div>
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:16}}>
-          <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":"#22c55e",display:"flex",alignItems:"center",gap:4}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":"#22c55e"}}/>
-            {saving?"Salvando…":"Salvo"}
-          </div>
-          <div style={{fontSize:12,color:"#475569",fontFamily:mono}}>
-            {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase()}
-          </div>
-          <button onClick={logout} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
-          <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
+  if(!autenticado) return (
+    <>
+      <style>{G}</style>
+      <div style={{maxWidth:480,margin:"0 auto",minHeight:"100vh",background:"#0a0a0f",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 32px"}}>
+        <div style={{fontSize:48,marginBottom:16}}>🦁</div>
+        <div style={{fontSize:22,fontWeight:700,letterSpacing:-.5,marginBottom:4}}>Finanças Pessoais</div>
+        <div style={{fontSize:12,color:"#333",marginBottom:40}}>Acesso restrito</div>
+        <div style={{width:"100%",display:"flex",flexDirection:"column",gap:12}}>
+          <input
+            type="password"
+            value={senha}
+            onChange={e=>setSenha(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&tentarLogin()}
+            placeholder="Senha"
+            autoFocus
+            style={{
+              background:"rgba(255,255,255,.06)",
+              border:`1px solid ${erroSenha?"rgba(239,68,68,.5)":"rgba(255,255,255,.1)"}`,
+              borderRadius:12,padding:"14px 16px",color:"#f0f0f5",
+              fontSize:16,outline:"none",width:"100%",textAlign:"center",
+              letterSpacing:4,transition:"border .2s"
+            }}
+          />
+          {erroSenha&&<div style={{textAlign:"center",fontSize:12,color:"#f87171"}}>Senha incorreta</div>}
+          <button onClick={tentarLogin} style={{
+            background:"#7c6af7",border:"none",borderRadius:12,
+            padding:"14px",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"
+          }}>Entrar</button>
         </div>
       </div>
+      <button onClick={logout} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
+      <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
+    </div>
+  </div>
+    </>
+  );
 
-      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
-        <div style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
-            <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
-            <button
-              onClick={()=>{
-                const novoId = Date.now();
-                const novoNum = leitos.length + 1;
-                setLeitos(ls=>{
-                  const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
-                  salvarLeitos(novo);
-                  return novo;
-                });
-                setLeitoSelId(novoId);
-                setAba("paciente");
-              }}
-              title="Adicionar leito"
-              style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+  <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
+    <div style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
+        <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
+        <button
+          onClick={()=>{
+            const novoId = Date.now();
+            const novoNum = leitos.length + 1;
+            setLeitos(ls=>{
+              const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+              salvarLeitos(novo);
+              return novo;
+            });
+            setLeitoSelId(novoId);
+            setAba("paciente");
+          }}
+          title="Adicionar leito"
+          style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+      </div>
+      {leitos.map((l, idx)=>(
+        <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
+          <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center",paddingBottom:8}}>
+            <button onClick={()=>{
+              if(idx===0) return;
+              setLeitos(ls=>{const n=[...ls];[n[idx-1],n[idx]]=[n[idx],n[idx-1]];salvarLeitos(n);return n;});
+            }} style={{background:"none",border:"none",color:idx===0?"#1e293b":"#475569",cursor:idx===0?"default":"pointer",fontSize:10,padding:"1px 3px",lineHeight:1}}>▲</button>
+            <button onClick={()=>{
+              if(idx===leitos.length-1) return;
+              setLeitos(ls=>{const n=[...ls];[n[idx],n[idx+1]]=[n[idx+1],n[idx]];salvarLeitos(n);return n;});
+            }} style={{background:"none",border:"none",color:idx===leitos.length-1?"#1e293b":"#475569",cursor:idx===leitos.length-1?"default":"pointer",fontSize:10,padding:"1px 3px",lineHeight:1}}>▼</button>
+  return (
+    <>
+      <style>{G}</style>
+      <div style={{maxWidth:480,margin:"0 auto",minHeight:"100vh",background:"#0a0a0f",display:"flex",flexDirection:"column"}}>
+        <div style={{position:"sticky",top:0,zIndex:20,background:"linear-gradient(#0a0a0f 80%,transparent)",padding:"14px 16px 0"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div>
+              <div style={{fontSize:9,color:"#2a2a35",textTransform:"uppercase",letterSpacing:2}}>Finanças Pessoais</div>
+              <div style={{fontSize:18,fontWeight:700,letterSpacing:-.5}}>{NAV.find(n=>n.id===view)?.label}</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{display:"flex",gap:4,alignItems:"center"}}>
+              {gdriveStatus==="connecting"&&<span style={{fontSize:10,color:"#555"}}>⏳</span>}
+              {gdriveStatus==="synced"&&<span style={{fontSize:10,color:"#4ade80"}}>✓ Sync</span>}
+              {gdriveStatus==="error"&&<span style={{fontSize:10,color:"#f87171",cursor:"pointer"}} onClick={backupToDrive}>↻ Retry</span>}
+              <button onClick={restoreFromDrive} title="Carregar dados de outro dispositivo" style={{
+                background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",
+                borderRadius:8,padding:"3px 8px",color:"#333",
+                fontSize:10,cursor:"pointer",
+              }}>⬇</button>
+            </div>
+            <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#fbbf24":"#4ade80",transition:"background .3s"}}/>
           </div>
-          {leitos.map((l, idx)=>(
-            <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
-              <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center",paddingBottom:8}}>
-                <button onClick={()=>{
-                  if(idx===0) return;
-                  setLeitos(ls=>{const n=[...ls];[n[idx-1],n[idx]]=[n[idx],n[idx-1]];salvarLeitos(n);return n;});
-                }} style={{background:"none",border:"none",color:idx===0?"#1e293b":"#475569",cursor:idx===0?"default":"pointer",fontSize:10,padding:"1px 3px",lineHeight:1}}>▲</button>
-                <button onClick={()=>{
-                  if(idx===leitos.length-1) return;
-                  setLeitos(ls=>{const n=[...ls];[n[idx],n[idx+1]]=[n[idx+1],n[idx]];salvarLeitos(n);return n;});
-                }} style={{background:"none",border:"none",color:idx===leitos.length-1?"#1e293b":"#475569",cursor:idx===leitos.length-1?"default":"pointer",fontSize:10,padding:"1px 3px",lineHeight:1}}>▼</button>
-              </div>
-              <div style={{flex:1}}>
-                <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config}
-                  onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("paciente");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
-                  onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
-                  onRemove={leitos.length>1?()=>{
-                    setLeitos(ls=>{const novo=ls.filter(x=>x.id!==l.id);salvarLeitos(novo);setLeitoSelId(novo[0].id);return novo;});
-                    setViewGlobal("leitos");
-                  }:null}
-                />
-              </div>
-            </div>
-          ))}
+          <div style={{flex:1}}>
+            <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config}
+              onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("paciente");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
+              onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
+              onRemove={leitos.length>1?()=>{
+                setLeitos(ls=>{const novo=ls.filter(x=>x.id!==l.id);salvarLeitos(novo);setLeitoSelId(novo[0].id);return novo;});
+                setViewGlobal("leitos");
+              }:null}
+            />
+          </div>
         </div>
+      ))}
+    </div>
 
-        <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {leito.paciente && (
-            <div style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
-              <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
-              <div style={{fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
-                {(leito.procedimentos||[]).map(p=>{
-                  const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-                  const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
-                  return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.12)`,border:`1px solid ${cor}55`,borderRadius:4,padding:"1px 7px"}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
-                })}
-                {[
-                  ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:def.alertaDias,data:inst.data}))),
-                  ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:def.alertaDias,data:(leito.dispositivos||{})[def.key].data})),
-                ].map((a,i)=>{
-                  const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
-                  const cor=po>a.alertaDias?"#f87171":"#38bdf8";
-                  return <span key={i} style={{fontSize:10,fontFamily:mono,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 7px"}}>{a.label} D{po}{po>a.alertaDias?" ⚠️":""}</span>;
-                })}
-              </div>
-            </div>
-          )}
-
-          <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:12,overflowX:"auto",flexShrink:0}}>
-            {ABAS.map(a=>(
-              <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
-                {a.label}
+    <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+      {leito.paciente && (
+        <div style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
+          <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
+          <div style={{fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
+            {(leito.procedimentos||[]).map(p=>{
+              const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
+              const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
+              return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.12)`,border:`1px solid ${cor}55`,borderRadius:4,padding:"1px 7px"}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
+            })}
+            {[
+              ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:def.alertaDias,data:inst.data}))),
+              ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:def.alertaDias,data:(leito.dispositivos||{})[def.key].data})),
+            ].map((a,i)=>{
+              const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
+              const cor=po>a.alertaDias?"#f87171":"#38bdf8";
+              return <span key={i} style={{fontSize:10,fontFamily:mono,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 7px"}}>{a.label} D{po}{po>a.alertaDias?" ⚠️":""}</span>;
+            })}
+          <MonthNav mesKey={mesKey} setMesKey={setMesKeyRaw}/>
+          <div style={{display:"flex",gap:4,overflowX:"auto",padding:"8px 0 2px",scrollbarWidth:"none"}}>
+            {NAV.map(n=>(
+              <button key={n.id} onClick={()=>setView(n.id)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:500,background:view===n.id?"rgba(124,106,247,.25)":"rgba(255,255,255,.05)",color:view===n.id?"#a89cf7":"#555",flexShrink:0,transition:"all .2s"}}>
+                {n.label}
               </button>
             ))}
           </div>
+          <div style={{height:1,background:"rgba(255,255,255,.04)",marginTop:6}}/>
+        </div>
+      )}
 
-          <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
-            {aba==="config" ? (
-              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
-            ) : aba==="paciente" ? (
-              <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
-                setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
-                setEvolVersion(v=>v+1);
-              }}/></div>
-            ) : aba==="tabela" ? (
-              <TabelaClinica
-                leito={leito}
-                data={tabelaData[leitoSelId] || {}}
-                onChange={d=>{
-                  setTabelaData(t=>{
-                    const novo = {...t,[leitoSelId]:d};
-                    salvarTabela(novo);
-                    return novo;
-                  });
-                }}
-                onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
-              />
-            ) : aba==="upload" ? (
-              <div style={{maxWidth:600}}>
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
-                  <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
-                </div>
-                <UploadAnalyzer onResult={d=>{
-                  const hoje = new Date().toISOString().split("T")[0];
-                  // Usa a data de coleta do exame se disponível, senão hoje
-                  const dataAlvo = d.dataColeta || hoje;
+      <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:12,overflowX:"auto",flexShrink:0}}>
+        {ABAS.map(a=>(
+          <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+            {a.label}
+          </button>
+        ))}
+      </div>
+        <div style={{flex:1,padding:"10px 16px 90px"}}>
+          {!month?<div style={{textAlign:"center",padding:"60px 0",color:"#222"}}>Carregando…</div>
+            :view==="dashboard"?<Dashboard month={month} setView={setView}/>
+            :view==="plantoes"?<PlantoesView month={month} setMonth={setMonthRaw} mesKey={mesKey}/>
+            :view==="fixas"?<FixasView month={month} setMonth={setMonthRaw}/>
+            :view==="cartoes"?<CartoesView month={month} setMonth={setMonthRaw}/>
+            :view==="variaveis"?<PixView month={month} setMonth={setMonthRaw}/>
+            :view==="investimentos"?<InvestView month={month} setMonth={setMonthRaw}/>
+            :view==="analise"?<AnáliseView month={month} mesKey={mesKey} setMonth={setMonthRaw}/>
+            :view==="config"?<ConfigView cats={cats} setCats={setCats}/>
+            :null}
+        </div>
 
-                  // Merge extras categorizados nos sistemas
-                  const sistemasFinais = { ...(d.sistemas||{}) };
-                  (d.extras||[]).forEach(ex=>{
-                    const cat = ex.categoria || ex.sugestao;
-                    if (cat && sistemasFinais[cat] !== undefined) {
-                      const linha = `${ex.nome}: ${ex.valor}`;
-                      sistemasFinais[cat] = sistemasFinais[cat]
-                        ? `${sistemasFinais[cat]} / ${linha}` : linha;
-                    }
-                  });
+      <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+        {aba==="config" ? (
+          <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
+        ) : aba==="paciente" ? (
+          <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
+            setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
+            setEvolVersion(v=>v+1);
+          }}/></div>
+        ) : aba==="tabela" ? (
+          <TabelaClinica
+            leito={leito}
+            data={tabelaData[leitoSelId] || {}}
+            onChange={d=>{
+              setTabelaData(t=>{
+                const novo = {...t,[leitoSelId]:d};
+                salvarTabela(novo);
+                return novo;
+              });
+            }}
+            onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
+          />
+        ) : aba==="upload" ? (
+          <div style={{maxWidth:600}}>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
+              <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
+            </div>
+            <UploadAnalyzer onResult={d=>{
+              const hoje = new Date().toISOString().split("T")[0];
+              // Usa a data de coleta do exame se disponível, senão hoje
+              const dataAlvo = d.dataColeta || hoje;
 
-                  const s = sistemasFinais;
-                  // Regex: captura números com vírgula OU ponto como decimal
-                  const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
-                  const extrair = (texto, patterns) => {
-                    if (!texto) return {};
-                    const vals = {};
-                    patterns.forEach(([key, regex]) => {
-                      const m = texto.match(regex);
-                      if (m?.[1]) vals[key] = m[1].replace(',','.');
-                    });
-                    return vals;
-                  };
+              // Merge extras categorizados nos sistemas
+              const sistemasFinais = { ...(d.sistemas||{}) };
+              (d.extras||[]).forEach(ex=>{
+                const cat = ex.categoria || ex.sugestao;
+                if (cat && sistemasFinais[cat] !== undefined) {
+                  const linha = `${ex.nome}: ${ex.valor}`;
+                  sistemasFinais[cat] = sistemasFinais[cat]
+                    ? `${sistemasFinais[cat]} / ${linha}` : linha;
+                }
+              });
 
-                  const re = s => new RegExp(s, 'i');
-                  const novos = {};
+              const s = sistemasFinais;
+              // Regex: captura números com vírgula OU ponto como decimal
+              const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
+              const extrair = (texto, patterns) => {
+                if (!texto) return {};
+                const vals = {};
+                patterns.forEach(([key, regex]) => {
+                  const m = texto.match(regex);
+                  if (m?.[1]) vals[key] = m[1].replace(',','.');
+                });
+                return vals;
+              };
 
-                  Object.assign(novos, extrair(s["Hemodinâmico"]||"", [
-                    ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)],
-                    ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)],
-                    ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [
-                    ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)],
-                    ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)],
-                    ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)],
-                    ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)],
-                    ["mg",   re(`\\bMg[:\\s]+${NUM}`)],
-                    ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)],
-                    ["p",    re(`\\bP[:\\s]+${NUM}`)],
-                    ["ph",   re(`\\bpH[:\\s]+${NUM}`)],
-                    ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)],
-                    ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)],
-                    ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)],
-                    ["lact", re(`\\bLactato[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [
-                    ["hb",    re(`\\bHb[:\\s]+${NUM}`)],
-                    ["ht",    re(`\\bHt[:\\s]+${NUM}`)],
-                    ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)],
-                    ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)],
-                    ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)],
-                    ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)],
-                    ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)],
-                    ["rni",   re(`\\bRNI[:\\s]+${NUM}`)],
-                    ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Respiratório"]||"", [
-                    ["po2",  re(`pO2[:\\s]+${NUM}`)],
-                    ["pco2", re(`pCO2[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Gastrointestinal"]||"", [
-                    ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)],
-                    ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)],
-                    ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)],
-                    ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)],
-                    ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)],
-                    ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)],
-                  ]));
+              const re = s => new RegExp(s, 'i');
+              const novos = {};
 
-                  // Extras com categoria selecionada → também vai para a tabela
-                  const EXTRAS_PARA_KEY = {
-                    'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht',
-                    'leucócito':'leuco','leucocito':'leuco',
-                    'neutrófilo':'neut','neutrofilo':'neut',
-                    'bastão':'bast','bastao':'bast','bastonete':'bast',
-                    'linfócito':'linf','linfocito':'linf',
-                    'plaqueta':'plaq',
-                    'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa',
-                    'creatinina':'cr','ureia':'ur','uréia':'ur',
-                    'sódio':'na','sodio':'na','potássio':'k','potassio':'k',
-                    'magnésio':'mg','magnesio':'mg',
-                    'cálcio':'cai','calcio':'cai',
-                    'fósforo':'p','fosforo':'p',
-                    'hco3':'hco3','bicarbonato':'hco3',
-                    'lactato':'lact','troponina':'trop','bnp':'bnp',
-                    'po2':'po2','pco2':'pco2',
-                    'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp',
-                    'albumina':'alb','ggt':'ggt',
-                    'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir',
-                    'diurese':'diur','balanço':'bh','balanco':'bh',
-                  };
-                  (d.extras||[]).forEach(ex=>{
-                    const cat = ex.categoria || ex.sugestao;
-                    if (!cat) return; // só lança se categoria foi selecionada
-                    const nl = (ex.nome||'').toLowerCase();
-                    const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
-                    if (!numMatch) return;
-                    const numVal = numMatch[1].replace(',','.');
-                    // Tenta achar key padrão
-                    let achou = false;
-                    for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
-                      if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
-                    }
-                    // Se não achou key padrão, usa o nome do exame como key dinâmica
-                    if (!achou) {
-                      const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-                      novos[keyDinamica] = numVal; // salva só o valor numérico
-                    }
-                  });
+              Object.assign(novos, extrair(s["Hemodinâmico"]||"", [
+                ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)],
+                ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)],
+                ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)],
+              ]));
+              Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [
+                ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)],
+                ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)],
+                ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)],
+                ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)],
+                ["mg",   re(`\\bMg[:\\s]+${NUM}`)],
+                ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)],
+                ["p",    re(`\\bP[:\\s]+${NUM}`)],
+                ["ph",   re(`\\bpH[:\\s]+${NUM}`)],
+                ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)],
+                ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)],
+                ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)],
+                ["lact", re(`\\bLactato[:\\s]+${NUM}`)],
+              ]));
+              Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [
+                ["hb",    re(`\\bHb[:\\s]+${NUM}`)],
+                ["ht",    re(`\\bHt[:\\s]+${NUM}`)],
+                ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)],
+                ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)],
+                ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)],
+                ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)],
+                ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)],
+                ["rni",   re(`\\bRNI[:\\s]+${NUM}`)],
+                ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)],
+              ]));
+              Object.assign(novos, extrair(s["Respiratório"]||"", [
+                ["po2",  re(`pO2[:\\s]+${NUM}`)],
+                ["pco2", re(`pCO2[:\\s]+${NUM}`)],
+              ]));
+              Object.assign(novos, extrair(s["Gastrointestinal"]||"", [
+                ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)],
+                ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)],
+                ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)],
+                ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)],
+                ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)],
+                ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)],
+              ]));
 
-                  setTabelaData(t=>{
-                    const novo = {
-                      ...t,
-                      [leitoSelId]: {
-                        ...(t[leitoSelId]||{}),
-                        [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos }
-                      }
-                    };
-                    salvarTabela(novo);
-                    return novo;
-                  });
-                  setDadosIA(d);
-                  setTimeout(()=>setAba("tabela"), 50);
-                }}/>
-              </div>
-            ) : aba==="evolucao" ? (
-              !leito.paciente ? (
-                <div style={{textAlign:"center",padding:60,color:"#334155"}}>
-                  <div style={{fontSize:40,marginBottom:12}}>📝</div>
-                  <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
-                </div>
-              ) : (
-                <div style={{maxWidth:700}}>
-                  {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                  <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
-                    onCampoEdit={(field, value)=>{
-                      setEvolCamposComPersistencia(c=>({...c, [field]: value}));
-                    }}
-                  />
-                </div>
-              )
-            ) : (
-              <div style={{maxWidth:600}}>
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Metas do plantão</div>
-                  <div style={{fontSize:13,color:"#64748b"}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
-                </div>
-                <MetasPanel
-                  metas={metasPorLeito[leitoSelId] || []}
-                  onChange={m=>{
-                    setMetasPorLeito(mp=>{
-                      const novo = {...mp,[leitoSelId]:m};
-                      salvarMetas(novo);
-                      return novo;
-                    });
-                  }}
-                />
-              </div>
-            )}
+              // Extras com categoria selecionada → também vai para a tabela
+              const EXTRAS_PARA_KEY = {
+                'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht',
+                'leucócito':'leuco','leucocito':'leuco',
+                'neutrófilo':'neut','neutrofilo':'neut',
+                'bastão':'bast','bastao':'bast','bastonete':'bast',
+                'linfócito':'linf','linfocito':'linf',
+                'plaqueta':'plaq',
+                'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa',
+                'creatinina':'cr','ureia':'ur','uréia':'ur',
+                'sódio':'na','sodio':'na','potássio':'k','potassio':'k',
+                'magnésio':'mg','magnesio':'mg',
+                'cálcio':'cai','calcio':'cai',
+                'fósforo':'p','fosforo':'p',
+                'hco3':'hco3','bicarbonato':'hco3',
+                'lactato':'lact','troponina':'trop','bnp':'bnp',
+                'po2':'po2','pco2':'pco2',
+                'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp',
+                'albumina':'alb','ggt':'ggt',
+                'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir',
+                'diurese':'diur','balanço':'bh','balanco':'bh',
+              };
+              (d.extras||[]).forEach(ex=>{
+                const cat = ex.categoria || ex.sugestao;
+                if (!cat) return; // só lança se categoria foi selecionada
+                const nl = (ex.nome||'').toLowerCase();
+                const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
+                if (!numMatch) return;
+                const numVal = numMatch[1].replace(',','.');
+                // Tenta achar key padrão
+                let achou = false;
+                for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
+                  if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
+                }
+                // Se não achou key padrão, usa o nome do exame como key dinâmica
+                if (!achou) {
+                  const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+                  novos[keyDinamica] = numVal; // salva só o valor numérico
+                }
+              });
+
+              setTabelaData(t=>{
+                const novo = {
+                  ...t,
+                  [leitoSelId]: {
+                    ...(t[leitoSelId]||{}),
+                    [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos }
+                  }
+                };
+                salvarTabela(novo);
+                return novo;
+              });
+              setDadosIA(d);
+              setTimeout(()=>setAba("tabela"), 50);
+            }}/>
           </div>
+        ) : aba==="evolucao" ? (
+          !leito.paciente ? (
+            <div style={{textAlign:"center",padding:60,color:"#334155"}}>
+              <div style={{fontSize:40,marginBottom:12}}>📝</div>
+              <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
+            </div>
+          ) : (
+            <div style={{maxWidth:700}}>
+              {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
+              <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
+                onCampoEdit={(field, value)=>{
+                  setEvolCamposComPersistencia(c=>({...c, [field]: value}));
+                }}
+              />
+            </div>
+          )
+        ) : (
+          <div style={{maxWidth:600}}>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Metas do plantão</div>
+              <div style={{fontSize:13,color:"#64748b"}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
+            </div>
+            <MetasPanel
+              metas={metasPorLeito[leitoSelId] || []}
+              onChange={m=>{
+                setMetasPorLeito(mp=>{
+                  const novo = {...mp,[leitoSelId]:m};
+                  salvarMetas(novo);
+                  return novo;
+                });
+              }}
+            />
+          </div>
+        )}
+        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"rgba(10,10,15,.92)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,.05)",display:"flex",padding:"8px 4px 18px"}}>
+          {NAV.map(n=>(
+            <button key={n.id} onClick={()=>setView(n.id)} style={{flex:1,padding:"6px 2px",border:"none",background:"transparent",cursor:"pointer",fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:view===n.id?"#a89cf7":"#2a2a35",transition:"color .2s",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+              <div style={{width:20,height:2,borderRadius:1,background:view===n.id?"#7c6af7":"transparent",transition:"all .2s"}}/>
+              {n.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>
+  </div>
+</div>
+```
+
+);
+    </>
   );
 }
