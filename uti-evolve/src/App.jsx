@@ -25,61 +25,78 @@ const METAS_SUGESTOES = [
 // concMcgML = mcg de fármaco por mL da solução final
 // unidade = unidade da dose resultante exibida ao usuário
 // modoCalc: "mcg_kg_min" | "mcg_kg_h" | "ui_min" | "mcg_min" (vasopressina, nitroglicerina sem peso)
-// Diluições padrão do protocolo da UTI
 const DROGAS_PROTOCOLO = {
   noradrenalina: {
     label:"Noradrenalina", grupo:"vasoativa",
+    // 4 amp (4mg cada = 16mg) em SG5% 234 mL → total 250mL, 16mg/250mL = 64 mcg/mL
     diluicaoDesc:"4 amp (16 mg) em SG5% 234 mL → 250 mL",
-    concMcgML: 64, modoCalc:"mcg_kg_min", max:3, unidadeLabel:"mcg/kg/min",
+    concMcgML: 64,          // mcg/mL
+    modoCalc:"mcg_kg_min",  // resultado em mcg/kg/min
+    max:3, unidadeLabel:"mcg/kg/min",
   },
   dobutamina: {
     label:"Dobutamina", grupo:"vasoativa",
+    // 80mL (250mg) em SG5% 170mL → 250mL, 250mg/250mL = 1000 mcg/mL
     diluicaoDesc:"80 mL (250 mg) em SG5% 170 mL → 250 mL",
-    concMcgML: 1000, modoCalc:"mcg_kg_min", max:20, unidadeLabel:"mcg/kg/min",
+    concMcgML: 1000,
+    modoCalc:"mcg_kg_min",
+    max:20, unidadeLabel:"mcg/kg/min",
   },
   vasopressina: {
     label:"Vasopressina", grupo:"vasoativa",
+    // 2mL (20UI) em SG5% 98mL → 100mL, 20UI/100mL = 0,2 UI/mL
     diluicaoDesc:"2 mL (20 UI) em SG5% 98 mL → 100 mL",
-    concMcgML: null, concUIML: 0.2, modoCalc:"ui_min", max:0.04, unidadeLabel:"UI/min",
+    concMcgML: null, concUIML: 0.2,  // UI/mL
+    modoCalc:"ui_min",
+    max:0.04, unidadeLabel:"UI/min",
   },
   nitroglicerina: {
     label:"Nitroglicerina", grupo:"vasoativa",
+    // 10mL (50mg) em SG5% 90mL → 100mL, 50mg/100mL = 500mcg/mL
     diluicaoDesc:"10 mL (50 mg) em SG5% 90 mL → 100 mL",
-    concMcgML: 500, modoCalc:"mcg_min", max:400, unidadeLabel:"mcg/min",
+    concMcgML: 500,
+    modoCalc:"mcg_min",   // mcg/min, sem peso
+    max:400, unidadeLabel:"mcg/min",
   },
   nitroprussiato: {
     label:"Nitroprussiato", grupo:"vasoativa",
+    // 2mL (50mg) em SG5% 248mL → 250mL, 50mg/250mL = 200mcg/mL
     diluicaoDesc:"2 mL (50 mg) em SG5% 248 mL → 250 mL",
-    concMcgML: 200, modoCalc:"mcg_kg_min", max:10, unidadeLabel:"mcg/kg/min",
+    concMcgML: 200,
+    modoCalc:"mcg_kg_min",
+    max:10, unidadeLabel:"mcg/kg/min",
   },
   propofol: {
     label:"Propofol", grupo:"sedacao",
+    // 10mg/mL, 100mL puro → 100mL, 10mg/mL = 10000 mcg/mL
     diluicaoDesc:"10 mg/mL — 100 mL puro (sem diluição)",
-    concMcgML: 10000, modoCalc:"mcg_kg_min", max:67, unidadeLabel:"mcg/kg/min",
-    tooltip:"Manutenção: 5-50 mcg/kg/min (0,3-3 mg/kg/h)\nMáximo: 4 mg/kg/h"
+    concMcgML: 10000,
+    modoCalc:"mcg_kg_min",
+    max:67, unidadeLabel:"mcg/kg/min",
   },
   midazolam: {
     label:"Midazolam", grupo:"sedacao",
+    // 5mg/mL, 20mL (100mg) em SG5% 80mL → 100mL, 100mg/100mL = 1000 mcg/mL
     diluicaoDesc:"20 mL (100 mg) em SG5% 80 mL → 100 mL",
-    concMcgML: 1000, modoCalc:"mcg_kg_h", max:150, unidadeLabel:"mcg/kg/h",
-    tooltip:"Manutenção: 0,02-0,1 mg/kg/h (1-7 mg/h)"
-  },
-  precedex: {
-    label:"Precedex (Dex)", grupo:"sedacao",
-    diluicaoDesc:"4 mL (200 mcg) em SF0,9% 96 mL → 100 mL",
-    concMcgML: 2, modoCalc:"mcg_kg_h", max:1.4, unidadeLabel:"mcg/kg/h",
-    tooltip:"Manutenção: 0,2-0,7 mcg/kg/h (até 1,4 mcg/kg/h em estudos recentes)\n↓ em Hepatopatas e >65 anos"
+    concMcgML: 1000,
+    modoCalc:"mcg_kg_h",
+    max:150, unidadeLabel:"mcg/kg/h",
   },
   fentanil: {
     label:"Fentanil", grupo:"analgesia",
+    // 0,05mg/mL, 20mL (1000mcg) em SF0,9% 80mL → 100mL, 1000mcg/100mL = 10 mcg/mL
     diluicaoDesc:"20 mL (1000 mcg) em SF0,9% 80 mL → 100 mL",
-    concMcgML: 10, modoCalc:"mcg_kg_h", max:5, unidadeLabel:"mcg/kg/h",
+    concMcgML: 10,
+    modoCalc:"mcg_kg_h",
+    max:5, unidadeLabel:"mcg/kg/h",
   },
-  cetamina: {
-    label:"Cetamina (Escetamina)", grupo:"analgesia",
-    diluicaoDesc:"10 mL (500 mg) em SG5% 90 mL → 100 mL",
-    concMcgML: 5000, modoCalc:"mg_kg_h", max:0.3, unidadeLabel:"mg/kg/h",
-    tooltip:"Início: 0,5 mg/kg IV em bolus\nManutenção: 1-2 mcg/kg/min (0,06-0,12 mg/kg/h)\nDoses baixas: 0,06-0,3 mg/kg/h"
+  precedex: {
+    label:"Precedex (Dex)", grupo:"sedacao",
+    // 4mL (200mcg) em SF0,9% 96mL → 100mL, 200mcg/100mL = 2 mcg/mL
+    diluicaoDesc:"4 mL (200 mcg) em SF0,9% 96 mL → 100 mL",
+    concMcgML: 2,
+    modoCalc:"mcg_kg_h",
+    max:0.7, unidadeLabel:"mcg/kg/h",
   },
 };
 
@@ -90,8 +107,8 @@ function calcDoseFromMLH(drogaKey, mlh, peso, concCustom) {
   const conf = DROGAS_PROTOCOLO[drogaKey];
   if (!conf) return null;
   const conc = concCustom !== undefined ? parseFloat(concCustom) : conf.concMcgML;
-  
   if (!conc || conc <= 0) {
+    // vasopressina: UI/mL
     if (conf.modoCalc === "ui_min") {
       const uiMin = mlhN * conf.concUIML / 60;
       return { dose: uiMin.toFixed(4), label: conf.unidadeLabel };
@@ -108,17 +125,13 @@ function calcDoseFromMLH(drogaKey, mlh, peso, concCustom) {
     const dose = (mlhN * conc) / p;
     return { dose: dose.toFixed(2), label: conf.unidadeLabel };
   }
-  if (conf.modoCalc === "mg_kg_h") { // Adicionado para a Cetamina
-    if (!p) return null;
-    const dose = (mlhN * (conc / 1000)) / p;
-    return { dose: dose.toFixed(3), label: conf.unidadeLabel };
-  }
   if (conf.modoCalc === "mcg_min") {
     const dose = (mlhN * conc) / 60;
     return { dose: dose.toFixed(1), label: conf.unidadeLabel };
   }
   return null;
 }
+
 
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -213,11 +226,23 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
         </div>
       )}
 
-      {procedimentos.map(p=>{
+      {procedimentos.map((p, pidx)=>{
         const po = diasPO(p.data);
         const editing = editId === p.id;
         return (
-          <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,marginBottom:8,position:"relative",overflow:"hidden"}}>
+          <div key={p.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:8}}>
+            {/* Botões de reordenação */}
+            <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center"}}>
+              <button onClick={()=>{
+                if(pidx===0) return;
+                const n=[...procedimentos];[n[pidx-1],n[pidx]]=[n[pidx],n[pidx-1]];onChange(n);
+              }} style={{background:"none",border:"none",color:pidx===0?"#1e293b":"#64748b",cursor:pidx===0?"default":"pointer",fontSize:11,padding:"2px 4px"}}>▲</button>
+              <button onClick={()=>{
+                if(pidx===procedimentos.length-1) return;
+                const n=[...procedimentos];[n[pidx],n[pidx+1]]=[n[pidx+1],n[pidx]];onChange(n);
+              }} style={{background:"none",border:"none",color:pidx===procedimentos.length-1?"#1e293b":"#64748b",cursor:pidx===procedimentos.length-1?"default":"pointer",fontSize:11,padding:"2px 4px"}}>▼</button>
+            </div>
+            <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,position:"relative",overflow:"hidden"}}>
             {/* barra lateral colorida por tempo */}
             <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background: po===0?"#f87171":po<=3?"#fb923c":po<=7?"#f59e0b":"#34d399",borderRadius:"3px 0 0 3px"}}/>
             <div style={{flex:1,paddingLeft:4}}>
@@ -238,8 +263,6 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
                 </>
               )}
             </div>
-
-            {/* Badge PO */}
             {!editing && po !== null && (
               <div style={{textAlign:"center",minWidth:56,padding:"4px 10px",borderRadius:8,background: po===0?"rgba(248,113,113,0.12)":po<=3?"rgba(251,146,60,0.12)":po<=7?"rgba(245,158,11,0.12)":"rgba(52,211,153,0.12)", border:`1px solid ${po===0?"rgba(248,113,113,0.35)":po<=3?"rgba(251,146,60,0.35)":po<=7?"rgba(245,158,11,0.35)":"rgba(52,211,153,0.35)"}`}}>
                 <div style={{fontSize:16,fontWeight:700,color: po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399",lineHeight:1}}>
@@ -250,14 +273,13 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
                 </div>
               </div>
             )}
-
-            {/* Ações */}
             {!editing && (
               <div style={{display:"flex",flexDirection:"column",gap:4}}>
                 <button onClick={()=>setEditId(p.id)} title="Editar" style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:13,padding:2}}>✏️</button>
                 <button onClick={()=>removeProc(p.id)} title="Remover" style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:13,padding:2}}>🗑️</button>
               </div>
             )}
+          </div>
           </div>
         );
       })}
@@ -318,27 +340,12 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
 // ── DrogasCalculadora ─────────────────────────────────────────────────────────
 const GRUPOS = { vasoativa:"Vasoativas", sedacao:"Sedação", analgesia:"Analgesia" };
 
-function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas }) {
+function DrogasCalculadora({ peso, onLancarDroga }) {
   const [drogaSel, setDrogaSel] = useState("noradrenalina");
+  const [mlh, setMlh]           = useState("");
+  const [concCustom, setConcCustom] = useState("");
   const [editandoConc, setEditandoConc] = useState(false);
   const [lancado, setLancado]   = useState(false);
-
-  // Lê os dados salvos ou inicia vazio
-  const dState = drogasState[drogaSel] || { mlh:"", concCustom:"", lastEdit:"" };
-  const mlh = dState.mlh;
-  const concCustom = dState.concCustom;
-
-  // Atualiza persistindo a data
-  const setVal = (field, val) => {
-    onChangeDrogas({
-      ...drogasState,
-      [drogaSel]: {
-        ...dState,
-        [field]: val,
-        lastEdit: new Date().toLocaleString("pt-BR", {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})
-      }
-    });
-  };
 
   const conf = DROGAS_PROTOCOLO[drogaSel];
   const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined);
@@ -360,7 +367,12 @@ function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas
     return n.toFixed(2);
   };
 
-  const CAMPO_EVOLUCAO = { vasoativa: "cvDVA", sedacao: "nSeda", analgesia: "nAnalg" };
+  // Mapeia grupo → campo da evolução
+  const CAMPO_EVOLUCAO = {
+    vasoativa: "cvDVA",
+    sedacao:   "nSeda",
+    analgesia: "nAnalg",
+  };
 
   const lancarNaEvolucao = () => {
     if (!resultado || !onLancarDroga) return;
@@ -375,14 +387,14 @@ function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas
   return (
     <div>
       <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>
-        Informe a <strong style={{color:"#e2e8f0"}}>vazão da bomba (mL/h)</strong> — o valor ficará salvo na memória do leito.
+        Informe a <strong style={{color:"#e2e8f0"}}>vazão da bomba (mL/h)</strong> — o sistema calcula a dose com base na diluição padrão do protocolo.
       </div>
       {Object.entries(porGrupo).map(([grupo, drogas])=>(
         <div key={grupo} style={{marginBottom:10}}>
           <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:2,marginBottom:5,textTransform:"uppercase"}}>{GRUPOS[grupo]||grupo}</div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
             {drogas.map(([key,d])=>(
-              <button key={key} onClick={()=>{setDrogaSel(key); setEditandoConc(false);}}
+              <button key={key} onClick={()=>{setDrogaSel(key);setMlh("");setConcCustom("");setEditandoConc(false);}}
                 style={{padding:"5px 11px",borderRadius:20,border:`1px solid ${drogaSel===key?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:drogaSel===key?"rgba(56,189,248,0.14)":"rgba(255,255,255,0.02)",color:drogaSel===key?"#38bdf8":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,transition:"all 0.15s"}}>
                 {d.label}
               </button>
@@ -394,23 +406,12 @@ function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas
       <div style={{marginTop:14,padding:"14px 16px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{conf.label}</div>
-              {conf.tooltip && (
-                <span title={conf.tooltip} style={{cursor:"help",fontSize:15}}>📌</span>
-              )}
-            </div>
+            <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{conf.label}</div>
             <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{conf.diluicaoDesc}</div>
             {conf.concMcgML && <div style={{fontSize:11,color:concCustom?"#f59e0b":"#38bdf8",marginTop:1,fontFamily:mono}}>
               {concCustom ? `★ ${concCustom} mcg/mL (personalizado)` : `= ${conf.concMcgML} mcg/mL`}
             </div>}
             {conf.concUIML && <div style={{fontSize:11,color:"#38bdf8",marginTop:1,fontFamily:mono}}>= {conf.concUIML} UI/mL</div>}
-            
-            {dState.lastEdit && (
-              <div style={{fontSize:10, color:"#94a3b8", marginTop:6, display:"flex", alignItems:"center", gap:4}}>
-                <span style={{color:"#38bdf8"}}>🕒</span> Atualizado em {dState.lastEdit}
-              </div>
-            )}
           </div>
           <button onClick={()=>setEditandoConc(e=>!e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>
             {editandoConc?"✕ Fechar":"✏️ Diluição personalizada"}
@@ -421,8 +422,8 @@ function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas
           <div style={{marginBottom:14,padding:"10px 12px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8}}>
             <div style={{fontSize:10,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:8}}>CONCENTRAÇÃO PERSONALIZADA (mcg/mL)</div>
             <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
-              <Field label="CONCENTRAÇÃO" value={concCustom} onChange={v => setVal("concCustom", v)} type="number" placeholder={String(conf.concMcgML||"")} suffix="mcg/mL"/>
-              <button onClick={()=>setVal("concCustom", "")} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:1}}>
+              <Field label="CONCENTRAÇÃO" value={concCustom} onChange={setConcCustom} type="number" placeholder={String(conf.concMcgML||"")} suffix="mcg/mL"/>
+              <button onClick={()=>setConcCustom("")} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:1}}>
                 Resetar
               </button>
             </div>
@@ -431,7 +432,7 @@ function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas
         )}
 
         <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-          <Field label="VAZÃO DA BOMBA (mL/h)" value={mlh} onChange={v => setVal("mlh", v)} type="number" placeholder="5.0" suffix="mL/h"/>
+          <Field label="VAZÃO DA BOMBA (mL/h)" value={mlh} onChange={setMlh} type="number" placeholder="5.0" suffix="mL/h"/>
           <div style={{flex:1,minWidth:150}}>
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DOSE RESULTANTE</div>
             <div style={{padding:"9px 14px",borderRadius:8,textAlign:"center",background:resBg,border:`1px solid ${resBorder}`,fontSize:16,fontWeight:700,color:resCor,minHeight:38,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -440,30 +441,12 @@ function DrogasCalculadora({ peso, onLancarDroga, drogasState={}, onChangeDrogas
           </div>
         </div>
 
-        {/* Alertas de Sobredose */}
         {acimaDose && (
           <div style={{marginTop:8,padding:"6px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:6,fontSize:12,color:"#f87171"}}>
             ⚠️ Acima do máximo recomendado: {conf.max} {conf.unidadeLabel}
           </div>
         )}
-        
-        {/* Lembretes Inteligentes para Noradrenalina */}
-        {drogaSel === "noradrenalina" && resultado && (
-          <div style={{marginTop:8, display:"flex", flexDirection:"column", gap:6}}>
-            {parseFloat(resultado.dose) > 0.25 && (
-              <div style={{padding:"6px 10px",background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:6,fontSize:12,color:"#fbbf24"}}>
-                ⚠️ <strong>Dose &gt; 0,25 mcg/kg/min:</strong> Lembrete para associar Vasopressina.
-              </div>
-            )}
-            {parseFloat(resultado.dose) > 0.8 && (
-              <div style={{padding:"6px 10px",background:"rgba(225,29,72,0.08)",border:"1px solid rgba(225,29,72,0.25)",borderRadius:6,fontSize:12,color:"#fb7185"}}>
-                🚨 <strong>Dose &gt; 0,8 mcg/kg/min:</strong> Lembrete para associar Adrenalina em infusão contínua.
-              </div>
-            )}
-          </div>
-        )}
-
-        {resultado && !acimaDose && conf.max && drogaSel !== "noradrenalina" && (
+        {resultado && !acimaDose && conf.max && (
           <div style={{marginTop:6,fontSize:11,color:"#475569"}}>
             Máx. recomendado: {conf.max} {conf.unidadeLabel}
           </div>
@@ -496,10 +479,6 @@ function DietaPanel({ dados, onChange }) {
   const kcalAlto  = kcalKg && parseFloat(kcalKg) > 35;
   const ptnBaixo  = ptnKg  && parseFloat(ptnKg)  < 1.0;
   const ptnAlto   = ptnKg  && parseFloat(ptnKg)  > 2.5;
-
-  // Lógica do Propofol (1.1 kcal/mL)
-  const propofolMLH = parseFloat(dados.drogasCalc?.propofol?.mlh);
-  const kcalPropofol = !isNaN(propofolMLH) && propofolMLH > 0 ? Math.round(propofolMLH * 24 * 1.1) : 0;
 
   const TIPOS = [
     {k:"enteral",   label:"🥤 Enteral"},
@@ -563,17 +542,6 @@ function DietaPanel({ dados, onChange }) {
       ) : (
         <div style={{padding:"12px 14px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:13,color:"#fca5a5",marginBottom:10}}>
           ⛔ Paciente em jejum — registre o motivo nas observações.
-        </div>
-      )}
-
-      {/* Alerta Inteligente do Propofol */}
-      {kcalPropofol > 0 && (
-        <div style={{marginBottom:10,padding:"10px 14px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,fontSize:12,color:"#c4b5fd", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10}}>
-          <span>💡 <strong>Aporte Lipídico (Propofol a {propofolMLH} mL/h):</strong> aprox. <strong>{kcalPropofol} kcal/dia</strong>.</span>
-          <button onClick={() => upd("obs", dieta.obs ? `${dieta.obs} | Aporte Propofol: ${kcalPropofol} kcal/dia` : `Aporte Propofol: ${kcalPropofol} kcal/dia`)} 
-            style={{padding:"6px 12px", background:"rgba(167,139,250,0.15)", border:"1px solid #a78bfa", borderRadius:6, color:"#c4b5fd", cursor:"pointer", fontSize:11, fontWeight:600}}>
-            + Adicionar à Obs
-          </button>
         </div>
       )}
 
@@ -818,30 +786,10 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
   const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
 
-  // Lógica da Diurese Persistida
-  const dCalc = dados.diureseCalc || { vol:"", h:"", lastEdit:"" };
-  const setDCalc = (field, val) => {
-    onChange({
-      ...dados,
-      diureseCalc: {
-        ...dCalc,
-        [field]: val,
-        lastEdit: new Date().toLocaleString("pt-BR", {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})
-      }
-    });
-  };
-  const volUrina = dCalc.vol;
-  const hUrina = dCalc.h;
+  const [volUrina, setVolUrina] = useState("");
+  const [hUrina,   setHUrina]   = useState("6");
   const diurese = (volUrina && hUrina && dados.peso)
     ? (parseFloat(volUrina)/(parseFloat(hUrina)*parseFloat(dados.peso))).toFixed(2) : null;
-
-  const [lancadoDiur, setLancadoDiur] = useState(false);
-  const lancarNaEvolucaoDiur = () => {
-    if (!diurese || !onLancarDroga) return;
-    onLancarDroga(`Diurese: ${diurese} mL/kg/h (${volUrina}mL em ${hUrina}h)`, "rm24h");
-    setLancadoDiur(true);
-    setTimeout(()=>setLancadoDiur(false), 2000);
-  };
 
   return (
     <div>
@@ -888,8 +836,8 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
       {dados.peso && <>
         <SecTitle>CALCULADORA DE DIURESE</SecTitle>
         <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
-          <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={v=>setDCalc("vol",v)} type="number" placeholder="300"/>
-          <Field label="PERÍODO (horas)"     value={hUrina}   onChange={v=>setDCalc("h",v)}   type="number" placeholder="6"/>
+          <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={setVolUrina} type="number" placeholder="300"/>
+          <Field label="PERÍODO (horas)"     value={hUrina}   onChange={setHUrina}   type="number" placeholder="6"/>
           <div style={{ flex:1, minWidth:110 }}>
             <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>RESULTADO</div>
             <div style={{ padding:"8px 12px", borderRadius:8, textAlign:"center",
@@ -900,35 +848,16 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
             </div>
           </div>
         </div>
-        
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", marginTop:8, gap:10 }}>
-          <div style={{ fontSize:12, color: diurese ? (parseFloat(diurese)<0.5?"#f87171":"#4ade80") : "#64748b" }}>
-            {diurese ? (parseFloat(diurese)<0.5 ? "⚠️ Oligúria — avaliar volemia e função renal." : "✅ Diurese adequada.") : "Informe os dados para calcular."}
-            {dCalc.lastEdit && <span style={{color:"#94a3b8", marginLeft:6}}>· 🕒 Atualizado em {dCalc.lastEdit}</span>}
+        {diurese && (
+          <div style={{ marginTop:6, fontSize:12, color: parseFloat(diurese)<0.5?"#f87171":"#4ade80" }}>
+            {parseFloat(diurese)<0.5 ? "⚠️ Oligúria — diurese abaixo de 0,5 mL/kg/h. Avaliar volemia e função renal." : "✅ Diurese adequada (≥ 0,5 mL/kg/h)."}
           </div>
-          
-          {diurese && (
-            <button onClick={lancarNaEvolucaoDiur} style={{
-              padding:"6px 14px",
-              background: lancadoDiur ? "rgba(34,197,94,0.15)" : "rgba(56,189,248,0.1)",
-              border: `1px solid ${lancadoDiur ? "#22c55e" : "#38bdf8"}`,
-              borderRadius:8, color: lancadoDiur ? "#22c55e" : "#38bdf8",
-              fontWeight:700, fontSize:12, cursor:"pointer", transition:"all 0.2s",
-            }}>
-              {lancadoDiur ? "✅ Lançado!" : "📋 Lançar na evolução (== ReMe)"}
-            </button>
-          )}
-        </div>
+        )}
       </>}
 
       {dados.peso && <>
         <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-        <DrogasCalculadora 
-          peso={dados.peso} 
-          onLancarDroga={onLancarDroga}
-          drogasState={dados.drogasCalc || {}}
-          onChangeDrogas={dc => onChange({...dados, drogasCalc: dc})}
-        />
+        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga} />
       </>}
 
       <DietaPanel dados={dados} onChange={onChange} />
@@ -948,6 +877,22 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
         procedimentos={dados.procedimentos||[]}
         onChange={procs=>onChange({...dados,procedimentos:procs})}
       />
+
+      <SecTitle>HISTÓRICO CLÍNICO</SecTitle>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DOENÇAS PRÉVIAS / COMORBIDADES</div>
+        <textarea value={dados.doencasPrevias||""} onChange={e=>onChange({...dados,doencasPrevias:e.target.value})}
+          placeholder={"HAS · DM2 · ICC (FEVE 35%) · DRC estágio 3 · DPOC · FA crônica..."}
+          rows={3}
+          style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",lineHeight:1.5}}/>
+      </div>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>MEDICAÇÕES DE USO CONTÍNUO (domiciliar)</div>
+        <textarea value={dados.medicacoesContinuas||""} onChange={e=>onChange({...dados,medicacoesContinuas:e.target.value})}
+          placeholder={"- Losartana 50mg 1x/d\n- Metformina 500mg 2x/d\n- AAS 100mg 1x/d\n- Furosemida 40mg 1x/d"}
+          rows={4}
+          style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",lineHeight:1.5}}/>
+      </div>
     </div>
   );
 }
@@ -1264,17 +1209,37 @@ const GRUPOS_LAB = [
     {key:"ggt",   label:"Gama-GT",          unit:"U/L"},
     {key:"alb",   label:"Albumina",         unit:"g/dL"},
   ]},
-  { grupo:"💧 Controles 24h", params:[
-    {key:"diur",  label:"Diurese",          unit:"mL"},
-    {key:"bh",    label:"Balanço Hídrico",  unit:"mL"},
-    {key:"dreno1",label:"Dreno 1",          unit:"mL"},
-    {key:"dreno2",label:"Dreno 2",          unit:"mL"},
-    {key:"dreno3",label:"Dreno 3",          unit:"mL"},
-    {key:"evac",  label:"Evacuações",       unit:"x/dia"},
+];
+
+// Controles 24h — tabela separada com horários
+const GRUPOS_CONTROLES = [
+  { grupo:"🌡️ Sinais Vitais", params:[
+    {key:"c24_temp",  label:"Temperatura",    unit:"°C"},
+    {key:"c24_fc",    label:"FC",             unit:"bpm"},
+    {key:"c24_fr",    label:"FR",             unit:"irpm"},
+    {key:"c24_sat",   label:"SpO2",           unit:"%"},
+    {key:"c24_pam",   label:"PAM",            unit:"mmHg"},
+    {key:"c24_pas",   label:"PAS/PAD",        unit:"mmHg"},
+  ]},
+  { grupo:"🩺 Metabólico / Outros", params:[
+    {key:"c24_dextro", label:"Dextro",        unit:"mg/dL"},
+    {key:"c24_temp2",  label:"Temp mín/máx",  unit:"°C"},
+  ]},
+  { grupo:"💧 Balanço Hídrico", params:[
+    {key:"c24_diur",   label:"Diurese",       unit:"mL"},
+    {key:"c24_bh",     label:"Balanço Hídrico",unit:"mL"},
+    {key:"c24_dreno1", label:"Dreno 1",       unit:"mL"},
+    {key:"c24_dreno2", label:"Dreno 2",       unit:"mL"},
+    {key:"c24_dreno3", label:"Dreno 3",       unit:"mL"},
+    {key:"c24_sng",    label:"Resíduo SNG",   unit:"mL"},
+    {key:"c24_evac",   label:"Evacuações",    unit:"x"},
   ]},
 ];
 
-const TODOS_PARAMS = GRUPOS_LAB.flatMap(g=>g.params);
+const TODOS_PARAMS = [
+  ...GRUPOS_LAB.flatMap(g=>g.params),
+  ...GRUPOS_CONTROLES.flatMap(g=>g.params),
+];
 
 // Abreviações para a evolução e formatação especial
 const ABREV = {
@@ -1285,7 +1250,11 @@ const ABREV = {
   po2:"pO2", pco2:"pCO2",
   tgo:"TGO", tgp:"TGP", bttot:"BT", btdir:"BD", btind:"BI",
   falc:"FA", ggt:"GGT", alb:"Alb",
-  diur:"Diurese", bh:"BH", dreno1:"Dreno1", dreno2:"Dreno2", dreno3:"Dreno3", evac:"Evac",
+  // Controles 24h
+  c24_temp:"T", c24_fc:"FC", c24_fr:"FR", c24_sat:"Sat", c24_pam:"PAM", c24_pas:"PA",
+  c24_dextro:"Dextro", c24_temp2:"T min/máx",
+  c24_diur:"Diurese", c24_bh:"BH", c24_dreno1:"Dreno1", c24_dreno2:"Dreno2",
+  c24_dreno3:"Dreno3", c24_sng:"Resíduo SNG", c24_evac:"Evac",
 };
 
 // Formata valor: plaquetas e leucócitos em k quando >= 100
@@ -1307,6 +1276,9 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   const hoje = new Date().toISOString().split("T")[0];
   const [novaData, setNovaData] = useState("");
   const [showAddCol, setShowAddCol] = useState(false);
+  const [showAddExame, setShowAddExame] = useState(false);
+  const [novoExame, setNovoExame] = useState("");
+  const [tabela, setTabela] = useState("labs"); // "labs" | "controles"
 
   // Mostra colunas com dados OU marcadas como visíveis, mais hoje sempre
   // Aceita tanto "2026-04-23" quanto "2026-04-23T05:15"
@@ -1353,7 +1325,6 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   const isHoje = (ds) => ds === hoje || ds.startsWith(hoje + "T");
 
   const gerarEvolucao = () => {
-    // Encontra a coluna mais recente de hoje (pode ter hora: "2026-04-25T05:15")
     const datasHoje = datas.filter(d => isHoje(d)).sort();
     const chaveHoje = datasHoje[datasHoje.length - 1] || hoje;
     const idxHoje = datas.indexOf(chaveHoje);
@@ -1372,17 +1343,24 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
 
     const heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
     const rmStr  = pegar(["cr","ur","na","k","mg","cai","p","ph","hco3"]);
-    const ctStr  = pegar(["diur","bh","dreno1","dreno2","dreno3","evac"]);
     const cvStr  = pegar(["trop","bnp","ntpro","be","lact"]);
     const resStr = pegar(["po2","pco2"]);
     const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
+    // Controles 24h
+    const svStr  = pegar(["c24_temp","c24_fc","c24_fr","c24_sat","c24_pam","c24_pas"]);
+    const bhStr  = pegar(["c24_diur","c24_bh","c24_dreno1","c24_dreno2","c24_dreno3","c24_sng","c24_evac"]);
+    const dxStr  = pegar(["c24_dextro","c24_temp2"]);
 
     if (heStr)  campos.heLabs = heStr;
     if (rmStr)  campos.rmLabs = rmStr;
-    if (ctStr)  campos.rm24h  = ctStr;
     if (cvStr)  campos.cvPerf = cvStr;
     if (resStr) campos.reGaso = resStr;
-    if (tgStr)  campos.tgEF   = tgStr;
+    if (tgStr)  campos.tgLabs = tgStr;
+    // Controles → evolução
+    const ctrl24 = [svStr,dxStr].filter(Boolean).join(" / ");
+    const bh24   = bhStr;
+    if (ctrl24) campos.reEF  = (campos.reEF  ? campos.reEF  + "\n" : "") + ctrl24;
+    if (bh24)   campos.rm24h = bh24;
     onAplicarEvolucao(campos);
   };
 
@@ -1402,14 +1380,26 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
           <div style={{fontSize:15,fontWeight:700}}>Tabela Clínica</div>
           <div style={{fontSize:12,color:"#64748b"}}>Registre valores diários · depois aplique na evolução</div>
         </div>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={()=>setShowAddCol(v=>!v)} style={{padding:"8px 14px",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:"#94a3b8",fontWeight:600,fontSize:12,cursor:"pointer"}}>
-            {showAddCol?"✕ Fechar":"+ Adicionar dia"}
+            {showAddCol?"✕ Fechar":"📅 Adicionar dia"}
           </button>
+          {tabela==="labs" && <button onClick={()=>setShowAddExame(v=>!v)} style={{padding:"8px 14px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,color:"#c4b5fd",fontWeight:600,fontSize:12,cursor:"pointer"}}>
+            {showAddExame?"✕ Fechar":"🧪 Novo exame"}
+          </button>}
           <button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
             📝 Aplicar na evolução
           </button>
         </div>
+      </div>
+
+      {/* Tab switcher */}
+      <div style={{display:"flex",gap:4,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:10,padding:4}}>
+        {[["labs","🔬 Exames Laboratoriais"],["controles","📊 Controles 24h"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setTabela(id)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:tabela===id?700:400,background:tabela===id?"rgba(56,189,248,0.15)":"transparent",color:tabela===id?"#38bdf8":"#64748b",transition:"all 0.2s"}}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {showAddCol && (
@@ -1424,7 +1414,34 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
         </div>
       )}
 
-      {datas.length === 0 ? (
+      {showAddExame && (
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10}}>
+          <div style={{fontSize:12,color:"#c4b5fd"}}>Nome do exame:</div>
+          <input value={novoExame} onChange={e=>setNovoExame(e.target.value)}
+            onKeyDown={e=>{
+              if(e.key==="Enter"&&novoExame.trim()){
+                const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+                // Garante que a chave existe para aparecer na tabela
+                const hoje2=new Date().toISOString().split("T")[0];
+                onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""}});
+                setNovoExame(""); setShowAddExame(false);
+              }
+            }}
+            placeholder="Ex: PCR, Procalcitonina, Troponina..."
+            style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"6px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+          <button onClick={()=>{
+            if(!novoExame.trim()) return;
+            const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+            const hoje2=new Date().toISOString().split("T")[0];
+            onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""}});
+            setNovoExame(""); setShowAddExame(false);
+          }} disabled={!novoExame.trim()}
+            style={{padding:"6px 14px",background:novoExame.trim()?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novoExame.trim()?"#a78bfa":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novoExame.trim()?"#c4b5fd":"#475569",fontWeight:600,fontSize:12,cursor:novoExame.trim()?"pointer":"default"}}>
+            Adicionar
+          </button>
+        </div>
+      )}
+      {tabela==="labs" && (datas.length === 0 ? (
         <div style={{padding:40,textAlign:"center",color:"#334155",fontSize:13}}>
           Nenhum dado ainda. Cole um print na aba 📤 ou adicione um dia manualmente.
         </div>
@@ -1528,12 +1545,80 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
             </tbody>
           </table>
         </div>
-      )}
+      ))}
+
       <div style={{marginTop:8,fontSize:11,color:"#475569",display:"flex",gap:16,flexWrap:"wrap"}}>
-        <span style={{color:"#34d399"}}>▼ verde = queda</span>
-        <span style={{color:"#f87171"}}>▲ vermelho = subida</span>
+        {tabela==="labs" && <>
+          <span style={{color:"#34d399"}}>▼ verde = queda</span>
+          <span style={{color:"#f87171"}}>▲ vermelho = subida</span>
+        </>}
         <span>· Clique para editar · ✕ remove a coluna do dia</span>
       </div>
+
+      {/* Tabela de Controles 24h */}
+      {tabela==="controles" && (
+        datas.length === 0 ? (
+          <div style={{padding:40,textAlign:"center",color:"#334155",fontSize:13}}>
+            Adicione um dia para registrar os controles.
+          </div>
+        ) : (
+          <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead>
+                <tr>
+                  <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0d1424"}}>Parâmetro</th>
+                  <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0d1424"}}>Un.</th>
+                  {datas.map(d=>(
+                    <th key={d} style={thStyle(isHoje(d))}>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                        {fmtData(d).split('\n').map((linha,i)=>(
+                          <span key={i} style={{fontSize:i===1?10:11}}>{linha}</span>
+                        ))}
+                        {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#38bdf8"}}>HOJE</span>}
+                        {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {GRUPOS_CONTROLES.map(({grupo,params})=>(
+                  <React.Fragment key={grupo}>
+                    <tr>
+                      <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#38bdf8",background:"rgba(56,189,248,0.04)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                        {grupo}
+                      </td>
+                    </tr>
+                    {params.map(({key,label,unit})=>(
+                      <tr key={key}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
+                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>{unit}</td>
+                        {datas.map(d=>{
+                          const ativo=isHoje(d);
+                          const val=getVal(d,key);
+                          return (
+                            <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.04)":undefined}}>
+                              <input value={val} onChange={e=>setVal(d,key,e.target.value)}
+                                style={{width:"100%",background:"transparent",border:"none",
+                                  color:ativo?"#38bdf8":"#e2e8f0",
+                                  fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
+                                  fontWeight:ativo?700:400}}
+                                placeholder="—"
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
     </div>
   );
 }
@@ -1545,9 +1630,10 @@ const EVOLUCAO_VAZIA = {
   cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
   reVM:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
-  tgEF:"", tg24h:"", tgObs:"",
-  heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"",
-  _datas:{}, // { fieldName: "2026-04-25" } — data da última edição de cada campo
+  tgEF:"", tg24h:"", tgLabs:"", tgObs:"",
+  heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
+  probAtivos:"", probResolvidos:"",
+  _datas:{},
 };
 
 function aplicarIA(dadosIA) {
@@ -1566,7 +1652,7 @@ function aplicarIA(dadosIA) {
   };
 }
 
-function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
+function EvolucaoEditor({ leito, campos, onCampoEdit }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
@@ -1579,20 +1665,13 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
   const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
   const dias = diasInternacao(leito.dataInternacao);
   const disps = leito.dispositivos || {};
-
-  // Adicionando o leitor de configuração:
-  const getAlertaDias = (key, defaultDias) => {
-    const map = {cvc:"alertaCVC", dialise:"alertaDialise", dreno:"alertaDreno", tot:"alertaTOT", tqt:"alertaTQT", svd:"alertaSVD", pai:"alertaPAI", sng:"alertaSNG"};
-    return config[map[key]] ?? defaultDias;
-  };
-
   const ativos = [
     ...DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
       label:(Array.isArray(disps[d.key])&&disps[d.key].length>1)?`${d.label} ${i+1}`:d.label,
-      icone:d.icone, alertaDias:getAlertaDias(d.key, d.alertaDias), disp:inst
+      icone:d.icone, alertaDias:d.alertaDias, disp:inst
     }))),
     ...DISP_SINGULAR.filter(d=>disps[d.key]?.ativo).map(d=>({
-      label:d.label, icone:d.icone, alertaDias:getAlertaDias(d.key, d.alertaDias), disp:disps[d.key]
+      label:d.label, icone:d.icone, alertaDias:d.alertaDias, disp:disps[d.key]
     })),
   ];
 
@@ -1602,8 +1681,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
     cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
     reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
     rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
-    tgEF:useRef(), tg24h:useRef(), tgObs:useRef(),
-    heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(),
+    tgEF:useRef(), tg24h:useRef(), tgLabs:useRef(), tgObs:useRef(),
+    heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(), heCulturas:useRef(),
+    probAtivos:useRef(), probResolvidos:useRef(),
   };
 
   const get = (key) => refs[key]?.current?.value?.trim() || "";
@@ -1659,6 +1739,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
     }else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
     if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
+    if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(get("tgObs"))  p.push(`*${get("tgObs")}`);
     return p.join("\n");
   };
@@ -1680,7 +1761,15 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
       }).join(", ");
       p.push(`Dispositivos: ${lista}`);
     }
-    if(get("heAtb")) p.push(get("heAtb"));
+    if(get("heAtb"))      p.push(get("heAtb"));
+    if(get("heCulturas")) p.push(`- Culturas: ${get("heCulturas")}`);
+    return p.join("\n");
+  };
+
+  const txtProblemas = () => {
+    const p=[];
+    if(get("probAtivos"))    p.push(`ATIVOS:\n${get("probAtivos")}`);
+    if(get("probResolvidos")) p.push(`RESOLVIDOS:\n${get("probResolvidos")}`);
     return p.join("\n");
   };
 
@@ -1777,9 +1866,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
           🗑 Limpar evolução
         </button>
       </div>
-
-      <SysB id="n" sigla="== N:" label="Neurológico" color={colors.N} txtFn={txtN}>
-        
         <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
         <Row>
           <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
@@ -1817,7 +1903,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
 
       <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={colors.ReMe} txtFn={txtReMe}>
         <Row>
-          <Col><FL>24h — Diurese · HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} placeholder="Diurese 1,5 mL/kg/h / HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} placeholder="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
           <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} placeholder="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col>
         </Row>
         <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
@@ -1830,6 +1916,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
           <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
         </Row>
+        <Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} placeholder="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
         <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} placeholder="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>
       </SysB>
 
@@ -1848,6 +1935,20 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
         </div>}
         <Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>
         <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} placeholder={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
+      </SysB>
+
+      <SysB id="prob" sigla="📋 Prob:" label="Problemas" color="#94a3b8" txtFn={txtProblemas}>
+        <Row>
+          <Col>
+            <FL>🔴 Problemas Ativos</FL>
+            <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} placeholder={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"} rows={4} fieldName="probAtivos" onBlurSave={salvar}/>
+          </Col>
+          <Col>
+            <FL>✅ Problemas Resolvidos</FL>
+            <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} placeholder={"1. Choque séptico (resolvido D5)\n2. Acidose metabólica"} rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
+          </Col>
+        </Row>
       </SysB>
 
       <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
@@ -1858,11 +1959,15 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={} }) {
 }
 
 // ── MetasPanel ────────────────────────────────────────────────────────────────
-function MetasPanel() {
-  const [metas, setMetas] = useState([]);
-  const [nova,  setNova]  = useState("");
-  const [show,  setShow]  = useState(false);
-  const add = (t) => { if(!t.trim()) return; setMetas(m=>[...m,{id:Date.now(),texto:t.trim(),status:"pendente"}]); setNova(""); setShow(false); };
+function MetasPanel({ metas, onChange }) {
+  const [nova, setNova] = useState("");
+  const [show, setShow] = useState(false);
+  
+  const add = (t) => {
+    if (!t.trim()) return;
+    onChange([...metas, { id: Date.now(), texto: t.trim(), status: "pendente" }]);
+    setNova(""); setShow(false);
+  };
   const s = { total:metas.length, ok:metas.filter(m=>m.status==="cumprido").length, pend:metas.filter(m=>m.status==="pendente").length };
 
   return (
@@ -1885,7 +1990,7 @@ function MetasPanel() {
       <button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:12}}>
         {show?"▲ Ocultar sugestões":"▼ Ver sugestões de metas comuns"}
       </button>
-      {show && <div style={{marginBottom:14}}>{METAS_SUGESTOES.map(s=><div key={s} onClick={()=>add(s)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,color:"#94a3b8",cursor:"pointer",background:"rgba(255,255,255,0.02)",marginBottom:4,border:"1px solid rgba(255,255,255,0.05)"}}>+ {s}</div>)}</div>}
+      {show && <div style={{marginBottom:14}}>{METAS_SUGESTOES.map(sg=><div key={sg} onClick={()=>add(sg)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,color:"#94a3b8",cursor:"pointer",background:"rgba(255,255,255,0.02)",marginBottom:4,border:"1px solid rgba(255,255,255,0.05)"}}>+ {sg}</div>)}</div>}
       {metas.length===0 && <div style={{textAlign:"center",padding:24,color:"#334155",fontSize:13}}>Nenhuma meta cadastrada para este plantão</div>}
       {metas.map(m=>(
         <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:8,marginBottom:6,border:"1px solid rgba(255,255,255,0.06)"}}>
@@ -1893,14 +1998,14 @@ function MetasPanel() {
             <div style={{fontSize:13,color:"#cbd5e1",marginBottom:6}}>{m.texto}</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {["pendente","andamento","cumprido"].map(st=>(
-                <button key={st} onClick={()=>setMetas(ms=>ms.map(x=>x.id===m.id?{...x,status:st}:x))}
+                <button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,status:st}:x))}
                   style={{padding:"2px 10px",borderRadius:20,border:`1px solid ${m.status===st?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:m.status===st?"rgba(56,189,248,0.12)":"transparent",color:m.status===st?"#38bdf8":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono}}>
                   {st==="pendente"?"● Pendente":st==="andamento"?"◑ Andamento":"✓ Cumprido"}
                 </button>
               ))}
             </div>
           </div>
-          <button onClick={()=>setMetas(ms=>ms.filter(x=>x.id!==m.id))} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:16,padding:2}}>✕</button>
+          <button onClick={()=>onChange(metas.filter(x=>x.id!==m.id))} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:16,padding:2}}>✕</button>
         </div>
       ))}
     </div>
@@ -1908,7 +2013,7 @@ function MetasPanel() {
 }
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
-function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, config={} }) {
+function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
   const dias = diasInternacao(leito.dataInternacao);
   const vago = !leito.paciente;
   const [editingNome, setEditingNome] = useState(false);
@@ -1917,12 +2022,6 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, config={} 
   const confirmarNome = () => {
     if (nomeTemp.trim()) onRename(nomeTemp.trim());
     setEditingNome(false);
-  };
-
-  // Regra para buscar o alerta personalizado nas configs
-  const getAlertaDias = (key, defaultDias) => {
-    const map = {cvc:"alertaCVC", dialise:"alertaDialise", dreno:"alertaDreno", tot:"alertaTOT", tqt:"alertaTQT", svd:"alertaSVD", pai:"alertaPAI", sng:"alertaSNG"};
-    return config[map[key]] ?? defaultDias;
   };
 
   return (
@@ -1973,12 +2072,12 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, config={} 
           const temAlerta =
             DISP_MULTIPLO.some(def=>(Array.isArray(d[def.key])?d[def.key]:[]).some(inst=>{
               const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
-              return dd>getAlertaDias(def.key, def.alertaDias); // Agora respeita a config
+              return dd>def.alertaDias;
             })) ||
             DISP_SINGULAR.some(def=>{
               if (!d[def.key]?.ativo||!d[def.key].data) return false;
               const dd=Math.floor((new Date()-new Date(d[def.key].data+"T00:00:00"))/86400000);
-              return dd>getAlertaDias(def.key, def.alertaDias); // Agora respeita a config
+              return dd>def.alertaDias;
             });
           return temAlerta ? <div style={{marginTop:5,fontSize:10,color:"#f87171",fontFamily:mono}}>⚠️ Dispositivo p/ revisão</div> : null;
         })()}
@@ -1986,6 +2085,7 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, config={} 
     </div>
   );
 }
+
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -2085,67 +2185,6 @@ function LoginScreen({ onLogin }) {
   );
 }
 
-// ── FerramentasPanel ──────────────────────────────────────────────────────────
-function FerramentasPanel() {
-  return (
-    <div style={{padding:"24px", maxWidth:"800px", margin:"0 auto", width:"100%"}}>
-      <div style={{marginBottom:30}}>
-        <div style={{fontSize:24, fontWeight:700, color:"#e2e8f0", display:"flex", alignItems:"center", gap:10}}>
-          📚 Links e Guias Institucionais
-        </div>
-        <div style={{fontSize:14, color:"#64748b", marginTop:6}}>
-          Acesso rápido a protocolos, checklists e drives da sua unidade. 
-          Você pode editar os links diretamente no código do sistema.
-        </div>
-      </div>
-
-      <div style={{ display:"flex", alignItems:"center", gap:8, margin:"20px 0 10px" }}>
-        <div style={{ width:3, height:14, background:"#38bdf8", borderRadius:2 }}/>
-        <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>CHECKLISTS & PROTOCOLOS</span>
-      </div>
-      <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
-        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
-          <div style={{fontSize:32}}>🫁</div>
-          <div>
-            <div style={{fontWeight:700, color:"#38bdf8", marginBottom:2}}>Checklist de IOT</div>
-            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Passo a passo para intubação e via aérea difícil</div>
-          </div>
-        </a>
-
-        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
-          <div style={{fontSize:32}}>🩸</div>
-          <div>
-            <div style={{fontWeight:700, color:"#f87171", marginBottom:2}}>Protocolo de Transfusão</div>
-            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Gatilhos transfusionais e reversão de anticoagulantes</div>
-          </div>
-        </a>
-      </div>
-
-      <div style={{ display:"flex", alignItems:"center", gap:8, margin:"20px 0 10px" }}>
-        <div style={{ width:3, height:14, background:"#38bdf8", borderRadius:2 }}/>
-        <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>DRIVES E SISTEMAS</span>
-      </div>
-      <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:30}}>
-        <a href="#" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
-          <div style={{fontSize:32}}>💊</div>
-          <div>
-            <div style={{fontWeight:700, color:"#f59e0b", marginBottom:2}}>Drive de Antimicrobianos</div>
-            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Guia de diluição, posologia e CCIH da instituição</div>
-          </div>
-        </a>
-
-        <a href="https://www.mdcalc.com/" target="_blank" style={{textDecoration:"none", flex:1, minWidth:220, padding:"16px", background:"rgba(167,139,250,0.08)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:12, color:"#e2e8f0", display:"flex", alignItems:"center", gap:16, transition:"all 0.2s"}}>
-          <div style={{fontSize:32}}>🧮</div>
-          <div>
-            <div style={{fontWeight:700, color:"#c4b5fd", marginBottom:2}}>MDCalc</div>
-            <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.3}}>Calculadoras médicas, escores (APACHE, SAPS)</div>
-          </div>
-        </a>
-      </div>
-    </div>
-  );
-}
-
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [authed,     setAuthed]     = useState(false);
@@ -2156,31 +2195,32 @@ export default function App() {
   const [dadosIA,    setDadosIA]    = useState(null);
   const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
   const [evolVersion, setEvolVersion] = useState(0);
-  const [evolPorLeito, setEvolPorLeito] = useState({}); 
+  const [evolPorLeito, setEvolPorLeito] = useState({}); // { leitoId: evolCampos }
   const [tabelaData, setTabelaData] = useState({});
+  const [metasPorLeito, setMetasPorLeito] = useState({}); // { leitoId: [metas] }
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
   });
   const [saving, setSaving] = useState(false);
-  
-  // 🔥 CONTROLES DA BARRA LATERAL E TELA GLOBAL
-  const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
-  const [viewGlobal, setViewGlobal]   = useState("leitos"); // "leitos" | "ferramentas"
-
   const saveTimer   = useRef(null);
   const evolTimer   = useRef(null);
   const tabelaTimer = useRef(null);
   const configTimer = useRef(null);
-  const isLoaded    = useRef(false);
+  const metasTimer  = useRef(null);
 
   // ── LOAD ─────────────────────────────────────────────────────────────────────
   const loadData = async () => {
+    let leitoAtualId = LEITOS_INICIAIS[0].id;
     try {
       const { data: ld } = await supabase.from("config").select("value").eq("key","leitos_data").single();
       if (ld?.value) {
         const p = JSON.parse(ld.value);
-        if (Array.isArray(p) && p.length) setLeitos(p);
+        if (Array.isArray(p) && p.length) {
+          setLeitos(p);
+          leitoAtualId = p[0].id;
+          setLeitoSelId(p[0].id);
+        }
       }
     } catch {}
     try {
@@ -2203,12 +2243,19 @@ export default function App() {
         const p = JSON.parse(ed.value);
         if (p && typeof p === 'object') {
           setEvolPorLeito(p);
-          const firstId = LEITOS_INICIAIS[0].id;
-          if (p[firstId]) { setEvolCampos(p[firstId]); setEvolVersion(v=>v+1); }
+          if (p[leitoAtualId]) { setEvolCampos(p[leitoAtualId]); setEvolVersion(v=>v+1); }
         }
       }
     } catch {}
-    isLoaded.current = true;
+    try {
+      const { data: md } = await supabase.from("config").select("value").eq("key","metas_data").single();
+      if (md?.value) {
+        const p = JSON.parse(md.value);
+        if (p && typeof p === 'object') setMetasPorLeito(p);
+      }
+    } catch {}
+    // Libera saves apenas após load completo
+    setTimeout(() => { isLoaded.current = true; }, 300);
   };
 
   // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -2228,7 +2275,9 @@ export default function App() {
 
   const onLogin = async () => { await loadData(); setAuthed(true); };
 
-  // ── SAVES manuais ────────────────────────────────────────────────────────────
+  const isLoaded    = useRef(false);
+
+  // ── SAVES manuais (chamados explicitamente, não por useEffect) ────────────────
   const salvarLeitos = (val) => {
     if (!isLoaded.current) return;
     clearTimeout(saveTimer.current);
@@ -2263,6 +2312,14 @@ export default function App() {
     }, 800);
   };
 
+  const salvarMetas = (val) => {
+    if (!isLoaded.current) return;
+    clearTimeout(metasTimer.current);
+    metasTimer.current = setTimeout(async()=>{
+      try { await supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(val)}); } catch {}
+    }, 800);
+  };
+
   const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
   const atualizar = (d) => {
     setLeitos(ls=>{
@@ -2273,8 +2330,11 @@ export default function App() {
   };
   const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
 
+  // Sincroniza evolCampos quando troca de leito
   const evolPorLeitoRef = useRef({});
-  useEffect(()=>{ evolPorLeitoRef.current = evolPorLeito; },[evolPorLeito]);
+  useEffect(()=>{
+    evolPorLeitoRef.current = evolPorLeito;
+  },[evolPorLeito]);
 
   useEffect(()=>{
     const saved = evolPorLeitoRef.current[leitoSelId] || evolPorLeito[leitoSelId];
@@ -2282,6 +2342,7 @@ export default function App() {
     setEvolVersion(v=>v+1);
   },[leitoSelId]);
 
+  // Quando evolCampos muda, persiste no evolPorLeito
   const setEvolCamposComPersistencia = (updater) => {
     setEvolCampos(prev => {
       const hoje = new Date().toISOString().split("T")[0];
@@ -2311,13 +2372,9 @@ export default function App() {
   const dias = diasInternacao(leito.dataInternacao);
   const pp   = pesoPredito(leito.altura, leito.sexo);
 
-  const getAlertaDias = (key, defaultDias) => {
-    const map = {cvc:"alertaCVC", dialise:"alertaDialise", dreno:"alertaDreno", tot:"alertaTOT", tqt:"alertaTQT", svd:"alertaSVD", pai:"alertaPAI", sng:"alertaSNG"};
-    return config[map[key]] ?? defaultDias;
-  };
-
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
       <div style={{color:"#38bdf8",fontSize:14}}>Carregando…</div>
     </div>
   );
@@ -2329,41 +2386,14 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
         *{box-sizing:border-box} textarea,input{outline:none;color-scheme:dark}
-        ::-webkit-scrollbar{width:4px; height:4px} 
-        ::-webkit-scrollbar-track{background:transparent} 
-        ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.3);border-radius:4px}
+        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.3);border-radius:4px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.85}
-
-        .mobile-backdrop { display: none; }
-        @media (max-width: 768px) {
-          .mobile-pad { padding-left: 12px !important; padding-right: 12px !important; }
-          .mobile-hide-text { display: none !important; }
-          .mobile-sidebar { 
-            position: absolute; 
-            z-index: 200; 
-            height: calc(100vh - 56px); 
-            background: #0a0f1e !important; 
-            box-shadow: 4px 0 15px rgba(0,0,0,0.8); 
-          }
-          .mobile-tabs { padding-left: 12px !important; }
-          .mobile-backdrop {
-            display: block;
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.7);
-            z-index: 190;
-          }
-        }
       `}</style>
 
-      {/* HEADER PRINCIPAL */}
-      <div className="mobile-pad" style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
+      <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={() => setShowSidebar(!showSidebar)} style={{background:"transparent", border:"none", color:"#e2e8f0", fontSize:22, cursor:"pointer", padding:"0 6px 0 0", display:"flex", alignItems:"center"}}>
-            ☰
-          </button>
           <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#0284c7,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚕️</div>
-          <div className="mobile-hide-text">
+          <div>
             <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5}}>UTI Evolve</div>
             <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:1}}>ASSISTENTE DE EVOLUÇÃO</div>
           </div>
@@ -2371,245 +2401,285 @@ export default function App() {
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:16}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":"#22c55e",display:"flex",alignItems:"center",gap:4}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":"#22c55e"}}/>
-            <span className="mobile-hide-text">{saving?"Salvando…":"Salvo"}</span>
+            {saving?"Salvando…":"Salvo"}
+          </div>
+          <div style={{fontSize:12,color:"#475569",fontFamily:mono}}>
+            {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase()}
           </div>
           <button onClick={logout} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
-          <button onClick={()=>{setAba("config"); setViewGlobal("leitos");}} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
+          <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
         </div>
       </div>
 
-      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)",position:"relative"}}>
-        
-        {showSidebar && <div className="mobile-backdrop" onClick={() => setShowSidebar(false)}></div>}
-
-        {/* BARRA LATERAL (LEITOS E LINKS) */}
-        {showSidebar && (
-          <div className="mobile-sidebar" style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0, display:"flex", flexDirection:"column"}}>
-            
-            {/* BOTÃO FIXO NO TOPO DA BARRA LATERAL */}
-            <div style={{marginBottom:16, paddingBottom:16, borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-              <button
-                onClick={()=>{
-                  setViewGlobal("ferramentas");
-                  if (window.innerWidth <= 768) setShowSidebar(false);
-                }}
-                style={{
-                  width:"100%", padding:"10px 14px", borderRadius:8, cursor:"pointer",
-                  display:"flex", alignItems:"center", gap:10, transition:"all 0.2s",
-                  background: viewGlobal==="ferramentas" ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.04)",
-                  border: `1px solid ${viewGlobal==="ferramentas" ? "rgba(245,158,11,0.3)" : "rgba(245,158,11,0.1)"}`,
-                  color: viewGlobal==="ferramentas" ? "#fcd34d" : "#fbbf24",
-                  fontWeight: viewGlobal==="ferramentas" ? 700 : 600
-                }}>
-                <span style={{fontSize:18}}>📚</span>
-                <span>Links & Guias</span>
-              </button>
-            </div>
-
-            <div style={{flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
-                <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
-                <button
-                  onClick={()=>{
-                    const novoId = Date.now();
-                    const novoNum = leitos.length + 1;
-                    setLeitos(ls=>{
-                      const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
-                      salvarLeitos(novo);
-                      return novo;
-                    });
-                    setLeitoSelId(novoId);
-                    setAba("paciente");
-                    setViewGlobal("leitos");
-                    if (window.innerWidth <= 768) setShowSidebar(false);
-                  }}
-                  title="Adicionar leito"
-                  style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
+        <div style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
+            <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
+            <button
+              onClick={()=>{
+                const novoId = Date.now();
+                const novoNum = leitos.length + 1;
+                setLeitos(ls=>{
+                  const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+                  salvarLeitos(novo);
+                  return novo;
+                });
+                setLeitoSelId(novoId);
+                setAba("paciente");
+              }}
+              title="Adicionar leito"
+              style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+          </div>
+          {leitos.map((l, idx)=>(
+            <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
+              <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center",paddingBottom:8}}>
+                <button onClick={()=>{
+                  if(idx===0) return;
+                  setLeitos(ls=>{const n=[...ls];[n[idx-1],n[idx]]=[n[idx],n[idx-1]];salvarLeitos(n);return n;});
+                }} style={{background:"none",border:"none",color:idx===0?"#1e293b":"#475569",cursor:idx===0?"default":"pointer",fontSize:10,padding:"1px 3px",lineHeight:1}}>▲</button>
+                <button onClick={()=>{
+                  if(idx===leitos.length-1) return;
+                  setLeitos(ls=>{const n=[...ls];[n[idx],n[idx+1]]=[n[idx+1],n[idx]];salvarLeitos(n);return n;});
+                }} style={{background:"none",border:"none",color:idx===leitos.length-1?"#1e293b":"#475569",cursor:idx===leitos.length-1?"default":"pointer",fontSize:10,padding:"1px 3px",lineHeight:1}}>▼</button>
               </div>
-              
-              {leitos.map(l=><LeitoCard key={l.id} leito={l} selecionado={l.id===leitoSelId && viewGlobal==="leitos"} config={config}
-                onClick={()=>{
-                  setLeitoSelId(l.id);
-                  setDadosIA(null);
-                  setEvolCampos(EVOLUCAO_VAZIA);
-                  setEvolVersion(0);
-                  setAba("paciente");
-                  setViewGlobal("leitos");
-                  if (window.innerWidth <= 768) setShowSidebar(false);
-                }}
-                onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
-                onRemove={leitos.length>1?()=>{
-                  setLeitos(ls=>{
-                    const novo = ls.filter(x=>x.id!==l.id);
-                    salvarLeitos(novo);
-                    setLeitoSelId(novo[0].id);
+              <div style={{flex:1}}>
+                <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config}
+                  onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("paciente");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
+                  onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
+                  onRemove={leitos.length>1?()=>{
+                    setLeitos(ls=>{const novo=ls.filter(x=>x.id!==l.id);salvarLeitos(novo);setLeitoSelId(novo[0].id);return novo;});
+                    setViewGlobal("leitos");
+                  }:null}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          {leito.paciente && (
+            <div style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
+              <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
+              <div style={{fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
+                {(leito.procedimentos||[]).map(p=>{
+                  const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
+                  const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
+                  return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.12)`,border:`1px solid ${cor}55`,borderRadius:4,padding:"1px 7px"}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
+                })}
+                {[
+                  ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:def.alertaDias,data:inst.data}))),
+                  ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:def.alertaDias,data:(leito.dispositivos||{})[def.key].data})),
+                ].map((a,i)=>{
+                  const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
+                  const cor=po>a.alertaDias?"#f87171":"#38bdf8";
+                  return <span key={i} style={{fontSize:10,fontFamily:mono,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 7px"}}>{a.label} D{po}{po>a.alertaDias?" ⚠️":""}</span>;
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:12,overflowX:"auto",flexShrink:0}}>
+            {ABAS.map(a=>(
+              <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                {a.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+            {aba==="config" ? (
+              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
+            ) : aba==="paciente" ? (
+              <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
+                setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
+                setEvolVersion(v=>v+1);
+              }}/></div>
+            ) : aba==="tabela" ? (
+              <TabelaClinica
+                leito={leito}
+                data={tabelaData[leitoSelId] || {}}
+                onChange={d=>{
+                  setTabelaData(t=>{
+                    const novo = {...t,[leitoSelId]:d};
+                    salvarTabela(novo);
                     return novo;
                   });
-                  setViewGlobal("leitos");
-                }:null}
-              />)}
-            </div>
-          </div>
-        )}
-
-        {/* ÁREA PRINCIPAL */}
-        <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          
-          {viewGlobal === "ferramentas" ? (
-            <div style={{flex:1, overflowY:"auto"}}>
-              <FerramentasPanel />
-            </div>
-          ) : (
-            <>
-              {leito.paciente && (
-                <div className="mobile-pad" style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
-                  <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
-                  <div style={{fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
-                    {(leito.procedimentos||[]).map(p=>{
-                      const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-                      const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
-                      return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.12)`,border:`1px solid ${cor}55`,borderRadius:4,padding:"1px 7px"}}>{p.nome.split(" ")[0]} {po===0?"POI":`PO${po}`}</span>;
-                    })}
-                    
-                    {[
-                      ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:getAlertaDias(def.key, def.alertaDias),data:inst.data}))),
-                      ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:getAlertaDias(def.key, def.alertaDias),data:(leito.dispositivos||{})[def.key].data})),
-                    ].map((a,i)=>{
-                      const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
-                      const cor=po>a.alertaDias?"#f87171":"#38bdf8";
-                      return <span key={i} style={{fontSize:10,fontFamily:mono,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 7px"}}>{a.label} D{po}{po>a.alertaDias?" ⚠️":""}</span>;
-                    })}
-                  </div>
+                }}
+                onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
+              />
+            ) : aba==="upload" ? (
+              <div style={{maxWidth:600}}>
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
+                  <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
-              )}
+                <UploadAnalyzer onResult={d=>{
+                  const hoje = new Date().toISOString().split("T")[0];
+                  // Usa a data de coleta do exame se disponível, senão hoje
+                  const dataAlvo = d.dataColeta || hoje;
 
-              <div className="mobile-tabs" style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:24,overflowX:"auto",flexShrink:0}}>
-                {ABAS.map(a=>(
-                  <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
-                    {a.label}
-                  </button>
-                ))}
+                  // Merge extras categorizados nos sistemas
+                  const sistemasFinais = { ...(d.sistemas||{}) };
+                  (d.extras||[]).forEach(ex=>{
+                    const cat = ex.categoria || ex.sugestao;
+                    if (cat && sistemasFinais[cat] !== undefined) {
+                      const linha = `${ex.nome}: ${ex.valor}`;
+                      sistemasFinais[cat] = sistemasFinais[cat]
+                        ? `${sistemasFinais[cat]} / ${linha}` : linha;
+                    }
+                  });
+
+                  const s = sistemasFinais;
+                  // Regex: captura números com vírgula OU ponto como decimal
+                  const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
+                  const extrair = (texto, patterns) => {
+                    if (!texto) return {};
+                    const vals = {};
+                    patterns.forEach(([key, regex]) => {
+                      const m = texto.match(regex);
+                      if (m?.[1]) vals[key] = m[1].replace(',','.');
+                    });
+                    return vals;
+                  };
+
+                  const re = s => new RegExp(s, 'i');
+                  const novos = {};
+
+                  Object.assign(novos, extrair(s["Hemodinâmico"]||"", [
+                    ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)],
+                    ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)],
+                    ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)],
+                  ]));
+                  Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [
+                    ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)],
+                    ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)],
+                    ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)],
+                    ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)],
+                    ["mg",   re(`\\bMg[:\\s]+${NUM}`)],
+                    ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)],
+                    ["p",    re(`\\bP[:\\s]+${NUM}`)],
+                    ["ph",   re(`\\bpH[:\\s]+${NUM}`)],
+                    ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)],
+                    ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)],
+                    ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)],
+                    ["lact", re(`\\bLactato[:\\s]+${NUM}`)],
+                  ]));
+                  Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [
+                    ["hb",    re(`\\bHb[:\\s]+${NUM}`)],
+                    ["ht",    re(`\\bHt[:\\s]+${NUM}`)],
+                    ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)],
+                    ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)],
+                    ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)],
+                    ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)],
+                    ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)],
+                    ["rni",   re(`\\bRNI[:\\s]+${NUM}`)],
+                    ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)],
+                  ]));
+                  Object.assign(novos, extrair(s["Respiratório"]||"", [
+                    ["po2",  re(`pO2[:\\s]+${NUM}`)],
+                    ["pco2", re(`pCO2[:\\s]+${NUM}`)],
+                  ]));
+                  Object.assign(novos, extrair(s["Gastrointestinal"]||"", [
+                    ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)],
+                    ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)],
+                    ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)],
+                    ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)],
+                    ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)],
+                    ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)],
+                  ]));
+
+                  // Extras com categoria selecionada → também vai para a tabela
+                  const EXTRAS_PARA_KEY = {
+                    'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht',
+                    'leucócito':'leuco','leucocito':'leuco',
+                    'neutrófilo':'neut','neutrofilo':'neut',
+                    'bastão':'bast','bastao':'bast','bastonete':'bast',
+                    'linfócito':'linf','linfocito':'linf',
+                    'plaqueta':'plaq',
+                    'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa',
+                    'creatinina':'cr','ureia':'ur','uréia':'ur',
+                    'sódio':'na','sodio':'na','potássio':'k','potassio':'k',
+                    'magnésio':'mg','magnesio':'mg',
+                    'cálcio':'cai','calcio':'cai',
+                    'fósforo':'p','fosforo':'p',
+                    'hco3':'hco3','bicarbonato':'hco3',
+                    'lactato':'lact','troponina':'trop','bnp':'bnp',
+                    'po2':'po2','pco2':'pco2',
+                    'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp',
+                    'albumina':'alb','ggt':'ggt',
+                    'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir',
+                    'diurese':'diur','balanço':'bh','balanco':'bh',
+                  };
+                  (d.extras||[]).forEach(ex=>{
+                    const cat = ex.categoria || ex.sugestao;
+                    if (!cat) return; // só lança se categoria foi selecionada
+                    const nl = (ex.nome||'').toLowerCase();
+                    const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
+                    if (!numMatch) return;
+                    const numVal = numMatch[1].replace(',','.');
+                    // Tenta achar key padrão
+                    let achou = false;
+                    for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
+                      if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
+                    }
+                    // Se não achou key padrão, usa o nome do exame como key dinâmica
+                    if (!achou) {
+                      const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+                      novos[keyDinamica] = numVal; // salva só o valor numérico
+                    }
+                  });
+
+                  setTabelaData(t=>{
+                    const novo = {
+                      ...t,
+                      [leitoSelId]: {
+                        ...(t[leitoSelId]||{}),
+                        [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos }
+                      }
+                    };
+                    salvarTabela(novo);
+                    return novo;
+                  });
+                  setDadosIA(d);
+                  setTimeout(()=>setAba("tabela"), 50);
+                }}/>
               </div>
-
-              <div className="mobile-pad" style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
-                {aba==="config" ? (
-                  <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
-                ) : aba==="paciente" ? (
-                  <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
-                    setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
-                    setEvolVersion(v=>v+1);
-                  }}/></div>
-                ) : aba==="tabela" ? (
-                  <TabelaClinica
-                    leito={leito}
-                    data={tabelaData[leitoSelId] || {}}
-                    onChange={d=>{
-                      setTabelaData(t=>{
-                        const novo = {...t,[leitoSelId]:d};
-                        salvarTabela(novo);
-                        return novo;
-                      });
+            ) : aba==="evolucao" ? (
+              !leito.paciente ? (
+                <div style={{textAlign:"center",padding:60,color:"#334155"}}>
+                  <div style={{fontSize:40,marginBottom:12}}>📝</div>
+                  <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
+                </div>
+              ) : (
+                <div style={{maxWidth:700}}>
+                  {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
+                  <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
+                    onCampoEdit={(field, value)=>{
+                      setEvolCamposComPersistencia(c=>({...c, [field]: value}));
                     }}
-                    onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
                   />
-                ) : aba==="upload" ? (
-                  <div style={{maxWidth:600}}>
-                    <div style={{marginBottom:16}}>
-                      <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
-                      <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
-                    </div>
-                    <UploadAnalyzer onResult={d=>{
-                      const hoje = new Date().toISOString().split("T")[0];
-                      const dataAlvo = d.dataColeta || hoje;
-
-                      const sistemasFinais = { ...(d.sistemas||{}) };
-                      (d.extras||[]).forEach(ex=>{
-                        const cat = ex.categoria || ex.sugestao;
-                        if (cat && sistemasFinais[cat] !== undefined) {
-                          const linha = `${ex.nome}: ${ex.valor}`;
-                          sistemasFinais[cat] = sistemasFinais[cat] ? `${sistemasFinais[cat]} / ${linha}` : linha;
-                        }
-                      });
-
-                      const s = sistemasFinais;
-                      const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
-                      const extrair = (texto, patterns) => {
-                        if (!texto) return {};
-                        const vals = {};
-                        patterns.forEach(([key, regex]) => {
-                          const m = texto.match(regex);
-                          if (m?.[1]) vals[key] = m[1].replace(',','.');
-                        });
-                        return vals;
-                      };
-
-                      const re = s => new RegExp(s, 'i');
-                      const novos = {};
-
-                      Object.assign(novos, extrair(s["Hemodinâmico"]||"", [ ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)], ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)], ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)] ]));
-                      Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [ ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)], ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)], ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)], ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)], ["mg",   re(`\\bMg[:\\s]+${NUM}`)], ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)], ["p",    re(`\\bP[:\\s]+${NUM}`)], ["ph",   re(`\\bpH[:\\s]+${NUM}`)], ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)], ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)], ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)], ["lact", re(`\\bLactato[:\\s]+${NUM}`)] ]));
-                      Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [ ["hb",    re(`\\bHb[:\\s]+${NUM}`)], ["ht",    re(`\\bHt[:\\s]+${NUM}`)], ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)], ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)], ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)], ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)], ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)], ["rni",   re(`\\bRNI[:\\s]+${NUM}`)], ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)] ]));
-                      Object.assign(novos, extrair(s["Respiratório"]||"", [ ["po2",  re(`pO2[:\\s]+${NUM}`)], ["pco2", re(`pCO2[:\\s]+${NUM}`)] ]));
-                      Object.assign(novos, extrair(s["Gastrointestinal"]||"", [ ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)], ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)], ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)], ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)], ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)], ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)] ]));
-
-                      const EXTRAS_PARA_KEY = {
-                        'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht', 'leucócito':'leuco','leucocito':'leuco', 'neutrófilo':'neut','neutrofilo':'neut', 'bastão':'bast','bastao':'bast','bastonete':'bast', 'linfócito':'linf','linfocito':'linf', 'plaqueta':'plaq', 'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa', 'creatinina':'cr','ureia':'ur','uréia':'ur', 'sódio':'na','sodio':'na','potássio':'k','potassio':'k', 'magnésio':'mg','magnesio':'mg', 'cálcio':'cai','calcio':'cai', 'fósforo':'p','fosforo':'p', 'hco3':'hco3','bicarbonato':'hco3', 'lactato':'lact','troponina':'trop','bnp':'bnp', 'po2':'po2','pco2':'pco2', 'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp', 'albumina':'alb','ggt':'ggt', 'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir', 'diurese':'diur','balanço':'bh','balanco':'bh',
-                      };
-                      (d.extras||[]).forEach(ex=>{
-                        const cat = ex.categoria || ex.sugestao;
-                        if (!cat) return; 
-                        const nl = (ex.nome||'').toLowerCase();
-                        const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
-                        if (!numMatch) return;
-                        const numVal = numMatch[1].replace(',','.');
-                        let achou = false;
-                        for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
-                          if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
-                        }
-                        if (!achou) {
-                          const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-                          novos[keyDinamica] = numVal; 
-                        }
-                      });
-
-                      setTabelaData(t=>{
-                        const novo = { ...t, [leitoSelId]: { ...(t[leitoSelId]||{}), [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos } } };
-                        salvarTabela(novo);
-                        return novo;
-                      });
-                      setDadosIA(d);
-                      setTimeout(()=>setAba("tabela"), 50);
-                    }}/>
-                  </div>
-                ) : aba==="evolucao" ? (
-                  !leito.paciente ? (
-                    <div style={{textAlign:"center",padding:60,color:"#334155"}}>
-                      <div style={{fontSize:40,marginBottom:12}}>📝</div>
-                      <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
-                    </div>
-                  ) : (
-                    <div style={{maxWidth:700}}>
-                      {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
-                      <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`} config={config}
-                        onCampoEdit={(field, value)=>{
-                          setEvolCamposComPersistencia(c=>({...c, [field]: value}));
-                        }}
-                      />
-                    </div>
-                  )
-                ) : (
-                  <div style={{maxWidth:600}}>
-                    <div style={{marginBottom:16}}>
-                      <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Metas do plantão</div>
-                      <div style={{fontSize:13,color:"#64748b"}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
-                    </div>
-                    <MetasPanel key={leito.id}/>
-                  </div>
-                )}
+                </div>
+              )
+            ) : (
+              <div style={{maxWidth:600}}>
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Metas do plantão</div>
+                  <div style={{fontSize:13,color:"#64748b"}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
+                </div>
+                <MetasPanel
+                  metas={metasPorLeito[leitoSelId] || []}
+                  onChange={m=>{
+                    setMetasPorLeito(mp=>{
+                      const novo = {...mp,[leitoSelId]:m};
+                      salvarMetas(novo);
+                      return novo;
+                    });
+                  }}
+                />
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
