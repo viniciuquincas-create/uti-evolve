@@ -1960,6 +1960,63 @@ function EvolucaoEditor({ leito, campos, onCampoEdit }) {
   );
 }
 
+// ── FerramentasPanel ──────────────────────────────────────────────────────────
+function FerramentasPanel() {
+  const LINKS = [
+    {
+      emoji:"🫁", cor:"#38bdf8", bg:"rgba(56,189,248,0.08)", borda:"rgba(56,189,248,0.25)",
+      titulo:"Checklist de IOT", desc:"Passo a passo para intubação e via aérea difícil",
+      href:"https://docs.google.com/forms/d/e/1FAIpQLSdGRgBUwki8uJGM2_IAEo1oFHiNlR-QIIZzt9a3oRKa11lPHw/viewform?usp=send_form",
+      label:"Abrir Checklist"
+    },
+    {
+      emoji:"💊", cor:"#f59e0b", bg:"rgba(245,158,11,0.08)", borda:"rgba(245,158,11,0.25)",
+      titulo:"Profilaxia Antibiótica Cirúrgica", desc:"Hospital São Paulo / UNIFESP — Rev. 2024 · Ortopedia, Neuro, GI, Gineco, Cardíaca, Vascular, Transplante...",
+      href:"/atb_profilaxia.pdf",
+      label:"Abrir PDF"
+    },
+    {
+      emoji:"🫀", cor:"#f87171", bg:"rgba(248,113,113,0.08)", borda:"rgba(248,113,113,0.25)",
+      titulo:"Protocolo Pós-op Transplante Hepático", desc:"Rotina de atendimento, prescrição, monitorização e complicações no pós-operatório",
+      href:"/tx_hepatico.pdf",
+      label:"Abrir PDF"
+    },
+    {
+      emoji:"🧮", cor:"#a78bfa", bg:"rgba(167,139,250,0.08)", borda:"rgba(167,139,250,0.25)",
+      titulo:"MDCalc", desc:"Calculadoras médicas, escores (APACHE, SAPS, SOFA, Glasgow...)",
+      href:"https://www.mdcalc.com/",
+      label:"Abrir Site"
+    },
+  ];
+
+  return (
+    <div style={{padding:"24px", maxWidth:"800px", margin:"0 auto", width:"100%"}}>
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:22, fontWeight:700, color:"#e2e8f0", marginBottom:6}}>📚 Links & Protocolos</div>
+        <div style={{fontSize:13, color:"#64748b"}}>Acesso rápido a protocolos, checklists e guias da unidade.</div>
+      </div>
+      <div style={{display:"flex", flexDirection:"column", gap:12}}>
+        {LINKS.map((l,i)=>(
+          <a key={i} href={l.href} target="_blank" rel="noreferrer" style={{
+            textDecoration:"none", padding:"18px 20px",
+            background:l.bg, border:`1px solid ${l.borda}`, borderRadius:14,
+            color:"#e2e8f0", display:"flex", alignItems:"center", gap:18, transition:"all 0.2s"
+          }}>
+            <div style={{fontSize:36, flexShrink:0}}>{l.emoji}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700, color:l.cor, marginBottom:4, fontSize:15}}>{l.titulo}</div>
+              <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.4}}>{l.desc}</div>
+            </div>
+            <div style={{padding:"8px 16px", borderRadius:8, background:l.bg, border:`1px solid ${l.borda}`, color:l.cor, fontSize:12, fontWeight:700, flexShrink:0}}>
+              {l.label} →
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── MetasPanel ────────────────────────────────────────────────────────────────
 function MetasPanel({ metas, onChange }) {
   const [nova, setNova] = useState("");
@@ -2205,6 +2262,8 @@ export default function App() {
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
   });
   const [saving, setSaving] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
+  const [viewGlobal, setViewGlobal]   = useState("leitos");
   const saveTimer   = useRef(null);
   const evolTimer   = useRef(null);
   const tabelaTimer = useRef(null);
@@ -2392,7 +2451,8 @@ export default function App() {
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.85}
       `}</style>
 
-      <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
+      <div style={{padding:"0 16px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
+        <button onClick={()=>setShowSidebar(s=>!s)} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#64748b",cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:10}} title="Toggle sidebar">☰</button>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#0284c7,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚕️</div>
           <div>
@@ -2414,7 +2474,7 @@ export default function App() {
       </div>
 
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
-        <div style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
+        {showSidebar && <div style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
             <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
             <button
@@ -2456,9 +2516,17 @@ export default function App() {
               </div>
             </div>
           ))}
-        </div>
+          <div style={{marginTop:16,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:12}}>
+            <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} style={{width:"100%",padding:"8px 10px",background:viewGlobal==="ferramentas"?"rgba(56,189,248,0.1)":"none",border:`1px solid ${viewGlobal==="ferramentas"?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:8,color:viewGlobal==="ferramentas"?"#38bdf8":"#64748b",cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
+              📚 Links & Protocolos
+            </button>
+          </div>
+        </div>}
 
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          {viewGlobal==="ferramentas" ? (
+            <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
+          ) : (<>
           {leito.paciente && (
             <div style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
               <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
@@ -2683,6 +2751,7 @@ export default function App() {
             )}
           </div>
         </div>
+        </>)}
       </div>
     </div>
   );
