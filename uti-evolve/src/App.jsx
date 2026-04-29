@@ -969,14 +969,46 @@ function UploadAnalyzer({ onResult }) {
           )}
           {draft.dataColeta && (
             <div style={{background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"#4ade80",display:"flex",alignItems:"center",gap:8}}>
-              📅 <strong>Data/hora de coleta detectada:</strong> {(() => {
-                const [datePart, timePart] = draft.dataColeta.split('T');
+              📅 <strong>Data detectada:</strong> {(() => {
+                const [datePart] = draft.dataColeta.split('T');
                 const [y,m,d] = datePart.split('-');
-                return `${d}/${m}/${y}${timePart ? ` às ${timePart}h` : ''}`;
+                return `${d}/${m}/${y}`;
               })()} — os valores serão lançados nesta coluna da tabela
             </div>
           )}
-          <div style={{fontSize:12,color:"#94a3b8",marginBottom:8,fontFamily:mono}}>REVISÃO — edite se necessário</div>
+
+          {/* ── Controles 24h extraídos ── */}
+          {draft.controles && Object.values(draft.controles).some(v=>v) && (
+            <div style={{marginBottom:16,padding:"12px 14px",background:"rgba(52,211,153,0.06)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10}}>
+              <div style={{fontSize:11,color:"#34d399",fontFamily:mono,letterSpacing:1,marginBottom:10}}>📊 CONTROLES 24H DETECTADOS — edite se necessário</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
+                {[
+                  {key:"c24_temp",   label:"T °C  (mín / máx)"},
+                  {key:"c24_fc",     label:"FC bpm  (mín / máx)"},
+                  {key:"c24_fr",     label:"FR irpm  (mín / máx)"},
+                  {key:"c24_sat",    label:"SpO2 %  (mín / máx)"},
+                  {key:"c24_pam",    label:"PAM mmHg  (mín / máx)"},
+                  {key:"c24_pas",    label:"PAS/PAD  (mín-máx / mín-máx)"},
+                  {key:"c24_dextro", label:"Glic cap  (mín / máx)"},
+                  {key:"c24_diur",   label:"Diurese mL  (total)"},
+                  {key:"c24_bh",     label:"BH mL  (total)"},
+                  {key:"c24_dreno1", label:"Dreno 1 mL  (total)"},
+                  {key:"c24_dreno2", label:"Dreno 2 mL  (total)"},
+                  {key:"c24_dreno3", label:"Dreno 3 mL  (total)"},
+                  {key:"c24_sng",    label:"Resíduo SNG mL  (total)"},
+                ].map(({key,label})=>(
+                  <div key={key}>
+                    <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:2}}>{label}</div>
+                    <input value={draft.controles?.[key]||""} onChange={e=>setDraft(d=>({...d,controles:{...d.controles,[key]:e.target.value}}))}
+                      style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:13,fontFamily:mono,boxSizing:"border-box"}}
+                      placeholder="—"/>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{fontSize:12,color:"#94a3b8",marginBottom:8,fontFamily:mono}}>DADOS CLÍNICOS (sistemas) — edite se necessário</div>
           {SISTEMAS.map(s=>(
             <div key={s} style={{marginBottom:10}}>
               <div style={{fontSize:11,color:"#38bdf8",marginBottom:4,fontFamily:mono}}>{s.toUpperCase()}</div>
@@ -1214,15 +1246,15 @@ const GRUPOS_LAB = [
 // Controles 24h — tabela separada com horários
 const GRUPOS_CONTROLES = [
   { grupo:"🌡️ Sinais Vitais", params:[
-    {key:"c24_temp",  label:"Temperatura",    unit:"°C"},
-    {key:"c24_fc",    label:"FC",             unit:"bpm"},
-    {key:"c24_fr",    label:"FR",             unit:"irpm"},
-    {key:"c24_sat",   label:"SpO2",           unit:"%"},
-    {key:"c24_pam",   label:"PAM",            unit:"mmHg"},
-    {key:"c24_pas",   label:"PAS/PAD",        unit:"mmHg"},
+    {key:"c24_temp",  label:"T (mín/máx)",    unit:"°C"},
+    {key:"c24_fc",    label:"FC (mín/máx)",   unit:"bpm"},
+    {key:"c24_fr",    label:"FR (mín/máx)",   unit:"irpm"},
+    {key:"c24_sat",   label:"SpO2 (mín/máx)", unit:"%"},
+    {key:"c24_pam",   label:"PAM (mín/máx)",  unit:"mmHg"},
+    {key:"c24_pas",   label:"PAS/PAD",         unit:"mmHg"},
   ]},
   { grupo:"🩺 Metabólico / Outros", params:[
-    {key:"c24_dextro", label:"Dextro",        unit:"mg/dL"},
+    {key:"c24_dextro", label:"Glic cap (mín/máx)", unit:"mg/dL"},
     {key:"c24_temp2",  label:"Temp mín/máx",  unit:"°C"},
   ]},
   { grupo:"💧 Balanço Hídrico", params:[
@@ -2701,11 +2733,17 @@ export default function App() {
                   });
 
                   setTabelaData(t=>{
+                    // Merge labs extraídos via regex + controles extraídos direto pela IA
+                    const controles = d.controles || {};
+                    // Map controles keys to tabela keys (same keys c24_*)
+                    const controlesNovos = {};
+                    Object.entries(controles).forEach(([k,v])=>{ if(v) controlesNovos[k]=v; });
+
                     const novo = {
                       ...t,
                       [leitoSelId]: {
                         ...(t[leitoSelId]||{}),
-                        [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos }
+                        [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos, ...controlesNovos }
                       }
                     };
                     salvarTabela(novo);
