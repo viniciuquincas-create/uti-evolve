@@ -475,14 +475,75 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange }) {
   );
 }
 
+// ── Catálogo de dietas padrão ─────────────────────────────────────────────────
+const DIETAS_DEFAULT = [
+  // Enterais
+  { id:"isosource_std",  nome:"Isosource Standard 1.0",  tipo:"enteral",    kcalML:1.00, ptnML:0.040, choML:0.132, lipML:0.035 },
+  { id:"isosource_15",   nome:"Isosource 1.5",            tipo:"enteral",    kcalML:1.50, ptnML:0.059, choML:0.166, lipML:0.058 },
+  { id:"isosource_hpn",  nome:"Isosource HPN",            tipo:"enteral",    kcalML:1.00, ptnML:0.056, choML:0.110, lipML:0.039 },
+  { id:"fresubin_1000",  nome:"Fresubin 1000",             tipo:"enteral",    kcalML:1.00, ptnML:0.038, choML:0.134, lipML:0.034 },
+  { id:"fresubin_2kcal", nome:"Fresubin 2 kcal",          tipo:"enteral",    kcalML:2.00, ptnML:0.075, choML:0.228, lipML:0.098 },
+  { id:"fresubin_hp",    nome:"Fresubin HP Energy",        tipo:"enteral",    kcalML:1.50, ptnML:0.075, choML:0.174, lipML:0.058 },
+  { id:"nutrison_std",   nome:"Nutrison Standard",         tipo:"enteral",    kcalML:1.00, ptnML:0.040, choML:0.124, lipML:0.039 },
+  { id:"nutrison_energy",nome:"Nutrison Energy",           tipo:"enteral",    kcalML:1.50, ptnML:0.060, choML:0.186, lipML:0.058 },
+  { id:"nutrison_prot",  nome:"Nutrison Protein Intense",  tipo:"enteral",    kcalML:1.28, ptnML:0.100, choML:0.116, lipML:0.050 },
+  { id:"peptamen_std",   nome:"Peptamen Standard",         tipo:"enteral",    kcalML:1.00, ptnML:0.040, choML:0.127, lipML:0.039 },
+  { id:"peptamen_15",    nome:"Peptamen 1.5",              tipo:"enteral",    kcalML:1.50, ptnML:0.069, choML:0.143, lipML:0.071 },
+  { id:"osmolite_10",    nome:"Osmolite 1.0",              tipo:"enteral",    kcalML:1.06, ptnML:0.044, choML:0.143, lipML:0.034 },
+  { id:"osmolite_15",    nome:"Osmolite 1.5",              tipo:"enteral",    kcalML:1.50, ptnML:0.062, choML:0.194, lipML:0.049 },
+  { id:"novasource_gi",  nome:"Novasource GI",             tipo:"enteral",    kcalML:1.00, ptnML:0.045, choML:0.122, lipML:0.033 },
+  { id:"novasource_gcn", nome:"Novasource GCN",            tipo:"enteral",    kcalML:1.00, ptnML:0.040, choML:0.138, lipML:0.030 },
+  { id:"jevity_10",      nome:"Jevity 1.0",                tipo:"enteral",    kcalML:1.06, ptnML:0.044, choML:0.154, lipML:0.035 },
+  { id:"impact",         nome:"Impact (imunomoduladora)",  tipo:"enteral",    kcalML:1.00, ptnML:0.056, choML:0.130, lipML:0.028 },
+  { id:"glucerna",       nome:"Glucerna",                  tipo:"enteral",    kcalML:1.00, ptnML:0.042, choML:0.096, lipML:0.054 },
+  // Parenterais
+  { id:"npt_3em1_c",     nome:"NPT 3 em 1 Central (padrão)",  tipo:"parenteral", kcalML:1.00, ptnML:0.050, choML:0.140, lipML:0.030, obs:"Ajustar conforme prescrição" },
+  { id:"npt_3em1_p",     nome:"NPT 3 em 1 Periférica",         tipo:"parenteral", kcalML:0.70, ptnML:0.040, choML:0.100, lipML:0.025, obs:"Osmolaridade <800 mOsm/L" },
+  { id:"smof_lipid",     nome:"SMOFlipid 20% (lipídeo isolado)",tipo:"parenteral", kcalML:1.90, ptnML:0,    choML:0,     lipML:0.200 },
+  { id:"glutamine",      nome:"Dipeptiven (glutamina)",         tipo:"parenteral", kcalML:0,    ptnML:0.082, choML:0,     lipML:0 },
+];
+
+function getDietasCatalogo(config) {
+  const custom = config?.dietasCatalogo || [];
+  // Merge: custom pode sobrescrever ou adicionar
+  const ids = new Set(custom.map(d=>d.id));
+  return [...DIETAS_DEFAULT.filter(d=>!ids.has(d.id)), ...custom];
+}
+
 // ── DietaPanel ────────────────────────────────────────────────────────────────
-function DietaPanel({ dados, onChange }) {
-  const dieta = dados.dieta || { tipo:"enteral", vazao:"", formula:"", kcalTotal:"", ptnTotal:"", obs:"" };
+function DietaPanel({ dados, onChange, config={}, onConfigChange }) {
+  const dieta = dados.dieta || { tipo:"enteral", catalogId:"", formula:"", vazao:"", volTotal:"", kcalManual:"", ptnManual:"", obs:"" };
   const upd = (field, val) => onChange({ ...dados, dieta: { ...dieta, [field]: val } });
 
-  const peso = parseFloat(dados.peso);
-  const kcalKg = (dieta.kcalTotal && peso) ? (parseFloat(dieta.kcalTotal)/peso).toFixed(1) : null;
-  const ptnKg  = (dieta.ptnTotal  && peso) ? (parseFloat(dieta.ptnTotal) /peso).toFixed(2) : null;
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [showAddDieta, setShowAddDieta] = useState(false);
+  const [novaDieta, setNovaDieta] = useState({ nome:"", tipo:"enteral", kcalML:"", ptnML:"", choML:"", lipML:"" });
+
+  const peso = parseFloat(dados.peso) || 0;
+  const catalogo = getDietasCatalogo(config);
+  const dietaSel = catalogo.find(d=>d.id===dieta.catalogId) || null;
+
+  // Volume efetivo em 24h
+  const vazaoN  = parseFloat(dieta.vazao)    || 0;
+  const volN    = parseFloat(dieta.volTotal) || 0;
+  const vol24   = volN > 0 ? volN : vazaoN * 24; // mL/24h
+
+  // Cálculos nutricionais automáticos (da fórmula selecionada)
+  const kcalAuto = dietaSel && vol24 ? (vol24 * dietaSel.kcalML).toFixed(0) : "";
+  const ptnAuto  = dietaSel && vol24 ? (vol24 * dietaSel.ptnML ).toFixed(1) : "";
+  const choAuto  = dietaSel && vol24 ? (vol24 * dietaSel.choML ).toFixed(1) : "";
+  const lipAuto  = dietaSel && vol24 ? (vol24 * dietaSel.lipML ).toFixed(1) : "";
+
+  // Usa manual se preenchido, senão automático
+  const kcalTotal = dieta.kcalManual ? parseFloat(dieta.kcalManual) : parseFloat(kcalAuto) || 0;
+  const ptnTotal  = dieta.ptnManual  ? parseFloat(dieta.ptnManual)  : parseFloat(ptnAuto)  || 0;
+
+  // Por kg
+  const kcalKg = (kcalTotal && peso) ? (kcalTotal/peso).toFixed(1) : null;
+  const ptnKg  = (ptnTotal  && peso) ? (ptnTotal /peso).toFixed(2) : null;
+  const choKg  = (choAuto   && peso) ? (parseFloat(choAuto)/peso).toFixed(1) : null;
+  const lipKg  = (lipAuto   && peso) ? (parseFloat(lipAuto)/peso).toFixed(1) : null;
+
   const kcalBaixo = kcalKg && parseFloat(kcalKg) < 20;
   const kcalAlto  = kcalKg && parseFloat(kcalKg) > 35;
   const ptnBaixo  = ptnKg  && parseFloat(ptnKg)  < 1.0;
@@ -496,9 +557,24 @@ function DietaPanel({ dados, onChange }) {
     {k:"jejum",     label:"⛔ Jejum"},
   ];
 
+  const salvarNovaDieta = () => {
+    if (!novaDieta.nome.trim() || !novaDieta.kcalML) return;
+    const id = `custom_${Date.now()}`;
+    const dietas = [...(config.dietasCatalogo || []), { ...novaDieta, id, kcalML:parseFloat(novaDieta.kcalML), ptnML:parseFloat(novaDieta.ptnML)||0, choML:parseFloat(novaDieta.choML)||0, lipML:parseFloat(novaDieta.lipML)||0 }];
+    onConfigChange && onConfigChange({ ...config, dietasCatalogo: dietas });
+    setNovaDieta({ nome:"", tipo:"enteral", kcalML:"", ptnML:"", choML:"", lipML:"" });
+    setShowAddDieta(false);
+  };
+
+  const filtrados = dieta.tipo==="parenteral"
+    ? catalogo.filter(d=>d.tipo==="parenteral")
+    : catalogo.filter(d=>d.tipo==="enteral");
+
   return (
     <div>
       <SecTitle>SUPORTE NUTRICIONAL</SecTitle>
+
+      {/* Tipo */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
         {TIPOS.map(t=>(
           <button key={t.k} onClick={()=>upd("tipo",t.k)}
@@ -508,52 +584,181 @@ function DietaPanel({ dados, onChange }) {
         ))}
       </div>
 
-      {dieta.tipo !== "jejum" ? (
-        <>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
-            <Field label="FÓRMULA / DIETA" value={dieta.formula} onChange={v=>upd("formula",v)} placeholder="Ex: Isosource 1.5, NPT 3 em 1…"/>
-            <Field label="VAZÃO (mL/h)" value={dieta.vazao} onChange={v=>upd("vazao",v)} type="number" placeholder="50" suffix="mL/h"/>
-          </div>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
-            <Field label="TOTAL KCAL/DIA" value={dieta.kcalTotal} onChange={v=>upd("kcalTotal",v)} type="number" placeholder="1800" suffix="kcal"/>
-            <Field label="PROTEÍNA TOTAL/DIA" value={dieta.ptnTotal} onChange={v=>upd("ptnTotal",v)} type="number" placeholder="90" suffix="g/dia"/>
-          </div>
-
-          {(kcalKg||ptnKg) && (
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
-              {kcalKg && (
-                <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",background:kcalBaixo||kcalAlto?"rgba(248,113,113,0.08)":"rgba(34,197,94,0.08)",border:`1px solid ${kcalBaixo||kcalAlto?"rgba(248,113,113,0.3)":"rgba(34,197,94,0.3)"}`}}>
-                  <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>KCAL/KG/DIA</div>
-                  <div style={{fontSize:22,fontWeight:700,color:kcalBaixo||kcalAlto?"#f87171":"#4ade80"}}>{kcalKg}</div>
-                  <div style={{fontSize:10,color:"#64748b",marginTop:1}}>meta 25–30</div>
-                </div>
-              )}
-              {ptnKg && (
-                <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",background:ptnBaixo||ptnAlto?"rgba(248,113,113,0.08)":"rgba(34,197,94,0.08)",border:`1px solid ${ptnBaixo||ptnAlto?"rgba(248,113,113,0.3)":"rgba(34,197,94,0.3)"}`}}>
-                  <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PTN/KG/DIA</div>
-                  <div style={{fontSize:22,fontWeight:700,color:ptnBaixo||ptnAlto?"#f87171":"#4ade80"}}>{ptnKg}</div>
-                  <div style={{fontSize:10,color:"#64748b",marginTop:1}}>meta 1,2–2,0 g/kg</div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {(kcalBaixo||kcalAlto||ptnBaixo||ptnAlto) && (
-            <div style={{padding:"8px 12px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:12,color:"#fca5a5",lineHeight:1.8,marginBottom:10}}>
-              {kcalBaixo && <div>⚠️ Hipocaloria — aporte abaixo de 20 kcal/kg/dia</div>}
-              {kcalAlto  && <div>⚠️ Hipercaloria — aporte acima de 35 kcal/kg/dia</div>}
-              {ptnBaixo  && <div>⚠️ Aporte proteico insuficiente ({"<"} 1,0 g/kg/dia)</div>}
-              {ptnAlto   && <div>⚠️ Aporte proteico muito elevado ({">"}2,5 g/kg/dia)</div>}
-            </div>
-          )}
-        </>
-      ) : (
+      {dieta.tipo === "jejum" ? (
         <div style={{padding:"12px 14px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:13,color:"#fca5a5",marginBottom:10}}>
           ⛔ Paciente em jejum — registre o motivo nas observações.
         </div>
+      ) : dieta.tipo === "oral" ? (
+        <div style={{padding:"12px 14px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:8,fontSize:13,color:"#86efac",marginBottom:10}}>
+          🍽️ Dieta oral — registre aceitação e consistência nas observações.
+        </div>
+      ) : (
+        <>
+          {/* Seletor da fórmula */}
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:6}}>FÓRMULA / DIETA</div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <button onClick={()=>setShowCatalog(s=>!s)} style={{
+                flex:1,padding:"9px 14px",textAlign:"left",
+                background:dietaSel?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.04)",
+                border:`1px solid ${dietaSel?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.1)"}`,
+                borderRadius:8,color:dietaSel?"#e2e8f0":"#64748b",fontSize:13,cursor:"pointer",fontFamily:"inherit",
+              }}>
+                {dietaSel ? <><span style={{fontWeight:700}}>{dietaSel.nome}</span><span style={{fontSize:11,color:"#64748b",marginLeft:8}}>{dietaSel.kcalML} kcal/mL · {dietaSel.ptnML*100} g ptn/100mL</span></> : "📋 Selecionar do catálogo..."}
+              </button>
+              {dietaSel && <button onClick={()=>{upd("catalogId","");upd("formula","");}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#64748b",fontSize:11,cursor:"pointer"}}>✕</button>}
+            </div>
+
+            {/* Catálogo dropdown */}
+            {showCatalog && (
+              <div style={{marginTop:6,background:"#0f1929",border:"1px solid rgba(56,189,248,0.2)",borderRadius:10,maxHeight:240,overflowY:"auto",padding:"4px"}}>
+                {filtrados.map(d=>(
+                  <button key={d.id} onClick={()=>{upd("catalogId",d.id);upd("formula",d.nome);setShowCatalog(false);}}
+                    style={{width:"100%",padding:"9px 12px",textAlign:"left",background:dieta.catalogId===d.id?"rgba(56,189,248,0.1)":"transparent",border:"none",borderRadius:7,cursor:"pointer",color:"#e2e8f0",fontSize:12,fontFamily:"inherit",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontWeight:600}}>{d.nome}</span>
+                    <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{d.kcalML} kcal/mL · {(d.ptnML*100).toFixed(1)} g ptn</span>
+                  </button>
+                ))}
+                <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",padding:"4px"}}>
+                  <button onClick={()=>{setShowAddDieta(true);setShowCatalog(false);}} style={{width:"100%",padding:"8px 12px",textAlign:"left",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:7,color:"#c4b5fd",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                    + Adicionar dieta ao catálogo
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Adicionar dieta ao catálogo */}
+            {showAddDieta && (
+              <div style={{marginTop:8,padding:"14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10}}>
+                <div style={{fontSize:11,color:"#c4b5fd",fontFamily:mono,letterSpacing:1,marginBottom:10}}>NOVA DIETA — DADOS NUTRICIONAIS (por mL)</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                  <div style={{flex:2,minWidth:160}}>
+                    <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:3}}>NOME</div>
+                    <input value={novaDieta.nome} onChange={e=>setNovaDieta(n=>({...n,nome:e.target.value}))}
+                      placeholder="Ex: Peptamen AF 1.5"
+                      style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"7px 9px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:110}}>
+                    <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:3}}>TIPO</div>
+                    <select value={novaDieta.tipo} onChange={e=>setNovaDieta(n=>({...n,tipo:e.target.value}))}
+                      style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"7px 9px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
+                      <option value="enteral" style={{background:"#0f1929"}}>Enteral</option>
+                      <option value="parenteral" style={{background:"#0f1929"}}>Parenteral</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:8,marginBottom:10}}>
+                  {[["kcalML","kcal/mL *","1.0"],["ptnML","Ptn g/mL","0.040"],["choML","CHO g/mL","0.130"],["lipML","Lip g/mL","0.035"]].map(([k,lbl,ph])=>(
+                    <div key={k}>
+                      <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:3}}>{lbl}</div>
+                      <input value={novaDieta[k]} onChange={e=>setNovaDieta(n=>({...n,[k]:e.target.value}))}
+                        type="number" step="0.001" placeholder={ph}
+                        style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"7px 9px",color:"#e2e8f0",fontSize:12,fontFamily:mono,boxSizing:"border-box"}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{fontSize:10,color:"#64748b",marginBottom:8}}>* Preencha os valores por mL da fórmula (não por 100 mL). Ex: kcal/mL = 1.5, ptn/mL = 0.056</div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={salvarNovaDieta} disabled={!novaDieta.nome||!novaDieta.kcalML}
+                    style={{padding:"7px 16px",background:"rgba(167,139,250,0.2)",border:"1px solid #a78bfa",borderRadius:6,color:"#c4b5fd",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+                    Salvar
+                  </button>
+                  <button onClick={()=>setShowAddDieta(false)} style={{padding:"7px 12px",background:"none",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,color:"#64748b",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Vazão / Volume */}
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
+            {dieta.tipo === "parenteral" ? (
+              <Field label="VOLUME TOTAL (mL/24h)" value={dieta.volTotal} onChange={v=>upd("volTotal",v)} type="number" placeholder="1500" suffix="mL/24h"/>
+            ) : (
+              <Field label="VAZÃO (mL/h)" value={dieta.vazao} onChange={v=>upd("vazao",v)} type="number" placeholder="50" suffix="mL/h"/>
+            )}
+            {dietaSel && vol24>0 && (
+              <div style={{flex:1,minWidth:110,padding:"8px 12px",borderRadius:8,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",textAlign:"center"}}>
+                <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>VOL 24H</div>
+                <div style={{fontSize:16,fontWeight:700,color:"#94a3b8"}}>{vol24.toFixed(0)} <span style={{fontSize:11}}>mL</span></div>
+              </div>
+            )}
+          </div>
+
+          {/* Resultados nutricionais automáticos */}
+          {dietaSel && vol24>0 && (
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:8}}>APORTE CALCULADO</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:8,marginBottom:8}}>
+                {[
+                  { lbl:"KCAL TOTAL", val:`${kcalAuto} kcal`, sub:"", warn:false },
+                  { lbl:"PTN TOTAL",  val:`${ptnAuto} g`,     sub:"", warn:false },
+                  { lbl:"CHO TOTAL",  val:choAuto?`${choAuto} g`:"—", sub:"", warn:false },
+                  { lbl:"LIP TOTAL",  val:lipAuto?`${lipAuto} g`:"—", sub:"", warn:false },
+                ].map(({lbl,val,sub,warn})=>(
+                  <div key={lbl} style={{padding:"8px 10px",borderRadius:8,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",textAlign:"center"}}>
+                    <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:1,marginBottom:2}}>{lbl}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:"#94a3b8"}}>{val}</div>
+                    {sub&&<div style={{fontSize:10,color:"#475569"}}>{sub}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Por kg */}
+              {peso > 0 && (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:8}}>
+                  {[
+                    { lbl:"KCAL/KG/DIA", val:kcalKg, unid:"kcal/kg", metaMin:20, metaMax:35, cor:(v)=>v<20||v>35?"#f87171":"#4ade80", meta:"meta 20–30" },
+                    { lbl:"PTN/KG/DIA",  val:ptnKg,  unid:"g/kg",    metaMin:1.2,metaMax:2.0, cor:(v)=>v<1.2||v>2.5?"#f87171":"#4ade80", meta:"meta 1,2–2,0" },
+                    { lbl:"CHO/KG/DIA",  val:choKg,  unid:"g/kg",    metaMin:null,metaMax:null,cor:()=>"#94a3b8", meta:"" },
+                    { lbl:"LIP/KG/DIA",  val:lipKg,  unid:"g/kg",    metaMin:null,metaMax:null,cor:()=>"#94a3b8", meta:"" },
+                  ].filter(x=>x.val).map(({lbl,val,unid,cor,meta})=>{
+                    const n = parseFloat(val);
+                    const c = cor(n);
+                    return (
+                      <div key={lbl} style={{padding:"8px 10px",borderRadius:8,textAlign:"center",background:c==="#f87171"?"rgba(248,113,113,0.08)":"rgba(52,211,153,0.06)",border:`1px solid ${c==="#f87171"?"rgba(248,113,113,0.25)":"rgba(52,211,153,0.2)"}`}}>
+                        <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:1,marginBottom:2}}>{lbl}</div>
+                        <div style={{fontSize:18,fontWeight:700,color:c}}>{val}</div>
+                        <div style={{fontSize:9,color:"#475569",marginTop:1}}>{meta||unid}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Alertas */}
+              {(kcalBaixo||kcalAlto||ptnBaixo||ptnAlto) && (
+                <div style={{marginTop:8,padding:"8px 12px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:12,color:"#fca5a5",lineHeight:1.8}}>
+                  {kcalBaixo && <div>⚠️ Hipocaloria — abaixo de 20 kcal/kg/dia</div>}
+                  {kcalAlto  && <div>⚠️ Hipercaloria — acima de 35 kcal/kg/dia</div>}
+                  {ptnBaixo  && <div>⚠️ Aporte proteico insuficiente ({"<"} 1,2 g/kg/dia)</div>}
+                  {ptnAlto   && <div>⚠️ Aporte proteico muito elevado ({">"}2,5 g/kg/dia)</div>}
+                </div>
+              )}
+
+              {/* Override manual */}
+              <div style={{marginTop:8,padding:"10px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8}}>
+                <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:1,marginBottom:8}}>AJUSTE MANUAL (sobrepõe o calculado)</div>
+                <div style={{display:"flex",gap:8}}>
+                  <Field label="KCAL/DIA (manual)" value={dieta.kcalManual} onChange={v=>upd("kcalManual",v)} type="number" placeholder={kcalAuto||"—"} suffix="kcal"/>
+                  <Field label="PTN/DIA (manual)"  value={dieta.ptnManual}  onChange={v=>upd("ptnManual",v)}  type="number" placeholder={ptnAuto||"—"}  suffix="g"/>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!dietaSel && (
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
+              <Field label="VAZÃO (mL/h)" value={dieta.vazao}     onChange={v=>upd("vazao",v)}     type="number" placeholder="50"   suffix="mL/h"/>
+              <Field label="KCAL/DIA"     value={dieta.kcalManual} onChange={v=>upd("kcalManual",v)} type="number" placeholder="1800" suffix="kcal"/>
+              <Field label="PTN/DIA"      value={dieta.ptnManual}  onChange={v=>upd("ptnManual",v)}  type="number" placeholder="90"   suffix="g"/>
+            </div>
+          )}
+        </>
       )}
 
-      <Field label="OBSERVAÇÕES" value={dieta.obs} onChange={v=>upd("obs",v)} placeholder="Tolerando bem, vômitos, resíduo gástrico elevado, data de introdução…"/>
+      <Field label="OBSERVAÇÕES" value={dieta.obs} onChange={v=>upd("obs",v)} placeholder="Tolerando bem, vômitos, resíduo gástrico, data de introdução…"/>
     </div>
   );
 }
@@ -788,19 +993,16 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
 }
 
 // ── PacientePanel ─────────────────────────────────────────────────────────────
-function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
+function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="" }) {
   const dias  = diasInternacao(dados.dataInternacao);
   const pp    = pesoPredito(dados.altura, dados.sexo);
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
   const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
 
-  // Diurese: persiste no objeto do leito
-  const diureseCalc = dados.diureseCalc || { vol:"", h:"6" };
-  const setDiureseCalc = (field, val) => onChange({...dados, diureseCalc:{...diureseCalc,[field]:val}});
-  const volUrina = diureseCalc.vol;
-  const hUrina   = diureseCalc.h || "6";
-  const diurese = (volUrina && hUrina && dados.peso)
-    ? (parseFloat(volUrina)/(parseFloat(hUrina)*parseFloat(dados.peso))).toFixed(2) : null;
+  // Diurese: usa o valor dos Controles 24h (c24_diur) com período fixo de 24h
+  const volUrina = parseFloat(diureseHoje) || 0;
+  const diurese  = (volUrina && dados.peso)
+    ? (volUrina / (24 * parseFloat(dados.peso))).toFixed(2) : null;
 
   return (
     <div>
@@ -845,23 +1047,31 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
       </>}
 
       {dados.peso && <>
-        <SecTitle>CALCULADORA DE DIURESE</SecTitle>
-        <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
-          <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={v=>setDiureseCalc("vol",v)} type="number" placeholder="300"/>
-          <Field label="PERÍODO (horas)"     value={hUrina}   onChange={v=>setDiureseCalc("h",v)}   type="number" placeholder="6"/>
-          <div style={{ flex:1, minWidth:110 }}>
-            <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>RESULTADO</div>
-            <div style={{ padding:"8px 12px", borderRadius:8, textAlign:"center",
-              background: diurese ? (parseFloat(diurese)<0.5?"rgba(248,113,113,0.1)":"rgba(34,197,94,0.1)") : "rgba(255,255,255,0.04)",
-              border:`1px solid ${diurese ? (parseFloat(diurese)<0.5?"rgba(248,113,113,0.35)":"rgba(34,197,94,0.35)") : "rgba(255,255,255,0.08)"}`,
-              fontSize:17, fontWeight:700, color: diurese ? (parseFloat(diurese)<0.5?"#f87171":"#4ade80") : "#475569" }}>
-              {diurese ? `${diurese} mL/kg/h` : "—"}
+        <SecTitle>DIURESE (24h)</SecTitle>
+        {diureseHoje ? (
+          <div style={{display:"flex",gap:10,alignItems:"stretch",flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",
+              background:diurese&&parseFloat(diurese)<0.5?"rgba(248,113,113,0.1)":"rgba(34,197,94,0.08)",
+              border:`1px solid ${diurese&&parseFloat(diurese)<0.5?"rgba(248,113,113,0.35)":"rgba(34,197,94,0.35)"}`}}>
+              <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>VOLUME 24H</div>
+              <div style={{fontSize:22,fontWeight:700,color:"#94a3b8"}}>{volUrina} <span style={{fontSize:12}}>mL</span></div>
+            </div>
+            <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",
+              background:diurese&&parseFloat(diurese)<0.5?"rgba(248,113,113,0.1)":"rgba(34,197,94,0.08)",
+              border:`1px solid ${diurese&&parseFloat(diurese)<0.5?"rgba(248,113,113,0.35)":"rgba(34,197,94,0.35)"}`}}>
+              <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>DIURESE</div>
+              <div style={{fontSize:22,fontWeight:700,color:diurese&&parseFloat(diurese)<0.5?"#f87171":"#4ade80"}}>{diurese}</div>
+              <div style={{fontSize:10,color:"#64748b",marginTop:1}}>mL/kg/h</div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div style={{padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,fontSize:12,color:"#475569"}}>
+            Registre a diurese de 24h nos <strong style={{color:"#38bdf8"}}>Controles 24h</strong> (campo Diurese) para calcular mL/kg/h automaticamente.
+          </div>
+        )}
         {diurese && (
-          <div style={{ marginTop:6, fontSize:12, color: parseFloat(diurese)<0.5?"#f87171":"#4ade80" }}>
-            {parseFloat(diurese)<0.5 ? "⚠️ Oligúria — diurese abaixo de 0,5 mL/kg/h. Avaliar volemia e função renal." : "✅ Diurese adequada (≥ 0,5 mL/kg/h)."}
+          <div style={{marginTop:6,fontSize:12,color:parseFloat(diurese)<0.5?"#f87171":"#4ade80"}}>
+            {parseFloat(diurese)<0.5?"⚠️ Oligúria — diurese abaixo de 0,5 mL/kg/h. Avaliar volemia e função renal.":"✅ Diurese adequada (≥ 0,5 mL/kg/h)."}
           </div>
         )}
       </>}
@@ -874,7 +1084,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
         />
       </>}
 
-      <DietaPanel dados={dados} onChange={onChange} />
+      <DietaPanel dados={dados} config={config} onChange={onChange} onConfigChange={onConfigChange}/>
 
       <DispositivosPanel
         dispositivos={dados.dispositivos||{}}
@@ -2731,10 +2941,14 @@ export default function App() {
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="paciente" ? (
-              <div style={{maxWidth:680}}><PacientePanel dados={leito} onChange={atualizar} config={config} onLancarDroga={(linha, campo)=>{
-                setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
-                setEvolVersion(v=>v+1);
-              }}/></div>
+              <div style={{maxWidth:680}}><PacientePanel
+                dados={leito} onChange={atualizar} config={config}
+                onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
+                diureseHoje={(tabelaData[leitoSelId]||{})[new Date().toISOString().split("T")[0]]?.c24_diur||""}
+                onLancarDroga={(linha, campo)=>{
+                  setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
+                  setEvolVersion(v=>v+1);
+                }}/></div>
             ) : aba==="tabela" ? (
               <TabelaClinica
                 leito={leito}
