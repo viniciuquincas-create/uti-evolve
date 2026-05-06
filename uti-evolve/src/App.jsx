@@ -1364,6 +1364,7 @@ function OptionalDrenosUI({ data, onChange, datas, hoje }) {
 }
 
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
+function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
   const hoje = new Date().toISOString().split("T")[0];
   const [novaData, setNovaData] = useState("");
   const [showAddCol, setShowAddCol] = useState(false);
