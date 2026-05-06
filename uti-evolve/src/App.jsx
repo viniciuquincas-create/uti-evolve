@@ -340,12 +340,15 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
 // ── DrogasCalculadora ─────────────────────────────────────────────────────────
 const GRUPOS = { vasoativa:"Vasoativas", sedacao:"Sedação", analgesia:"Analgesia" };
 
-function DrogasCalculadora({ peso, onLancarDroga }) {
+function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange }) {
   const [drogaSel, setDrogaSel] = useState("noradrenalina");
-  const [mlh, setMlh]           = useState("");
   const [concCustom, setConcCustom] = useState("");
   const [editandoConc, setEditandoConc] = useState(false);
   const [lancado, setLancado]   = useState(false);
+
+  // mlh vem do estado persistido por droga
+  const mlh = vazoes[drogaSel] || "";
+  const setMlh = (val) => onVazaoChange && onVazaoChange(drogaSel, val);
 
   const conf = DROGAS_PROTOCOLO[drogaSel];
   const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined);
@@ -393,12 +396,17 @@ function DrogasCalculadora({ peso, onLancarDroga }) {
         <div key={grupo} style={{marginBottom:10}}>
           <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:2,marginBottom:5,textTransform:"uppercase"}}>{GRUPOS[grupo]||grupo}</div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {drogas.map(([key,d])=>(
-              <button key={key} onClick={()=>{setDrogaSel(key);setMlh("");setConcCustom("");setEditandoConc(false);}}
-                style={{padding:"5px 11px",borderRadius:20,border:`1px solid ${drogaSel===key?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:drogaSel===key?"rgba(56,189,248,0.14)":"rgba(255,255,255,0.02)",color:drogaSel===key?"#38bdf8":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,transition:"all 0.15s"}}>
-                {d.label}
-              </button>
-            ))}
+            {drogas.map(([key,d])=>{
+              const temVazao = !!(vazoes[key]);
+              const isSel = drogaSel===key;
+              return (
+                <button key={key} onClick={()=>{setDrogaSel(key);setConcCustom("");setEditandoConc(false);}}
+                  style={{padding:"5px 11px",borderRadius:20,border:`1px solid ${isSel?"#38bdf8":temVazao?"rgba(251,146,60,0.6)":"rgba(255,255,255,0.1)"}`,background:isSel?"rgba(56,189,248,0.14)":temVazao?"rgba(251,146,60,0.1)":"rgba(255,255,255,0.02)",color:isSel?"#38bdf8":temVazao?"#fb923c":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,transition:"all 0.15s",display:"flex",alignItems:"center",gap:5}}>
+                  {d.label}
+                  {temVazao && <span style={{fontSize:10,fontWeight:700}}>{vazoes[key]}mL/h</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -786,8 +794,11 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
   const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
 
-  const [volUrina, setVolUrina] = useState("");
-  const [hUrina,   setHUrina]   = useState("6");
+  // Diurese: persiste no objeto do leito
+  const diureseCalc = dados.diureseCalc || { vol:"", h:"6" };
+  const setDiureseCalc = (field, val) => onChange({...dados, diureseCalc:{...diureseCalc,[field]:val}});
+  const volUrina = diureseCalc.vol;
+  const hUrina   = diureseCalc.h || "6";
   const diurese = (volUrina && hUrina && dados.peso)
     ? (parseFloat(volUrina)/(parseFloat(hUrina)*parseFloat(dados.peso))).toFixed(2) : null;
 
@@ -836,8 +847,8 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
       {dados.peso && <>
         <SecTitle>CALCULADORA DE DIURESE</SecTitle>
         <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
-          <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={setVolUrina} type="number" placeholder="300"/>
-          <Field label="PERÍODO (horas)"     value={hUrina}   onChange={setHUrina}   type="number" placeholder="6"/>
+          <Field label="VOLUME URINADO (mL)" value={volUrina} onChange={v=>setDiureseCalc("vol",v)} type="number" placeholder="300"/>
+          <Field label="PERÍODO (horas)"     value={hUrina}   onChange={v=>setDiureseCalc("h",v)}   type="number" placeholder="6"/>
           <div style={{ flex:1, minWidth:110 }}>
             <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>RESULTADO</div>
             <div style={{ padding:"8px 12px", borderRadius:8, textAlign:"center",
@@ -857,7 +868,10 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga }) {
 
       {dados.peso && <>
         <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga} />
+        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga}
+          vazoes={dados.drogasVazao||{}}
+          onVazaoChange={(key,val)=>onChange({...dados,drogasVazao:{...(dados.drogasVazao||{}),[key]:val}})}
+        />
       </>}
 
       <DietaPanel dados={dados} onChange={onChange} />
@@ -1244,6 +1258,7 @@ const GRUPOS_LAB = [
 ];
 
 // Controles 24h — tabela separada com horários
+// Drenos, SNG e evacuações são OPCIONAIS — adicionados dinamicamente com nome personalizado
 const GRUPOS_CONTROLES = [
   { grupo:"🌡️ Sinais Vitais", params:[
     {key:"c24_temp",  label:"T (mín/máx)",    unit:"°C"},
@@ -1253,19 +1268,14 @@ const GRUPOS_CONTROLES = [
     {key:"c24_pam",   label:"PAM (mín/máx)",  unit:"mmHg"},
     {key:"c24_pas",   label:"PAS/PAD",         unit:"mmHg"},
   ]},
-  { grupo:"🩺 Metabólico / Outros", params:[
+  { grupo:"🩺 Metabólico", params:[
     {key:"c24_dextro", label:"Glic cap (mín/máx)", unit:"mg/dL"},
-    {key:"c24_temp2",  label:"Temp mín/máx",  unit:"°C"},
   ]},
   { grupo:"💧 Balanço Hídrico", params:[
-    {key:"c24_diur",   label:"Diurese",       unit:"mL"},
-    {key:"c24_bh",     label:"Balanço Hídrico",unit:"mL"},
-    {key:"c24_dreno1", label:"Dreno 1",       unit:"mL"},
-    {key:"c24_dreno2", label:"Dreno 2",       unit:"mL"},
-    {key:"c24_dreno3", label:"Dreno 3",       unit:"mL"},
-    {key:"c24_sng",    label:"Resíduo SNG",   unit:"mL"},
-    {key:"c24_evac",   label:"Evacuações",    unit:"x"},
+    {key:"c24_diur",   label:"Diurese",        unit:"mL"},
+    {key:"c24_bh",     label:"Balanço Hídrico", unit:"mL"},
   ]},
+  // Drenos/SNG/Evac: adicionados dinamicamente como _dreno_[nome]
 ];
 
 const TODOS_PARAMS = [
@@ -1284,9 +1294,8 @@ const ABREV = {
   falc:"FA", ggt:"GGT", alb:"Alb",
   // Controles 24h
   c24_temp:"T", c24_fc:"FC", c24_fr:"FR", c24_sat:"Sat", c24_pam:"PAM", c24_pas:"PA",
-  c24_dextro:"Dextro", c24_temp2:"T min/máx",
-  c24_diur:"Diurese", c24_bh:"BH", c24_dreno1:"Dreno1", c24_dreno2:"Dreno2",
-  c24_dreno3:"Dreno3", c24_sng:"Resíduo SNG", c24_evac:"Evac",
+  c24_dextro:"Dextro",
+  c24_diur:"Diurese", c24_bh:"BH",
 };
 
 // Formata valor: plaquetas e leucócitos em k quando >= 100
@@ -1304,7 +1313,57 @@ const fmtVal = (key, raw) => {
   return n % 1 === 0 ? String(Math.round(n)) : raw.replace(',','.');
 };
 
-function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
+// ── OptionalDrenosUI ─────────────────────────────────────────────────────────
+function OptionalDrenosUI({ data, onChange, datas, hoje }) {
+  const [show, setShow] = useState(false);
+  const [nome, setNome] = useState("");
+  const SUGESTOES = ["Dreno abdominal", "Dreno torácico D", "Dreno torácico E", "Dreno pélvico", "Dreno Jackson-Pratt", "Resíduo SNG", "Evacuações"];
+
+  const adicionar = (n = nome) => {
+    if (!n.trim()) return;
+    const key = `_dreno_${n.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
+    const dataHoje = hoje;
+    onChange({ ...data, [dataHoje]: { ...(data[dataHoje]||{}), [key]: data[dataHoje]?.[key] || "" }});
+    setNome(""); setShow(false);
+  };
+
+  return (
+    <div style={{marginBottom:8}}>
+      <button onClick={()=>setShow(s=>!s)} style={{
+        display:"flex",alignItems:"center",gap:8,padding:"7px 14px",
+        background:show?"rgba(52,211,153,0.1)":"rgba(255,255,255,0.03)",
+        border:`1px solid ${show?"rgba(52,211,153,0.4)":"rgba(255,255,255,0.1)"}`,
+        borderRadius:8,color:show?"#34d399":"#64748b",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",
+      }}>
+        {show?"✕ Fechar":"+ Adicionar dreno / SNG / evacuações"}
+      </button>
+      {show && (
+        <div style={{marginTop:6,padding:"12px 14px",background:"rgba(52,211,153,0.05)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10}}>
+          <div style={{fontSize:10,color:"#34d399",fontFamily:mono,letterSpacing:1,marginBottom:8}}>NOME DO ITEM (ex: Dreno abdominal, Resíduo SNG, Evacuações)</div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <input value={nome} onChange={e=>setNome(e.target.value)} onKeyDown={e=>e.key==="Enter"&&adicionar()}
+              placeholder="Ex: Dreno abdominal"
+              style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:6,padding:"7px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+            <button onClick={()=>adicionar()} disabled={!nome.trim()}
+              style={{padding:"7px 14px",background:nome.trim()?"rgba(52,211,153,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${nome.trim()?"#34d399":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:nome.trim()?"#34d399":"#475569",fontWeight:700,fontSize:12,cursor:nome.trim()?"pointer":"default",fontFamily:"inherit"}}>
+              Adicionar
+            </button>
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {SUGESTOES.map(s=>(
+              <button key={s} onClick={()=>adicionar(s)}
+                style={{padding:"4px 10px",borderRadius:16,border:"1px solid rgba(52,211,153,0.2)",background:"rgba(52,211,153,0.05)",color:"#34d399",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TabelaClinica ─────────────────────────────────────────────────────────────
   const hoje = new Date().toISOString().split("T")[0];
   const [novaData, setNovaData] = useState("");
   const [showAddCol, setShowAddCol] = useState(false);
@@ -1362,6 +1421,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
     const idxHoje = datas.indexOf(chaveHoje);
     const dtAnt = idxHoje > 0 ? datas[idxHoje-1] : null;
     const campos = {};
+
+    // Exames laboratoriais: compara numericamente, mostra "ant > atu"
     const pegar = (keys) => keys.map(k=>{
       const abrev = ABREV[k] || TODOS_PARAMS.find(x=>x.key===k)?.label || k;
       const atuRaw = getVal(chaveHoje, k);
@@ -1373,26 +1434,53 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
       return `${abrev} ${val}`;
     }).filter(Boolean).join(" / ");
 
+    // Controles 24h: mantém string bruta inteira (preserva intervalos "36 / 37.2")
+    const pegarCtrl = (keys) => keys.map(k=>{
+      const abrev = ABREV[k] || k;
+      const val = getVal(chaveHoje, k);
+      if (!val) return null;
+      return `${abrev}: ${val}`;
+    }).filter(Boolean).join(" · ");
+
+    // Drenos dinâmicos (_dreno_*) → TGI
+    const drenosKeys = Object.keys(data[chaveHoje]||{}).filter(k => k.startsWith('_dreno_'));
+    const drenosStr  = drenosKeys.map(k=>{
+      const nome = k.replace(/^_dreno_/, '').replace(/_/g,' ');
+      const val = getVal(chaveHoje, k);
+      return val ? `${nome}: ${val} mL` : null;
+    }).filter(Boolean).join(" · ");
+
+    // Labs
     const heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
     const rmStr  = pegar(["cr","ur","na","k","mg","cai","p","ph","hco3"]);
     const cvStr  = pegar(["trop","bnp","ntpro","be","lact"]);
     const resStr = pegar(["po2","pco2"]);
     const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
-    // Controles 24h
-    const svStr  = pegar(["c24_temp","c24_fc","c24_fr","c24_sat","c24_pam","c24_pas"]);
-    const bhStr  = pegar(["c24_diur","c24_bh","c24_dreno1","c24_dreno2","c24_dreno3","c24_sng","c24_evac"]);
-    const dxStr  = pegar(["c24_dextro","c24_temp2"]);
 
+    // Controles → campos certos em cada sistema
+    const tempStr  = pegarCtrl(["c24_temp"]);           // He: Infeccioso/Temperatura
+    const cvCtrl   = pegarCtrl(["c24_fc","c24_pam","c24_pas"]); // Cv: 24h
+    const reCtrl   = pegarCtrl(["c24_fr","c24_sat"]);   // Res: 24h
+    const bhStr    = pegarCtrl(["c24_diur","c24_bh"]);  // ReMe: 24h
+    const dextroStr= pegarCtrl(["c24_dextro"]);          // TGI: 24h
+
+    // Aplica labs
     if (heStr)  campos.heLabs = heStr;
     if (rmStr)  campos.rmLabs = rmStr;
     if (cvStr)  campos.cvPerf = cvStr;
     if (resStr) campos.reGaso = resStr;
     if (tgStr)  campos.tgLabs = tgStr;
-    // Controles → evolução
-    const ctrl24 = [svStr,dxStr].filter(Boolean).join(" / ");
-    const bh24   = bhStr;
-    if (ctrl24) campos.reEF  = (campos.reEF  ? campos.reEF  + "\n" : "") + ctrl24;
-    if (bh24)   campos.rm24h = bh24;
+
+    // Aplica controles nos sistemas corretos
+    if (tempStr)  campos.heTemp  = tempStr;
+    if (cvCtrl)   campos.cv24h   = cvCtrl;
+    if (reCtrl)   campos.re24h   = reCtrl;
+    if (bhStr)    campos.rm24h   = bhStr;
+
+    // TGI: glicemia + drenos dinâmicos
+    const tgCtrl = [dextroStr, drenosStr].filter(Boolean).join(" · ");
+    if (tgCtrl) campos.tg24h = tgCtrl;
+
     onAplicarEvolucao(campos);
   };
 
@@ -1594,7 +1682,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
             Adicione um dia para registrar os controles.
           </div>
         ) : (
-          <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
+          <div>
+            {/* Botão para adicionar dreno/SNG/evac opcional */}
+            <OptionalDrenosUI data={data} onChange={onChange} datas={datas} hoje={hoje}/>
+            <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)",marginTop:8}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
                 <tr>
@@ -1646,8 +1737,54 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
                     ))}
                   </React.Fragment>
                 ))}
+                {/* Drenos dinâmicos (_dreno_*) */}
+                {(()=>{
+                  const drenoKeys = Array.from(new Set(datas.flatMap(d=>Object.keys(data[d]||{}).filter(k=>k.startsWith('_dreno_')))));
+                  if (!drenoKeys.length) return null;
+                  return (
+                    <React.Fragment>
+                      <tr><td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#34d399",background:"rgba(52,211,153,0.04)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                        💧 Drenos / SNG / Evacuações (opcionais)
+                      </td></tr>
+                      {drenoKeys.map(k=>{
+                        const nomeBruto = k.replace(/^_dreno_/,'').replace(/_/g,' ');
+                        const nome = nomeBruto.charAt(0).toUpperCase()+nomeBruto.slice(1);
+                        return (
+                          <tr key={k}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#34d399",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e",display:"flex",alignItems:"center",gap:6}}>
+                              {nome}
+                              <button title="Remover linha" onClick={()=>{
+                                const novo={...data};
+                                datas.forEach(d=>{if(novo[d]){delete novo[d][k];}});
+                                onChange(novo);
+                              }} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:10,padding:0}}>✕</button>
+                            </td>
+                            <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>mL/x</td>
+                            {datas.map(d=>{
+                              const ativo=isHoje(d);
+                              const val=getVal(d,k);
+                              return (
+                                <td key={d} style={{...tdBase,background:ativo?"rgba(52,211,153,0.04)":undefined}}>
+                                  <input value={val} onChange={e=>setVal(d,k,e.target.value)}
+                                    style={{width:"100%",background:"transparent",border:"none",
+                                      color:ativo?"#34d399":"#e2e8f0",
+                                      fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
+                                      fontWeight:ativo?700:400}}
+                                    placeholder="—"/>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })()}
               </tbody>
             </table>
+          </div>
           </div>
         )
       )}
