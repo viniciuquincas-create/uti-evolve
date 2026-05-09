@@ -2,6 +2,48 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { supabase } from './supabase.js';
 
+// ── Logo SVG — Cérebro com sensor Brain for Care ──────────────────────────────
+const BrainLogo = ({ size = 32 }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* glow aura */}
+    <ellipse cx="50" cy="50" rx="28" ry="26" fill="#0ea5e9" opacity="0.05"/>
+    {/* contorno cérebro */}
+    <path d="M50 22 Q68 18 76 32 Q84 46 80 60 Q76 72 62 76 Q56 78 50 77 Q44 78 38 76 Q24 72 20 60 Q16 46 24 32 Q32 18 50 22Z"
+      fill="none" stroke="#7dd3fc" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+    {/* fissura interhemisférica */}
+    <path d="M50 22 Q51 40 50 58 Q49 66 50 77"
+      fill="none" stroke="#0ea5e9" strokeWidth="1" strokeDasharray="3 4" opacity="0.4"/>
+    {/* sulco central D */}
+    <path d="M57 26 Q60 38 58 52" fill="none" stroke="#93c5fd" strokeWidth="1.4" strokeLinecap="round" opacity="0.6"/>
+    {/* sulco central E */}
+    <path d="M43 26 Q40 38 42 52" fill="none" stroke="#93c5fd" strokeWidth="1.4" strokeLinecap="round" opacity="0.6"/>
+    {/* fissura de Sylvius D */}
+    <path d="M60 52 Q70 50 76 55" fill="none" stroke="#7dd3fc" strokeWidth="1.6" strokeLinecap="round" opacity="0.65"/>
+    {/* fissura de Sylvius E */}
+    <path d="M40 52 Q30 50 24 55" fill="none" stroke="#7dd3fc" strokeWidth="1.6" strokeLinecap="round" opacity="0.65"/>
+    {/* sulco frontal superior D */}
+    <path d="M62 30 Q70 36 70 46" fill="none" stroke="#93c5fd" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
+    {/* sulco frontal superior E */}
+    <path d="M38 30 Q30 36 30 46" fill="none" stroke="#93c5fd" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
+    {/* sulco parieto-occipital D */}
+    <path d="M64 60 Q68 66 66 72" fill="none" stroke="#93c5fd" strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
+    {/* sulco parieto-occipital E */}
+    <path d="M36 60 Q32 66 34 72" fill="none" stroke="#93c5fd" strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
+    {/* tronco cerebral */}
+    <path d="M45 77 Q45 85 50 87 Q55 85 55 77" fill="none" stroke="#7dd3fc" strokeWidth="2" strokeLinecap="round" opacity="0.65"/>
+    {/* ── Brain For Care sensor ── */}
+    {/* banda frontal */}
+    <path d="M28 21 Q50 13 72 21" fill="none" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round"/>
+    {/* pad sensor central */}
+    <rect x="43" y="10" width="14" height="6" rx="3" fill="none" stroke="#38bdf8" strokeWidth="1.6"/>
+    <rect x="46" y="12" width="8" height="2" rx="1" fill="#38bdf8" opacity="0.7"/>
+    {/* cabo lateral */}
+    <path d="M72 21 Q80 18 84 12" fill="none" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" opacity="0.8"/>
+    {/* conector */}
+    <rect x="82" y="8" width="6" height="4" rx="1.5" fill="#0ea5e9" opacity="0.75"/>
+  </svg>
+);
+
 const SISTEMAS = [
   "Neurológico","Respiratório","Hemodinâmico",
   "Renal/Metabólico","Gastrointestinal","Hematológico/Infeccioso","Pele/Acessos",
@@ -168,7 +210,7 @@ function pesoPredito(alt, sexo) {
 // ── UI atoms ─────────────────────────────────────────────────────────────────
 const mono = "'DM Mono', monospace";
 
-function Pill({ label, value, unit, color="#38bdf8", warn=false }) {
+function Pill({ label, value, unit, color="#22c55e", warn=false }) {
   return (
     <div style={{ background: warn?"rgba(248,113,113,0.08)":"rgba(255,255,255,0.04)", border:`1px solid ${warn?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"8px 12px", minWidth:90, textAlign:"center" }}>
       <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:3 }}>{label}</div>
@@ -181,8 +223,8 @@ function Pill({ label, value, unit, color="#38bdf8", warn=false }) {
 function SecTitle({ children }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8, margin:"20px 0 10px" }}>
-      <div style={{ width:3, height:14, background:"#38bdf8", borderRadius:2 }}/>
-      <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>{children}</span>
+      <div style={{ width:3, height:14, background:"#22c55e", borderRadius:2 }}/>
+      <span style={{ fontSize:11, color:"#22c55e", fontFamily:mono, letterSpacing:2 }}>{children}</span>
     </div>
   );
 }
@@ -267,9 +309,9 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
               {editing ? (
                 <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                   <input value={p.nome} onChange={e=>updateProc(p.id,"nome",e.target.value)}
-                    style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+                    style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(34,197,94,0.4)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
                   <input type="date" value={p.data} onChange={e=>updateProc(p.id,"data",e.target.value)}
-                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
+                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(34,197,94,0.4)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
                   <button onClick={()=>setEditId(null)} style={{padding:"5px 10px",borderRadius:6,border:"1px solid #22c55e",background:"rgba(34,197,94,0.1)",color:"#22c55e",cursor:"pointer",fontSize:12}}>✓ Ok</button>
                 </div>
               ) : (
@@ -303,8 +345,8 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
       })}
 
       {/* Adicionar novo */}
-      <div style={{marginTop:12,padding:"14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:10}}>
-        <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5,marginBottom:10}}>+ REGISTRAR PROCEDIMENTO</div>
+      <div style={{marginTop:12,padding:"14px",background:"rgba(34,197,94,0.04)",border:"1px solid rgba(34,197,94,0.12)",borderRadius:10}}>
+        <div style={{fontSize:10,color:"#22c55e",fontFamily:mono,letterSpacing:1.5,marginBottom:10}}>+ REGISTRAR PROCEDIMENTO</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
           <div style={{flex:2,minWidth:160}}>
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>PROCEDIMENTO</div>
@@ -317,7 +359,7 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
               style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
           </div>
           <div style={{display:"flex",alignItems:"flex-end"}}>
-            <button onClick={()=>addProc()} style={{padding:"8px 18px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>
+            <button onClick={()=>addProc()} style={{padding:"8px 18px",background:"linear-gradient(135deg,#16a34a,#15803d)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>
               + Adicionar
             </button>
           </div>
@@ -373,9 +415,9 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
   const modoAtual = (vazoes||{})[`${drogaSel}_modo`] || (config?.drogasModo?.[drogaSel]) || conf.modoCalcDefault;
   const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined, modoAtual, config);
   const acimaDose = resultado && conf.max && parseFloat(resultado.dose) > conf.max;
-  const resBg     = acimaDose ? "rgba(248,113,113,0.1)" : resultado ? "rgba(56,189,248,0.08)" : "rgba(255,255,255,0.04)";
-  const resBorder = acimaDose ? "rgba(248,113,113,0.4)" : resultado ? "rgba(56,189,248,0.3)"  : "rgba(255,255,255,0.08)";
-  const resCor    = acimaDose ? "#f87171" : resultado ? "#38bdf8" : "#475569";
+  const resBg     = acimaDose ? "rgba(248,113,113,0.1)" : resultado ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.04)";
+  const resBorder = acimaDose ? "rgba(248,113,113,0.4)" : resultado ? "rgba(34,197,94,0.3)"  : "rgba(255,255,255,0.08)";
+  const resCor    = acimaDose ? "#f87171" : resultado ? "#22c55e" : "#475569";
 
   const porGrupo = Object.entries(DROGAS_PROTOCOLO).reduce((acc,[k,v])=>{
     (acc[v.grupo]||(acc[v.grupo]=[])).push([k,v]); return acc;
@@ -422,20 +464,20 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
               const infoOpen = infoAberta===key;
               return (
                 <div key={key} style={{position:"relative"}}>
-                  <div style={{display:"flex",border:`1px solid ${isSel?"#38bdf8":temVazao?"rgba(251,146,60,0.6)":"rgba(255,255,255,0.1)"}`,borderRadius:20,background:isSel?"rgba(56,189,248,0.14)":temVazao?"rgba(251,146,60,0.1)":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
+                  <div style={{display:"flex",border:`1px solid ${isSel?"#22c55e":temVazao?"rgba(251,146,60,0.6)":"rgba(255,255,255,0.1)"}`,borderRadius:20,background:isSel?"rgba(34,197,94,0.14)":temVazao?"rgba(251,146,60,0.1)":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
                     <button onClick={()=>{setDrogaSel(key);setConcCustom("");setEditandoConc(false);}}
-                      style={{padding:"5px 10px 5px 11px",background:"none",border:"none",color:isSel?"#38bdf8":temVazao?"#fb923c":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,display:"flex",alignItems:"center",gap:5}}>
+                      style={{padding:"5px 10px 5px 11px",background:"none",border:"none",color:isSel?"#22c55e":temVazao?"#fb923c":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,display:"flex",alignItems:"center",gap:5}}>
                       {d.label}
                       {temVazao && <span style={{fontSize:10,fontWeight:700}}>{vazoes[key]}mL/h</span>}
                     </button>
                     {d.doseInfo && (
                       <button onClick={e=>{e.stopPropagation();setInfoAberta(infoOpen?null:key);}}
-                        style={{padding:"0 7px",background:infoOpen?"rgba(167,139,250,0.2)":"none",border:"none",borderLeft:`1px solid ${isSel?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.08)"}`,color:infoOpen?"#c4b5fd":"#475569",fontSize:9,cursor:"pointer",lineHeight:1}}
+                        style={{padding:"0 7px",background:infoOpen?"rgba(167,139,250,0.2)":"none",border:"none",borderLeft:`1px solid ${isSel?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.08)"}`,color:infoOpen?"#c4b5fd":"#475569",fontSize:9,cursor:"pointer",lineHeight:1}}
                         title="Ver doses de referência">ⓘ</button>
                     )}
                   </div>
                   {infoOpen && d.doseInfo && (
-                    <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:50,minWidth:260,maxWidth:320,padding:"12px 14px",background:"#1a2540",border:"1px solid rgba(167,139,250,0.35)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                    <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:50,minWidth:260,maxWidth:320,padding:"12px 14px",background:"#102010",border:"1px solid rgba(167,139,250,0.35)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
                       <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1,marginBottom:6}}>📋 DOSES DE REFERÊNCIA — {d.label.toUpperCase()}</div>
                       {d.doseInfo.split("\n").map((l,i)=>(
                         <div key={i} style={{fontSize:12,color:i===0?"#e2e8f0":"#94a3b8",lineHeight:1.6,fontWeight:i===0?700:400}}>{l}</div>
@@ -455,10 +497,10 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
           <div>
             <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{conf.label}</div>
             <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{conf.diluicaoDesc}</div>
-            {conf.concMcgML && <div style={{fontSize:11,color:concCustom?"#f59e0b":"#38bdf8",marginTop:1,fontFamily:mono}}>
+            {conf.concMcgML && <div style={{fontSize:11,color:concCustom?"#f59e0b":"#22c55e",marginTop:1,fontFamily:mono}}>
               {concCustom ? `★ ${concCustom} mcg/mL (personalizado)` : `= ${conf.concMcgML} mcg/mL`}
             </div>}
-            {conf.concUIML && <div style={{fontSize:11,color:"#38bdf8",marginTop:1,fontFamily:mono}}>= {conf.concUIML} UI/mL</div>}
+            {conf.concUIML && <div style={{fontSize:11,color:"#22c55e",marginTop:1,fontFamily:mono}}>= {conf.concUIML} UI/mL</div>}
           </div>
           <button onClick={()=>setEditandoConc(e=>!e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>
             {editandoConc?"✕ Fechar":"✏️ Diluição personalizada"}
@@ -514,9 +556,9 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
         {resultado && onLancarDroga && (
           <button onClick={lancarNaEvolucao} style={{
             width:"100%", marginTop:10, padding:"9px",
-            background: lancado ? "rgba(34,197,94,0.15)" : "rgba(56,189,248,0.1)",
-            border: `1px solid ${lancado ? "#22c55e" : "#38bdf8"}`,
-            borderRadius:8, color: lancado ? "#22c55e" : "#38bdf8",
+            background: lancado ? "rgba(34,197,94,0.15)" : "rgba(34,197,94,0.1)",
+            border: `1px solid ${lancado ? "#22c55e" : "#22c55e"}`,
+            borderRadius:8, color: lancado ? "#22c55e" : "#22c55e",
             fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s",
           }}>
             {lancado ? "✅ Lançado na evolução!" : `📋 Lançar na evolução (${conf.grupo === "vasoativa" ? "== Cv: DVA" : conf.grupo === "sedacao" ? "== N: Sedação" : "== N: Analgesia"})`}
@@ -645,7 +687,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
         {TIPOS.map(t=>(
           <button key={t.k} onClick={()=>upd("tipo",t.k)}
-            style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${dieta.tipo===t.k?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:dieta.tipo===t.k?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.02)",color:dieta.tipo===t.k?"#38bdf8":"#64748b",fontSize:12,cursor:"pointer",fontWeight:dieta.tipo===t.k?700:400}}>
+            style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${dieta.tipo===t.k?"#22c55e":"rgba(255,255,255,0.1)"}`,background:dieta.tipo===t.k?"rgba(34,197,94,0.12)":"rgba(255,255,255,0.02)",color:dieta.tipo===t.k?"#22c55e":"#64748b",fontSize:12,cursor:"pointer",fontWeight:dieta.tipo===t.k?700:400}}>
             {t.label}
           </button>
         ))}
@@ -665,20 +707,20 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
           <div style={{marginBottom:12}}>
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>FÓRMULA / DIETA</div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <button onClick={()=>setShowCatalog(s=>!s)} style={{flex:1,padding:"9px 14px",textAlign:"left",background:dietaSel?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.04)",border:`1px solid ${dietaSel?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:dietaSel?"#e2e8f0":"#64748b",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+              <button onClick={()=>setShowCatalog(s=>!s)} style={{flex:1,padding:"9px 14px",textAlign:"left",background:dietaSel?"rgba(34,197,94,0.08)":"rgba(255,255,255,0.04)",border:`1px solid ${dietaSel?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:dietaSel?"#e2e8f0":"#64748b",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
                 {dietaSel ? <><strong>{dietaSel.nome}</strong><span style={{fontSize:11,color:"#64748b",marginLeft:8}}>{dietaSel.kcalML} kcal/mL · {(dietaSel.ptnML*100).toFixed(1)} g ptn/100mL</span></> : "📋 Selecionar do catálogo..."}
               </button>
               {dietaSel && <button onClick={()=>{upd("catalogId","");upd("formula","");}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#64748b",fontSize:11,cursor:"pointer"}}>✕</button>}
             </div>
             {showCatalog && (
-              <div style={{marginTop:6,background:"#0f1929",border:"1px solid rgba(56,189,248,0.2)",borderRadius:10,maxHeight:200,overflowY:"auto",padding:"4px"}}>
+              <div style={{marginTop:6,background:"#0c1a10",border:"1px solid rgba(34,197,94,0.2)",borderRadius:10,maxHeight:200,overflowY:"auto",padding:"4px"}}>
                 {filtrados.length===0 ? <div style={{padding:"12px",textAlign:"center",color:"#475569",fontSize:12}}>Adicione fórmulas em ⚙️ Configurações.</div>
                   : filtrados.map(d=>(
                     <button key={d.id} onClick={()=>{
                       onChange({...dados, dieta:{...dieta, catalogId:d.id, formula:d.nome}});
                       setShowCatalog(false);
                     }}
-                      style={{width:"100%",padding:"8px 12px",textAlign:"left",background:dieta.catalogId===d.id?"rgba(56,189,248,0.1)":"transparent",border:"none",borderRadius:7,cursor:"pointer",color:"#e2e8f0",fontSize:12,fontFamily:"inherit",display:"flex",justifyContent:"space-between"}}>
+                      style={{width:"100%",padding:"8px 12px",textAlign:"left",background:dieta.catalogId===d.id?"rgba(34,197,94,0.1)":"transparent",border:"none",borderRadius:7,cursor:"pointer",color:"#e2e8f0",fontSize:12,fontFamily:"inherit",display:"flex",justifyContent:"space-between"}}>
                       <span style={{fontWeight:600}}>{d.nome}{d.id.startsWith("custom_")&&<span style={{fontSize:9,color:"#c4b5fd",marginLeft:4}}> ★</span>}</span>
                       <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{d.kcalML} kcal/mL · {(d.ptnML*100).toFixed(1)} g ptn</span>
                     </button>
@@ -699,7 +741,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
               </div>
               {dieta.vazao && <div style={{fontSize:12,color:"#64748b"}}>= {(parseFloat(dieta.vazao)*20).toFixed(0)} mL em 20h · {(parseFloat(dieta.vazao)*24).toFixed(0)} mL/24h</div>}
             </div>
-            <div style={{fontSize:10,color:"#475569",marginTop:4}}>ℹ️ O volume real que entrou é registrado nos <strong style={{color:"#38bdf8"}}>Controles 24h</strong> → Vol. Dieta.</div>
+            <div style={{fontSize:10,color:"#475569",marginTop:4}}>ℹ️ O volume real que entrou é registrado nos <strong style={{color:"#22c55e"}}>Controles 24h</strong> → Vol. Dieta.</div>
           </div>
 
           {/* Metas nutricionais */}
@@ -765,8 +807,8 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
 
           {/* Atingimento hoje */}
           {dietaSel && metaAbs && (
-            <div style={{padding:"12px 14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:10,marginBottom:14}}>
-              <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1,marginBottom:10}}>
+            <div style={{padding:"12px 14px",background:"rgba(34,197,94,0.04)",border:"1px solid rgba(34,197,94,0.12)",borderRadius:10,marginBottom:14}}>
+              <div style={{fontSize:10,color:"#22c55e",fontFamily:mono,letterSpacing:1,marginBottom:10}}>
                 📊 ATINGIMENTO HOJE
                 {!volHoje&&<span style={{color:"#475569",fontWeight:400,marginLeft:8}}>— registre o Vol. Dieta nos Controles 24h</span>}
               </div>
@@ -794,7 +836,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
 
           {!dietaSel && (
             <div style={{fontSize:11,color:"#64748b",marginBottom:12,padding:"8px 12px",background:"rgba(255,255,255,0.02)",borderRadius:6}}>
-              Selecione uma fórmula para calcular. Cadastre novas em ⚙️ <strong style={{color:"#38bdf8"}}>Configurações</strong>.
+              Selecione uma fórmula para calcular. Cadastre novas em ⚙️ <strong style={{color:"#22c55e"}}>Configurações</strong>.
             </div>
           )}
         </>
@@ -833,8 +875,8 @@ function DispCard({ label, icone, alertaDias, disp, onUpdate, onRemove }) {
   return (
     <div style={{
       borderRadius:10,
-      border:`1px solid ${alerta?"rgba(248,113,113,0.4)":"rgba(56,189,248,0.2)"}`,
-      background:alerta?"rgba(248,113,113,0.04)":"rgba(56,189,248,0.03)",
+      border:`1px solid ${alerta?"rgba(248,113,113,0.4)":"rgba(34,197,94,0.2)"}`,
+      background:alerta?"rgba(248,113,113,0.04)":"rgba(34,197,94,0.03)",
       overflow:"hidden", marginBottom:8,
     }}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px"}}>
@@ -845,9 +887,9 @@ function DispCard({ label, icone, alertaDias, disp, onUpdate, onRemove }) {
         </div>
         {dias !== null && (
           <div style={{textAlign:"center",padding:"4px 10px",borderRadius:8,minWidth:50,
-            background:alerta?"rgba(248,113,113,0.12)":"rgba(56,189,248,0.1)",
-            border:`1px solid ${alerta?"rgba(248,113,113,0.35)":"rgba(56,189,248,0.25)"}`}}>
-            <div style={{fontSize:15,fontWeight:700,color:alerta?"#f87171":"#38bdf8",lineHeight:1}}>
+            background:alerta?"rgba(248,113,113,0.12)":"rgba(34,197,94,0.1)",
+            border:`1px solid ${alerta?"rgba(248,113,113,0.35)":"rgba(34,197,94,0.25)"}`}}>
+            <div style={{fontSize:15,fontWeight:700,color:alerta?"#f87171":"#22c55e",lineHeight:1}}>
               {dias===0?"D0":`D${dias}`}
             </div>
             {alerta&&<div style={{fontSize:9,color:"#f87171",fontFamily:mono,marginTop:1}}>REVISAR</div>}
@@ -971,9 +1013,9 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowPicker(v=>!v)} style={{
           display:"flex",alignItems:"center",gap:8,padding:"9px 16px",width:"100%",
-          background:showPicker?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
-          border:`1px solid ${showPicker?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
-          borderRadius:10,color:showPicker?"#38bdf8":"#64748b",
+          background:showPicker?"rgba(34,197,94,0.1)":"rgba(255,255,255,0.03)",
+          border:`1px solid ${showPicker?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,
+          borderRadius:10,color:showPicker?"#22c55e":"#64748b",
           cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.15s",
         }}>
           <span style={{fontSize:16}}>{showPicker?"✕":"+"}</span>
@@ -981,7 +1023,7 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
         </button>
 
         {showPicker && (
-          <div style={{marginTop:8,padding:"8px",background:"#0f1929",border:"1px solid rgba(56,189,248,0.2)",borderRadius:12,display:"flex",flexDirection:"column",gap:4}}>
+          <div style={{marginTop:8,padding:"8px",background:"#0c1a10",border:"1px solid rgba(34,197,94,0.2)",borderRadius:12,display:"flex",flexDirection:"column",gap:4}}>
             {/* Múltiplos sempre disponíveis */}
             {DISP_MULTIPLO.map(({key,label,icone,siteDefault})=>(
               <button key={key} onClick={()=>inserirMultiplo(key,siteDefault)} style={{
@@ -989,12 +1031,12 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
                 background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",
                 borderRadius:8,cursor:"pointer",textAlign:"left",
               }}
-                onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(34,197,94,0.08)"}
                 onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
                 <span style={{fontSize:18}}>{icone}</span>
                 <div>
                   <div style={{fontSize:13,fontWeight:600,color:"#cbd5e1"}}>{label}</div>
-                  <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,marginTop:1}}>pode adicionar múltiplos</div>
+                  <div style={{fontSize:10,color:"#22c55e",fontFamily:mono,marginTop:1}}>pode adicionar múltiplos</div>
                 </div>
               </button>
             ))}
@@ -1008,7 +1050,7 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
                     background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",
                     borderRadius:8,cursor:"pointer",textAlign:"left",marginBottom:4,
                   }}
-                    onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(34,197,94,0.08)"}
                     onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
                     <span style={{fontSize:18}}>{icone}</span>
                     <div>
@@ -1058,7 +1100,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
           <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÓGICO</div>
           <div style={{ display:"flex", gap:6 }}>
             {["M","F"].map(s=>(
-              <button key={s} onClick={()=>onChange({...dados,sexo:s})} style={{ flex:1, padding:"8px", borderRadius:8, border:`1px solid ${dados.sexo===s?"#38bdf8":"rgba(255,255,255,0.1)"}`, background:dados.sexo===s?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.03)", color:dados.sexo===s?"#38bdf8":"#64748b", fontWeight:700, cursor:"pointer", fontSize:13 }}>
+              <button key={s} onClick={()=>onChange({...dados,sexo:s})} style={{ flex:1, padding:"8px", borderRadius:8, border:`1px solid ${dados.sexo===s?"#22c55e":"rgba(255,255,255,0.1)"}`, background:dados.sexo===s?"rgba(34,197,94,0.12)":"rgba(255,255,255,0.03)", color:dados.sexo===s?"#22c55e":"#64748b", fontWeight:700, cursor:"pointer", fontSize:13 }}>
                 {s==="M"?"♂ Masculino":"♀ Feminino"}
               </button>
             ))}
@@ -1185,21 +1227,21 @@ function UploadAnalyzer({ onResult }) {
   return (
     <div>
       <div onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} onDragOver={e=>e.preventDefault()} onClick={()=>fileRef.current?.click()}
-        style={{ border:"1.5px dashed rgba(56,189,248,0.3)", borderRadius:12, padding:24, textAlign:"center", cursor:"pointer", background:"rgba(56,189,248,0.03)", marginBottom:16 }}>
+        style={{ border:"1.5px dashed rgba(34,197,94,0.3)", borderRadius:12, padding:24, textAlign:"center", cursor:"pointer", background:"rgba(34,197,94,0.03)", marginBottom:16 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
         <div style={{fontSize:28,marginBottom:8}}>📋</div>
-        <div style={{color:"#38bdf8",fontSize:14,fontWeight:600}}>Cole o print com Ctrl+V</div>
+        <div style={{color:"#22c55e",fontSize:14,fontWeight:600}}>Cole o print com Ctrl+V</div>
         <div style={{color:"#64748b",fontSize:12,marginTop:6}}>ou arraste · ou clique para selecionar arquivo</div>
-        <div style={{marginTop:10,display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:1}}>
+        <div style={{marginTop:10,display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",fontSize:11,color:"#22c55e",fontFamily:mono,letterSpacing:1}}>
           CTRL + V  em qualquer momento nesta aba
         </div>
       </div>
-      {preview && <img src={preview} alt="preview" style={{width:"100%",borderRadius:8,marginBottom:12,maxHeight:180,objectFit:"contain",background:"#0f172a"}}/>}
-      {loading && <div style={{textAlign:"center",color:"#38bdf8",padding:16,fontSize:14}}>⏳ Analisando imagem com IA…</div>}
+      {preview && <img src={preview} alt="preview" style={{width:"100%",borderRadius:8,marginBottom:12,maxHeight:180,objectFit:"contain",background:"#0c1a10"}}/>}
+      {loading && <div style={{textAlign:"center",color:"#22c55e",padding:16,fontSize:14}}>⏳ Analisando imagem com IA…</div>}
       {draft && !draft.error && rev && (
         <div>
           {draft.resumo && !draft.resumo.startsWith('{') && !draft.resumo.startsWith('[ERRO') && !draft.resumo.startsWith('[SEM') && (
-            <div style={{background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#7dd3fc"}}>
+            <div style={{background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#86efac"}}>
               <strong>Resumo IA:</strong> {draft.resumo}
             </div>
           )}
@@ -1247,7 +1289,7 @@ function UploadAnalyzer({ onResult }) {
           <div style={{fontSize:12,color:"#94a3b8",marginBottom:8,fontFamily:mono}}>DADOS CLÍNICOS (sistemas) — edite se necessário</div>
           {SISTEMAS.map(s=>(
             <div key={s} style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"#38bdf8",marginBottom:4,fontFamily:mono}}>{s.toUpperCase()}</div>
+              <div style={{fontSize:11,color:"#22c55e",marginBottom:4,fontFamily:mono}}>{s.toUpperCase()}</div>
               <textarea value={draft.sistemas?.[s]||""} onChange={e=>setDraft(d=>({...d,sistemas:{...d.sistemas,[s]:e.target.value}}))}
                 style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,resize:"vertical",fontFamily:"inherit",minHeight:46,boxSizing:"border-box"}}
                 placeholder={`Dados de ${s}...`}/>
@@ -1262,16 +1304,16 @@ function UploadAnalyzer({ onResult }) {
                 <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
                   <div style={{flex:2,minWidth:140,fontSize:13,color:"#e2e8f0",fontWeight:600}}>{ex.nome}: <span style={{color:"#fcd34d"}}>{ex.valor}</span></div>
                   <select value={ex.categoria||ex.sugestao||""} onChange={e=>setDraft(d=>({...d,extras:d.extras.map((x,j)=>j===i?{...x,categoria:e.target.value}:x)}))}
-                    style={{flex:1,minWidth:160,background:"#1e2a3a",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
-                    <option value="" style={{background:"#1e2a3a",color:"#94a3b8"}}>— Ignorar —</option>
-                    {SISTEMAS.map(s=><option key={s} value={s} style={{background:"#1e2a3a",color:"#e2e8f0"}}>{s}</option>)}
+                    style={{flex:1,minWidth:160,background:"#111f14",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
+                    <option value="" style={{background:"#111f14",color:"#94a3b8"}}>— Ignorar —</option>
+                    {SISTEMAS.map(s=><option key={s} value={s} style={{background:"#111f14",color:"#e2e8f0"}}>{s}</option>)}
                   </select>
                 </div>
               ))}
             </div>
           )}
           <button onClick={()=>{onResult(draft);setRev(false);}}
-            style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
+            style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#16a34a,#15803d)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
             📊 Confirmar e adicionar à Tabela Clínica
           </button>
         </div>
@@ -1297,7 +1339,7 @@ function TA({ fieldRef, defaultValue, sugestao, placeholder, rows=2, isAntigo=fa
           borderRadius:8, padding:"8px 32px 8px 10px",
           color: isAntigo ? "#64748b" : "#cbd5e1",
           fontSize:12, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box", lineHeight:1.5}}
-        onFocus={e=>e.target.style.borderColor="rgba(56,189,248,0.4)"}
+        onFocus={e=>e.target.style.borderColor="rgba(34,197,94,0.4)"}
         onBlur={e=>{
           e.target.style.borderColor = isAntigo ? "rgba(100,116,139,0.25)" : "rgba(255,255,255,0.07)";
           if (onBlurSave && fieldName) onBlurSave(fieldName, e.target.value);
@@ -1305,20 +1347,20 @@ function TA({ fieldRef, defaultValue, sugestao, placeholder, rows=2, isAntigo=fa
       {/* Stamp de sugestão */}
       {(sugestao||placeholder) && (
         <button onClick={()=>setShowSug(s=>!s)}
-          style={{position:"absolute",top:5,right:6,background:showSug?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${showSug?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:4,color:showSug?"#38bdf8":"#334155",fontSize:9,cursor:"pointer",padding:"1px 5px",fontFamily:mono,lineHeight:1.4}}
+          style={{position:"absolute",top:5,right:6,background:showSug?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${showSug?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:4,color:showSug?"#22c55e":"#334155",fontSize:9,cursor:"pointer",padding:"1px 5px",fontFamily:mono,lineHeight:1.4}}
           title="Ver sugestão">
           💡
         </button>
       )}
       {showSug && (sugestao||placeholder) && (
-        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:20,background:"#1a2540",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,padding:"8px 10px",boxShadow:"0 6px 20px rgba(0,0,0,0.5)"}}>
-          <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:1,marginBottom:4}}>SUGESTÃO</div>
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:20,background:"#102010",border:"1px solid rgba(34,197,94,0.3)",borderRadius:8,padding:"8px 10px",boxShadow:"0 6px 20px rgba(0,0,0,0.5)"}}>
+          <div style={{fontSize:9,color:"#22c55e",fontFamily:mono,letterSpacing:1,marginBottom:4}}>SUGESTÃO</div>
           <div style={{fontSize:11,color:"#94a3b8",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{sugestao||placeholder}</div>
           <button onClick={()=>{
             if(fieldRef?.current) fieldRef.current.value = sugestao||placeholder;
             if(onBlurSave&&fieldName) onBlurSave(fieldName, sugestao||placeholder);
             setShowSug(false);
-          }} style={{marginTop:6,background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.25)",borderRadius:4,color:"#38bdf8",fontSize:10,cursor:"pointer",padding:"2px 8px",fontFamily:"inherit"}}>
+          }} style={{marginTop:6,background:"rgba(34,197,94,0.12)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:4,color:"#22c55e",fontSize:10,cursor:"pointer",padding:"2px 8px",fontFamily:"inherit"}}>
             ↙ Usar
           </button>
           <button onClick={()=>setShowSug(false)} style={{marginTop:6,marginLeft:4,background:"none",border:"none",color:"#475569",fontSize:10,cursor:"pointer"}}>✕</button>
@@ -1343,7 +1385,7 @@ function Col({ children, flex=1, min=120 }) {
 }
 
 // Bloco de sistema com preview corrido + botão copiar individual
-function SysBlock({ sigla, label, color="#38bdf8", preview, children }) {
+function SysBlock({ sigla, label, color="#22c55e", preview, children }) {
   const [open,     setOpen]     = useState(true);
   const [copiado,  setCopiado]  = useState(false);
 
@@ -1451,7 +1493,7 @@ function ConfigPanel({ config, onChange, onVoltar }) {
       {/* Alertas de dispositivos */}
       <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
-          <div style={{fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:2}}>ALERTAS DE DISPOSITIVOS (dias)</div>
+          <div style={{fontSize:11,color:"#22c55e",fontFamily:mono,letterSpacing:2}}>ALERTAS DE DISPOSITIVOS (dias)</div>
           <div style={{fontSize:11,color:"#64748b",marginTop:2}}>O dispositivo ficará vermelho ⚠️ após este número de dias</div>
         </div>
         {DISP_CONFIG_ITEMS.map(({key,label,icone})=>(
@@ -1461,7 +1503,7 @@ function ConfigPanel({ config, onChange, onVoltar }) {
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <button onClick={()=>upd(key,Math.max(1,(config[key]||7)-1))} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
               <div style={{textAlign:"center",minWidth:60}}>
-                <div style={{fontSize:18,fontWeight:700,color:"#38bdf8",fontFamily:mono}}>{config[key]||7}</div>
+                <div style={{fontSize:18,fontWeight:700,color:"#22c55e",fontFamily:mono}}>{config[key]||7}</div>
                 <div style={{fontSize:10,color:"#475569",fontFamily:mono}}>{(config[key]||7)===99?"sem limite":"dias"}</div>
               </div>
               <button onClick={()=>upd(key,Math.min(99,(config[key]||7)+1))} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
@@ -1502,8 +1544,8 @@ function ConfigPanel({ config, onChange, onVoltar }) {
                 <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:3}}>TIPO</div>
                 <select value={novaDieta.tipo} onChange={e=>setNovaDieta(n=>({...n,tipo:e.target.value}))}
                   style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"7px 9px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
-                  <option value="enteral" style={{background:"#0f1929"}}>Enteral</option>
-                  <option value="parenteral" style={{background:"#0f1929"}}>Parenteral</option>
+                  <option value="enteral" style={{background:"#0c1a10"}}>Enteral</option>
+                  <option value="parenteral" style={{background:"#0c1a10"}}>Parenteral</option>
                 </select>
               </div>
             </div>
@@ -1855,9 +1897,9 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
 
   const thStyle = (ativo) => ({
     padding:"6px 8px", fontSize:11, fontFamily:mono, letterSpacing:1,
-    color:ativo?"#38bdf8":"#64748b",
-    background:ativo?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.03)",
-    borderBottom:ativo?"2px solid #38bdf8":"2px solid rgba(255,255,255,0.06)",
+    color:ativo?"#22c55e":"#64748b",
+    background:ativo?"rgba(34,197,94,0.08)":"rgba(255,255,255,0.03)",
+    borderBottom:ativo?"2px solid #22c55e":"2px solid rgba(255,255,255,0.06)",
     whiteSpace:"pre", textAlign:"center", minWidth:72, position:"sticky", top:0,
   });
   const tdBase = {padding:"2px 3px", borderBottom:"1px solid rgba(255,255,255,0.04)", textAlign:"center"};
@@ -1876,7 +1918,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
           {tabela==="labs" && <button onClick={()=>setShowAddExame(v=>!v)} style={{padding:"8px 14px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,color:"#c4b5fd",fontWeight:600,fontSize:12,cursor:"pointer"}}>
             {showAddExame?"✕ Fechar":"🧪 Novo exame"}
           </button>}
-          <button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0284c7,#0369a1)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+          <button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#16a34a,#15803d)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
             📝 Aplicar na evolução
           </button>
         </div>
@@ -1885,19 +1927,19 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
       {/* Tab switcher */}
       <div style={{display:"flex",gap:4,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:10,padding:4}}>
         {[["labs","🔬 Exames Laboratoriais"],["controles","📊 Controles 24h"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setTabela(id)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:tabela===id?700:400,background:tabela===id?"rgba(56,189,248,0.15)":"transparent",color:tabela===id?"#38bdf8":"#64748b",transition:"all 0.2s"}}>
+          <button key={id} onClick={()=>setTabela(id)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:tabela===id?700:400,background:tabela===id?"rgba(34,197,94,0.15)":"transparent",color:tabela===id?"#22c55e":"#64748b",transition:"all 0.2s"}}>
             {label}
           </button>
         ))}
       </div>
 
       {showAddCol && (
-        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.18)",borderRadius:10}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.18)",borderRadius:10}}>
           <div style={{fontSize:12,color:"#64748b"}}>Data:</div>
           <input type="date" value={novaData} onChange={e=>setNovaData(e.target.value)}
             style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,padding:"6px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
           <button onClick={adicionarColuna} disabled={!novaData}
-            style={{padding:"6px 14px",background:novaData?"rgba(56,189,248,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novaData?"#38bdf8":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novaData?"#38bdf8":"#475569",fontWeight:600,fontSize:12,cursor:novaData?"pointer":"default"}}>
+            style={{padding:"6px 14px",background:novaData?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novaData?"#22c55e":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novaData?"#22c55e":"#475569",fontWeight:600,fontSize:12,cursor:novaData?"pointer":"default"}}>
             Adicionar
           </button>
         </div>
@@ -1939,15 +1981,15 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
           <table style={{width:"100%",borderCollapse:"collapse"}}>
             <thead>
               <tr>
-                <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0d1424"}}>Parâmetro</th>
-                <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0d1424"}}>Un.</th>
+                <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0b1510"}}>Parâmetro</th>
+                <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0b1510"}}>Un.</th>
                 {datas.map(d=>(
                   <th key={d} style={thStyle(isHoje(d))}>
                     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                       {fmtData(d).split('\n').map((linha,i)=>(
                         <span key={i} style={{fontSize:i===1?10:11}}>{linha}</span>
                       ))}
-                      {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#38bdf8"}}>HOJE</span>}
+                      {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#22c55e"}}>HOJE</span>}
                       {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
                     </div>
                   </th>
@@ -1966,8 +2008,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                     <tr key={key}
                       onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
-                      <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>{unit}</td>
+                      <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#080f0a"}}>{label}</td>
+                      <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>{unit}</td>
                       {datas.map(d=>{
                         const ativo=isHoje(d);
                         const val=getVal(d,key);
@@ -1976,7 +2018,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                         const subiu=val&&ant&&val!==ant&&parseFloat(val)>parseFloat(ant);
                         const caiu=val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
                         return (
-                          <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
+                          <td key={d} style={{...tdBase,background:ativo?"rgba(34,197,94,0.03)":undefined}}>
                             <input value={val} onChange={e=>setVal(d,key,e.target.value)}
                               style={{width:"100%",background:"transparent",border:"none",
                                 color:ativo&&subiu?"#f87171":ativo&&caiu?"#34d399":"#e2e8f0",
@@ -2010,14 +2052,14 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                       {k:"cr",      label:"🫘 Renal/Metabólico", cor:"#34d399"},
                       {k:"tgo",     label:"🫀 Hepatograma",      cor:"#fb923c"},
                       {k:"trop",    label:"❤️ Cardíaco",         cor:"#f87171"},
-                      {k:"po2",     label:"🫁 Gasometria",       cor:"#38bdf8"},
+                      {k:"po2",     label:"🫁 Gasometria",       cor:"#22c55e"},
                       {k:"he",      label:"🔴 Infeccioso",       cor:"#f59e0b"},
                     ];
                     return (
                       <tr key={k}
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <td style={{...tdBase,padding:"4px 8px 4px 12px",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>
+                        <td style={{...tdBase,padding:"4px 8px 4px 12px",textAlign:"left",position:"sticky",left:0,background:"#080f0a"}}>
                           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                             <span style={{fontSize:12,color:"#fcd34d"}}>{nomeCapitalizado}</span>
                             <select value={catAtual}
@@ -2027,7 +2069,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                               }}
                               style={{fontSize:9,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 4px",color:"#64748b",fontFamily:"inherit",cursor:"pointer",maxWidth:120}}>
                               {CATS_LAB.map(c=>(
-                                <option key={c.k} value={c.k} style={{background:"#0f1929"}}>{c.label}</option>
+                                <option key={c.k} value={c.k} style={{background:"#0c1a10"}}>{c.label}</option>
                               ))}
                             </select>
                             <button onClick={()=>{
@@ -2041,12 +2083,12 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                             }} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:10,padding:"0 2px"}} title="Remover exame">✕</button>
                           </div>
                         </td>
-                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>—</td>
+                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>—</td>
                         {datas.map(d=>{
                           const ativo=isHoje(d);
                           const raw = data[d]?.[k] || "";
                           return (
-                            <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
+                            <td key={d} style={{...tdBase,background:ativo?"rgba(34,197,94,0.03)":undefined}}>
                               <input
                                 value={raw}
                                 onChange={e=>setVal(d,k,e.target.value)}
@@ -2091,15 +2133,15 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
                 <tr>
-                  <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0d1424"}}>Parâmetro</th>
-                  <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0d1424"}}>Un.</th>
+                  <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0b1510"}}>Parâmetro</th>
+                  <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0b1510"}}>Un.</th>
                   {datas.map(d=>(
                     <th key={d} style={thStyle(isHoje(d))}>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                         {fmtData(d).split('\n').map((linha,i)=>(
                           <span key={i} style={{fontSize:i===1?10:11}}>{linha}</span>
                         ))}
-                        {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#38bdf8"}}>HOJE</span>}
+                        {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#22c55e"}}>HOJE</span>}
                         {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
                       </div>
                     </th>
@@ -2110,7 +2152,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                 {GRUPOS_CONTROLES.map(({grupo,params})=>(
                   <React.Fragment key={grupo}>
                     <tr>
-                      <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#38bdf8",background:"rgba(56,189,248,0.04)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#22c55e",background:"rgba(34,197,94,0.04)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
                         {grupo}
                       </td>
                     </tr>
@@ -2119,16 +2161,16 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                       <tr
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{label}</td>
-                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>{unit}</td>
+                        <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#080f0a"}}>{label}</td>
+                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>{unit}</td>
                         {datas.map(d=>{
                           const ativo=isHoje(d);
                           const val=getVal(d,key);
                           return (
-                            <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.04)":undefined}}>
+                            <td key={d} style={{...tdBase,background:ativo?"rgba(34,197,94,0.04)":undefined}}>
                               <input value={val} onChange={e=>setVal(d,key,e.target.value)}
                                 style={{width:"100%",background:"transparent",border:"none",
-                                  color:ativo?"#38bdf8":"#e2e8f0",
+                                  color:ativo?"#22c55e":"#e2e8f0",
                                   fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
                                   fontWeight:ativo?700:400}}
                                 placeholder="—"
@@ -2140,8 +2182,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                       {/* Débito urinário calculado — logo abaixo da Diurese */}
                       {key==="c24_diur" && parseFloat(leito.peso) > 0 && (
                         <tr style={{opacity:0.75}}>
-                          <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:"#64748b",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e",fontStyle:"italic"}}>↳ Débito urinário</td>
-                          <td style={{...tdBase,fontSize:10,color:"#334155",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>mL/kg/h</td>
+                          <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:"#64748b",textAlign:"left",position:"sticky",left:0,background:"#080f0a",fontStyle:"italic"}}>↳ Débito urinário</td>
+                          <td style={{...tdBase,fontSize:10,color:"#334155",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>mL/kg/h</td>
                           {datas.map(d=>{
                             const ativo=isHoje(d);
                             const diur=parseFloat(getVal(d,"c24_diur"));
@@ -2149,7 +2191,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                             const calc=(diur&&peso)?(diur/(24*peso)).toFixed(2):"";
                             const baixo=calc&&parseFloat(calc)<0.5;
                             return (
-                              <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.02)":undefined}}>
+                              <td key={d} style={{...tdBase,background:ativo?"rgba(34,197,94,0.02)":undefined}}>
                                 <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"3px 4px",
                                   color:calc?(baixo?"#f87171":"#34d399"):"#334155",fontWeight:calc?600:400}}>
                                   {calc||"—"}
@@ -2170,8 +2212,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                         ];
                         return rows.map(row=>(
                           <tr key={row.lbl} style={{opacity:0.8}}>
-                            <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:"#64748b",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e",fontStyle:"italic"}}>{row.lbl}</td>
-                            <td style={{...tdBase,fontSize:10,color:"#334155",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>{row.unit}</td>
+                            <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:"#64748b",textAlign:"left",position:"sticky",left:0,background:"#080f0a",fontStyle:"italic"}}>{row.lbl}</td>
+                            <td style={{...tdBase,fontSize:10,color:"#334155",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>{row.unit}</td>
                             {datas.map(d=>{
                               const ativo=isHoje(d);
                               const vol=parseFloat(getVal(d,"c24_diet_vol"));
@@ -2179,7 +2221,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                               const pct=calc&&row.meta?Math.round(parseFloat(calc)/row.meta*100):null;
                               const cor=calc?row.cor(parseFloat(calc),row.meta):"#334155";
                               return (
-                                <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.02)":undefined}}>
+                                <td key={d} style={{...tdBase,background:ativo?"rgba(34,197,94,0.02)":undefined}}>
                                   <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"3px 4px",color:cor,fontWeight:calc?600:400}}>
                                     {calc ? `${calc}${pct!==null?` (${pct}%)`:""}`:"—"}
                                   </div>
@@ -2209,7 +2251,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                           <tr key={k}
                             onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
                             onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                            <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#34d399",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e",display:"flex",alignItems:"center",gap:6}}>
+                            <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#34d399",textAlign:"left",position:"sticky",left:0,background:"#080f0a",display:"flex",alignItems:"center",gap:6}}>
                               {nome}
                               <button title="Remover linha" onClick={()=>{
                                 const novo={...data};
@@ -2217,7 +2259,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                                 onChange(novo);
                               }} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:10,padding:0}}>✕</button>
                             </td>
-                            <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>mL/x</td>
+                            <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>mL/x</td>
                             {datas.map(d=>{
                               const ativo=isHoje(d);
                               const val=getVal(d,k);
@@ -2430,7 +2472,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     setTimeout(()=>setCopiado(c=>({...c,tudo:false})),2500);
   };
 
-  const colors={N:"#a78bfa",Cv:"#f87171",Res:"#38bdf8",ReMe:"#34d399",TGI:"#fb923c",He:"#f59e0b",In:"#94a3b8"};
+  const colors={N:"#a78bfa",Cv:"#f87171",Res:"#22c55e",ReMe:"#34d399",TGI:"#fb923c",He:"#f59e0b",In:"#94a3b8"};
 
   const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis}) => {
     const [open,setOpen]=useState(true);
@@ -2765,7 +2807,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
         </Row>
       </SysB>
 
-            <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+            <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(22,163,74,0.25),rgba(21,128,61,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#16a34a"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#22c55e",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
         {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
       </button>
     </div>
@@ -2776,7 +2818,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
 function FerramentasPanel() {
   const LINKS = [
     {
-      emoji:"🫁", cor:"#38bdf8", bg:"rgba(56,189,248,0.08)", borda:"rgba(56,189,248,0.25)",
+      emoji:"🫁", cor:"#22c55e", bg:"rgba(34,197,94,0.08)", borda:"rgba(34,197,94,0.25)",
       titulo:"Checklist de IOT", desc:"Passo a passo para intubação e via aérea difícil",
       href:"https://docs.google.com/forms/d/e/1FAIpQLSdGRgBUwki8uJGM2_IAEo1oFHiNlR-QIIZzt9a3oRKa11lPHw/viewform?usp=send_form",
       label:"Abrir Checklist"
@@ -2856,7 +2898,7 @@ function MetasPanel({ metas, onChange }) {
       <div style={{display:"flex",gap:8,marginBottom:8}}>
         <input value={nova} onChange={e=>setNova(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add(nova)} placeholder="Nova meta ou pendência…"
           style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-        <button onClick={()=>add(nova)} style={{padding:"9px 14px",background:"rgba(56,189,248,0.15)",border:"1px solid #38bdf8",borderRadius:8,color:"#38bdf8",fontWeight:700,cursor:"pointer",fontSize:16}}>+</button>
+        <button onClick={()=>add(nova)} style={{padding:"9px 14px",background:"rgba(34,197,94,0.15)",border:"1px solid #22c55e",borderRadius:8,color:"#22c55e",fontWeight:700,cursor:"pointer",fontSize:16}}>+</button>
       </div>
       <button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:12}}>
         {show?"▲ Ocultar sugestões":"▼ Ver sugestões de metas comuns"}
@@ -2870,7 +2912,7 @@ function MetasPanel({ metas, onChange }) {
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {["pendente","andamento","cumprido"].map(st=>(
                 <button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,status:st}:x))}
-                  style={{padding:"2px 10px",borderRadius:20,border:`1px solid ${m.status===st?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:m.status===st?"rgba(56,189,248,0.12)":"transparent",color:m.status===st?"#38bdf8":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono}}>
+                  style={{padding:"2px 10px",borderRadius:20,border:`1px solid ${m.status===st?"#22c55e":"rgba(255,255,255,0.1)"}`,background:m.status===st?"rgba(34,197,94,0.12)":"transparent",color:m.status===st?"#22c55e":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono}}>
                   {st==="pendente"?"● Pendente":st==="andamento"?"◑ Andamento":"✓ Cumprido"}
                 </button>
               ))}
@@ -2896,7 +2938,7 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
   };
 
   return (
-    <div style={{cursor:"pointer",borderRadius:12,padding:"14px 16px",background:selecionado?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",border:selecionado?"1.5px solid #38bdf8":"1.5px solid rgba(255,255,255,0.08)",transition:"all 0.2s",marginBottom:8}} onClick={e=>{if(!editingNome) onClick();}}>
+    <div style={{cursor:"pointer",borderRadius:12,padding:"14px 16px",background:selecionado?"rgba(34,197,94,0.1)":"rgba(255,255,255,0.03)",border:selecionado?"1.5px solid #22c55e":"1.5px solid rgba(255,255,255,0.08)",transition:"all 0.2s",marginBottom:8}} onClick={e=>{if(!editingNome) onClick();}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
         {editingNome ? (
           <input autoFocus value={nomeTemp}
@@ -2904,7 +2946,7 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
             onKeyDown={e=>{if(e.key==="Enter")confirmarNome(); if(e.key==="Escape"){setEditingNome(false);setNomeTemp(leito.nome);}}}
             onBlur={confirmarNome}
             onClick={e=>e.stopPropagation()}
-            style={{fontSize:11,fontFamily:mono,letterSpacing:1,color:"#38bdf8",background:"rgba(56,189,248,0.1)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:4,padding:"2px 6px",width:"100%"}}/>
+            style={{fontSize:11,fontFamily:mono,letterSpacing:1,color:"#22c55e",background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.4)",borderRadius:4,padding:"2px 6px",width:"100%"}}/>
         ) : (
           <span style={{fontSize:11,color:"#64748b",fontFamily:mono,letterSpacing:2}}
             onDoubleClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}>
@@ -3008,20 +3050,20 @@ function LoginScreen({ onLogin }) {
   };
 
   if (mode === null) return (
-    <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
-      <div style={{color:"#38bdf8"}}>Carregando…</div>
+      <div style={{color:"#22c55e"}}>Carregando…</div>
     </div>
   );
 
   return (
-    <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora','DM Sans',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora','DM Sans',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}input{outline:none;color-scheme:dark}`}</style>
       <div style={{width:"100%",maxWidth:380,padding:32}}>
         <div style={{textAlign:"center",marginBottom:36}}>
-          <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#0284c7,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px"}}>⚕️</div>
+          <div style={{display:"flex",justifyContent:"center",margin:"0 auto 16px"}}><BrainLogo size={72}/></div>
           <div style={{fontSize:22,fontWeight:700,color:"#e2e8f0",letterSpacing:0.3}}>UTI Evolve</div>
-          <div style={{fontSize:12,color:"#475569",fontFamily:"'DM Mono',monospace",letterSpacing:1.5,marginTop:4}}>ASSISTENTE DE EVOLUÇÃO</div>
+          <div style={{fontSize:11,color:"#475569",fontFamily:"'DM Mono',monospace",letterSpacing:2,marginTop:4}}>ASSISTENTE DE EVOLUÇÃO</div>
         </div>
         <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:28}}>
           <div style={{fontSize:14,fontWeight:600,color:"#cbd5e1",marginBottom:20,textAlign:"center"}}>
@@ -3044,7 +3086,7 @@ function LoginScreen({ onLogin }) {
           )}
           {erro && <div style={{padding:"8px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:8,fontSize:12,color:"#f87171",marginBottom:14}}>{erro}</div>}
           <button onClick={mode==="setup"?handleSetup:handleLogin} disabled={loading||!senha}
-            style={{width:"100%",padding:"11px",background:loading||!senha?"rgba(56,189,248,0.1)":"linear-gradient(135deg,#0284c7,#0369a1)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,color:loading||!senha?"#475569":"white",fontWeight:700,fontSize:14,cursor:loading||!senha?"not-allowed":"pointer",fontFamily:"inherit"}}>
+            style={{width:"100%",padding:"11px",background:loading||!senha?"rgba(34,197,94,0.1)":"linear-gradient(135deg,#16a34a,#15803d)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:8,color:loading||!senha?"#475569":"white",fontWeight:700,fontSize:14,cursor:loading||!senha?"not-allowed":"pointer",fontFamily:"inherit"}}>
             {loading?"Verificando…":mode==="setup"?"Criar senha e entrar":"Entrar"}
           </button>
         </div>
@@ -3066,9 +3108,9 @@ export default function App() {
   const [dadosIA,    setDadosIA]    = useState(null);
   const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
   const [evolVersion, setEvolVersion] = useState(0);
-  const [evolPorLeito, setEvolPorLeito] = useState({}); // { leitoId: evolCampos }
+  const [evolPorLeito, setEvolPorLeito] = useState({});
   const [tabelaData, setTabelaData] = useState({});
-  const [metasPorLeito, setMetasPorLeito] = useState({}); // { leitoId: [metas] }
+  const [metasPorLeito, setMetasPorLeito] = useState({});
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
@@ -3144,6 +3186,15 @@ export default function App() {
       setAppReady(true);
     })();
   // eslint-disable-next-line
+  },[]);
+
+  // ── Favicon + título ──────────────────────────────────────────────────────────
+  useEffect(()=>{
+    document.title = "UTI Evolve";
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none'><rect width='100' height='100' rx='20' fill='%230d1117'/><path d='M50 22 Q68 18 76 32 Q84 46 80 60 Q76 72 62 76 Q56 78 50 77 Q44 78 38 76 Q24 72 20 60 Q16 46 24 32 Q32 18 50 22Z' fill='none' stroke='%237dd3fc' stroke-width='5' stroke-linecap='round'/><path d='M50 22 Q51 40 50 77' fill='none' stroke='%230ea5e9' stroke-width='2' stroke-dasharray='5 6' opacity='0.45'/><path d='M57 26 Q60 38 58 52' fill='none' stroke='%2393c5fd' stroke-width='3' stroke-linecap='round' opacity='0.6'/><path d='M43 26 Q40 38 42 52' fill='none' stroke='%2393c5fd' stroke-width='3' stroke-linecap='round' opacity='0.6'/><path d='M60 52 Q70 50 76 55' fill='none' stroke='%237dd3fc' stroke-width='3' stroke-linecap='round' opacity='0.65'/><path d='M40 52 Q30 50 24 55' fill='none' stroke='%237dd3fc' stroke-width='3' stroke-linecap='round' opacity='0.65'/><path d='M45 77 Q45 85 50 87 Q55 85 55 77' fill='none' stroke='%237dd3fc' stroke-width='3.5' stroke-linecap='round' opacity='0.65'/><path d='M28 21 Q50 13 72 21' fill='none' stroke='%2338bdf8' stroke-width='4.5' stroke-linecap='round'/><rect x='40' y='6' width='20' height='9' rx='4' fill='%230ea5e9' opacity='0.9'/><path d='M72 21 Q80 17 85 12' fill='none' stroke='%230ea5e9' stroke-width='3' stroke-linecap='round' opacity='0.8'/><rect x='83' y='8' width='8' height='5' rx='2' fill='%230ea5e9' opacity='0.8'/></svg>`;
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) { link = document.createElement('link'); link.rel = 'icon'; link.type = 'image/svg+xml'; document.head.appendChild(link); }
+    link.href = `data:image/svg+xml,${svg}`;
   },[]);
 
   const onLogin = async () => { await loadData(); setAuthed(true); };
@@ -3246,30 +3297,30 @@ export default function App() {
   const pp   = pesoPredito(leito.altura, leito.sexo);
 
   if (!appReady) return (
-    <div style={{minHeight:"100vh",background:"#0a0f1e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
-      <div style={{color:"#38bdf8",fontSize:14}}>Carregando…</div>
+      <div style={{color:"#22c55e",fontSize:14}}>Carregando…</div>
     </div>
   );
 
   if (!authed) return <LoginScreen onLogin={onLogin}/>;
 
   return (
-    <div style={{minHeight:"100vh",background:"#0a0f1e",fontFamily:"'Sora','DM Sans',sans-serif",color:"#e2e8f0",display:"flex",flexDirection:"column"}}>
+    <div style={{minHeight:"100vh",background:"#080f0a",fontFamily:"'Sora','DM Sans',sans-serif",color:"#e2e8f0",display:"flex",flexDirection:"column"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
         *{box-sizing:border-box} textarea,input{outline:none;color-scheme:dark}
-        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.3);border-radius:4px}
-        input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.85}
+        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(34,197,94,0.25);border-radius:4px}
+        input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.88}
       `}</style>
 
-      <div style={{padding:"0 16px",height:56,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",position:"sticky",top:0,zIndex:100}}>
-        <button onClick={()=>setShowSidebar(s=>!s)} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#64748b",cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:10}} title="Toggle sidebar">☰</button>
+      <div style={{padding:"0 20px",height:52,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(34,197,94,0.08)",background:"rgba(8,15,10,0.95)",position:"sticky",top:0,zIndex:100,backdropFilter:"blur(8px)"}}>
+        <button onClick={()=>setShowSidebar(s=>!s)} style={{background:"none",border:"1px solid rgba(34,197,94,0.12)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:12}} title="Toggle sidebar">☰</button>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#0284c7,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚕️</div>
+          <BrainLogo size={32}/>
           <div>
-            <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5}}>UTI Evolve</div>
-            <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:1}}>ASSISTENTE DE EVOLUÇÃO</div>
+            <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5,color:"#e2e8f0"}}>UTI Evolve</div>
+            <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:2}}>ASSISTENTE DE EVOLUÇÃO</div>
           </div>
         </div>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:16}}>
@@ -3285,10 +3336,10 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
-        {showSidebar && <div style={{width:220,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
+      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 52px)"}}>
+        {showSidebar && <div style={{width:220,borderRight:"1px solid rgba(34,197,94,0.08)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
-            <div style={{fontSize:10,color:"#475569",fontFamily:mono,letterSpacing:2}}>LEITOS</div>
+            <div style={{fontSize:9,color:"#22c55e",fontFamily:mono,letterSpacing:2.5}}>LEITOS</div>
             <button
               onClick={()=>{
                 const novoId = Date.now();
@@ -3302,7 +3353,7 @@ export default function App() {
                 setAba("paciente");
               }}
               title="Adicionar leito"
-              style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+              style={{background:"rgba(34,197,94,0.12)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:6,color:"#22c55e",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
           </div>
           {leitos.map((l, idx)=>(
             <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
@@ -3329,7 +3380,7 @@ export default function App() {
             </div>
           ))}
           <div style={{marginTop:16,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:12}}>
-            <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} style={{width:"100%",padding:"8px 10px",background:viewGlobal==="ferramentas"?"rgba(56,189,248,0.1)":"none",border:`1px solid ${viewGlobal==="ferramentas"?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:8,color:viewGlobal==="ferramentas"?"#38bdf8":"#64748b",cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
+            <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} style={{width:"100%",padding:"8px 10px",background:viewGlobal==="ferramentas"?"rgba(34,197,94,0.1)":"none",border:`1px solid ${viewGlobal==="ferramentas"?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:8,color:viewGlobal==="ferramentas"?"#22c55e":"#64748b",cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
               📚 Links & Protocolos
             </button>
           </div>
@@ -3354,7 +3405,7 @@ export default function App() {
                   ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:def.alertaDias,data:(leito.dispositivos||{})[def.key].data})),
                 ].map((a,i)=>{
                   const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
-                  const cor=po>a.alertaDias?"#f87171":"#38bdf8";
+                  const cor=po>a.alertaDias?"#f87171":"#22c55e";
                   return <span key={i} style={{fontSize:10,fontFamily:mono,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 7px"}}>{a.label} D{po}{po>a.alertaDias?" ⚠️":""}</span>;
                 })}
               </div>
@@ -3363,7 +3414,7 @@ export default function App() {
 
           <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:12,overflowX:"auto",flexShrink:0}}>
             {ABAS.map(a=>(
-              <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+              <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#22c55e":"#64748b",borderBottom:aba===a.id?"2px solid #22c55e":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                 {a.label}
               </button>
             ))}
@@ -3553,11 +3604,11 @@ export default function App() {
               !leito.paciente ? (
                 <div style={{textAlign:"center",padding:60,color:"#334155"}}>
                   <div style={{fontSize:40,marginBottom:12}}>📝</div>
-                  <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
+                  <div>Cadastre o paciente primeiro na aba <strong style={{color:"#22c55e"}}>Paciente & Cálculos</strong></div>
                 </div>
               ) : (
                 <div style={{maxWidth:700}}>
-                  {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
+                  {dadosIA&&<div style={{background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#86efac"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
                   <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
                     config={config}
                     tabelaHoje={(()=>{
