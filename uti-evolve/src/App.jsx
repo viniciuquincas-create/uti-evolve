@@ -28,108 +28,117 @@ const METAS_SUGESTOES = [
 const DROGAS_PROTOCOLO = {
   noradrenalina: {
     label:"Noradrenalina", grupo:"vasoativa",
-    // 4 amp (4mg cada = 16mg) em SG5% 234 mL → total 250mL, 16mg/250mL = 64 mcg/mL
     diluicaoDesc:"4 amp (16 mg) em SG5% 234 mL → 250 mL",
-    concMcgML: 64,          // mcg/mL
-    modoCalc:"mcg_kg_min",  // resultado em mcg/kg/min
+    concMcgML: 64,
+    modoCalcDefault:"mcg_kg_min",
+    modoCalcOpcoes:["mcg_kg_min"],
     max:3, unidadeLabel:"mcg/kg/min",
   },
   dobutamina: {
     label:"Dobutamina", grupo:"vasoativa",
-    // 80mL (250mg) em SG5% 170mL → 250mL, 250mg/250mL = 1000 mcg/mL
     diluicaoDesc:"80 mL (250 mg) em SG5% 170 mL → 250 mL",
     concMcgML: 1000,
-    modoCalc:"mcg_kg_min",
+    modoCalcDefault:"mcg_kg_min",
+    modoCalcOpcoes:["mcg_kg_min"],
     max:20, unidadeLabel:"mcg/kg/min",
   },
   vasopressina: {
     label:"Vasopressina", grupo:"vasoativa",
-    // 2mL (20UI) em SG5% 98mL → 100mL, 20UI/100mL = 0,2 UI/mL
     diluicaoDesc:"2 mL (20 UI) em SG5% 98 mL → 100 mL",
-    concMcgML: null, concUIML: 0.2,  // UI/mL
-    modoCalc:"ui_min",
+    concMcgML: null, concUIML: 0.2,
+    modoCalcDefault:"ui_min",
+    modoCalcOpcoes:["ui_min"],
     max:0.04, unidadeLabel:"UI/min",
   },
   nitroglicerina: {
     label:"Nitroglicerina", grupo:"vasoativa",
-    // 10mL (50mg) em SG5% 90mL → 100mL, 50mg/100mL = 500mcg/mL
     diluicaoDesc:"10 mL (50 mg) em SG5% 90 mL → 100 mL",
     concMcgML: 500,
-    modoCalc:"mcg_min",   // mcg/min, sem peso
+    modoCalcDefault:"mcg_min",
+    modoCalcOpcoes:["mcg_min","mcg_kg_min"],
     max:400, unidadeLabel:"mcg/min",
   },
   nitroprussiato: {
     label:"Nitroprussiato", grupo:"vasoativa",
-    // 2mL (50mg) em SG5% 248mL → 250mL, 50mg/250mL = 200mcg/mL
     diluicaoDesc:"2 mL (50 mg) em SG5% 248 mL → 250 mL",
     concMcgML: 200,
-    modoCalc:"mcg_kg_min",
+    modoCalcDefault:"mcg_kg_min",
+    modoCalcOpcoes:["mcg_kg_min"],
     max:10, unidadeLabel:"mcg/kg/min",
   },
   propofol: {
     label:"Propofol", grupo:"sedacao",
-    // 10mg/mL, 100mL puro → 100mL, 10mg/mL = 10000 mcg/mL
     diluicaoDesc:"10 mg/mL — 100 mL puro (sem diluição)",
     concMcgML: 10000,
-    modoCalc:"mcg_kg_min",
-    max:67, unidadeLabel:"mcg/kg/min",
+    modoCalcDefault:"mg_kg_h",
+    modoCalcOpcoes:["mg_kg_h","mcg_kg_min","mg_h"],
+    max:4, unidadeLabel:"mg/kg/h",
   },
   midazolam: {
     label:"Midazolam", grupo:"sedacao",
-    // 5mg/mL, 20mL (100mg) em SG5% 80mL → 100mL, 100mg/100mL = 1000 mcg/mL
     diluicaoDesc:"20 mL (100 mg) em SG5% 80 mL → 100 mL",
     concMcgML: 1000,
-    modoCalc:"mcg_kg_h",
+    modoCalcDefault:"mcg_kg_h",
+    modoCalcOpcoes:["mcg_kg_h","mg_kg_h"],
     max:150, unidadeLabel:"mcg/kg/h",
   },
   fentanil: {
     label:"Fentanil", grupo:"analgesia",
-    // 0,05mg/mL, 20mL (1000mcg) em SF0,9% 80mL → 100mL, 1000mcg/100mL = 10 mcg/mL
     diluicaoDesc:"20 mL (1000 mcg) em SF0,9% 80 mL → 100 mL",
     concMcgML: 10,
-    modoCalc:"mcg_kg_h",
+    modoCalcDefault:"mcg_kg_h",
+    modoCalcOpcoes:["mcg_kg_h","mcg_kg_min"],
     max:5, unidadeLabel:"mcg/kg/h",
   },
   precedex: {
     label:"Precedex (Dex)", grupo:"sedacao",
-    // 4mL (200mcg) em SF0,9% 96mL → 100mL, 200mcg/100mL = 2 mcg/mL
     diluicaoDesc:"4 mL (200 mcg) em SF0,9% 96 mL → 100 mL",
     concMcgML: 2,
-    modoCalc:"mcg_kg_h",
+    modoCalcDefault:"mcg_kg_h",
+    modoCalcOpcoes:["mcg_kg_h"],
     max:0.7, unidadeLabel:"mcg/kg/h",
+  },
+  cetamina: {
+    label:"Cetamina (S+)", grupo:"analgesia",
+    // 10mL de escetamina 50mg/mL em SG5% 90mL → 100mL, 500mg/100mL = 5mg/mL
+    diluicaoDesc:"10 mL escetamina (500 mg) em SG5% 90 mL → 100 mL · 5 mg/mL",
+    concMcgML: 5000,  // 5 mg/mL = 5000 mcg/mL
+    modoCalcDefault:"mg_kg_h",
+    modoCalcOpcoes:["mg_kg_h","mcg_kg_min"],
+    max:1.0, unidadeLabel:"mg/kg/h",
   },
 };
 
-// mL/h → dose: dado vazão e concentração, calcula dose por kg
-function calcDoseFromMLH(drogaKey, mlh, peso, concCustom) {
+// Modos de cálculo disponíveis com labels
+const MODOS_CALC = {
+  "mcg_kg_min": { label:"mcg/kg/min", fn:(mlh,conc,peso)=>peso?((mlh*conc)/(peso*60)).toFixed(4):null },
+  "mcg_kg_h":   { label:"mcg/kg/h",   fn:(mlh,conc,peso)=>peso?((mlh*conc)/peso).toFixed(2):null },
+  "mg_kg_h":    { label:"mg/kg/h",    fn:(mlh,conc,peso)=>peso?((mlh*conc/1000)/peso).toFixed(3):null },
+  "mg_h":       { label:"mg/h",       fn:(mlh,conc,_)=>((mlh*conc/1000)).toFixed(2) },
+  "mcg_min":    { label:"mcg/min",    fn:(mlh,conc,_)=>((mlh*conc)/60).toFixed(1) },
+  "ui_min":     { label:"UI/min",     fn:(mlh,_,__)=>null }, // tratado separado
+};
+
+// mL/h → dose
+function calcDoseFromMLH(drogaKey, mlh, peso, concCustom, modoCustom, config={}) {
   const mlhN = parseFloat(mlh), p = parseFloat(peso);
   if (!mlhN || mlhN <= 0) return null;
   const conf = DROGAS_PROTOCOLO[drogaKey];
   if (!conf) return null;
   const conc = concCustom !== undefined ? parseFloat(concCustom) : conf.concMcgML;
-  if (!conc || conc <= 0) {
-    // vasopressina: UI/mL
-    if (conf.modoCalc === "ui_min") {
-      const uiMin = mlhN * conf.concUIML / 60;
-      return { dose: uiMin.toFixed(4), label: conf.unidadeLabel };
-    }
-    return null;
+  // vasopressina UI
+  if (conf.modoCalcDefault === "ui_min" && !modoCustom) {
+    const uiMin = mlhN * conf.concUIML / 60;
+    return { dose: uiMin.toFixed(4), label: "UI/min" };
   }
-  if (conf.modoCalc === "mcg_kg_min") {
-    if (!p) return null;
-    const dose = (mlhN * conc) / (p * 60);
-    return { dose: dose.toFixed(4), label: conf.unidadeLabel };
-  }
-  if (conf.modoCalc === "mcg_kg_h") {
-    if (!p) return null;
-    const dose = (mlhN * conc) / p;
-    return { dose: dose.toFixed(2), label: conf.unidadeLabel };
-  }
-  if (conf.modoCalc === "mcg_min") {
-    const dose = (mlhN * conc) / 60;
-    return { dose: dose.toFixed(1), label: conf.unidadeLabel };
-  }
-  return null;
+  if (!conc || conc <= 0) return null;
+  // Modo: config override > modoCustom > default do protocolo
+  const modoKey = (config?.drogasModo?.[drogaKey]) || modoCustom || conf.modoCalcDefault;
+  const modo = MODOS_CALC[modoKey];
+  if (!modo) return null;
+  const dose = modo.fn(mlhN, conc, p);
+  if (dose === null) return null;
+  return { dose, label: modo.label };
 }
 
 
@@ -340,7 +349,7 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
 // ── DrogasCalculadora ─────────────────────────────────────────────────────────
 const GRUPOS = { vasoativa:"Vasoativas", sedacao:"Sedação", analgesia:"Analgesia" };
 
-function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange }) {
+function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, config={} }) {
   const [drogaSel, setDrogaSel] = useState("noradrenalina");
   const [concCustom, setConcCustom] = useState("");
   const [editandoConc, setEditandoConc] = useState(false);
@@ -351,7 +360,8 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange }) {
   const setMlh = (val) => onVazaoChange && onVazaoChange(drogaSel, val);
 
   const conf = DROGAS_PROTOCOLO[drogaSel];
-  const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined);
+  const modoAtual = (vazoes||{})[`${drogaSel}_modo`] || (config?.drogasModo?.[drogaSel]) || conf.modoCalcDefault;
+  const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined, modoAtual, config);
   const acimaDose = resultado && conf.max && parseFloat(resultado.dose) > conf.max;
   const resBg     = acimaDose ? "rgba(248,113,113,0.1)" : resultado ? "rgba(56,189,248,0.08)" : "rgba(255,255,255,0.04)";
   const resBorder = acimaDose ? "rgba(248,113,113,0.4)" : resultado ? "rgba(56,189,248,0.3)"  : "rgba(255,255,255,0.08)";
@@ -425,6 +435,19 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange }) {
             {editandoConc?"✕ Fechar":"✏️ Diluição personalizada"}
           </button>
         </div>
+
+        {/* Seletor de modo de cálculo (se mais de 1 opção) */}
+        {conf.modoCalcOpcoes && conf.modoCalcOpcoes.length > 1 && (
+          <div style={{marginBottom:12,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{fontSize:10,color:"#475569",fontFamily:mono,marginRight:4}}>UNIDADE:</span>
+            {conf.modoCalcOpcoes.map(m=>(
+              <button key={m} onClick={()=>onVazaoChange&&onVazaoChange(`${drogaSel}_modo`,m)}
+                style={{padding:"3px 10px",borderRadius:14,border:`1px solid ${modoAtual===m?"#f59e0b":"rgba(255,255,255,0.1)"}`,background:modoAtual===m?"rgba(245,158,11,0.12)":"rgba(255,255,255,0.02)",color:modoAtual===m?"#f59e0b":"#64748b",fontSize:10,cursor:"pointer",fontFamily:mono}}>
+                {MODOS_CALC[m]?.label||m}
+              </button>
+            ))}
+          </div>
+        )}
 
         {editandoConc && (
           <div style={{marginBottom:14,padding:"10px 12px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8}}>
@@ -622,7 +645,10 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
               <div style={{marginTop:6,background:"#0f1929",border:"1px solid rgba(56,189,248,0.2)",borderRadius:10,maxHeight:200,overflowY:"auto",padding:"4px"}}>
                 {filtrados.length===0 ? <div style={{padding:"12px",textAlign:"center",color:"#475569",fontSize:12}}>Adicione fórmulas em ⚙️ Configurações.</div>
                   : filtrados.map(d=>(
-                    <button key={d.id} onClick={()=>{upd("catalogId",d.id);upd("formula",d.nome);setShowCatalog(false);}}
+                    <button key={d.id} onClick={()=>{
+                      onChange({...dados, dieta:{...dieta, catalogId:d.id, formula:d.nome}});
+                      setShowCatalog(false);
+                    }}
                       style={{width:"100%",padding:"8px 12px",textAlign:"left",background:dieta.catalogId===d.id?"rgba(56,189,248,0.1)":"transparent",border:"none",borderRadius:7,cursor:"pointer",color:"#e2e8f0",fontSize:12,fontFamily:"inherit",display:"flex",justifyContent:"space-between"}}>
                       <span style={{fontWeight:600}}>{d.nome}{d.id.startsWith("custom_")&&<span style={{fontSize:9,color:"#c4b5fd",marginLeft:4}}> ★</span>}</span>
                       <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{d.kcalML} kcal/mL · {(d.ptnML*100).toFixed(1)} g ptn</span>
@@ -1033,38 +1059,8 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
       </>}
 
       {dados.peso && <>
-        <SecTitle>DIURESE (24h)</SecTitle>
-        {diureseHoje ? (
-          <div style={{display:"flex",gap:10,alignItems:"stretch",flexWrap:"wrap"}}>
-            <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",
-              background:diurese&&parseFloat(diurese)<0.5?"rgba(248,113,113,0.1)":"rgba(34,197,94,0.08)",
-              border:`1px solid ${diurese&&parseFloat(diurese)<0.5?"rgba(248,113,113,0.35)":"rgba(34,197,94,0.35)"}`}}>
-              <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>VOLUME 24H</div>
-              <div style={{fontSize:22,fontWeight:700,color:"#94a3b8"}}>{volUrina} <span style={{fontSize:12}}>mL</span></div>
-            </div>
-            <div style={{flex:1,minWidth:110,padding:"10px 14px",borderRadius:8,textAlign:"center",
-              background:diurese&&parseFloat(diurese)<0.5?"rgba(248,113,113,0.1)":"rgba(34,197,94,0.08)",
-              border:`1px solid ${diurese&&parseFloat(diurese)<0.5?"rgba(248,113,113,0.35)":"rgba(34,197,94,0.35)"}`}}>
-              <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>DIURESE</div>
-              <div style={{fontSize:22,fontWeight:700,color:diurese&&parseFloat(diurese)<0.5?"#f87171":"#4ade80"}}>{diurese}</div>
-              <div style={{fontSize:10,color:"#64748b",marginTop:1}}>mL/kg/h</div>
-            </div>
-          </div>
-        ) : (
-          <div style={{padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,fontSize:12,color:"#475569"}}>
-            Registre a diurese de 24h nos <strong style={{color:"#38bdf8"}}>Controles 24h</strong> (campo Diurese) para calcular mL/kg/h automaticamente.
-          </div>
-        )}
-        {diurese && (
-          <div style={{marginTop:6,fontSize:12,color:parseFloat(diurese)<0.5?"#f87171":"#4ade80"}}>
-            {parseFloat(diurese)<0.5?"⚠️ Oligúria — diurese abaixo de 0,5 mL/kg/h. Avaliar volemia e função renal.":"✅ Diurese adequada (≥ 0,5 mL/kg/h)."}
-          </div>
-        )}
-      </>}
-
-      {dados.peso && <>
         <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga}
+        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga} config={config}
           vazoes={dados.drogasVazao||{}}
           onVazaoChange={(key,val)=>onChange({...dados,drogasVazao:{...(dados.drogasVazao||{}),[key]:val}})}
         />
@@ -1424,6 +1420,30 @@ function ConfigPanel({ config, onChange, onVoltar }) {
 
       <div style={{marginBottom:20,padding:"10px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,fontSize:12,color:"#fcd34d"}}>
         💡 Dica: para dispositivos sem limite de troca (TOT, TQT), deixe em 99 dias — o alerta não será disparado.
+      </div>
+
+      {/* Unidades da calculadora de drogas */}
+      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
+          <div style={{fontSize:11,color:"#a78bfa",fontFamily:mono,letterSpacing:2}}>UNIDADES PADRÃO DAS DROGAS</div>
+          <div style={{fontSize:11,color:"#64748b",marginTop:2}}>Define como a dose é exibida na calculadora</div>
+        </div>
+        {Object.entries(DROGAS_PROTOCOLO).filter(([,d])=>d.modoCalcOpcoes&&d.modoCalcOpcoes.length>1).map(([key,d])=>(
+          <div key={key} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+            <div style={{flex:1,fontSize:13,color:"#cbd5e1"}}>{d.label}</div>
+            <div style={{display:"flex",gap:4}}>
+              {d.modoCalcOpcoes.map(m=>{
+                const atual = (config.drogasModo||{})[key] || d.modoCalcDefault;
+                return (
+                  <button key={m} onClick={()=>onChange({...config, drogasModo:{...(config.drogasModo||{}),[key]:m}})}
+                    style={{padding:"4px 10px",borderRadius:14,border:`1px solid ${atual===m?"#a78bfa":"rgba(255,255,255,0.1)"}`,background:atual===m?"rgba(167,139,250,0.15)":"rgba(255,255,255,0.03)",color:atual===m?"#c4b5fd":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono}}>
+                    {MODOS_CALC[m]?.label||m}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Catálogo de dietas */}
