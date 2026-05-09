@@ -1285,24 +1285,48 @@ function UploadAnalyzer({ onResult }) {
 // ── Helpers de evolução ───────────────────────────────────────────────────────
 const v = (s) => s?.trim() || "";
 
-function TA({ fieldRef, defaultValue, placeholder, rows=2, isAntigo=false, fieldName, onBlurSave }) {
+function TA({ fieldRef, defaultValue, sugestao, placeholder, rows=2, isAntigo=false, fieldName, onBlurSave }) {
+  const [showSug, setShowSug] = useState(false);
+  const cleanPlaceholder = placeholder && !sugestao ? placeholder : ""; // só usa placeholder se não tem sugestão separada
   return (
     <div style={{position:"relative"}}>
-      <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={placeholder} rows={rows}
+      <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={cleanPlaceholder||""} rows={rows}
         style={{width:"100%",
           background: isAntigo ? "rgba(100,116,139,0.08)" : "rgba(255,255,255,0.03)",
           border: isAntigo ? "1px solid rgba(100,116,139,0.25)" : "1px solid rgba(255,255,255,0.07)",
-          borderRadius:8,padding:"8px 10px",
+          borderRadius:8, padding:"8px 32px 8px 10px",
           color: isAntigo ? "#64748b" : "#cbd5e1",
-          fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",lineHeight:1.5}}
+          fontSize:12, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box", lineHeight:1.5}}
         onFocus={e=>e.target.style.borderColor="rgba(56,189,248,0.4)"}
         onBlur={e=>{
           e.target.style.borderColor = isAntigo ? "rgba(100,116,139,0.25)" : "rgba(255,255,255,0.07)";
           if (onBlurSave && fieldName) onBlurSave(fieldName, e.target.value);
         }}/>
+      {/* Stamp de sugestão */}
+      {(sugestao||placeholder) && (
+        <button onClick={()=>setShowSug(s=>!s)}
+          style={{position:"absolute",top:5,right:6,background:showSug?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${showSug?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:4,color:showSug?"#38bdf8":"#334155",fontSize:9,cursor:"pointer",padding:"1px 5px",fontFamily:mono,lineHeight:1.4}}
+          title="Ver sugestão">
+          💡
+        </button>
+      )}
+      {showSug && (sugestao||placeholder) && (
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:20,background:"#1a2540",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,padding:"8px 10px",boxShadow:"0 6px 20px rgba(0,0,0,0.5)"}}>
+          <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:1,marginBottom:4}}>SUGESTÃO</div>
+          <div style={{fontSize:11,color:"#94a3b8",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{sugestao||placeholder}</div>
+          <button onClick={()=>{
+            if(fieldRef?.current) fieldRef.current.value = sugestao||placeholder;
+            if(onBlurSave&&fieldName) onBlurSave(fieldName, sugestao||placeholder);
+            setShowSug(false);
+          }} style={{marginTop:6,background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.25)",borderRadius:4,color:"#38bdf8",fontSize:10,cursor:"pointer",padding:"2px 8px",fontFamily:"inherit"}}>
+            ↙ Usar
+          </button>
+          <button onClick={()=>setShowSug(false)} style={{marginTop:6,marginLeft:4,background:"none",border:"none",color:"#475569",fontSize:10,cursor:"pointer"}}>✕</button>
+        </div>
+      )}
       {isAntigo && (
-        <span style={{position:"absolute",top:4,right:6,fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:0.5,pointerEvents:"none"}}>
-          dia anterior
+        <span style={{position:"absolute",bottom:4,right:6,fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:0.5,pointerEvents:"none"}}>
+          dia ant.
         </span>
       )}
     </div>
@@ -2399,7 +2423,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
       return `${p.nome} (${po===0?"POI":`PO${po}`})`;
     }).join(" · ");
     t+="\n\n";
-    const blocos=[["== N:",txtN],["== Cv:",txtCv],["== Res:",txtRes],["== ReMe:",txtReMe],["== TGI:",txtTGI],["== He:",txtHe],["== In:",txtIn]];
+    const blocos=[["== N:",txtNFull],["== Cv:",txtCvFull],["== Res:",txtResFull],["== ReMe:",txtReMeFull],["== TGI:",txtTGIFull],["== He:",txtHeFull],["== In:",txtInFull]];
     blocos.forEach(([h,fn])=>{ const c=fn(); if(c) t+=`${h}\n${c}\n\n`; });
     navigator.clipboard.writeText(t);
     setCopiado(c=>({...c,tudo:true}));
@@ -2408,9 +2432,13 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
 
   const colors={N:"#a78bfa",Cv:"#f87171",Res:"#38bdf8",ReMe:"#34d399",TGI:"#fb923c",He:"#f59e0b",In:"#94a3b8"};
 
-  const SysB = ({id,sigla,label,color,txtFn,children}) => {
+  const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis}) => {
     const [open,setOpen]=useState(true);
+    const [showAdd,setShowAdd]=useState(false);
     const cp=copiado[id];
+    const vis = camposVisiveis || {};
+    const toggle = (key) => setCamposVisiveis && setCamposVisiveis(prev=>({...prev,[key]:!prev[key]}));
+    const adicionaveisNaoAtivos = adicionaveis.filter(a=>!vis[`add_${id}_${a.key}`]);
     return (
       <div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:10,overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
@@ -2420,10 +2448,37 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
             <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
             <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
           </button>
+          {open && opcionais.length>0 && (
+            <div style={{display:"flex",gap:3,marginRight:4}}>
+              {opcionais.map(o=>(
+                <button key={o.key} onClick={()=>toggle(o.key)}
+                  title={`${vis[o.key]?"Ocultar":"Mostrar"} ${o.label}`}
+                  style={{padding:"2px 7px",borderRadius:4,border:`1px solid ${vis[o.key]?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)"}`,background:vis[o.key]?"rgba(255,255,255,0.08)":"transparent",color:vis[o.key]?"#94a3b8":"#334155",fontSize:9,cursor:"pointer",fontFamily:mono,whiteSpace:"nowrap"}}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {open && adicionaveis.length>0 && (
+            <button onClick={()=>setShowAdd(s=>!s)}
+              style={{margin:"4px 2px",padding:"2px 8px",borderRadius:4,border:`1px solid ${showAdd?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.08)"}`,background:showAdd?"rgba(167,139,250,0.1)":"transparent",color:showAdd?"#c4b5fd":"#334155",fontSize:11,cursor:"pointer"}}
+              title="Adicionar campo">+</button>
+          )}
           <button onClick={()=>copiarBloco(id,txtFn)} style={{margin:"6px 10px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,background:cp?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${cp?"#22c55e":"rgba(255,255,255,0.1)"}`,color:cp?"#22c55e":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
             {cp?"✓ Copiado":"📋 Copiar"}
           </button>
         </div>
+        {open && showAdd && adicionaveisNaoAtivos.length>0 && (
+          <div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",background:"rgba(167,139,250,0.04)",display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{fontSize:9,color:"#64748b",fontFamily:mono}}>ADICIONAR:</span>
+            {adicionaveisNaoAtivos.map(a=>(
+              <button key={a.key} onClick={()=>{toggle(`add_${id}_${a.key}`);setShowAdd(false);}}
+                style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(167,139,250,0.3)",background:"rgba(167,139,250,0.08)",color:"#c4b5fd",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>
+                + {a.label}
+              </button>
+            ))}
+          </div>
+        )}
         {open&&<div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>{children}</div>}
       </div>
     );
@@ -2432,6 +2487,116 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
   const Row=({children})=><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>{children}</div>;
   const Col=({children,flex=1,min=120})=><div style={{flex,minWidth:min}}>{children}</div>;
   const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
+
+  // Visibilidade dos campos opcionais/adicionáveis — persistida em campos._vis_
+  const [camposVis, setCamposVisRaw] = useState(campos._vis_ || {});
+  const setCamposVis = (updater) => {
+    const novo = typeof updater==="function" ? updater(camposVis) : updater;
+    setCamposVisRaw(novo);
+    salvar("_vis_", novo);
+  };
+  const vis = camposVis;
+
+  // Refs dinâmicos para campos extras adicionados
+  const extraRefs = React.useRef({});
+  const ExtraRef = (key) => {
+    if (!extraRefs.current[key]) extraRefs.current[key] = React.createRef();
+    return extraRefs.current[key];
+  };
+  const getExtra = (key) => extraRefs.current[key]?.current?.value?.trim() || campos[key] || "";
+
+  // ── txt funções completas (incluem opcionais/adicionáveis) ──
+  const txtNFull = () => {
+    const p=[];
+    if(get("nEF"))    p.push(`- EF: ${get("nEF")}`);
+    if(get("nSeda"))  p.push(`- P: ${get("nSeda")}`);
+    if(get("nAnalg")) p.push(`- A: ${get("nAnalg")}`);
+    if(vis.nPsiq&&get("nPsiq"))  p.push(`- Psiq: ${get("nPsiq")}`);
+    if(vis.add_n_interconsulta&&getExtra("add_n_interconsulta")) p.push(`- IC: ${getExtra("add_n_interconsulta")}`);
+    if(vis.add_n_exames&&getExtra("add_n_exames")) p.push(`- Exames: ${getExtra("add_n_exames")}`);
+    if(vis.add_n_pocus&&getExtra("add_n_pocus")) p.push(`- POCUS: ${getExtra("add_n_pocus")}`);
+    if(vis.nObs&&get("nObs"))   p.push(`*${get("nObs")}`);
+    return p.join("\n");
+  };
+  const txtCvFull = () => {
+    const p=[];
+    if(get("cvEF"))   p.push(`- EF: ${get("cvEF")}`);
+    if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
+    if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
+    if(vis.cvMed&&get("cvMed")) p.push(`- P: ${get("cvMed")}`);
+    if(get("cvPerf")) p.push(`- Perfusão: ${get("cvPerf")}`);
+    if(vis.add_cv_interconsulta&&getExtra("add_cv_interconsulta")) p.push(`- IC: ${getExtra("add_cv_interconsulta")}`);
+    if(vis.add_cv_exames&&getExtra("add_cv_exames")) p.push(`- Exames: ${getExtra("add_cv_exames")}`);
+    if(vis.add_cv_pocus&&getExtra("add_cv_pocus")) p.push(`- POCUS: ${getExtra("add_cv_pocus")}`);
+    if(vis.add_cv_picco&&getExtra("add_cv_picco")) p.push(`- PiCCO: ${getExtra("add_cv_picco")}`);
+    if(vis.add_cv_swan&&getExtra("add_cv_swan")) p.push(`- Swan-Ganz: ${getExtra("add_cv_swan")}`);
+    if(vis.cvObs&&get("cvObs"))  p.push(`*${get("cvObs")}`);
+    return p.join("\n");
+  };
+  const txtResFull = () => {
+    const p=[];
+    if(get("reVM"))   p.push(`- Ventilação: ${get("reVM")}`);
+    if(get("reEF"))   p.push(`- EF: ${get("reEF")}`);
+    if(get("re24h"))  p.push(`- 24h: ${get("re24h")}`);
+    if(get("reGaso")) p.push(`- *nova* Gaso: ${get("reGaso")}`);
+    if(vis.rePocus&&get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
+    if(vis.reObs&&get("reObs")) p.push(`*${get("reObs")}`);
+    return p.join("\n");
+  };
+  const txtReMeFull = () => {
+    const p=[];
+    if(get("rm24h"))  p.push(`- 24h: ${get("rm24h")}`);
+    if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
+    if(vis.rmTRS&&get("rmTRS")) p.push(`- TRS: ${get("rmTRS")}`);
+    if(vis.add_reme_interconsulta&&getExtra("add_reme_interconsulta")) p.push(`- IC: ${getExtra("add_reme_interconsulta")}`);
+    if(vis.rmObs&&get("rmObs")) p.push(`*${get("rmObs")}`);
+    return p.join("\n");
+  };
+  const txtTGIFull = () => {
+    const p=[];
+    const d=leito.dieta;
+    if(d?.tipo&&d.tipo!=="jejum"){
+      const tl={enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
+      let dl=`Dieta: ${tl}`;
+      if(d.formula) dl+=` ${d.formula}`;
+      if(d.vazao) dl+=` @ ${d.vazao}mL/h`;
+      p.push(`- ${dl}`);
+    } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
+    if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
+    if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
+    if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
+    if(vis.add_tgi_interconsulta&&getExtra("add_tgi_interconsulta")) p.push(`- IC: ${getExtra("add_tgi_interconsulta")}`);
+    if(vis.add_tgi_exames&&getExtra("add_tgi_exames")) p.push(`- Exames: ${getExtra("add_tgi_exames")}`);
+    if(vis.tgObs&&get("tgObs")) p.push(`*${get("tgObs")}`);
+    return p.join("\n");
+  };
+  const txtHeFull = () => {
+    const p=[];
+    if(get("heTemp")) p.push(`T ${get("heTemp")}`);
+    if(get("heLabs")) p.push(`- Labs: ${get("heLabs")}`);
+    if(vis.heProf&&get("heProf")) p.push(`** ${get("heProf")}`);
+    if(vis.add_he_interconsulta&&getExtra("add_he_interconsulta")) p.push(`- IC: ${getExtra("add_he_interconsulta")}`);
+    if(vis.add_he_exames&&getExtra("add_he_exames")) p.push(`- Exames: ${getExtra("add_he_exames")}`);
+    if(vis.heObs&&get("heObs")) p.push(`*${get("heObs")}`);
+    return p.join("\n");
+  };
+  const txtInFull = () => {
+    const p=[];
+    if(vis.inProf&&get("heMed")) p.push(get("heMed"));
+    if(ativos.length){
+      const lista=ativos.map(a=>{
+        const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
+        return `${a.label}${a.disp.site?` ${a.disp.site}`:""} D${dd}`;
+      }).join(", ");
+      p.push(`Dispositivos: ${lista}`);
+    }
+    if(get("heAtb"))      p.push(get("heAtb"));
+    if(get("heCulturas")) p.push(`- Culturas: ${get("heCulturas")}`);
+    if(vis.add_in_interconsulta&&getExtra("add_in_interconsulta")) p.push(`- IC: ${getExtra("add_in_interconsulta")}`);
+    if(vis.add_in_exames&&getExtra("add_in_exames")) p.push(`- Exames: ${getExtra("add_in_exames")}`);
+    if(vis.inObs&&getExtra("inObs")) p.push(`*${getExtra("inObs")}`);
+    return p.join("\n");
+  };
 
   return (
     <div>
@@ -2471,52 +2636,69 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
         </button>
       </div>
 
-      <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtN}>
-        <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} placeholder="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
+      <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtNFull}
+        camposVisiveis={vis} setCamposVisiveis={setCamposVis}
+        opcionais={[{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}>
+        <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} sugestao="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
         <Row>
-          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} placeholder="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
-          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} placeholder="Metadona 22,5mg/d + Lido 140mg 12/12h" rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
+          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} sugestao="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
+          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} sugestao="Metadona 22,5mg/d + Cetamina 5ml/h" rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>PSIQ / OUTROS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} placeholder="Diazepam 40mg/d + Sertralina 50mg/d" rows={1} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} placeholder="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1} fieldName="nObs" onBlurSave={salvar}/></Col></Row>
+        {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} sugestao="Diazepam 40mg/d + Sertralina 50mg/d" rows={1} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_n_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_n_interconsulta")} defaultValue={campos["add_n_interconsulta"]||""} sugestao="Neurologia 29/04: aguarda avaliação" rows={1} fieldName="add_n_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_n_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_n_exames")} defaultValue={campos["add_n_exames"]||""} sugestao="RM crânio solicitada / EEG pendente" rows={1} fieldName="add_n_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_n_pocus"]&&<Row><Col><FL>POCUS</FL><TA fieldRef={ExtraRef("add_n_pocus")} defaultValue={campos["add_n_pocus"]||""} sugestao="POCUS 29/04: sem alterações" rows={1} fieldName="add_n_pocus" onBlurSave={salvar}/></Col></Row>}
+        {vis["nObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} sugestao="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1} fieldName="nObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
-      <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCv}>
-        <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} placeholder="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2} fieldName="cvEF" onBlurSave={salvar}/></Col></Row>
+      <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCvFull}
+        camposVisiveis={vis} setCamposVisiveis={setCamposVis}
+        opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvObs",label:"Obs"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}>
+        <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} sugestao="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2} fieldName="cvEF" onBlurSave={salvar}/></Col></Row>
         <Row>
-          <Col><FL>24h — FC / PAM (min-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} placeholder="FC 109 - 58 / PAM 121 - 58" rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
-          <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} placeholder="Nora 5ml/h (0,08 mcg/kg/min)" rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — FC / PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} sugestao="FC 109 - 58 / PAM 121 - 58" rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
+          <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} sugestao="Nora 5ml/h (0,08 mcg/kg/min)" rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
         </Row>
-        <Row>
-          <Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} placeholder="Atenolol 25mg" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col>
-          <Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} placeholder="TEC 2 seg / Lactato 12 > 22" rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} placeholder="Eco beira-leito amanhã" rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>
+        {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
+        <Row><Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} sugestao="TEC 2 seg / Lactato 12 > 22" rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col></Row>
+        {vis["add_cv_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_cv_interconsulta")} defaultValue={campos["add_cv_interconsulta"]||""} sugestao="Cardiologia 29/04: Eco TT marcado" rows={1} fieldName="add_cv_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_cv_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_cv_exames")} defaultValue={campos["add_cv_exames"]||""} sugestao="ECG 29/04: RS, sem alterações" rows={1} fieldName="add_cv_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_cv_pocus"]&&<Row><Col><FL>POCUS</FL><TA fieldRef={ExtraRef("add_cv_pocus")} defaultValue={campos["add_cv_pocus"]||""} sugestao="POCUS 29/04: FE ~50%, sem derrame" rows={1} fieldName="add_cv_pocus" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_cv_picco"]&&<Row><Col><FL>PiCCO</FL><TA fieldRef={ExtraRef("add_cv_picco")} defaultValue={campos["add_cv_picco"]||""} sugestao="IC 2,8 / GEDVI 720 / EVLWI 8" rows={1} fieldName="add_cv_picco" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_cv_swan"]&&<Row><Col><FL>SWAN-GANZ</FL><TA fieldRef={ExtraRef("add_cv_swan")} defaultValue={campos["add_cv_swan"]||""} sugestao="PCP 15 / DC 4,2 / RVS 1200" rows={1} fieldName="add_cv_swan" onBlurSave={salvar}/></Col></Row>}
+        {vis["cvObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} sugestao="Eco beira-leito amanhã" rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
-      <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtRes}>
-        <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} placeholder="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
+      <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
+        camposVisiveis={vis} setCamposVisiveis={setCamposVis}
+        opcionais={[{key:"rePocus",label:"POCUS"},{key:"reObs",label:"Obs"}]}>
+        <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} sugestao="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
         <Row>
-          <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} placeholder="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — FR / Sat</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} placeholder="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
+          <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} sugestao="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — FR / Sat (mín-máx)</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} sugestao="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
         </Row>
-        <Row>
-          <Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} isAntigo={isAntigo("reGaso")} placeholder="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SataO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col>
-          <Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} placeholder="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} placeholder="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} isAntigo={isAntigo("reGaso")} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
+        {vis["rePocus"]&&<Row><Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} sugestao="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col></Row>}
+        {vis["reObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} sugestao="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
-      <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={"#34d399"} txtFn={txtReMe}>
-        <Row>
-          <Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} placeholder="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col>
-          <Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} placeholder="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col>
-        </Row>
-        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P · Cl</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} placeholder="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} placeholder="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>
+      <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={"#34d399"} txtFn={txtReMeFull}
+        camposVisiveis={vis} setCamposVisiveis={setCamposVis}
+        opcionais={[{key:"rmTRS",label:"TRS"},{key:"rmObs",label:"Obs"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"}]}>
+        <Row><Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} sugestao="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
+        {vis["rmTRS"]&&<Row><Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} sugestao="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row>}
+        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
+        {vis["add_reme_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_reme_interconsulta")} defaultValue={campos["add_reme_interconsulta"]||""} sugestao="Nefrologia 29/04: avaliou TRS — manter CRRT" rows={1} fieldName="add_reme_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["rmObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} sugestao="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
-      <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={"#fb923c"} txtFn={txtTGI}>
+      <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={"#fb923c"} txtFn={txtTGIFull}
+        camposVisiveis={vis} setCamposVisiveis={setCamposVis}
+        opcionais={[{key:"tgObs",label:"Obs"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}>
         {leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>
           🍽 <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`}
           {(()=>{
@@ -2532,45 +2714,58 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
           })()}
         </div>}
         <Row>
-          <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} placeholder="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} placeholder="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
+          <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} sugestao="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} placeholder="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} placeholder="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} sugestao="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
+        {vis["add_tgi_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_tgi_interconsulta")} defaultValue={campos["add_tgi_interconsulta"]||""} sugestao="Gastro 29/04: endoscopia não indicada no momento" rows={1} fieldName="add_tgi_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_tgi_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_tgi_exames")} defaultValue={campos["add_tgi_exames"]||""} sugestao="USG abdome 29/04: sem novidades" rows={1} fieldName="add_tgi_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["tgObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} sugestao="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
-      <SysB id="he" sigla="== He:" label="Hematológico" color={"#f59e0b"} txtFn={txtHe}>
+      <SysB id="he" sigla="== He:" label="Hematológico" color={"#f59e0b"} txtFn={txtHeFull}
+        camposVisiveis={vis} setCamposVisiveis={setCamposVis}
+        opcionais={[{key:"heProf",label:"Profilaxias"},{key:"heObs",label:"Obs"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}>
         <Row>
-          <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} placeholder="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
-          <Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} placeholder="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1} fieldName="heProf" onBlurSave={salvar}/></Col>
+          <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} sugestao="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
+          {vis["heProf"]&&<Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} sugestao="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1} fieldName="heProf" onBlurSave={salvar}/></Col>}
         </Row>
-        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} placeholder="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} placeholder="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
+        {vis["add_he_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_he_interconsulta")} defaultValue={campos["add_he_interconsulta"]||""} sugestao="Hematologia 29/04: sem indicação de transfusão" rows={1} fieldName="add_he_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_he_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_he_exames")} defaultValue={campos["add_he_exames"]||""} sugestao="Mielograma solicitado" rows={1} fieldName="add_he_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["heObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} sugestao="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
-      <SysB id="in" sigla="== In:" label="Infeccioso / Dispositivos" color={"#94a3b8"} txtFn={txtIn}>
+      <SysB id="in" sigla="== In:" label="Infeccioso / Dispositivos" color={"#94a3b8"} txtFn={txtInFull}
+        camposVisiveis={vis} setCamposVisiveis={setCamposVis}
+        opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}>
         {ativos.length>0&&<div style={{padding:"6px 10px",background:"rgba(148,163,184,0.07)",border:"1px solid rgba(148,163,184,0.15)",borderRadius:6,fontSize:11,color:"#94a3b8",marginBottom:8}}>
           📎 {ativos.map(a=>{const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;}).join(" / ")}
         </div>}
-        <Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} placeholder="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} placeholder={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} placeholder={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
+        {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
+        <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} sugestao={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} sugestao={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
+        {vis["add_in_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_in_interconsulta")} defaultValue={campos["add_in_interconsulta"]||""} sugestao="ID 29/04: avaliar troca ATB aguardando culturas" rows={1} fieldName="add_in_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_in_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_in_exames")} defaultValue={campos["add_in_exames"]||""} sugestao="Beta-D-glucana 29/04: pendente" rows={1} fieldName="add_in_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["inObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={ExtraRef("inObs")} defaultValue={campos["inObs"]||""} sugestao="Reavaliação com culturas em 48h" rows={1} fieldName="inObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
       <SysB id="prob" sigla="📋 Prob:" label="Problemas" color="#94a3b8" txtFn={txtProblemas}>
         <Row>
           <Col>
             <FL>🔴 Problemas Ativos</FL>
-            <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} placeholder={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"} rows={4} fieldName="probAtivos" onBlurSave={salvar}/>
+            <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} sugestao={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"} rows={4} fieldName="probAtivos" onBlurSave={salvar}/>
           </Col>
           <Col>
             <FL>✅ Problemas Resolvidos</FL>
-            <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} placeholder={"1. Choque séptico (resolvido D5)\n2. Acidose metabólica"} rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
+            <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} sugestao={"1. Choque séptico (resolvido D5)\n2. Acidose metabólica"} rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
           </Col>
         </Row>
       </SysB>
 
-      <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+            <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(34,197,94,0.15)":"linear-gradient(135deg,rgba(2,132,199,0.25),rgba(3,105,161,0.25))",border:`1.5px solid ${copiado.tudo?"#22c55e":"#0284c7"}`,borderRadius:10,color:copiado.tudo?"#22c55e":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
         {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
       </button>
     </div>
