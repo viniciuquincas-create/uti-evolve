@@ -1665,7 +1665,7 @@ function OptionalDrenosUI({ data, onChange, datas, hoje }) {
 }
 
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
-function TabelaClinica({ leito, data, onChange, onAplicarEvolucao }) {
+function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) {
   const hoje = new Date().toISOString().split("T")[0];
   const [novaData, setNovaData] = useState("");
   const [showAddCol, setShowAddCol] = useState(false);
@@ -3115,6 +3115,7 @@ export default function App() {
             ) : aba==="tabela" ? (
               <TabelaClinica
                 leito={leito}
+                config={config}
                 data={tabelaData[leitoSelId] || {}}
                 onChange={d=>{
                   setTabelaData(t=>{
