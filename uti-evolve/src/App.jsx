@@ -33,7 +33,90 @@ const DROGAS_PROTOCOLO = {
     modoCalcDefault:"mcg_kg_min",
     modoCalcOpcoes:["mcg_kg_min"],
     max:3, unidadeLabel:"mcg/kg/min",
+    doseInfo:"0,01 – 3 mcg/kg/min\nDose vasoconstritora: 0,1–0,3 mcg/kg/min\nAlerta: > 1 mcg/kg/min = dose muito alta",
   },
+  dobutamina: {
+    label:"Dobutamina", grupo:"vasoativa",
+    diluicaoDesc:"80 mL (250 mg) em SG5% 170 mL → 250 mL",
+    concMcgML: 1000,
+    modoCalcDefault:"mcg_kg_min",
+    modoCalcOpcoes:["mcg_kg_min"],
+    max:20, unidadeLabel:"mcg/kg/min",
+    doseInfo:"2 – 20 mcg/kg/min\nEfeito inotrópico: 2–10 mcg/kg/min\nEfeito cronotrópico relevante: > 10 mcg/kg/min",
+  },
+  vasopressina: {
+    label:"Vasopressina", grupo:"vasoativa",
+    diluicaoDesc:"2 mL (20 UI) em SG5% 98 mL → 100 mL",
+    concMcgML: null, concUIML: 0.2,
+    modoCalcDefault:"ui_min",
+    modoCalcOpcoes:["ui_min"],
+    max:0.04, unidadeLabel:"UI/min",
+    doseInfo:"0,01 – 0,04 UI/min\nUsado como adjuvante fixo ao lado da noradrenalina\nNão titular — dose fixa de 0,03–0,04 UI/min",
+  },
+  nitroglicerina: {
+    label:"Nitroglicerina", grupo:"vasoativa",
+    diluicaoDesc:"10 mL (50 mg) em SG5% 90 mL → 100 mL",
+    concMcgML: 500,
+    modoCalcDefault:"mcg_min",
+    modoCalcOpcoes:["mcg_min","mcg_kg_min"],
+    max:400, unidadeLabel:"mcg/min",
+    doseInfo:"5 – 400 mcg/min\nCrise hipertensiva/angina: 5–200 mcg/min\nEfeito predominantemente venoso: doses baixas\nEfeito arterial: doses altas (> 200 mcg/min)",
+  },
+  nitroprussiato: {
+    label:"Nitroprussiato", grupo:"vasoativa",
+    diluicaoDesc:"2 mL (50 mg) em SG5% 248 mL → 250 mL",
+    concMcgML: 200,
+    modoCalcDefault:"mcg_kg_min",
+    modoCalcOpcoes:["mcg_kg_min"],
+    max:10, unidadeLabel:"mcg/kg/min",
+    doseInfo:"0,3 – 10 mcg/kg/min\nInício com 0,3–0,5 mcg/kg/min\nAlerta de toxicidade por cianeto: > 4 mcg/kg/min por > 3 dias",
+  },
+  propofol: {
+    label:"Propofol", grupo:"sedacao",
+    diluicaoDesc:"10 mg/mL — 100 mL puro (sem diluição)",
+    concMcgML: 10000,
+    modoCalcDefault:"mg_kg_h",
+    modoCalcOpcoes:["mg_kg_h","mcg_kg_min","mg_h"],
+    max:4, unidadeLabel:"mg/kg/h",
+    doseInfo:"5 – 50 mcg/kg/min  (= 0,3 – 3 mg/kg/h)\nSedação leve: 5–10 mcg/kg/min\nSedação profunda: 25–50 mcg/kg/min\nAlerta PRIS: > 4 mg/kg/h por > 48h",
+  },
+  midazolam: {
+    label:"Midazolam", grupo:"sedacao",
+    diluicaoDesc:"20 mL (100 mg) em SG5% 80 mL → 100 mL",
+    concMcgML: 1000,
+    modoCalcDefault:"mcg_kg_h",
+    modoCalcOpcoes:["mcg_kg_h","mg_kg_h"],
+    max:150, unidadeLabel:"mcg/kg/h",
+    doseInfo:"0,01 – 0,2 mg/kg/h  (= 10 – 200 mcg/kg/h)\nSedação leve: 0,02–0,05 mg/kg/h\nSedação moderada: 0,05–0,15 mg/kg/h\nEvitar uso prolongado: acúmulo e síndrome de abstinência",
+  },
+  fentanil: {
+    label:"Fentanil", grupo:"analgesia",
+    diluicaoDesc:"20 mL (1000 mcg) em SF0,9% 80 mL → 100 mL",
+    concMcgML: 10,
+    modoCalcDefault:"mcg_kg_h",
+    modoCalcOpcoes:["mcg_kg_h","mcg_kg_min"],
+    max:5, unidadeLabel:"mcg/kg/h",
+    doseInfo:"20 – 50 mcg/hora  (dose sem ajuste por peso)\nCom ajuste: 0,5 – 3 mcg/kg/h\nAnalgesia em VM: 25–100 mcg/h\nAtingir score de dor ≤ 3 (BPS ou CPOT)",
+  },
+  precedex: {
+    label:"Precedex (Dex)", grupo:"sedacao",
+    diluicaoDesc:"4 mL (200 mcg) em SF0,9% 96 mL → 100 mL",
+    concMcgML: 2,
+    modoCalcDefault:"mcg_kg_h",
+    modoCalcOpcoes:["mcg_kg_h"],
+    max:0.7, unidadeLabel:"mcg/kg/h",
+    doseInfo:"0,2 – 1,5 mcg/kg/h\nSem ventilação mecânica: 0,2–0,7 mcg/kg/h\nCom VM: pode usar até 1,5 mcg/kg/h\nVantagem: manutenção da cooperação (sedação colaborativa)",
+  },
+  cetamina: {
+    label:"Cetamina (S+)", grupo:"analgesia",
+    diluicaoDesc:"10 mL escetamina (500 mg) em SG5% 90 mL → 100 mL · 5 mg/mL",
+    concMcgML: 5000,
+    modoCalcDefault:"mg_kg_h",
+    modoCalcOpcoes:["mg_kg_h","mcg_kg_min"],
+    max:1.0, unidadeLabel:"mg/kg/h",
+    doseInfo:"0,06 – 0,3 mg/kg/h  (analgesia adjuvante)\nAnalgesia subanestésica: 0,1–0,3 mg/kg/h\nDose alta (sedação): 0,5–1,0 mg/kg/h\nVantagem: broncodilatação, preserva drive respiratório",
+  },
+};
   dobutamina: {
     label:"Dobutamina", grupo:"vasoativa",
     diluicaoDesc:"80 mL (250 mg) em SG5% 170 mL → 250 mL",
@@ -354,6 +437,7 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
   const [concCustom, setConcCustom] = useState("");
   const [editandoConc, setEditandoConc] = useState(false);
   const [lancado, setLancado]   = useState(false);
+  const [infoAberta, setInfoAberta] = useState(null); // key da droga com popup aberto
 
   // mlh vem do estado persistido por droga
   const mlh = vazoes[drogaSel] || "";
@@ -409,12 +493,31 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
             {drogas.map(([key,d])=>{
               const temVazao = !!(vazoes[key]);
               const isSel = drogaSel===key;
+              const infoOpen = infoAberta===key;
               return (
-                <button key={key} onClick={()=>{setDrogaSel(key);setConcCustom("");setEditandoConc(false);}}
-                  style={{padding:"5px 11px",borderRadius:20,border:`1px solid ${isSel?"#38bdf8":temVazao?"rgba(251,146,60,0.6)":"rgba(255,255,255,0.1)"}`,background:isSel?"rgba(56,189,248,0.14)":temVazao?"rgba(251,146,60,0.1)":"rgba(255,255,255,0.02)",color:isSel?"#38bdf8":temVazao?"#fb923c":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,transition:"all 0.15s",display:"flex",alignItems:"center",gap:5}}>
-                  {d.label}
-                  {temVazao && <span style={{fontSize:10,fontWeight:700}}>{vazoes[key]}mL/h</span>}
-                </button>
+                <div key={key} style={{position:"relative"}}>
+                  <div style={{display:"flex",border:`1px solid ${isSel?"#38bdf8":temVazao?"rgba(251,146,60,0.6)":"rgba(255,255,255,0.1)"}`,borderRadius:20,background:isSel?"rgba(56,189,248,0.14)":temVazao?"rgba(251,146,60,0.1)":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
+                    <button onClick={()=>{setDrogaSel(key);setConcCustom("");setEditandoConc(false);}}
+                      style={{padding:"5px 10px 5px 11px",background:"none",border:"none",color:isSel?"#38bdf8":temVazao?"#fb923c":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,display:"flex",alignItems:"center",gap:5}}>
+                      {d.label}
+                      {temVazao && <span style={{fontSize:10,fontWeight:700}}>{vazoes[key]}mL/h</span>}
+                    </button>
+                    {d.doseInfo && (
+                      <button onClick={e=>{e.stopPropagation();setInfoAberta(infoOpen?null:key);}}
+                        style={{padding:"0 7px",background:infoOpen?"rgba(167,139,250,0.2)":"none",border:"none",borderLeft:`1px solid ${isSel?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.08)"}`,color:infoOpen?"#c4b5fd":"#475569",fontSize:9,cursor:"pointer",lineHeight:1}}
+                        title="Ver doses de referência">ⓘ</button>
+                    )}
+                  </div>
+                  {infoOpen && d.doseInfo && (
+                    <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:50,minWidth:260,maxWidth:320,padding:"12px 14px",background:"#1a2540",border:"1px solid rgba(167,139,250,0.35)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                      <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1,marginBottom:6}}>📋 DOSES DE REFERÊNCIA — {d.label.toUpperCase()}</div>
+                      {d.doseInfo.split("\n").map((l,i)=>(
+                        <div key={i} style={{fontSize:12,color:i===0?"#e2e8f0":"#94a3b8",lineHeight:1.6,fontWeight:i===0?700:400}}>{l}</div>
+                      ))}
+                      <button onClick={()=>setInfoAberta(null)} style={{marginTop:8,background:"none",border:"none",color:"#475569",fontSize:10,cursor:"pointer",padding:0}}>✕ Fechar</button>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -1422,30 +1525,6 @@ function ConfigPanel({ config, onChange, onVoltar }) {
         💡 Dica: para dispositivos sem limite de troca (TOT, TQT), deixe em 99 dias — o alerta não será disparado.
       </div>
 
-      {/* Unidades da calculadora de drogas */}
-      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
-        <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
-          <div style={{fontSize:11,color:"#a78bfa",fontFamily:mono,letterSpacing:2}}>UNIDADES PADRÃO DAS DROGAS</div>
-          <div style={{fontSize:11,color:"#64748b",marginTop:2}}>Define como a dose é exibida na calculadora</div>
-        </div>
-        {Object.entries(DROGAS_PROTOCOLO).filter(([,d])=>d.modoCalcOpcoes&&d.modoCalcOpcoes.length>1).map(([key,d])=>(
-          <div key={key} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-            <div style={{flex:1,fontSize:13,color:"#cbd5e1"}}>{d.label}</div>
-            <div style={{display:"flex",gap:4}}>
-              {d.modoCalcOpcoes.map(m=>{
-                const atual = (config.drogasModo||{})[key] || d.modoCalcDefault;
-                return (
-                  <button key={m} onClick={()=>onChange({...config, drogasModo:{...(config.drogasModo||{}),[key]:m}})}
-                    style={{padding:"4px 10px",borderRadius:14,border:`1px solid ${atual===m?"#a78bfa":"rgba(255,255,255,0.1)"}`,background:atual===m?"rgba(167,139,250,0.15)":"rgba(255,255,255,0.03)",color:atual===m?"#c4b5fd":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono}}>
-                    {MODOS_CALC[m]?.label||m}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Catálogo de dietas */}
       <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1793,6 +1872,24 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     if (resStr) campos.reGaso = resStr;
     if (tgStr)  campos.tgLabs = tgStr;
 
+    // Exames extras categorizados
+    const extraCats = data.__extraCats__ || {};
+    const CAT_MAP = {
+      "hb":  "heLabs", "cr": "rmLabs", "tgo": "tgLabs",
+      "trop":"cvPerf",  "po2":"reGaso", "he":  "heLabs",
+    };
+    extrasKeys.forEach(k=>{
+      const cat = extraCats[k];
+      const campoAlvo = CAT_MAP[cat] || null;
+      const nome = k.replace(/^_extra_/,'').replace(/_/g,' ');
+      const val  = getVal(chaveHoje, k);
+      if (val && campoAlvo) {
+        campos[campoAlvo] = campos[campoAlvo]
+          ? `${campos[campoAlvo]} / ${nome} ${val}`
+          : `${nome} ${val}`;
+      }
+    });
+
     // Aplica controles nos sistemas corretos
     if (tempStr)  campos.heTemp  = tempStr;
     if (cvCtrl)   campos.cv24h   = cvCtrl;
@@ -1953,14 +2050,47 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                     </td>
                   </tr>
                   {extrasKeys.map(k=>{
-                    // Nome amigável: remove prefixo _extra_ e underscores
                     const nomeAmigavel = k.replace(/^_extra_/,'').replace(/_/g,' ');
                     const nomeCapitalizado = nomeAmigavel.charAt(0).toUpperCase() + nomeAmigavel.slice(1);
+                    // Categoria do exame: salva em data.__extraCats__
+                    const catAtual = (data.__extraCats__||{})[k] || "";
+                    const CATS_LAB = [
+                      {k:"",        label:"— Sem categoria —", cor:"#475569"},
+                      {k:"hb",      label:"🩸 Hematológico",    cor:"#f87171"},
+                      {k:"cr",      label:"🫘 Renal/Metabólico", cor:"#34d399"},
+                      {k:"tgo",     label:"🫀 Hepatograma",      cor:"#fb923c"},
+                      {k:"trop",    label:"❤️ Cardíaco",         cor:"#f87171"},
+                      {k:"po2",     label:"🫁 Gasometria",       cor:"#38bdf8"},
+                      {k:"he",      label:"🔴 Infeccioso",       cor:"#f59e0b"},
+                    ];
                     return (
                       <tr key={k}
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#fcd34d",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>{nomeCapitalizado}</td>
+                        <td style={{...tdBase,padding:"4px 8px 4px 12px",textAlign:"left",position:"sticky",left:0,background:"#0a0f1e"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                            <span style={{fontSize:12,color:"#fcd34d"}}>{nomeCapitalizado}</span>
+                            <select value={catAtual}
+                              onChange={e=>{
+                                const newCats = {...(data.__extraCats__||{}), [k]: e.target.value};
+                                onChange({...data, __extraCats__: newCats});
+                              }}
+                              style={{fontSize:9,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:"1px 4px",color:"#64748b",fontFamily:"inherit",cursor:"pointer",maxWidth:120}}>
+                              {CATS_LAB.map(c=>(
+                                <option key={c.k} value={c.k} style={{background:"#0f1929"}}>{c.label}</option>
+                              ))}
+                            </select>
+                            <button onClick={()=>{
+                              // Remove o exame de todos os dias
+                              const novo={};
+                              Object.keys(data).forEach(d=>{
+                                if(d==="__extraCats__"){ const cats={...data[d]}; delete cats[k]; novo[d]=cats; }
+                                else { const dd={...data[d]}; delete dd[k]; novo[d]=dd; }
+                              });
+                              onChange(novo);
+                            }} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:10,padding:"0 2px"}} title="Remover exame">✕</button>
+                          </div>
+                        </td>
                         <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#0a0f1e"}}>—</td>
                         {datas.map(d=>{
                           const ativo=isHoje(d);
