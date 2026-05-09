@@ -510,6 +510,50 @@ function getDietasCatalogo(config) {
   return [...DIETAS_DEFAULT.filter(d=>!ids.has(d.id)), ...custom];
 }
 
+// ── Utilitários de nutrição ────────────────────────────────────────────────────
+function calcNutri(dietaSel, volMl) {
+  if (!dietaSel || !volMl) return null;
+  return {
+    kcal: +(volMl * dietaSel.kcalML).toFixed(0),
+    ptn:  +(volMl * dietaSel.ptnML ).toFixed(1),
+    cho:  +(volMl * (dietaSel.choML||0)).toFixed(1),
+    lip:  +(volMl * (dietaSel.lipML||0)).toFixed(1),
+  };
+}
+
+function calcMetaAbsoluta(meta, peso) {
+  if (!meta) return null;
+  const m = meta.modo === "kg" ? {
+    kcal: meta.kcalKg && peso ? +(parseFloat(meta.kcalKg) * peso).toFixed(0) : null,
+    ptn:  meta.ptnKg  && peso ? +(parseFloat(meta.ptnKg ) * peso).toFixed(1) : null,
+  } : {
+    kcal: meta.kcalTotal ? +parseFloat(meta.kcalTotal) : null,
+    ptn:  meta.ptnTotal  ? +parseFloat(meta.ptnTotal)  : null,
+  };
+  return (m.kcal || m.ptn) ? m : null;
+}
+
+function NutriBar({ label, recebeu, meta }) {
+  const pct = (meta && recebeu) ? Math.min(Math.round(recebeu / meta * 100), 150) : null;
+  const ok  = pct !== null && pct >= 80;
+  const c   = pct === null ? "#475569" : ok ? "#34d399" : "#f87171";
+  return (
+    <div style={{flex:1,minWidth:130}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+        <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1}}>{label}</span>
+        {pct!==null && <span style={{fontSize:11,fontWeight:700,color:c}}>{pct}%</span>}
+      </div>
+      <div style={{height:6,borderRadius:3,background:"rgba(255,255,255,0.07)",overflow:"hidden",marginBottom:4}}>
+        {pct!==null && <div style={{height:"100%",borderRadius:3,background:c,width:`${Math.min(pct,100)}%`,transition:"width 0.4s"}}/>}
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
+        <span style={{color:"#e2e8f0",fontWeight:700}}>{recebeu ?? "—"}</span>
+        <span style={{color:"#475569"}}>meta {meta ?? "—"}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── DietaPanel ────────────────────────────────────────────────────────────────
 function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
   const dieta = dados.dieta || {
