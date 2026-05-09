@@ -2177,7 +2177,7 @@ function aplicarIA(dadosIA) {
   };
 }
 
-function EvolucaoEditor({ leito, campos, onCampoEdit }) {
+function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
@@ -2444,8 +2444,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit }) {
         {leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>
           🍽 <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`}
           {(()=>{
-            const hoje = new Date().toISOString().split("T")[0];
-            const volHoje = parseFloat((tabelaData[leitoSelId]||{})[hoje]?.c24_diet_vol)||0;
+            const volHoje = parseFloat(tabelaHoje?.c24_diet_vol)||0;
             const dietaSel = getDietasCatalogo(config).find(d=>d.id===leito.dieta?.catalogId);
             const metaAbs = calcMetaAbsoluta(leito.dieta?.meta, parseFloat(leito.peso));
             if (!dietaSel || !volHoje || !metaAbs) return null;
@@ -3106,8 +3105,18 @@ export default function App() {
               <div style={{maxWidth:680}}><PacientePanel
                 dados={leito} onChange={atualizar} config={config}
                 onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
-                diureseHoje={(tabelaData[leitoSelId]||{})[new Date().toISOString().split("T")[0]]?.c24_diur||""}
-                tabelaHoje={(tabelaData[leitoSelId]||{})[new Date().toISOString().split("T")[0]]||{}}
+                diureseHoje={(()=>{
+                  const tb = tabelaData[leitoSelId]||{};
+                  const datas = Object.keys(tb).sort().reverse();
+                  for (const d of datas) if (tb[d]?.c24_diur) return tb[d].c24_diur;
+                  return "";
+                })()}
+                tabelaHoje={(()=>{
+                  const tb = tabelaData[leitoSelId]||{};
+                  const datas = Object.keys(tb).sort().reverse();
+                  for (const d of datas) if (tb[d]?.c24_diet_vol) return tb[d];
+                  return tb[Object.keys(tb).sort().reverse()[0]]||{};
+                })()}
                 onLancarDroga={(linha, campo)=>{
                   setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
                   setEvolVersion(v=>v+1);
@@ -3279,6 +3288,13 @@ export default function App() {
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#7dd3fc"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
                   <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
+                    config={config}
+                    tabelaHoje={(()=>{
+                      const tb = tabelaData[leitoSelId]||{};
+                      const datas = Object.keys(tb).sort().reverse();
+                      for (const d of datas) if (tb[d]?.c24_diet_vol) return tb[d];
+                      return tb[datas[0]]||{};
+                    })()}
                     onCampoEdit={(field, value)=>{
                       setEvolCamposComPersistencia(c=>({...c, [field]: value}));
                     }}
