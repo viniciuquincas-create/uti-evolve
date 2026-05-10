@@ -1603,6 +1603,25 @@ function ConfigPanel({ config, onChange, onVoltar }) {
         </div>
       </div>
 
+      {/* Chave Gemini para Impressão IA */}
+      <div style={{background:"rgba(167,139,250,0.04)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(167,139,250,0.12)"}}>
+          <div style={{fontSize:11,color:"#c084fc",fontFamily:mono,letterSpacing:2}}>✨ IA — CHAVE GEMINI</div>
+          <div style={{fontSize:11,color:"#64748b",marginTop:2}}>Necessária para gerar a Impressão Clínica com IA na aba Evolução</div>
+        </div>
+        <div style={{padding:"12px 16px"}}>
+          <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:5}}>API KEY — obtenha em <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{color:"#c084fc"}}>aistudio.google.com/apikey</a></div>
+          <input
+            type="password"
+            defaultValue={config.geminiKey||""}
+            placeholder="AIza..."
+            onBlur={e=>onChange({...config, geminiKey: e.target.value.trim()})}
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:mono,boxSizing:"border-box"}}/>
+          {config.geminiKey && <div style={{marginTop:6,fontSize:11,color:"#34d399"}}>✓ Chave salva — ✨ Gerar com IA está ativo</div>}
+          {!config.geminiKey && <div style={{marginTop:6,fontSize:11,color:"#f59e0b"}}>⚠ Sem chave — o botão ✨ Gerar com IA não funcionará</div>}
+        </div>
+      </div>
+
       {/* Alertas de dispositivos */}
       <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
@@ -2769,63 +2788,74 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
   const [impErro, setImpErro] = useState("");
 
   const gerarImpressao = async () => {
+    const geminiKey = config?.geminiKey || "";
+    if (!geminiKey) {
+      setImpErro("Configure a chave Gemini em ⚙️ Configurações para usar esta função.");
+      return;
+    }
     setImpLoading(true);
     setImpErro("");
     try {
-      // Monta payload com todos os dados clínicos disponíveis
-      const procsPayload = (leito.procedimentos || []).map(p => ({
-        nome: p.nome,
-        data: p.data,
-        po: Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000),
-      }));
-      const dispsPayload = ativos.map(a => ({
-        label: a.label,
-        site: a.disp.site || "",
-        dias: Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000),
-        alerta: Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000) > a.alertaDias,
-      }));
-      const camposPayload = {};
-      [
-        "hda","nEF","nSeda","nAnalg","nPsiq",
-        "cvEF","cv24h","cvDVA","cvPerf",
-        "reVM","reEF","re24h","reGaso",
-        "rm24h","rmLabs","rmTRS",
-        "tgEF","tg24h","tgLabs",
-        "heTemp","heLabs","heAtb","heCulturas","heProf",
-        "probAtivos","probResolvidos",
-      ].forEach(k => {
-        const v = refs[k]?.current?.value?.trim() || campos[k] || "";
-        if (v) camposPayload[k] = v;
-      });
+      const procsStr = (leito.procedimentos||[]).map(p=>{
+        const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
+        return `${p.nome} em ${p.data} (${po===0?"POI":`PO${po}`})`;
+      }).join("; ") || "nenhum";
 
-      const body = {
-        paciente: leito.paciente || "",
-        diagnostico: leito.diagnostico || "",
-        sexo: leito.sexo || "",
-        peso: leito.peso || "",
-        pp: pp || "",
-        dias: dias,
-        procedimentos: procsPayload,
-        dispositivos: dispsPayload,
-        hda: camposPayload.hda || "",
-        campos: camposPayload,
-        dieta: leito.dieta || null,
-      };
+      const dispsStr = ativos.map(a=>{
+        const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
+        return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;
+      }).join(", ") || "nenhum";
 
-      const r = await fetch("/api/impressao", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const g = (k) => refs[k]?.current?.value?.trim() || campos[k] || "";
+      const dietaStr = leito.dieta?.tipo
+        ? `${leito.dieta.tipo}${leito.dieta.formula?` (${leito.dieta.formula})`:""}${leito.dieta.vazao?` @ ${leito.dieta.vazao}mL/h`:""}`
+        : "não informada";
+
+      const prompt = `Você é um médico intensivista. Escreva uma IMPRESSÃO CLÍNICA para passagem de caso para o chefe da UTI.
+
+REGRAS:
+- Texto corrido, sem bullets ou marcadores, português médico formal
+- Máximo 5 linhas, uma narrativa contínua
+- Estrutura: [identificação + diagnóstico + contexto] → [procedimentos realizados com datas/PO] → [estado atual: consciência, sedação/analgesia, ventilação, hemodinâmica, diurese, temperatura, dieta]
+- Use linguagem como: "vigil e cooperativo", "confortável em VMI", "estável clínica e hemodinamicamente", "afebril", "diurese adequada", "recebendo dieta enteral"
+- Se a HDA tiver informações detalhadas, use-a como base principal do contexto clínico
+- Gere APENAS o texto da impressão, sem títulos, sem comentários extras
+
+DADOS:
+Paciente: ${leito.paciente||"não informado"}, ${leito.sexo==="F"?"feminino":"masculino"}, ${leito.peso||"?"}kg${pp?`, PP ${pp}kg`:""}, D${dias??""} UTI
+Diagnóstico: ${leito.diagnostico||"não informado"}
+HDA: ${g("hda")||"não preenchida"}
+Procedimentos: ${procsStr}
+Dispositivos: ${dispsStr}
+Neurológico: ${g("nEF")||"-"}${g("nSeda")?` | Sed: ${g("nSeda")}`:""}${g("nAnalg")?` | Analg: ${g("nAnalg")}` :""}
+Cardiovascular: ${g("cvEF")||"-"}${g("cvDVA")?` | DVA: ${g("cvDVA")}`:""}${g("cvPerf")?` | Perf: ${g("cvPerf")}` :""}
+Respiratório: ${g("reVM")||"-"}${g("reEF")?` | ${g("reEF")}`:""}${g("reGaso")?` | Gaso: ${g("reGaso")}`:""}
+Renal/Metab: ${g("rm24h")||"-"}${g("rmLabs")?` | Labs: ${g("rmLabs")}`:""}
+TGI/Nutrição: Dieta ${dietaStr}${g("tgEF")?` | ${g("tgEF")}`:""}
+Infeccioso: T ${g("heTemp")||"?"}${g("heLabs")?` | ${g("heLabs")}`:""}${g("heAtb")?` | ATB: ${g("heAtb")}`:""}
+Problemas ativos: ${g("probAtivos")||"não listados"}`;
+
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+        {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            contents:[{parts:[{text:prompt}]}],
+            generationConfig:{temperature:0.35, maxOutputTokens:600}
+          })
+        }
+      );
       const data = await r.json();
-      if (data.error) throw new Error(data.error);
-      const txt = data.impressao || "";
+      if (data.error) throw new Error(data.error.message || "Erro Gemini");
+      const txt = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+      if (!txt) throw new Error("Resposta vazia — tente novamente");
       if (refs.impressao?.current) refs.impressao.current.value = txt;
       salvar("impressao", txt);
       setImpGerado(true);
-      setTimeout(() => setImpGerado(false), 2500);
+      setTimeout(()=>setImpGerado(false), 2500);
     } catch(e) {
-      setImpErro("Erro ao gerar: " + (e.message || "tente novamente"));
+      setImpErro("Erro: " + (e.message||"tente novamente"));
     }
     setImpLoading(false);
   };
