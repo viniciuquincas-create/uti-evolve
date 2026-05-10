@@ -644,36 +644,56 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
 
 // ── Catálogo de dietas padrão ─────────────────────────────────────────────────
 const DIETAS_DEFAULT = [
-  // ── Enterais — Hospital São Paulo / UNIFESP ──────────────────────────────
-  // Valores por mL da fórmula pronta (Fresenius Kabi — bulas oficiais)
-  { id:"fresubin_orig",     nome:"Fresubin Original 1.0 kcal",              tipo:"enteral",    kcalML:1.00, ptnML:0.038, choML:0.138, lipML:0.034,
-    obs:"Normocalórica · Normoproteica · sem fibras" },
-  { id:"fresubin_12hp",     nome:"Fresubin 1.2 HP Fibre",                  tipo:"enteral",    kcalML:1.20, ptnML:0.056, choML:0.144, lipML:0.044,
-    obs:"Normocalórica · Hiperproteica · com fibras" },
-  { id:"fresubin_hp_energy",nome:"Fresubin HP Energy 1.5 kcal",            tipo:"enteral",    kcalML:1.50, ptnML:0.075, choML:0.170, lipML:0.058,
-    obs:"Hipercalórica · Hiperproteica · s/sacarose" },
-  { id:"fresubin_2kcal_hp", nome:"Fresubin 2 kcal HP (sem fibras)",        tipo:"enteral",    kcalML:2.00, ptnML:0.100, choML:0.217, lipML:0.088,
-    obs:"Hipercalórica · Hiperproteica · sem fibras" },
-  { id:"fresubin_2kcal_hpf",nome:"Fresubin 2 kcal HP Fibre (com fibras)", tipo:"enteral",    kcalML:2.00, ptnML:0.100, choML:0.200, lipML:0.090,
-    obs:"Hipercalórica · Hiperproteica · com fibras" },
-  { id:"survimed_opd",      nome:"Survimed OPD 1.0 kcal (oligomérica)",   tipo:"enteral",    kcalML:1.00, ptnML:0.034, choML:0.144, lipML:0.034,
-    obs:"Oligomérica · Normocalórica · Normoproteica" },
-  { id:"survimed_opd_hn",   nome:"Survimed OPD HN 1.33 kcal (oligomérica)",tipo:"enteral",   kcalML:1.33, ptnML:0.066, choML:0.175, lipML:0.044,
-    obs:"Oligomérica · Hipercalórica · Hiperproteica" },
-  // ── Parenterais — Olimel Baxter ─────────────────────────────────────────
-  // Olimel N7: aa 56.8g · glicose 110g · lipídeo 40g → ~1027 kcal / 1000 mL
-  { id:"olimel_n7",         nome:"Olimel N7 — Normoproteica 1000 mL",      tipo:"parenteral", kcalML:1.03, ptnML:0.057, choML:0.110, lipML:0.040,
-    obs:"Via central · tricompartimentada Baxter" },
-  // Olimel N9: aa 71.6g · glicose 100g · lipídeo 40g → ~1046 kcal / 1000 mL
-  { id:"olimel_n9",         nome:"Olimel N9 — Hiperproteica 1000 mL",      tipo:"parenteral", kcalML:1.05, ptnML:0.072, choML:0.100, lipML:0.040,
-    obs:"Via central · tricompartimentada Baxter" },
-  // Suplementos parenterais (sem cálculo de calorias/proteína isolado)
-  { id:"olig_trat",         nome:"Oligoelementos OLIG-TRAT 2 mL",          tipo:"parenteral", kcalML:0,    ptnML:0,     choML:0,     lipML:0,
-    obs:"Prescrever junto à NP · 2 mL/dose" },
-  { id:"cerne12",           nome:"Polivitamínicos Cerne 12 — 5 mL pó",     tipo:"parenteral", kcalML:0,    ptnML:0,     choML:0,     lipML:0,
-    obs:"Prescrever junto à NP · diluir conforme bula" },
-  { id:"fitomenadiona",     nome:"Fitomenadiona (Vit. K) 10 mg/mL — 1 mL", tipo:"parenteral", kcalML:0,    ptnML:0,     choML:0,     lipML:0,
-    obs:"Semanal ou conforme necessidade" },
+  // ── Enterais — nomenclatura TASY / Hospital São Paulo ────────────────────
+  { id:"fresubin_orig",      tipo:"enteral",
+    nome:"Dieta Enteral Normocalórica e Normoproteica S.F",
+    comercial:"Fresubin Original",
+    kcalML:1.00, ptnML:0.038, choML:0.138, lipML:0.034 },
+  { id:"fresubin_12hp",      tipo:"enteral",
+    nome:"Dieta Enteral Normocalórica e Hiperproteica S.F",
+    comercial:"Fresubin 1.2 HP Fibre",
+    kcalML:1.20, ptnML:0.056, choML:0.144, lipML:0.044 },
+  { id:"fresubin_hp_energy", tipo:"enteral",
+    nome:"Dieta Enteral Hipercalórica e Hiperproteica s/sacarose S.F",
+    comercial:"Fresubin HP Energy",
+    kcalML:1.50, ptnML:0.075, choML:0.170, lipML:0.058 },
+  { id:"fresubin_2kcal_hp",  tipo:"enteral",
+    nome:"Dieta Enteral Hipercalórica e Hiperproteica 2.0 kcal S.F (sem fibras)",
+    comercial:"Fresubin 2Kcal HP",
+    kcalML:2.00, ptnML:0.100, choML:0.217, lipML:0.088 },
+  { id:"fresubin_2kcal_hpf", tipo:"enteral",
+    nome:"Dieta Enteral Hipercalórica e Hiperproteica 2.0 kcal S.F (com fibras)",
+    comercial:"Fresubin 2Kcal HP Fibre",
+    kcalML:2.00, ptnML:0.100, choML:0.200, lipML:0.090 },
+  { id:"survimed_opd",       tipo:"enteral",
+    nome:"Dieta Enteral Elementar Normocalórica e Normoproteica S.F",
+    comercial:"Survimed OPD",
+    kcalML:1.00, ptnML:0.034, choML:0.144, lipML:0.034 },
+  { id:"survimed_opd_hn",    tipo:"enteral",
+    nome:"Dieta Enteral Elementar Hipercalórica Hiperproteica S.F",
+    comercial:"Survimed OPD HN",
+    kcalML:1.33, ptnML:0.066, choML:0.175, lipML:0.044 },
+  // ── Parenterais — nomenclatura TASY / Hospital São Paulo ─────────────────
+  { id:"olimel_n7",    tipo:"parenteral",
+    nome:"NP NORMOPROTEICA tricompartimentada poliaminoácidos + glicose + lipídeo - 1000 mL (central)",
+    comercial:"Olimel N7 — Baxter",
+    kcalML:1.03, ptnML:0.057, choML:0.110, lipML:0.040 },
+  { id:"olimel_n9",    tipo:"parenteral",
+    nome:"NP HIPERPROTEICA tricompartimentada poliaminoácidos + glicose + lipídeo - 1000 mL (central)",
+    comercial:"Olimel N9 — Baxter",
+    kcalML:1.05, ptnML:0.072, choML:0.100, lipML:0.040 },
+  { id:"olig_trat",    tipo:"parenteral",
+    nome:"Oligoelementos para nutrição parenteral total - 2 mL",
+    comercial:"OLIG-TRAT®",
+    kcalML:0, ptnML:0, choML:0, lipML:0 },
+  { id:"cerne12",      tipo:"parenteral",
+    nome:"Polivitamínicos - 5 mL pó liofilizado",
+    comercial:"Cerne 12 — Baxter",
+    kcalML:0, ptnML:0, choML:0, lipML:0 },
+  { id:"fitomenadiona",tipo:"parenteral",
+    nome:"Fitomenadiona MM 10 mg/mL - 1 mL",
+    comercial:"Vitamina K",
+    kcalML:0, ptnML:0, choML:0, lipML:0 },
 ];
 
 function getDietasCatalogo(config) {
@@ -787,7 +807,15 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>FÓRMULA / DIETA</div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <button onClick={()=>setShowCatalog(s=>!s)} style={{flex:1,padding:"9px 14px",textAlign:"left",background:dietaSel?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.04)",border:`1px solid ${dietaSel?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:dietaSel?"#e2e8f0":"#64748b",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
-                {dietaSel ? <><strong>{dietaSel.nome}</strong><span style={{fontSize:11,color:"#64748b",marginLeft:8}}>{dietaSel.kcalML} kcal/mL · {(dietaSel.ptnML*100).toFixed(1)} g ptn/100mL</span></> : "📋 Selecionar do catálogo..."}
+                {dietaSel ? (
+                  <div>
+                    <div style={{fontWeight:600,fontSize:12,lineHeight:1.4}}>{dietaSel.nome}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginTop:3,flexWrap:"wrap"}}>
+                      {dietaSel.comercial && <span style={{fontSize:10,color:"#a78bfa",fontFamily:mono}}>↳ {dietaSel.comercial}</span>}
+                      {dietaSel.kcalML > 0 && <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{dietaSel.kcalML} kcal/mL · {(dietaSel.ptnML*100).toFixed(1)} g ptn/100mL</span>}
+                    </div>
+                  </div>
+                ) : "📋 Selecionar do catálogo..."}
               </button>
               {dietaSel && <button onClick={()=>{upd("catalogId","");upd("formula","");}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#64748b",fontSize:11,cursor:"pointer"}}>✕</button>}
             </div>
@@ -799,9 +827,15 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
                       onChange({...dados, dieta:{...dieta, catalogId:d.id, formula:d.nome}});
                       setShowCatalog(false);
                     }}
-                      style={{width:"100%",padding:"8px 12px",textAlign:"left",background:dieta.catalogId===d.id?"rgba(56,189,248,0.1)":"transparent",border:"none",borderRadius:7,cursor:"pointer",color:"#e2e8f0",fontSize:12,fontFamily:"inherit",display:"flex",justifyContent:"space-between"}}>
-                      <span style={{fontWeight:600}}>{d.nome}{d.id.startsWith("custom_")&&<span style={{fontSize:9,color:"#c4b5fd",marginLeft:4}}> ★</span>}</span>
-                      <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{d.kcalML} kcal/mL · {(d.ptnML*100).toFixed(1)} g ptn</span>
+                      style={{width:"100%",padding:"8px 12px",textAlign:"left",background:dieta.catalogId===d.id?"rgba(56,189,248,0.1)":"transparent",border:"none",borderRadius:7,cursor:"pointer",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
+                      <div style={{fontWeight:600,lineHeight:1.4,marginBottom:2}}>
+                        {d.nome}
+                        {d.id.startsWith("custom_")&&<span style={{fontSize:9,color:"#c4b5fd",marginLeft:4}}> ★</span>}
+                      </div>
+                      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                        {d.comercial && <span style={{fontSize:10,color:"#a78bfa",fontFamily:mono}}>↳ {d.comercial}</span>}
+                        {d.kcalML > 0 && <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{d.kcalML} kcal/mL · {(d.ptnML*100).toFixed(1)} g ptn</span>}
+                      </div>
                     </button>
                   ))
                 }
@@ -1668,8 +1702,11 @@ function ConfigPanel({ config, onChange, onVoltar }) {
           {DIETAS_DEFAULT.map(d=>(
             <div key={d.id} style={{display:"flex",alignItems:"center",padding:"9px 16px",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
               <div style={{flex:1}}>
-                <div style={{fontSize:12,color:"#cbd5e1"}}>{d.nome}</div>
-                <div style={{fontSize:10,color:"#475569",fontFamily:mono}}>{d.tipo} · {d.kcalML} kcal/mL · {(d.ptnML*100).toFixed(1)} g ptn/100mL{d.choML?` · CHO ${(d.choML*100).toFixed(0)} g`:""}</div>
+                <div style={{fontSize:12,color:"#cbd5e1",lineHeight:1.4}}>{d.nome}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:2}}>
+                  {d.comercial && <span style={{fontSize:10,color:"#a78bfa",fontFamily:mono}}>↳ {d.comercial}</span>}
+                  <span style={{fontSize:10,color:"#475569",fontFamily:mono}}>{d.tipo}{d.kcalML>0?` · ${d.kcalML} kcal/mL · ${(d.ptnML*100).toFixed(1)} g ptn/100mL`:""}</span>
+                </div>
               </div>
             </div>
           ))}
