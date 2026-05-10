@@ -210,33 +210,90 @@ function pesoPredito(alt, sexo) {
 // ── UI atoms ─────────────────────────────────────────────────────────────────
 const mono = "'DM Mono', monospace";
 
+// ── Theme tokens ─────────────────────────────────────────────────────────────
+const DARK = {
+  bgPage:       "#080f0a",
+  bgCard:       "rgba(255,255,255,0.04)",
+  bgCardHover:  "rgba(255,255,255,0.07)",
+  bgSidebar:    "rgba(255,255,255,0.015)",
+  bgHeader:     "rgba(8,15,10,0.97)",
+  bgInput:      "rgba(255,255,255,0.04)",
+  bgPicker:     "#0c1a10",
+  bgSel:        "rgba(56,189,248,0.1)",
+  text1:        "#e2e8f0",
+  text2:        "#94a3b8",
+  text3:        "#64748b",
+  text4:        "#475569",
+  textDim:      "#334155",
+  border:       "rgba(255,255,255,0.09)",
+  borderStrong: "rgba(255,255,255,0.15)",
+  borderAccent: "rgba(56,189,248,0.08)",
+  accent:       "#38bdf8",
+  accentBg:     "rgba(56,189,248,0.1)",
+  accentBorder: "rgba(56,189,248,0.3)",
+  shadow:       "none",
+  shadowCard:   "none",
+  colorScheme:  "dark",
+};
+
+const LIGHT = {
+  bgPage:       "#f1f5f9",
+  bgCard:       "#ffffff",
+  bgCardHover:  "#f8fafc",
+  bgSidebar:    "#ffffff",
+  bgHeader:     "rgba(255,255,255,0.97)",
+  bgInput:      "#f8fafc",
+  bgPicker:     "#ffffff",
+  bgSel:        "rgba(2,132,199,0.07)",
+  text1:        "#0f172a",
+  text2:        "#475569",
+  text3:        "#64748b",
+  text4:        "#94a3b8",
+  textDim:      "#cbd5e1",
+  border:       "rgba(0,0,0,0.08)",
+  borderStrong: "rgba(0,0,0,0.15)",
+  borderAccent: "rgba(2,132,199,0.15)",
+  accent:       "#0284c7",
+  accentBg:     "rgba(2,132,199,0.08)",
+  accentBorder: "rgba(2,132,199,0.3)",
+  shadow:       "0 1px 3px rgba(0,0,0,0.07)",
+  shadowCard:   "0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+  colorScheme:  "light",
+};
+
+const ThemeCtx = React.createContext(DARK);
+const useTheme = () => React.useContext(ThemeCtx);
+
 function Pill({ label, value, unit, color="#38bdf8", warn=false }) {
+  const T = useTheme();
   return (
-    <div style={{ background: warn?"rgba(248,113,113,0.08)":"rgba(255,255,255,0.04)", border:`1px solid ${warn?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"8px 12px", minWidth:90, textAlign:"center" }}>
-      <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:3 }}>{label}</div>
-      <div style={{ fontSize:18, fontWeight:700, color: warn?"#f87171":color }}>{value??"-"}</div>
-      {unit&&<div style={{ fontSize:10, color:"#64748b", marginTop:1 }}>{unit}</div>}
+    <div style={{ background: warn?"rgba(248,113,113,0.08)":T.bgCard, border:`1px solid ${warn?"rgba(248,113,113,0.3)":T.border}`, borderRadius:10, padding:"13px 16px", minWidth:96, textAlign:"center", boxShadow:T.shadowCard }}>
+      <div style={{ fontSize:9, color:T.text3, fontFamily:mono, letterSpacing:1.5, marginBottom:5, textTransform:"uppercase" }}>{label}</div>
+      <div style={{ fontSize:20, fontWeight:700, color: warn?"#f87171":color }}>{value??"-"}</div>
+      {unit&&<div style={{ fontSize:10, color:T.text3, marginTop:3 }}>{unit}</div>}
     </div>
   );
 }
 
 function SecTitle({ children }) {
+  const T = useTheme();
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, margin:"20px 0 10px" }}>
-      <div style={{ width:3, height:14, background:"#38bdf8", borderRadius:2 }}/>
-      <span style={{ fontSize:11, color:"#38bdf8", fontFamily:mono, letterSpacing:2 }}>{children}</span>
+    <div style={{ display:"flex", alignItems:"center", gap:8, margin:"26px 0 14px" }}>
+      <div style={{ width:3, height:13, background:T.accent, borderRadius:2 }}/>
+      <span style={{ fontSize:10, color:T.text3, fontFamily:mono, letterSpacing:2.5, fontWeight:500 }}>{children}</span>
     </div>
   );
 }
 
 function Field({ label, value, onChange, type="text", placeholder="", suffix="" }) {
+  const T = useTheme();
   return (
     <div style={{ flex:1 }}>
-      <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>{label}</div>
-      <div style={{ display:"flex", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, overflow:"hidden" }}>
+      <div style={{ fontSize:10, color:T.text3, fontFamily:mono, letterSpacing:1, marginBottom:5 }}>{label}</div>
+      <div style={{ display:"flex", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:8, overflow:"hidden", boxShadow:T.shadow }}>
         <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-          style={{ flex:1, background:"none", border:"none", padding:"8px 10px", color:"#e2e8f0", fontSize:13, fontFamily:"inherit", width:"100%" }}/>
-        {suffix&&<span style={{ paddingRight:10, color:"#475569", fontSize:12, alignSelf:"center" }}>{suffix}</span>}
+          style={{ flex:1, background:"none", border:"none", padding:"9px 12px", color:T.text1, fontSize:13, fontFamily:"inherit", width:"100%" }}/>
+        {suffix&&<span style={{ paddingRight:12, color:T.text3, fontSize:12, alignSelf:"center" }}>{suffix}</span>}
       </div>
     </div>
   );
@@ -2927,6 +2984,7 @@ function MetasPanel({ metas, onChange }) {
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
 function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
+  const T = useTheme();
   const dias = diasInternacao(leito.dataInternacao);
   const vago = !leito.paciente;
   const [editingNome, setEditingNome] = useState(false);
@@ -2938,7 +2996,7 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
   };
 
   return (
-    <div style={{cursor:"pointer",borderRadius:12,padding:"14px 16px",background:selecionado?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",border:selecionado?"1.5px solid #38bdf8":"1.5px solid rgba(255,255,255,0.08)",transition:"all 0.2s",marginBottom:8}} onClick={e=>{if(!editingNome) onClick();}}>
+    <div style={{cursor:"pointer",borderRadius:12,padding:"14px 16px",background:selecionado?T.bgSel:T.bgCard,border:`1.5px solid ${selecionado?T.accent:T.border}`,transition:"all 0.2s",marginBottom:8,boxShadow:selecionado?"none":T.shadowCard}} onClick={e=>{if(!editingNome) onClick();}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
         {editingNome ? (
           <input autoFocus value={nomeTemp}
@@ -2946,9 +3004,9 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
             onKeyDown={e=>{if(e.key==="Enter")confirmarNome(); if(e.key==="Escape"){setEditingNome(false);setNomeTemp(leito.nome);}}}
             onBlur={confirmarNome}
             onClick={e=>e.stopPropagation()}
-            style={{fontSize:11,fontFamily:mono,letterSpacing:1,color:"#38bdf8",background:"rgba(56,189,248,0.1)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:4,padding:"2px 6px",width:"100%"}}/>
+            style={{fontSize:11,fontFamily:mono,letterSpacing:1,color:T.accent,background:T.accentBg,border:`1px solid ${T.accentBorder}`,borderRadius:4,padding:"2px 6px",width:"100%"}}/>
         ) : (
-          <span style={{fontSize:11,color:"#64748b",fontFamily:mono,letterSpacing:2}}
+          <span style={{fontSize:11,color:T.text3,fontFamily:mono,letterSpacing:2}}
             onDoubleClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}>
             {leito.nome}
           </span>
@@ -2958,19 +3016,19 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
           {!editingNome && (
             <button onClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}
               title="Renomear leito"
-              style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>✏️</button>
+              style={{background:"none",border:"none",color:T.text4,cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>✏️</button>
           )}
           {onRemove && (
             <button onClick={e=>{e.stopPropagation();if(confirm(`Remover ${leito.nome}?`))onRemove();}}
               title="Remover leito"
-              style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>🗑️</button>
+              style={{background:"none",border:"none",color:T.text4,cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>🗑️</button>
           )}
         </div>
       </div>
-      {vago ? <div style={{fontSize:13,color:"#334155",marginTop:4,fontStyle:"italic"}}>Vago</div> : <>
-        <div style={{fontSize:14,color:"#e2e8f0",marginTop:2,fontWeight:600}}>{leito.paciente}</div>
-        <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{leito.diagnostico}</div>
-        {(leito.peso||leito.altura)&&<div style={{fontSize:11,color:"#475569",marginTop:3}}>{leito.peso?`${leito.peso} kg`:""}{leito.peso&&leito.altura?" · ":""}{leito.altura?`${leito.altura} cm`:""}</div>}
+      {vago ? <div style={{fontSize:13,color:T.textDim,marginTop:4,fontStyle:"italic"}}>Vago</div> : <>
+        <div style={{fontSize:14,color:T.text1,marginTop:2,fontWeight:600}}>{leito.paciente}</div>
+        <div style={{fontSize:12,color:T.text2,marginTop:2}}>{leito.diagnostico}</div>
+        {(leito.peso||leito.altura)&&<div style={{fontSize:11,color:T.text3,marginTop:3}}>{leito.peso?`${leito.peso} kg`:""}{leito.peso&&leito.altura?" · ":""}{leito.altura?`${leito.altura} cm`:""}</div>}
         {(leito.procedimentos||[]).length>0&&(
           <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
             {leito.procedimentos.map(p=>{
@@ -3118,6 +3176,9 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
   const [viewGlobal, setViewGlobal]   = useState("leitos");
+  const [theme, setTheme] = useState(() => localStorage.getItem("uti_theme") || "dark");
+  const T = theme === "light" ? LIGHT : DARK;
+  const toggleTheme = () => setTheme(t => { const next = t==="dark"?"light":"dark"; localStorage.setItem("uti_theme",next); return next; });
   const saveTimer   = useRef(null);
   const evolTimer   = useRef(null);
   const tabelaTimer = useRef(null);
@@ -3306,40 +3367,46 @@ export default function App() {
   if (!authed) return <LoginScreen onLogin={onLogin}/>;
 
   return (
-    <div style={{minHeight:"100vh",background:"#080f0a",fontFamily:"'Sora','DM Sans',sans-serif",color:"#e2e8f0",display:"flex",flexDirection:"column"}}>
+    <ThemeCtx.Provider value={T}>
+    <div style={{minHeight:"100vh",background:T.bgPage,fontFamily:"'Sora','DM Sans',sans-serif",color:T.text1,display:"flex",flexDirection:"column"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
-        *{box-sizing:border-box} textarea,input{outline:none;color-scheme:dark}
-        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(56,189,248,0.25);border-radius:4px}
-        input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.5)} button:hover{opacity:0.88}
+        *{box-sizing:border-box} textarea,input{outline:none;color-scheme:${T.colorScheme}}
+        ::placeholder{color:${T.text4}!important;opacity:0.7}
+        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${T.accent}44;border-radius:4px}
+        input[type=date]::-webkit-calendar-picker-indicator{filter:${theme==="light"?"none":"invert(0.5)"}} button:hover{opacity:0.88}
+        .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
       `}</style>
 
-      <div style={{padding:"0 20px",height:52,display:"flex",alignItems:"center",borderBottom:"1px solid rgba(56,189,248,0.08)",background:"rgba(8,15,10,0.95)",position:"sticky",top:0,zIndex:100,backdropFilter:"blur(8px)"}}>
-        <button onClick={()=>setShowSidebar(s=>!s)} style={{background:"none",border:"1px solid rgba(56,189,248,0.12)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:12}} title="Toggle sidebar">☰</button>
+      <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:`1px solid ${T.borderAccent}`,background:T.bgHeader,position:"sticky",top:0,zIndex:100,backdropFilter:"blur(12px)"}}>
+        <button onClick={()=>setShowSidebar(s=>!s)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:14}} title="Toggle sidebar">☰</button>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <BrainLogo size={32}/>
           <div>
-            <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5,color:"#e2e8f0"}}>UTI Evolve</div>
-            <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:2}}>ASSISTENTE DE EVOLUÇÃO</div>
+            <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5,color:T.text1}}>UTI Evolve</div>
+            <div style={{fontSize:9,color:T.accent,fontFamily:mono,letterSpacing:2}}>ASSISTENTE DE EVOLUÇÃO</div>
           </div>
         </div>
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:16}}>
-          <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":"#38bdf8",display:"flex",alignItems:"center",gap:4}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":"#38bdf8"}}/>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
+          <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":T.accent}}/>
             {saving?"Salvando…":"Salvo"}
           </div>
-          <div style={{fontSize:12,color:"#475569",fontFamily:mono}}>
+          <div style={{fontSize:12,color:T.text3,fontFamily:mono}}>
             {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase()}
           </div>
-          <button onClick={logout} style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
-          <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#475569",cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
+          <button onClick={toggleTheme} title={theme==="dark"?"Modo claro":"Modo escuro"} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:15,padding:"4px 8px",lineHeight:1}}>
+            {theme==="dark"?"☀️":"🌙"}
+          </button>
+          <button onClick={logout} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
+          <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
         </div>
       </div>
 
-      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 52px)"}}>
-        {showSidebar && <div style={{width:220,borderRight:"1px solid rgba(56,189,248,0.08)",padding:"16px 12px",overflowY:"auto",background:"rgba(255,255,255,0.01)",flexShrink:0}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingLeft:4}}>
-            <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:2.5}}>LEITOS</div>
+      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
+        {showSidebar && <div style={{width:228,borderRight:`1px solid ${T.borderAccent}`,padding:"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingLeft:4}}>
+            <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:2.5}}>LEITOS</div>
             <button
               onClick={()=>{
                 const novoId = Date.now();
@@ -3353,7 +3420,7 @@ export default function App() {
                 setAba("paciente");
               }}
               title="Adicionar leito"
-              style={{background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:6,color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
+              style={{background:T.accentBg,border:`1px solid ${T.accentBorder}`,borderRadius:6,color:T.accent,cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
           </div>
           {leitos.map((l, idx)=>(
             <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
@@ -3379,8 +3446,8 @@ export default function App() {
               </div>
             </div>
           ))}
-          <div style={{marginTop:16,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:12}}>
-            <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} style={{width:"100%",padding:"8px 10px",background:viewGlobal==="ferramentas"?"rgba(56,189,248,0.1)":"none",border:`1px solid ${viewGlobal==="ferramentas"?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.06)"}`,borderRadius:8,color:viewGlobal==="ferramentas"?"#38bdf8":"#64748b",cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
+          <div style={{marginTop:16,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
+            <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} style={{width:"100%",padding:"9px 12px",background:viewGlobal==="ferramentas"?T.accentBg:"none",border:`1px solid ${viewGlobal==="ferramentas"?T.accentBorder:T.border}`,borderRadius:8,color:viewGlobal==="ferramentas"?T.accent:T.text3,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
               📚 Links & Protocolos
             </button>
           </div>
@@ -3391,9 +3458,9 @@ export default function App() {
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : (<>
           {leito.paciente && (
-            <div style={{padding:"11px 24px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)"}}>
-              <div style={{fontSize:16,fontWeight:700}}>{leito.paciente}</div>
-              <div style={{fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <div style={{padding:"13px 28px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
+              <div style={{fontSize:16,fontWeight:700,color:T.text1}}>{leito.paciente}</div>
+              <div style={{fontSize:12,color:T.text3,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:2}}>
                 <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
                 {(leito.procedimentos||[]).map(p=>{
                   const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
@@ -3412,15 +3479,15 @@ export default function App() {
             </div>
           )}
 
-          <div style={{display:"flex",borderBottom:"1px solid rgba(255,255,255,0.06)",paddingLeft:12,overflowX:"auto",flexShrink:0}}>
+          <div style={{display:"flex",borderBottom:`1px solid ${T.border}`,paddingLeft:16,overflowX:"auto",flexShrink:0,background:T.bgCard}}>
             {ABAS.map(a=>(
-              <button key={a.id} onClick={()=>setAba(a.id)} style={{padding:"12px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:400,color:aba===a.id?"#38bdf8":"#64748b",borderBottom:aba===a.id?"2px solid #38bdf8":"2px solid transparent",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+              <button key={a.id} onClick={()=>setAba(a.id)} className="uti-tab-btn" style={{padding:"14px 16px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:500,color:aba===a.id?T.accent:T.text3,borderBottom:aba===a.id?`2px solid ${T.accent}`:"2px solid transparent",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                 {a.label}
               </button>
             ))}
           </div>
 
-          <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+          <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="paciente" ? (
@@ -3459,9 +3526,9 @@ export default function App() {
               />
             ) : aba==="upload" ? (
               <div style={{maxWidth:600}}>
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Importar dados via imagem</div>
-                  <div style={{fontSize:13,color:"#64748b"}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
+                <div style={{marginBottom:18}}>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:T.text1}}>Importar dados via imagem</div>
+                  <div style={{fontSize:13,color:T.text3}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
                 <UploadAnalyzer onResult={d=>{
                   const hoje = new Date().toISOString().split("T")[0];
@@ -3625,9 +3692,9 @@ export default function App() {
               )
             ) : (
               <div style={{maxWidth:600}}>
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Metas do plantão</div>
-                  <div style={{fontSize:13,color:"#64748b"}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
+                <div style={{marginBottom:20}}>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:T.text1}}>Metas do plantão</div>
+                  <div style={{fontSize:13,color:T.text3}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
                 </div>
                 <MetasPanel
                   metas={metasPorLeito[leitoSelId] || []}
@@ -3646,5 +3713,6 @@ export default function App() {
         </div>
       </div>
     </div>
+    </ThemeCtx.Provider>
   );
 }
