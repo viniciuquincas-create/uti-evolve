@@ -644,30 +644,36 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
 
 // ── Catálogo de dietas padrão ─────────────────────────────────────────────────
 const DIETAS_DEFAULT = [
-  // Enterais
-  { id:"isosource_std",  nome:"Isosource Standard 1.0",  tipo:"enteral",    kcalML:1.00, ptnML:0.040, choML:0.132, lipML:0.035 },
-  { id:"isosource_15",   nome:"Isosource 1.5",            tipo:"enteral",    kcalML:1.50, ptnML:0.059, choML:0.166, lipML:0.058 },
-  { id:"isosource_hpn",  nome:"Isosource HPN",            tipo:"enteral",    kcalML:1.00, ptnML:0.056, choML:0.110, lipML:0.039 },
-  { id:"fresubin_1000",  nome:"Fresubin 1000",             tipo:"enteral",    kcalML:1.00, ptnML:0.038, choML:0.134, lipML:0.034 },
-  { id:"fresubin_2kcal", nome:"Fresubin 2 kcal",          tipo:"enteral",    kcalML:2.00, ptnML:0.075, choML:0.228, lipML:0.098 },
-  { id:"fresubin_hp",    nome:"Fresubin HP Energy",        tipo:"enteral",    kcalML:1.50, ptnML:0.075, choML:0.174, lipML:0.058 },
-  { id:"nutrison_std",   nome:"Nutrison Standard",         tipo:"enteral",    kcalML:1.00, ptnML:0.040, choML:0.124, lipML:0.039 },
-  { id:"nutrison_energy",nome:"Nutrison Energy",           tipo:"enteral",    kcalML:1.50, ptnML:0.060, choML:0.186, lipML:0.058 },
-  { id:"nutrison_prot",  nome:"Nutrison Protein Intense",  tipo:"enteral",    kcalML:1.28, ptnML:0.100, choML:0.116, lipML:0.050 },
-  { id:"peptamen_std",   nome:"Peptamen Standard",         tipo:"enteral",    kcalML:1.00, ptnML:0.040, choML:0.127, lipML:0.039 },
-  { id:"peptamen_15",    nome:"Peptamen 1.5",              tipo:"enteral",    kcalML:1.50, ptnML:0.069, choML:0.143, lipML:0.071 },
-  { id:"osmolite_10",    nome:"Osmolite 1.0",              tipo:"enteral",    kcalML:1.06, ptnML:0.044, choML:0.143, lipML:0.034 },
-  { id:"osmolite_15",    nome:"Osmolite 1.5",              tipo:"enteral",    kcalML:1.50, ptnML:0.062, choML:0.194, lipML:0.049 },
-  { id:"novasource_gi",  nome:"Novasource GI",             tipo:"enteral",    kcalML:1.00, ptnML:0.045, choML:0.122, lipML:0.033 },
-  { id:"novasource_gcn", nome:"Novasource GCN",            tipo:"enteral",    kcalML:1.00, ptnML:0.040, choML:0.138, lipML:0.030 },
-  { id:"jevity_10",      nome:"Jevity 1.0",                tipo:"enteral",    kcalML:1.06, ptnML:0.044, choML:0.154, lipML:0.035 },
-  { id:"impact",         nome:"Impact (imunomoduladora)",  tipo:"enteral",    kcalML:1.00, ptnML:0.056, choML:0.130, lipML:0.028 },
-  { id:"glucerna",       nome:"Glucerna",                  tipo:"enteral",    kcalML:1.00, ptnML:0.042, choML:0.096, lipML:0.054 },
-  // Parenterais
-  { id:"npt_3em1_c",     nome:"NPT 3 em 1 Central (padrão)",  tipo:"parenteral", kcalML:1.00, ptnML:0.050, choML:0.140, lipML:0.030, obs:"Ajustar conforme prescrição" },
-  { id:"npt_3em1_p",     nome:"NPT 3 em 1 Periférica",         tipo:"parenteral", kcalML:0.70, ptnML:0.040, choML:0.100, lipML:0.025, obs:"Osmolaridade <800 mOsm/L" },
-  { id:"smof_lipid",     nome:"SMOFlipid 20% (lipídeo isolado)",tipo:"parenteral", kcalML:1.90, ptnML:0,    choML:0,     lipML:0.200 },
-  { id:"glutamine",      nome:"Dipeptiven (glutamina)",         tipo:"parenteral", kcalML:0,    ptnML:0.082, choML:0,     lipML:0 },
+  // ── Enterais — Hospital São Paulo / UNIFESP ──────────────────────────────
+  // Valores por mL da fórmula pronta (Fresenius Kabi — bulas oficiais)
+  { id:"fresubin_orig",     nome:"Fresubin Original 1.0 kcal",              tipo:"enteral",    kcalML:1.00, ptnML:0.038, choML:0.138, lipML:0.034,
+    obs:"Normocalórica · Normoproteica · sem fibras" },
+  { id:"fresubin_12hp",     nome:"Fresubin 1.2 HP Fibre",                  tipo:"enteral",    kcalML:1.20, ptnML:0.056, choML:0.144, lipML:0.044,
+    obs:"Normocalórica · Hiperproteica · com fibras" },
+  { id:"fresubin_hp_energy",nome:"Fresubin HP Energy 1.5 kcal",            tipo:"enteral",    kcalML:1.50, ptnML:0.075, choML:0.170, lipML:0.058,
+    obs:"Hipercalórica · Hiperproteica · s/sacarose" },
+  { id:"fresubin_2kcal_hp", nome:"Fresubin 2 kcal HP (sem fibras)",        tipo:"enteral",    kcalML:2.00, ptnML:0.100, choML:0.217, lipML:0.088,
+    obs:"Hipercalórica · Hiperproteica · sem fibras" },
+  { id:"fresubin_2kcal_hpf",nome:"Fresubin 2 kcal HP Fibre (com fibras)", tipo:"enteral",    kcalML:2.00, ptnML:0.100, choML:0.200, lipML:0.090,
+    obs:"Hipercalórica · Hiperproteica · com fibras" },
+  { id:"survimed_opd",      nome:"Survimed OPD 1.0 kcal (oligomérica)",   tipo:"enteral",    kcalML:1.00, ptnML:0.034, choML:0.144, lipML:0.034,
+    obs:"Oligomérica · Normocalórica · Normoproteica" },
+  { id:"survimed_opd_hn",   nome:"Survimed OPD HN 1.33 kcal (oligomérica)",tipo:"enteral",   kcalML:1.33, ptnML:0.066, choML:0.175, lipML:0.044,
+    obs:"Oligomérica · Hipercalórica · Hiperproteica" },
+  // ── Parenterais — Olimel Baxter ─────────────────────────────────────────
+  // Olimel N7: aa 56.8g · glicose 110g · lipídeo 40g → ~1027 kcal / 1000 mL
+  { id:"olimel_n7",         nome:"Olimel N7 — Normoproteica 1000 mL",      tipo:"parenteral", kcalML:1.03, ptnML:0.057, choML:0.110, lipML:0.040,
+    obs:"Via central · tricompartimentada Baxter" },
+  // Olimel N9: aa 71.6g · glicose 100g · lipídeo 40g → ~1046 kcal / 1000 mL
+  { id:"olimel_n9",         nome:"Olimel N9 — Hiperproteica 1000 mL",      tipo:"parenteral", kcalML:1.05, ptnML:0.072, choML:0.100, lipML:0.040,
+    obs:"Via central · tricompartimentada Baxter" },
+  // Suplementos parenterais (sem cálculo de calorias/proteína isolado)
+  { id:"olig_trat",         nome:"Oligoelementos OLIG-TRAT 2 mL",          tipo:"parenteral", kcalML:0,    ptnML:0,     choML:0,     lipML:0,
+    obs:"Prescrever junto à NP · 2 mL/dose" },
+  { id:"cerne12",           nome:"Polivitamínicos Cerne 12 — 5 mL pó",     tipo:"parenteral", kcalML:0,    ptnML:0,     choML:0,     lipML:0,
+    obs:"Prescrever junto à NP · diluir conforme bula" },
+  { id:"fitomenadiona",     nome:"Fitomenadiona (Vit. K) 10 mg/mL — 1 mL", tipo:"parenteral", kcalML:0,    ptnML:0,     choML:0,     lipML:0,
+    obs:"Semanal ou conforme necessidade" },
 ];
 
 function getDietasCatalogo(config) {
