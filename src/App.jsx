@@ -2,6 +2,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { supabase } from './supabase.js';
+const BUILD_TS = "2026-05-10T21:15"; // cache-bust
+
 
 // ── Logo SVG — Cérebro com sensor Brain for Care ──────────────────────────────
 const BrainLogo = ({ size = 32 }) => (
@@ -3655,7 +3657,7 @@ export default function App() {
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":T.accent}}/>
-            {saving?"Salvando…":"Salvo"}
+            {saving?"Salvando…":"Salvo"} <span style={{fontSize:9,color:T.text4,fontFamily:mono}}>2026-05-10T21:15</span>
           </div>
           <div style={{fontSize:12,color:T.text3,fontFamily:mono}}>
             {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase()}
