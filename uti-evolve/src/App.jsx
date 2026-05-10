@@ -2410,6 +2410,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
 
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 const EVOLUCAO_VAZIA = {
+  hda:"",
   nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
   cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
   reVM:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
@@ -2417,6 +2418,7 @@ const EVOLUCAO_VAZIA = {
   tgEF:"", tg24h:"", tgLabs:"", tgObs:"",
   heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
   probAtivos:"", probResolvidos:"",
+  impressao:"",
   _datas:{},
 };
 
@@ -2461,6 +2463,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
 
   // Refs para cada campo
   const refs = {
+    hda:useRef(),
     nEF:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nObs:useRef(),
     cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
     reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
@@ -2468,6 +2471,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     tgEF:useRef(), tg24h:useRef(), tgLabs:useRef(), tgObs:useRef(),
     heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(), heCulturas:useRef(),
     probAtivos:useRef(), probResolvidos:useRef(),
+    impressao:useRef(),
   };
 
   const get = (key) => refs[key]?.current?.value?.trim() || "";
@@ -2568,6 +2572,73 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     setTimeout(()=>setCopiado(c=>({...c,[id]:false})),2000);
   };
 
+  const gerarImpressao = () => {
+    const linhas = [];
+    // Cabeçalho clínico
+    const ident = [
+      leito.paciente,
+      leito.diagnostico && `diagnóstico de ${leito.diagnostico}`,
+      dias !== null && `D${dias} de UTI`,
+      leito.peso && `${leito.peso} kg`,
+      pp && `PP ${pp} kg`,
+    ].filter(Boolean).join(", ");
+    if (ident) linhas.push(ident + ".");
+    // HDA
+    if (get("hda")) linhas.push("\n" + get("hda"));
+    // Procedimentos
+    const procs = leito.procedimentos || [];
+    if (procs.length) {
+      const ps = procs.map(p => {
+        const po = Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
+        return `${p.nome} (${po===0?"POI":`PO${po}`})`;
+      }).join(", ");
+      linhas.push(`\nSubmetido a: ${ps}.`);
+    }
+    // Dispositivos
+    if (ativos.length) {
+      const ds = ativos.map(a=>{
+        const dd = Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
+        return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;
+      }).join(", ");
+      linhas.push(`Dispositivos: ${ds}.`);
+    }
+    // Sistemas — resumo por sistema
+    const sist = [];
+    if (get("cvEF")||get("cvDVA")) {
+      let s = `Cv: ${get("cvEF")||""}`;
+      if (get("cvDVA")) s += ` | DVA: ${get("cvDVA")}`;
+      if (get("cvPerf")) s += ` | Perfusão: ${get("cvPerf")}`;
+      sist.push(s);
+    }
+    if (get("reVM")||get("reGaso")) {
+      let s = `Res: ${get("reVM")||""}`;
+      if (get("re24h")) s += ` | ${get("re24h")}`;
+      if (get("reGaso")) s += ` | Gaso: ${get("reGaso")}`;
+      sist.push(s);
+    }
+    if (get("nEF")) sist.push(`N: ${get("nEF")}${get("nSeda")?" | Sed: "+get("nSeda"):""}`);
+    if (get("rm24h")||get("rmLabs")) sist.push(`ReMe: ${[get("rm24h"),get("rmLabs")].filter(Boolean).join(" | ")}`);
+    if (leito.dieta?.tipo) {
+      const tl={enteral:"Enteral",parenteral:"NPT",oral:"VO",mista:"Mista",jejum:"Jejum"}[leito.dieta.tipo]||leito.dieta.tipo;
+      let nut = `TGI: Dieta ${tl}`;
+      if (leito.dieta.formula) nut += ` (${leito.dieta.formula})`;
+      if (leito.dieta.vazao) nut += ` @ ${leito.dieta.vazao} mL/h`;
+      if (get("tgEF")) nut += ` | ${get("tgEF")}`;
+      sist.push(nut);
+    }
+    if (get("heTemp")||get("heLabs")) {
+      let s = "He:";
+      if (get("heTemp")) s += ` T ${get("heTemp")}`;
+      if (get("heLabs")) s += ` | ${get("heLabs")}`;
+      if (get("heAtb")) s += ` | ATB: ${get("heAtb")}`;
+      sist.push(s);
+    }
+    if (sist.length) linhas.push("\n" + sist.join(".\n") + ".");
+    // Problemas ativos
+    if (get("probAtivos")) linhas.push(`\nProblemas ativos:\n${get("probAtivos")}`);
+    return linhas.join("\n");
+  };
+
   const copiarTudo = () => {
     const dt=new Date().toLocaleDateString("pt-BR");
     let t=`EVOLUÇÃO UTI — ${dt}`;
@@ -2581,9 +2652,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
       const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
       return `${p.nome} (${po===0?"POI":`PO${po}`})`;
     }).join(" · ");
+    if(get("hda")) t+=`\n\n== HDA:\n${get("hda")}`;
     t+="\n\n";
     const blocos=[["== N:",txtNFull],["== Cv:",txtCvFull],["== Res:",txtResFull],["== ReMe:",txtReMeFull],["== TGI:",txtTGIFull],["== He:",txtHeFull],["== In:",txtInFull]];
     blocos.forEach(([h,fn])=>{ const c=fn(); if(c) t+=`${h}\n${c}\n\n`; });
+    const imp = refs.impressao?.current?.value?.trim() || campos.impressao || "";
+    if(imp) t+=`== Impressão:\n${imp}\n`;
     navigator.clipboard.writeText(t);
     setCopiado(c=>({...c,tudo:true}));
     setTimeout(()=>setCopiado(c=>({...c,tudo:false})),2500);
@@ -2757,9 +2831,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     return p.join("\n");
   };
 
+  const [impGerado, setImpGerado] = useState(false);
+
   return (
     <div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+      {/* ── Cabeçalho clínico (pills) ── */}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
         {dias!==null&&<Pill label="D UTI" value={`D${dias}`} unit="" color="#a78bfa"/>}
         {leito.peso&&<Pill label="PESO" value={leito.peso} unit="kg" color="#f59e0b"/>}
         {pp&&<Pill label="PP" value={pp} unit="kg" color="#fb923c"/>}
@@ -2776,8 +2853,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
         })}
       </div>
 
-      {/* Legenda */}
-      <div style={{display:"flex",gap:16,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+      {/* ── Legenda + limpar ── */}
+      <div style={{display:"flex",gap:16,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
           <div style={{width:12,height:12,borderRadius:3,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.15)"}}/>
           Editado hoje
@@ -2794,6 +2871,62 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
           🗑 Limpar evolução
         </button>
       </div>
+
+      {/* ── HDA ── */}
+      <SysB id="hda" sigla="== HDA:" label="História da Doença Atual" color={"#c084fc"} txtFn={()=>get("hda")}
+        camposVisiveis={vis} setCamposVisiveis={setCamposVis}
+        opcionais={[]} adicionaveis={[]}>
+        <Row><Col><FL>HISTÓRIA — resumo clínico para passagem de caso</FL>
+          <TA fieldRef={refs.hda} defaultValue={campos.hda} isAntigo={isAntigo("hda")}
+            sugestao={`Paciente ${leito.paciente||"..."}, ${leito.sexo==="F"?"do sexo feminino":"do sexo masculino"}, ${leito.peso?leito.peso+"kg":"?kg"}, internado por ${leito.diagnostico||"..."}.${dias!==null?` D${dias} de UTI.`:""}`}
+            rows={4} fieldName="hda" onBlurSave={salvar}/>
+        </Col></Row>
+      </SysB>
+
+      {/* ── Contexto: Diagnóstico · Procedimentos · Dispositivos ── */}
+      {(leito.diagnostico||(leito.procedimentos||[]).length>0||ativos.length>0) && (
+        <div style={{marginBottom:10,border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,overflow:"hidden"}}>
+          <div style={{background:"rgba(255,255,255,0.03)",padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:3,height:16,background:"#94a3b8",borderRadius:2,flexShrink:0}}/>
+            <span style={{fontSize:12,fontWeight:700,color:"#94a3b8",fontFamily:mono,letterSpacing:1.5}}>== Ctx:</span>
+            <span style={{fontSize:12,color:"#475569",fontWeight:400}}>Diagnóstico · Procedimentos · Dispositivos</span>
+          </div>
+          <div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",display:"flex",flexDirection:"column",gap:8}}>
+            {leito.diagnostico && (
+              <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,flexShrink:0}}>DIAGNÓSTICO</span>
+                <span style={{fontSize:13,color:"#e2e8f0",fontWeight:600}}>{leito.diagnostico}</span>
+              </div>
+            )}
+            {(leito.procedimentos||[]).length>0 && (
+              <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,flexShrink:0}}>PROCEDIMENTOS</span>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {(leito.procedimentos||[]).map(p=>{
+                    const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
+                    const cor=po<=0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
+                    return <span key={p.id} style={{fontSize:12,fontFamily:mono,fontWeight:700,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:6,padding:"2px 10px"}}>{p.nome} · {po===0?"POI":`PO${po}`}</span>;
+                  })}
+                </div>
+              </div>
+            )}
+            {ativos.length>0 && (
+              <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,flexShrink:0}}>DISPOSITIVOS</span>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {ativos.map((a,i)=>{
+                    const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
+                    const al=dd>a.alertaDias;
+                    return <span key={i} style={{fontSize:11,fontFamily:mono,color:al?"#f87171":"#94a3b8",background:al?"rgba(248,113,113,0.08)":"rgba(255,255,255,0.04)",border:`1px solid ${al?"rgba(248,113,113,0.25)":"rgba(255,255,255,0.08)"}`,borderRadius:6,padding:"2px 10px"}}>
+                      {a.icone} {a.label}{a.disp.site?` · ${a.disp.site}`:""} D{dd}{al?" ⚠️":""}
+                    </span>;
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtNFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
@@ -2923,6 +3056,44 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
           </Col>
         </Row>
       </SysB>
+
+      {/* ── Impressão ── */}
+      <div style={{marginBottom:10,border:`1px solid rgba(56,189,248,0.2)`,borderRadius:10,overflow:"hidden",background:"rgba(56,189,248,0.02)"}}>
+        <div style={{display:"flex",alignItems:"center",background:"rgba(56,189,248,0.05)",padding:"10px 14px",gap:8}}>
+          <div style={{width:3,height:16,background:"#38bdf8",borderRadius:2,flexShrink:0}}/>
+          <span style={{fontSize:12,fontWeight:700,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5}}>== Impressão:</span>
+          <span style={{fontSize:12,color:"#475569",fontWeight:400}}>Resumo automático para passagem de caso</span>
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            <button onClick={()=>{
+              const txt = gerarImpressao();
+              if (refs.impressao?.current) refs.impressao.current.value = txt;
+              salvar("impressao", txt);
+              setImpGerado(true);
+              setTimeout(()=>setImpGerado(false), 2000);
+            }} style={{padding:"4px 12px",borderRadius:6,border:"1px solid rgba(56,189,248,0.4)",background:"rgba(56,189,248,0.1)",color:"#38bdf8",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              {impGerado ? "✓ Gerado!" : "⚡ Gerar resumo"}
+            </button>
+            <button onClick={()=>{
+              const txt = refs.impressao?.current?.value?.trim() || campos.impressao || "";
+              if (!txt) return;
+              navigator.clipboard.writeText(txt);
+              setCopiado(c=>({...c,impressao:true}));
+              setTimeout(()=>setCopiado(c=>({...c,impressao:false})),2000);
+            }} style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${copiado.impressao?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:copiado.impressao?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.04)",color:copiado.impressao?"#38bdf8":"#94a3b8",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              {copiado.impressao ? "✓ Copiado" : "📋 Copiar"}
+            </button>
+          </div>
+        </div>
+        <div style={{padding:"12px 14px",borderTop:"1px solid rgba(56,189,248,0.1)"}}>
+          <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>
+            IMPRESSÃO CLÍNICA — clique em ⚡ Gerar para montar a partir dos dados preenchidos · edite à vontade
+          </div>
+          <textarea ref={refs.impressao} defaultValue={campos.impressao||""} rows={6}
+            onBlur={e=>salvar("impressao", e.target.value)}
+            placeholder={"Clique em ⚡ Gerar resumo para montar automaticamente a partir dos dados já preenchidos.\n\nOu escreva diretamente aqui sua impressão do quadro."}
+            style={{width:"100%",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8,padding:"10px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit",resize:"vertical",lineHeight:1.7}}/>
+        </div>
+      </div>
 
             <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(56,189,248,0.15)":"linear-gradient(135deg,rgba(22,163,74,0.25),rgba(21,128,61,0.25))",border:`1.5px solid ${copiado.tudo?"#38bdf8":"#0ea5e9"}`,borderRadius:10,color:copiado.tudo?"#38bdf8":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
         {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
