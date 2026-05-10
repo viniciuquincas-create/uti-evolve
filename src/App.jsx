@@ -51,10 +51,10 @@ const SISTEMAS = [
 ];
 
 const LEITOS_INICIAIS = [
-  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
 ];
 
 const METAS_SUGESTOES = [
@@ -246,36 +246,36 @@ const DARK = {
 };
 
 const LIGHT = {
-  bgPage:           "#e8edf4",
+  bgPage:           "#d4dbe7",
   bgCard:           "#ffffff",
-  bgCardHover:      "#f8fafc",
-  bgSidebar:        "#ffffff",
-  bgHeader:         "rgba(255,255,255,0.97)",
-  bgInput:          "#f8fafc",
+  bgCardHover:      "#f0f4f8",
+  bgSidebar:        "#f5f8fc",
+  bgHeader:         "rgba(255,255,255,0.99)",
+  bgInput:          "#e8eef5",
   bgPicker:         "#ffffff",
-  bgSel:            "rgba(2,132,199,0.07)",
-  text1:            "#0f172a",
-  text2:            "#334155",
-  text3:            "#64748b",
-  text4:            "#94a3b8",
-  textDim:          "#cbd5e1",
-  border:           "rgba(0,0,0,0.1)",
-  borderStrong:     "rgba(0,0,0,0.18)",
-  borderAccent:     "rgba(2,132,199,0.18)",
-  accent:           "#0284c7",
-  accentBg:         "rgba(2,132,199,0.08)",
-  accentBorder:     "rgba(2,132,199,0.35)",
-  shadow:           "0 1px 3px rgba(0,0,0,0.08)",
-  shadowCard:       "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05)",
+  bgSel:            "rgba(2,132,199,0.1)",
+  text1:            "#060c18",
+  text2:            "#0f172a",
+  text3:            "#334155",
+  text4:            "#475569",
+  textDim:          "#64748b",
+  border:           "rgba(0,0,0,0.16)",
+  borderStrong:     "rgba(0,0,0,0.26)",
+  borderAccent:     "rgba(2,132,199,0.25)",
+  accent:           "#0369a1",
+  accentBg:         "rgba(3,105,161,0.1)",
+  accentBorder:     "rgba(3,105,161,0.4)",
+  shadow:           "0 1px 3px rgba(0,0,0,0.12)",
+  shadowCard:       "0 2px 12px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.07)",
   colorScheme:      "light",
-  bgTableHead:      "#f0f4f8",
+  bgTableHead:      "#d8e2ed",
   bgTableSticky:    "#ffffff",
-  bgTableGroup:     "rgba(0,0,0,0.04)",
-  bgTableGroupCtrl: "rgba(2,132,199,0.05)",
-  colorTableInput:  "#0f172a",
-  colorTableMuted:  "#475569",
-  borderTable:      "rgba(0,0,0,0.09)",
-  borderTableRow:   "rgba(0,0,0,0.05)",
+  bgTableGroup:     "rgba(0,0,0,0.06)",
+  bgTableGroupCtrl: "rgba(3,105,161,0.08)",
+  colorTableInput:  "#060c18",
+  colorTableMuted:  "#0f172a",
+  borderTable:      "rgba(0,0,0,0.14)",
+  borderTableRow:   "rgba(0,0,0,0.07)",
 };
 
 const ThemeCtx = React.createContext(DARK);
@@ -1196,6 +1196,10 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
   const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
 
+  const idade = dados.dataNascimento
+    ? Math.floor((new Date() - new Date(dados.dataNascimento)) / (365.25*86400000))
+    : null;
+
   // Diurese: usa o valor dos Controles 24h (c24_diur) com período fixo de 24h
   const volUrina = parseFloat(diureseHoje) || 0;
   const diurese  = (volUrina && dados.peso)
@@ -1210,6 +1214,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
       </div>
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
         <Field label="DATA INTERNAÇÃO" value={dados.dataInternacao} onChange={v=>onChange({...dados,dataInternacao:v})} type="date"/>
+        <Field label="DATA NASCIMENTO" value={dados.dataNascimento||""} onChange={v=>onChange({...dados,dataNascimento:v})} type="date"/>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÓGICO</div>
           <div style={{ display:"flex", gap:6 }}>
@@ -1226,14 +1231,15 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         <Field label="ALTURA (cm)"     value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm"/>
       </div>
 
-      {(dias!==null||pp||dados.peso) && <>
+      {(dias!==null||pp||dados.peso||idade!==null) && <>
         <SecTitle>PARÂMETROS CALCULADOS</SecTitle>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {dias!==null && <Pill label="INTERNAÇÃO"   value={`D${dias}`}   unit="dias"            color="#a78bfa"/>}
-          {dados.peso  && <Pill label="PESO ATUAL"   value={dados.peso}   unit="kg"              color="#f59e0b"/>}
-          {pp          && <Pill label="PESO PREDITO" value={pp}           unit="kg (ARDSNet)"    color="#fb923c"/>}
-          {vc6         && <Pill label="VC 6 mL/kg"   value={vc6}          unit="mL (protetor)"   color="#34d399"/>}
-          {vc8         && <Pill label="VC 8 mL/kg"   value={vc8}          unit="mL (máx ARDSNet)"color="#34d399"/>}
+          {idade!==null && <Pill label="IDADE"        value={idade}        unit="anos"            color="#c084fc"/>}
+          {dias!==null  && <Pill label="INTERNAÇÃO"   value={`D${dias}`}   unit="dias"            color="#a78bfa"/>}
+          {dados.peso   && <Pill label="PESO ATUAL"   value={dados.peso}   unit="kg"              color="#f59e0b"/>}
+          {pp           && <Pill label="PESO PREDITO" value={pp}           unit="kg (ARDSNet)"    color="#fb923c"/>}
+          {vc6          && <Pill label="VC 6 mL/kg"   value={vc6}          unit="mL (protetor)"   color="#34d399"/>}
+          {vc8          && <Pill label="VC 8 mL/kg"   value={vc8}          unit="mL (máx ARDSNet)"color="#34d399"/>}
         </div>
         {pp && (
           <div style={{ marginTop:10, padding:"10px 14px", background:"rgba(251,146,60,0.07)", border:"1px solid rgba(251,146,60,0.25)", borderRadius:8, fontSize:12, color:"#fdba74" }}>
@@ -2032,6 +2038,29 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     onAplicarEvolucao(campos);
   };
 
+  // Navegação por setas entre células da tabela
+  const navCell = (e, rowKey, colIdx) => {
+    const dir = e.key;
+    if (!["ArrowDown","ArrowUp","ArrowRight","ArrowLeft","Enter","Tab"].includes(dir)) return;
+    if (dir === "Tab") return; // deixa Tab funcionar normalmente
+    e.preventDefault();
+    const table = e.currentTarget.closest("table");
+    if (!table) return;
+    const inputs = Array.from(table.querySelectorAll("input[data-nav]"));
+    const idx = inputs.indexOf(e.currentTarget);
+    if (idx < 0) return;
+    const cols = datas.length;
+    let next = idx;
+    if (dir === "ArrowDown"  || dir === "Enter") next = idx + cols;
+    if (dir === "ArrowUp")   next = idx - cols;
+    if (dir === "ArrowRight") next = idx + 1;
+    if (dir === "ArrowLeft")  next = idx - 1;
+    if (next >= 0 && next < inputs.length) {
+      inputs[next].focus();
+      inputs[next].select();
+    }
+  };
+
   const thStyle = (ativo) => ({
     padding:"6px 8px", fontSize:11, fontFamily:mono, letterSpacing:1,
     color:ativo?T.accent:T.text3,
@@ -2156,7 +2185,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                         const caiu=val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
                         return (
                           <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
-                            <input value={val} onChange={e=>setVal(d,key,e.target.value)}
+                            <input data-nav value={val} onChange={e=>setVal(d,key,e.target.value)}
+                              onKeyDown={e=>navCell(e,key,datas.indexOf(d))}
                               style={{width:"100%",background:"transparent",border:"none",
                                 color:ativo&&subiu?"#f87171":ativo&&caiu?"#34d399":T.colorTableInput,
                                 fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
@@ -2305,7 +2335,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                           const val=getVal(d,key);
                           return (
                             <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.04)":undefined}}>
-                              <input value={val} onChange={e=>setVal(d,key,e.target.value)}
+                              <input data-nav value={val} onChange={e=>setVal(d,key,e.target.value)}
+                                onKeyDown={e=>navCell(e,key,datas.indexOf(d))}
                                 style={{width:"100%",background:"transparent",border:"none",
                                   color:ativo?T.accent:T.colorTableInput,
                                   fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
@@ -2402,7 +2433,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                               const val=getVal(d,k);
                               return (
                                 <td key={d} style={{...tdBase,background:ativo?"rgba(52,211,153,0.04)":undefined}}>
-                                  <input value={val} onChange={e=>setVal(d,k,e.target.value)}
+                                  <input data-nav value={val} onChange={e=>setVal(d,k,e.target.value)}
+                                    onKeyDown={e=>navCell(e,k,datas.indexOf(d))}
                                     style={{width:"100%",background:"transparent",border:"none",
                                       color:ativo?"#34d399":T.colorTableInput,
                                       fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
