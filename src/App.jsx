@@ -2789,9 +2789,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
   const [impErro, setImpErro] = useState("");
 
   const gerarImpressao = async () => {
-    const geminiKey = config?.geminiKey || "";
+    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || config?.geminiKey || "";
     if (!geminiKey) {
-      setImpErro("Configure a chave Gemini em ⚙️ Configurações para usar esta função.");
+      setImpErro("Chave Gemini não encontrada. Configure VITE_GEMINI_API_KEY na Vercel ou adicione em ⚙️ Configurações.");
       return;
     }
     setImpLoading(true);
