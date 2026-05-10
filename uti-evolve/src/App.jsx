@@ -212,53 +212,69 @@ const mono = "'DM Mono', monospace";
 
 // ── Theme tokens ─────────────────────────────────────────────────────────────
 const DARK = {
-  bgPage:       "#080f0a",
-  bgCard:       "rgba(255,255,255,0.04)",
-  bgCardHover:  "rgba(255,255,255,0.07)",
-  bgSidebar:    "rgba(255,255,255,0.015)",
-  bgHeader:     "rgba(8,15,10,0.97)",
-  bgInput:      "rgba(255,255,255,0.04)",
-  bgPicker:     "#0c1a10",
-  bgSel:        "rgba(56,189,248,0.1)",
-  text1:        "#e2e8f0",
-  text2:        "#94a3b8",
-  text3:        "#64748b",
-  text4:        "#475569",
-  textDim:      "#334155",
-  border:       "rgba(255,255,255,0.09)",
-  borderStrong: "rgba(255,255,255,0.15)",
-  borderAccent: "rgba(56,189,248,0.08)",
-  accent:       "#38bdf8",
-  accentBg:     "rgba(56,189,248,0.1)",
-  accentBorder: "rgba(56,189,248,0.3)",
-  shadow:       "none",
-  shadowCard:   "none",
-  colorScheme:  "dark",
+  bgPage:           "#080f0a",
+  bgCard:           "rgba(255,255,255,0.04)",
+  bgCardHover:      "rgba(255,255,255,0.07)",
+  bgSidebar:        "rgba(255,255,255,0.015)",
+  bgHeader:         "rgba(8,15,10,0.97)",
+  bgInput:          "rgba(255,255,255,0.04)",
+  bgPicker:         "#0c1a10",
+  bgSel:            "rgba(56,189,248,0.1)",
+  text1:            "#e2e8f0",
+  text2:            "#94a3b8",
+  text3:            "#64748b",
+  text4:            "#475569",
+  textDim:          "#334155",
+  border:           "rgba(255,255,255,0.09)",
+  borderStrong:     "rgba(255,255,255,0.15)",
+  borderAccent:     "rgba(56,189,248,0.08)",
+  accent:           "#38bdf8",
+  accentBg:         "rgba(56,189,248,0.1)",
+  accentBorder:     "rgba(56,189,248,0.3)",
+  shadow:           "none",
+  shadowCard:       "none",
+  colorScheme:      "dark",
+  bgTableHead:      "#0b1510",
+  bgTableSticky:    "#080f0a",
+  bgTableGroup:     "rgba(255,255,255,0.025)",
+  bgTableGroupCtrl: "rgba(56,189,248,0.04)",
+  colorTableInput:  "#e2e8f0",
+  colorTableMuted:  "#94a3b8",
+  borderTable:      "rgba(255,255,255,0.07)",
+  borderTableRow:   "rgba(255,255,255,0.04)",
 };
 
 const LIGHT = {
-  bgPage:       "#f1f5f9",
-  bgCard:       "#ffffff",
-  bgCardHover:  "#f8fafc",
-  bgSidebar:    "#ffffff",
-  bgHeader:     "rgba(255,255,255,0.97)",
-  bgInput:      "#f8fafc",
-  bgPicker:     "#ffffff",
-  bgSel:        "rgba(2,132,199,0.07)",
-  text1:        "#0f172a",
-  text2:        "#475569",
-  text3:        "#64748b",
-  text4:        "#94a3b8",
-  textDim:      "#cbd5e1",
-  border:       "rgba(0,0,0,0.08)",
-  borderStrong: "rgba(0,0,0,0.15)",
-  borderAccent: "rgba(2,132,199,0.15)",
-  accent:       "#0284c7",
-  accentBg:     "rgba(2,132,199,0.08)",
-  accentBorder: "rgba(2,132,199,0.3)",
-  shadow:       "0 1px 3px rgba(0,0,0,0.07)",
-  shadowCard:   "0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
-  colorScheme:  "light",
+  bgPage:           "#e8edf4",
+  bgCard:           "#ffffff",
+  bgCardHover:      "#f8fafc",
+  bgSidebar:        "#ffffff",
+  bgHeader:         "rgba(255,255,255,0.97)",
+  bgInput:          "#f8fafc",
+  bgPicker:         "#ffffff",
+  bgSel:            "rgba(2,132,199,0.07)",
+  text1:            "#0f172a",
+  text2:            "#334155",
+  text3:            "#64748b",
+  text4:            "#94a3b8",
+  textDim:          "#cbd5e1",
+  border:           "rgba(0,0,0,0.1)",
+  borderStrong:     "rgba(0,0,0,0.18)",
+  borderAccent:     "rgba(2,132,199,0.18)",
+  accent:           "#0284c7",
+  accentBg:         "rgba(2,132,199,0.08)",
+  accentBorder:     "rgba(2,132,199,0.35)",
+  shadow:           "0 1px 3px rgba(0,0,0,0.08)",
+  shadowCard:       "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05)",
+  colorScheme:      "light",
+  bgTableHead:      "#f0f4f8",
+  bgTableSticky:    "#ffffff",
+  bgTableGroup:     "rgba(0,0,0,0.04)",
+  bgTableGroupCtrl: "rgba(2,132,199,0.05)",
+  colorTableInput:  "#0f172a",
+  colorTableMuted:  "#475569",
+  borderTable:      "rgba(0,0,0,0.09)",
+  borderTableRow:   "rgba(0,0,0,0.05)",
 };
 
 const ThemeCtx = React.createContext(DARK);
@@ -1814,6 +1830,7 @@ function OptionalDrenosUI({ data, onChange, datas, hoje }) {
 
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
 function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) {
+  const T = useTheme();
   const hoje = new Date().toISOString().split("T")[0];
   const [novaData, setNovaData] = useState("");
   const [showAddCol, setShowAddCol] = useState(false);
@@ -1954,22 +1971,22 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
 
   const thStyle = (ativo) => ({
     padding:"6px 8px", fontSize:11, fontFamily:mono, letterSpacing:1,
-    color:ativo?"#38bdf8":"#64748b",
-    background:ativo?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.03)",
-    borderBottom:ativo?"2px solid #38bdf8":"2px solid rgba(255,255,255,0.06)",
+    color:ativo?T.accent:T.text3,
+    background:ativo?T.accentBg:T.bgTableHead,
+    borderBottom:ativo?`2px solid ${T.accent}`:`2px solid ${T.border}`,
     whiteSpace:"pre", textAlign:"center", minWidth:72, position:"sticky", top:0,
   });
-  const tdBase = {padding:"2px 3px", borderBottom:"1px solid rgba(255,255,255,0.04)", textAlign:"center"};
+  const tdBase = {padding:"2px 3px", borderBottom:`1px solid ${T.borderTableRow}`, textAlign:"center"};
 
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <div>
-          <div style={{fontSize:15,fontWeight:700}}>Tabela Clínica</div>
-          <div style={{fontSize:12,color:"#64748b"}}>Registre valores diários · depois aplique na evolução</div>
+          <div style={{fontSize:15,fontWeight:700,color:T.text1}}>Tabela Clínica</div>
+          <div style={{fontSize:12,color:T.text3}}>Registre valores diários · depois aplique na evolução</div>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={()=>setShowAddCol(v=>!v)} style={{padding:"8px 14px",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:"#94a3b8",fontWeight:600,fontSize:12,cursor:"pointer"}}>
+          <button onClick={()=>setShowAddCol(v=>!v)} style={{padding:"8px 14px",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,color:T.text2,fontWeight:600,fontSize:12,cursor:"pointer"}}>
             {showAddCol?"✕ Fechar":"📅 Adicionar dia"}
           </button>
           {tabela==="labs" && <button onClick={()=>setShowAddExame(v=>!v)} style={{padding:"8px 14px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,color:"#c4b5fd",fontWeight:600,fontSize:12,cursor:"pointer"}}>
@@ -1982,9 +1999,9 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
       </div>
 
       {/* Tab switcher */}
-      <div style={{display:"flex",gap:4,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:10,padding:4}}>
+      <div style={{display:"flex",gap:4,marginBottom:14,background:T.bgInput,borderRadius:10,padding:4}}>
         {[["labs","🔬 Exames Laboratoriais"],["controles","📊 Controles 24h"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setTabela(id)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:tabela===id?700:400,background:tabela===id?"rgba(56,189,248,0.15)":"transparent",color:tabela===id?"#38bdf8":"#64748b",transition:"all 0.2s"}}>
+          <button key={id} onClick={()=>setTabela(id)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:tabela===id?700:400,background:tabela===id?T.accentBg:"transparent",color:tabela===id?T.accent:T.text3,transition:"all 0.2s"}}>
             {label}
           </button>
         ))}
@@ -2030,24 +2047,24 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
         </div>
       )}
       {tabela==="labs" && (datas.length === 0 ? (
-        <div style={{padding:40,textAlign:"center",color:"#334155",fontSize:13}}>
+        <div style={{padding:40,textAlign:"center",color:T.text3,fontSize:13}}>
           Nenhum dado ainda. Cole um print na aba 📤 ou adicione um dia manualmente.
         </div>
       ) : (
-        <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
+        <div style={{overflowX:"auto",borderRadius:10,border:`1px solid ${T.borderTable}`}}>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
             <thead>
               <tr>
-                <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0b1510"}}>Parâmetro</th>
-                <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0b1510"}}>Un.</th>
+                <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:T.bgTableHead}}>Parâmetro</th>
+                <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:T.bgTableHead}}>Un.</th>
                 {datas.map(d=>(
                   <th key={d} style={thStyle(isHoje(d))}>
                     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                       {fmtData(d).split('\n').map((linha,i)=>(
                         <span key={i} style={{fontSize:i===1?10:11}}>{linha}</span>
                       ))}
-                      {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#38bdf8"}}>HOJE</span>}
-                      {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
+                      {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:T.accent}}>HOJE</span>}
+                      {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:T.text4,cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
                     </div>
                   </th>
                 ))}
@@ -2057,16 +2074,16 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
               {GRUPOS_LAB.map(({grupo,params})=>(
                 <React.Fragment key={grupo}>
                   <tr>
-                    <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                    <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:T.text3,background:T.bgTableGroup,fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>
                       {grupo}
                     </td>
                   </tr>
                   {params.map(({key,label,unit})=>(
                     <tr key={key}
-                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                      onMouseEnter={e=>e.currentTarget.style.background=T.bgCardHover}
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#080f0a"}}>{label}</td>
-                      <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>{unit}</td>
+                      <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>{label}</td>
+                      <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>{unit}</td>
                       {datas.map(d=>{
                         const ativo=isHoje(d);
                         const val=getVal(d,key);
@@ -2078,7 +2095,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                           <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
                             <input value={val} onChange={e=>setVal(d,key,e.target.value)}
                               style={{width:"100%",background:"transparent",border:"none",
-                                color:ativo&&subiu?"#f87171":ativo&&caiu?"#34d399":"#e2e8f0",
+                                color:ativo&&subiu?"#f87171":ativo&&caiu?"#34d399":T.colorTableInput,
                                 fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
                                 fontWeight:ativo?700:400}}
                               placeholder="—"
@@ -2094,7 +2111,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
               {extrasKeys.length > 0 && (
                 <React.Fragment>
                   <tr>
-                    <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#475569",background:"rgba(255,255,255,0.025)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                    <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:T.text3,background:T.bgTableGroup,fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>
                       ⭐ Exames Extras
                     </td>
                   </tr>
@@ -2114,9 +2131,9 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                     ];
                     return (
                       <tr key={k}
-                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                        onMouseEnter={e=>e.currentTarget.style.background=T.bgCardHover}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <td style={{...tdBase,padding:"4px 8px 4px 12px",textAlign:"left",position:"sticky",left:0,background:"#080f0a"}}>
+                        <td style={{...tdBase,padding:"4px 8px 4px 12px",textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>
                           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                             <span style={{fontSize:12,color:"#fcd34d"}}>{nomeCapitalizado}</span>
                             <select value={catAtual}
@@ -2140,7 +2157,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                             }} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:10,padding:"0 2px"}} title="Remover exame">✕</button>
                           </div>
                         </td>
-                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>—</td>
+                        <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>—</td>
                         {datas.map(d=>{
                           const ativo=isHoje(d);
                           const raw = data[d]?.[k] || "";
@@ -2186,20 +2203,20 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
           <div>
             {/* Botão para adicionar dreno/SNG/evac opcional */}
             <OptionalDrenosUI data={data} onChange={onChange} datas={datas} hoje={hoje}/>
-            <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)",marginTop:8}}>
+            <div style={{overflowX:"auto",borderRadius:10,border:`1px solid ${T.borderTable}`,marginTop:8}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
                 <tr>
-                  <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:"#0b1510"}}>Parâmetro</th>
-                  <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:"#0b1510"}}>Un.</th>
+                  <th style={{...thStyle(false),textAlign:"left",minWidth:155,padding:"8px 12px",position:"sticky",left:0,zIndex:2,background:T.bgTableHead}}>Parâmetro</th>
+                  <th style={{...thStyle(false),minWidth:46,position:"sticky",left:155,zIndex:2,background:T.bgTableHead}}>Un.</th>
                   {datas.map(d=>(
                     <th key={d} style={thStyle(isHoje(d))}>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                         {fmtData(d).split('\n').map((linha,i)=>(
                           <span key={i} style={{fontSize:i===1?10:11}}>{linha}</span>
                         ))}
-                        {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:"#38bdf8"}}>HOJE</span>}
-                        {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
+                        {isHoje(d)&&<span style={{fontSize:9,letterSpacing:0.5,color:T.accent}}>HOJE</span>}
+                        {!isHoje(d)&&<button onClick={()=>removerColuna(d)} style={{background:"none",border:"none",color:T.text4,cursor:"pointer",fontSize:9,padding:0}}>✕</button>}
                       </div>
                     </th>
                   ))}
@@ -2209,17 +2226,17 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                 {GRUPOS_CONTROLES.map(({grupo,params})=>(
                   <React.Fragment key={grupo}>
                     <tr>
-                      <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#38bdf8",background:"rgba(56,189,248,0.04)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:T.accent,background:T.bgTableGroupCtrl,fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>
                         {grupo}
                       </td>
                     </tr>
                     {params.map(({key,label,unit})=>(
                       <React.Fragment key={key}>
                       <tr
-                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                        onMouseEnter={e=>e.currentTarget.style.background=T.bgCardHover}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#94a3b8",textAlign:"left",position:"sticky",left:0,background:"#080f0a"}}>{label}</td>
-                        <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>{unit}</td>
+                        <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>{label}</td>
+                        <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>{unit}</td>
                         {datas.map(d=>{
                           const ativo=isHoje(d);
                           const val=getVal(d,key);
@@ -2227,7 +2244,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                             <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.04)":undefined}}>
                               <input value={val} onChange={e=>setVal(d,key,e.target.value)}
                                 style={{width:"100%",background:"transparent",border:"none",
-                                  color:ativo?"#38bdf8":"#e2e8f0",
+                                  color:ativo?T.accent:T.colorTableInput,
                                   fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
                                   fontWeight:ativo?700:400}}
                                 placeholder="—"
@@ -2239,8 +2256,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                       {/* Débito urinário calculado — logo abaixo da Diurese */}
                       {key==="c24_diur" && parseFloat(leito.peso) > 0 && (
                         <tr style={{opacity:0.75}}>
-                          <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:"#64748b",textAlign:"left",position:"sticky",left:0,background:"#080f0a",fontStyle:"italic"}}>↳ Débito urinário</td>
-                          <td style={{...tdBase,fontSize:10,color:"#334155",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>mL/kg/h</td>
+                          <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:T.text3,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky,fontStyle:"italic"}}>↳ Débito urinário</td>
+                          <td style={{...tdBase,fontSize:10,color:T.text4,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>mL/kg/h</td>
                           {datas.map(d=>{
                             const ativo=isHoje(d);
                             const diur=parseFloat(getVal(d,"c24_diur"));
@@ -2269,8 +2286,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                         ];
                         return rows.map(row=>(
                           <tr key={row.lbl} style={{opacity:0.8}}>
-                            <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:"#64748b",textAlign:"left",position:"sticky",left:0,background:"#080f0a",fontStyle:"italic"}}>{row.lbl}</td>
-                            <td style={{...tdBase,fontSize:10,color:"#334155",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>{row.unit}</td>
+                            <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:T.text3,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky,fontStyle:"italic"}}>{row.lbl}</td>
+                            <td style={{...tdBase,fontSize:10,color:T.text4,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>{row.unit}</td>
                             {datas.map(d=>{
                               const ativo=isHoje(d);
                               const vol=parseFloat(getVal(d,"c24_diet_vol"));
@@ -2298,7 +2315,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                   if (!drenoKeys.length) return null;
                   return (
                     <React.Fragment>
-                      <tr><td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#34d399",background:"rgba(52,211,153,0.04)",fontFamily:mono,letterSpacing:1.5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      <tr><td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#34d399",background:T.bgTableGroup,fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>
                         💧 Drenos / SNG / Evacuações (opcionais)
                       </td></tr>
                       {drenoKeys.map(k=>{
@@ -2306,17 +2323,17 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                         const nome = nomeBruto.charAt(0).toUpperCase()+nomeBruto.slice(1);
                         return (
                           <tr key={k}
-                            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+                            onMouseEnter={e=>e.currentTarget.style.background=T.bgCardHover}
                             onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                            <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#34d399",textAlign:"left",position:"sticky",left:0,background:"#080f0a",display:"flex",alignItems:"center",gap:6}}>
+                            <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:"#34d399",textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky,display:"flex",alignItems:"center",gap:6}}>
                               {nome}
                               <button title="Remover linha" onClick={()=>{
                                 const novo={...data};
                                 datas.forEach(d=>{if(novo[d]){delete novo[d][k];}});
                                 onChange(novo);
-                              }} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:10,padding:0}}>✕</button>
+                              }} style={{background:"none",border:"none",color:T.text3,cursor:"pointer",fontSize:10,padding:0}}>✕</button>
                             </td>
-                            <td style={{...tdBase,fontSize:10,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:"#080f0a"}}>mL/x</td>
+                            <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>mL/x</td>
                             {datas.map(d=>{
                               const ativo=isHoje(d);
                               const val=getVal(d,k);
@@ -2324,7 +2341,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                                 <td key={d} style={{...tdBase,background:ativo?"rgba(52,211,153,0.04)":undefined}}>
                                   <input value={val} onChange={e=>setVal(d,k,e.target.value)}
                                     style={{width:"100%",background:"transparent",border:"none",
-                                      color:ativo?"#34d399":"#e2e8f0",
+                                      color:ativo?"#34d399":T.colorTableInput,
                                       fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
                                       fontWeight:ativo?700:400}}
                                     placeholder="—"/>
