@@ -1,0 +1,5 @@
+{
+  "buildCommand": "rm -rf dist node_modules/.vite .vite && vite build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install"
+}
