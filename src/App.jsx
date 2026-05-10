@@ -2789,67 +2789,46 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
   const [impErro, setImpErro] = useState("");
 
   const gerarImpressao = async () => {
-    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY || config?.geminiKey || "";
-    if (!geminiKey) {
-      setImpErro("Chave Gemini não encontrada. Configure VITE_GEMINI_API_KEY na Vercel ou adicione em ⚙️ Configurações.");
-      return;
-    }
     setImpLoading(true);
     setImpErro("");
     try {
+      const g = (k) => refs[k]?.current?.value?.trim() || campos[k] || "";
       const procsStr = (leito.procedimentos||[]).map(p=>{
         const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
         return `${p.nome} em ${p.data} (${po===0?"POI":`PO${po}`})`;
       }).join("; ") || "nenhum";
-
       const dispsStr = ativos.map(a=>{
         const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
         return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;
       }).join(", ") || "nenhum";
-
-      const g = (k) => refs[k]?.current?.value?.trim() || campos[k] || "";
       const dietaStr = leito.dieta?.tipo
         ? `${leito.dieta.tipo}${leito.dieta.formula?` (${leito.dieta.formula})`:""}${leito.dieta.vazao?` @ ${leito.dieta.vazao}mL/h`:""}`
         : "não informada";
 
-      const prompt = `Você é um médico intensivista. Escreva uma IMPRESSÃO CLÍNICA para passagem de caso para o chefe da UTI.
-
-REGRAS:
-- Texto corrido, sem bullets ou marcadores, português médico formal
-- Máximo 5 linhas, uma narrativa contínua
-- Estrutura: [identificação + diagnóstico + contexto] → [procedimentos realizados com datas/PO] → [estado atual: consciência, sedação/analgesia, ventilação, hemodinâmica, diurese, temperatura, dieta]
-- Use linguagem como: "vigil e cooperativo", "confortável em VMI", "estável clínica e hemodinamicamente", "afebril", "diurese adequada", "recebendo dieta enteral"
-- Se a HDA tiver informações detalhadas, use-a como base principal do contexto clínico
-- Gere APENAS o texto da impressão, sem títulos, sem comentários extras
-
-DADOS:
-Paciente: ${leito.paciente||"não informado"}, ${leito.sexo==="F"?"feminino":"masculino"}, ${leito.peso||"?"}kg${pp?`, PP ${pp}kg`:""}, D${dias??""} UTI
-Diagnóstico: ${leito.diagnostico||"não informado"}
-HDA: ${g("hda")||"não preenchida"}
-Procedimentos: ${procsStr}
-Dispositivos: ${dispsStr}
-Neurológico: ${g("nEF")||"-"}${g("nSeda")?` | Sed: ${g("nSeda")}`:""}${g("nAnalg")?` | Analg: ${g("nAnalg")}` :""}
-Cardiovascular: ${g("cvEF")||"-"}${g("cvDVA")?` | DVA: ${g("cvDVA")}`:""}${g("cvPerf")?` | Perf: ${g("cvPerf")}` :""}
-Respiratório: ${g("reVM")||"-"}${g("reEF")?` | ${g("reEF")}`:""}${g("reGaso")?` | Gaso: ${g("reGaso")}`:""}
-Renal/Metab: ${g("rm24h")||"-"}${g("rmLabs")?` | Labs: ${g("rmLabs")}`:""}
-TGI/Nutrição: Dieta ${dietaStr}${g("tgEF")?` | ${g("tgEF")}`:""}
-Infeccioso: T ${g("heTemp")||"?"}${g("heLabs")?` | ${g("heLabs")}`:""}${g("heAtb")?` | ATB: ${g("heAtb")}`:""}
-Problemas ativos: ${g("probAtivos")||"não listados"}`;
-
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-        {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({
-            contents:[{parts:[{text:prompt}]}],
-            generationConfig:{temperature:0.35, maxOutputTokens:600}
-          })
-        }
-      );
+      const r = await fetch("/api/analyze", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          mode: "impressao",
+          dados: {
+            paciente: `${leito.paciente||"?"}, ${leito.sexo==="F"?"feminino":"masculino"}, ${leito.peso||"?"}kg${pp?`, PP ${pp}kg`:""}, D${dias??""} UTI`,
+            diagnostico: leito.diagnostico||"não informado",
+            hda: g("hda")||"não preenchida",
+            procedimentos: procsStr,
+            dispositivos: dispsStr,
+            neurologico: `${g("nEF")||"-"}${g("nSeda")?` | Sed: ${g("nSeda")}`:""}${g("nAnalg")?` | Analg: ${g("nAnalg")}` :""}`,
+            cardiovascular: `${g("cvEF")||"-"}${g("cvDVA")?` | DVA: ${g("cvDVA")}`:""}${g("cvPerf")?` | Perf: ${g("cvPerf")}`:""}`,
+            respiratorio: `${g("reVM")||"-"}${g("reEF")?` | ${g("reEF")}`:""}${g("reGaso")?` | Gaso: ${g("reGaso")}` :""}`,
+            renal: `${g("rm24h")||"-"}${g("rmLabs")?` | Labs: ${g("rmLabs")}` :""}`,
+            tgi: `Dieta ${dietaStr}${g("tgEF")?` | ${g("tgEF")}`:""}`,
+            infeccioso: `T ${g("heTemp")||"?"}${g("heLabs")?` | ${g("heLabs")}`:""}${g("heAtb")?` | ATB: ${g("heAtb")}` :""}`,
+            problemas: g("probAtivos")||"não listados",
+          }
+        })
+      });
       const data = await r.json();
-      if (data.error) throw new Error(data.error.message || "Erro Gemini");
-      const txt = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+      if (data.error) throw new Error(data.error);
+      const txt = data.impressao || data.text || "";
       if (!txt) throw new Error("Resposta vazia — tente novamente");
       if (refs.impressao?.current) refs.impressao.current.value = txt;
       salvar("impressao", txt);
@@ -3092,8 +3071,7 @@ Problemas ativos: ${g("probAtivos")||"não listados"}`;
           <div style={{marginLeft:"auto",display:"flex",gap:6}}>
             <button onClick={gerarImpressao} disabled={impLoading}
               style={{padding:"4px 14px",borderRadius:6,border:"1px solid rgba(56,189,248,0.4)",background:impLoading?"rgba(56,189,248,0.05)":"rgba(56,189,248,0.1)",color:impLoading?"#475569":"#38bdf8",fontSize:11,fontWeight:700,cursor:impLoading?"not-allowed":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:5}}>
-              {impLoading ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⏳</span> Gerando…</> : impGerado ? "✓ Gerado!" : "✨ Gerar com IA"}
-            </button>
+              {impLoading ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⏳</span> Gerando…</> : impGerado ? "✓ Gerado!" : "✨ Gerar com IA"}            </button>
             <button onClick={()=>{
               const txt = refs.impressao?.current?.value?.trim() || campos.impressao || "";
               if (!txt) return;
@@ -3113,7 +3091,7 @@ Problemas ativos: ${g("probAtivos")||"não listados"}`;
           <textarea ref={refs.impressao} defaultValue={campos.impressao||""} rows={6}
             onBlur={e=>salvar("impressao", e.target.value)}
             placeholder={"Clique em ✨ Gerar com IA para criar a narrativa clínica automaticamente.\n\nOu escreva diretamente aqui a sua impressão do quadro para passagem de caso."}
-            style={{width:"100%",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8,padding:"10px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit",resize:"vertical",lineHeight:1.7}}/>
+            style={{width:"100%",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8,padding:"10px 12px",color:T.text1,fontSize:13,fontFamily:"inherit",resize:"vertical",lineHeight:1.7}}/>
         </div>
       </div>
 
