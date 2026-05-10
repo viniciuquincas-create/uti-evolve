@@ -2871,6 +2871,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     }
     setImpLoading(false);
   };
+
+  return (
     <div>
       {/* ── Cabeçalho clínico (pills) ── */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
