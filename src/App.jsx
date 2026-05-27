@@ -1795,21 +1795,26 @@ const GRUPOS_LAB = [
 // Controles 24h — tabela separada com horários
 // Drenos, SNG e evacuações são OPCIONAIS — adicionados dinamicamente com nome personalizado
 const GRUPOS_CONTROLES = [
-  { grupo:"🌡️ Sinais Vitais", params:[
-    {key:"c24_temp",  label:"T (mín/máx)",    unit:"°C"},
-    {key:"c24_fc",    label:"FC (mín/máx)",   unit:"bpm"},
-    {key:"c24_fr",    label:"FR (mín/máx)",   unit:"irpm"},
-    {key:"c24_sat",   label:"SpO2 (mín/máx)", unit:"%"},
-    {key:"c24_pam",   label:"PAM (mín/máx)",  unit:"mmHg"},
-    {key:"c24_pas",   label:"PAS/PAD",         unit:"mmHg"},
+  { grupo:"📡 Monitorização Geral", params:[
+    {key:"c24_temp",  label:"Temperatura (mín/máx)", unit:"°C"},
+    {key:"c24_fc",    label:"FC (mín/máx)",           unit:"bpm"},
+    {key:"c24_fr",    label:"FR (mín/máx)",           unit:"irpm"},
+    {key:"c24_pas",   label:"PAS (mín/máx)",          unit:"mmHg"},
+    {key:"c24_pad",   label:"PAD (mín/máx)",          unit:"mmHg"},
+    {key:"c24_pam",   label:"PAM (mín/máx)",          unit:"mmHg"},
+    {key:"c24_sat",   label:"SpO2 (mín/máx)",         unit:"%"},
+    {key:"c24_dextro",label:"Dextro (mín/máx)",       unit:"mg/dL"},
   ]},
-  { grupo:"🩺 Metabólico", params:[
-    {key:"c24_dextro", label:"Glic cap (mín/máx)", unit:"mg/dL"},
-  ]},
-  { grupo:"💧 Balanço Hídrico", params:[
-    {key:"c24_diur",     label:"Diurese",         unit:"mL"},
-    {key:"c24_bh",       label:"Balanço Hídrico",  unit:"mL"},
+  { grupo:"📥 Ganhos", params:[
     {key:"c24_diet_vol", label:"Vol. Dieta recebida", unit:"mL"},
+  ]},
+  { grupo:"📤 Perdas", params:[
+    {key:"c24_diur",  label:"Diurese",                unit:"mL"},
+    {key:"c24_hd",    label:"Hemodiálise / CRRT (UF)",unit:"mL"},
+  ]},
+  { grupo:"⚖️ Balanço", params:[
+    {key:"c24_bh",    label:"Balanço Hídrico 24h",    unit:"mL"},
+    {key:"c24_bh_ac", label:"Balanço Acumulado",      unit:"mL"},
   ]},
   // Drenos/SNG/Evac: adicionados dinamicamente como _dreno_[nome]
 ];
@@ -1831,7 +1836,8 @@ const ABREV = {
   // Controles 24h
   c24_temp:"T", c24_fc:"FC", c24_fr:"FR", c24_sat:"Sat", c24_pam:"PAM", c24_pas:"PA",
   c24_dextro:"Dextro",
-  c24_diur:"Diurese", c24_bh:"BH",
+  c24_diur:"Diurese", c24_bh:"BH 24h", c24_bh_ac:"BH Acum",
+  c24_hd:"HD/CRRT", c24_pad:"PAD",
 };
 
 // Formata valor: plaquetas e leucócitos em k quando >= 100
@@ -1996,11 +2002,11 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
 
     // Controles → campos certos em cada sistema
-    const tempStr  = pegarCtrl(["c24_temp"]);           // He: Infeccioso/Temperatura
-    const cvCtrl   = pegarCtrl(["c24_fc","c24_pam","c24_pas"]); // Cv: 24h
-    const reCtrl   = pegarCtrl(["c24_fr","c24_sat"]);   // Res: 24h
-    const bhStr    = pegarCtrl(["c24_diur","c24_bh"]);  // ReMe: 24h
-    const dextroStr= pegarCtrl(["c24_dextro"]);          // TGI: 24h
+    const tempStr  = pegarCtrl(["c24_temp"]);
+    const cvCtrl   = pegarCtrl(["c24_fc","c24_pas","c24_pad","c24_pam"]);
+    const reCtrl   = pegarCtrl(["c24_fr","c24_sat"]);
+    const bhStr    = pegarCtrl(["c24_diur","c24_hd","c24_bh","c24_bh_ac"]);
+    const dextroStr= pegarCtrl(["c24_dextro"]);
 
     // Aplica labs
     if (heStr)  campos.heLabs = heStr;
@@ -2349,6 +2355,41 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                           );
                         })}
                       </tr>
+                      {/* Balanço acumulado — calculado automaticamente logo abaixo do BH 24h */}
+                      {key==="c24_bh" && (
+                        <tr style={{opacity:0.80}}>
+                          <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:"#a78bfa",textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky,fontStyle:"italic"}}>↳ Balanço Acumulado (auto)</td>
+                          <td style={{...tdBase,fontSize:10,color:T.text4,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>mL</td>
+                          {datas.map(d=>{
+                            const ativo=isHoje(d);
+                            // Se o campo c24_bh_ac estiver preenchido manualmente, usa o valor manual
+                            const manual = getVal(d,"c24_bh_ac");
+                            if (manual) return (
+                              <td key={d} style={{...tdBase,background:ativo?"rgba(167,139,250,0.04)":undefined}}>
+                                <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"3px 4px",color:"#a78bfa",fontWeight:600}}>{manual}</div>
+                              </td>
+                            );
+                            // Calcula acumulado somando todos os c24_bh até esta data
+                            const datasAte = datas.filter(x=>x<=d);
+                            let acum = 0; let algum = false;
+                            datasAte.forEach(x=>{
+                              const v = parseFloat(getVal(x,"c24_bh"));
+                              if (!isNaN(v)) { acum += v; algum = true; }
+                            });
+                            const acumStr = algum ? (acum>=0?"+":"")+Math.round(acum).toLocaleString("pt-BR") : "";
+                            const positivo = acum > 0; const negativo = acum < 0;
+                            return (
+                              <td key={d} style={{...tdBase,background:ativo?"rgba(167,139,250,0.04)":undefined}}>
+                                <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"3px 4px",
+                                  color:algum?(positivo?"#f87171":negativo?"#34d399":"#94a3b8"):"#334155",
+                                  fontWeight:algum?700:400}}>
+                                  {acumStr||"—"}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )}
                       {/* Débito urinário calculado — logo abaixo da Diurese */}
                       {key==="c24_diur" && parseFloat(leito.peso) > 0 && (
                         <tr style={{opacity:0.75}}>
