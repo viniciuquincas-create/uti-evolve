@@ -1,6 +1,7 @@
 // UTI Evolve v2.5 — 2026-05-10
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
+console.warn("UTI-EVOLVE-BUILD-2026-05-27T02:45:28-572bdddc");
 import { supabase } from './supabase.js';
 const BUILD_TS = "2026-05-10T21:15"; // cache-bust
 
