@@ -1,5 +1,5 @@
 {
-  "buildCommand": "",
-  "outputDirectory": "public",
-  "installCommand": "echo ok"
+  "buildCommand": "rm -rf node_modules/.vite && vite build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install"
 }
