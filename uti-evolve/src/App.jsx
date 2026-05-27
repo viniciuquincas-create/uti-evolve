@@ -1,9 +1,9 @@
 // UTI Evolve v2.5 â 2026-05-10
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
-console.warn("UTI-EVOLVE-BUILD-2026-05-27T03:45:00-desktop-full-grid");
+console.warn("UTI-EVOLVE-BUILD-2026-05-27T03:20:00-responsive-desktop");
 import { supabase } from './supabase.js';
-const BUILD_TS = "2026-05-27T03:45"; // cache-bust
+const BUILD_TS = "2026-05-10T21:15"; // cache-bust
 
 
 // ââ Logo SVG â CÃ©rebro com sensor Brain for Care ââââââââââââââââââââââââââââââ
@@ -305,7 +305,7 @@ function useMediaQuery(query) {
 function Pill({ label, value, unit, color="#38bdf8", warn=false }) {
   const T = useTheme();
   return (
-    <div style={{ background: warn?"rgba(248,113,113,0.08)":T.bgCard, border:`1px solid ${warn?"rgba(248,113,113,0.3)":T.border}`, borderRadius:10, padding:"13px 16px", minWidth:96, width:"100%", boxSizing:"border-box", textAlign:"center", boxShadow:T.shadowCard }}>
+    <div style={{ background: warn?"rgba(248,113,113,0.08)":T.bgCard, border:`1px solid ${warn?"rgba(248,113,113,0.3)":T.border}`, borderRadius:10, padding:"13px 16px", minWidth:96, textAlign:"center", boxShadow:T.shadowCard }}>
       <div style={{ fontSize:9, color:T.text3, fontFamily:mono, letterSpacing:1.5, marginBottom:5, textTransform:"uppercase" }}>{label}</div>
       <div style={{ fontSize:20, fontWeight:700, color: warn?"#f87171":color }}>{value??"-"}</div>
       {unit&&<div style={{ fontSize:10, color:T.text3, marginTop:3 }}>{unit}</div>}
@@ -1226,36 +1226,17 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   const diurese  = (volUrina && dados.peso)
     ? (volUrina / (24 * parseFloat(dados.peso))).toFixed(2) : null;
 
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
-  const gridPaciente = {
-    display: "grid",
-    gridTemplateColumns: isDesktop ? "repeat(auto-fit, minmax(220px, 1fr))" : "1fr",
-    gap: 10,
-    marginBottom: 10,
-    alignItems: "end",
-    width: "100%",
-  };
-  const span2 = isDesktop ? { gridColumn: "span 2" } : {};
-  const gridParametros = {
-    display: "grid",
-    gridTemplateColumns: isDesktop ? "repeat(auto-fit, minmax(132px, 1fr))" : "repeat(auto-fit, minmax(96px, 1fr))",
-    gap: 8,
-    width: "100%",
-  };
-
   return (
-    <div style={{width:"100%"}}>
+    <div>
       <SecTitle>DADOS DO PACIENTE</SecTitle>
-      <div style={gridPaciente}>
-        <div style={span2}>
-          <Field label="NOME / ID"      value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuÃ¡rio"/>
-        </div>
-        <div style={span2}>
-          <Field label="DIAGNÃSTICO"    value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="DiagnÃ³stico principal"/>
-        </div>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
+        <Field label="NOME / ID"      value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuÃ¡rio"/>
+        <Field label="DIAGNÃSTICO"    value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="DiagnÃ³stico principal"/>
+      </div>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
         <Field label="DATA INTERNAÃÃO" value={dados.dataInternacao} onChange={v=>onChange({...dados,dataInternacao:v})} type="date"/>
         <Field label="DATA NASCIMENTO" value={dados.dataNascimento||""} onChange={v=>onChange({...dados,dataNascimento:v})} type="date"/>
-        <div>
+        <div style={{ flex:1 }}>
           <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÃGICO</div>
           <div style={{ display:"flex", gap:6 }}>
             {["M","F"].map(s=>(
@@ -1265,13 +1246,15 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
             ))}
           </div>
         </div>
+      </div>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
         <Field label="PESO ATUAL (kg)" value={dados.peso}   onChange={v=>onChange({...dados,peso:v})}   type="number" placeholder="70" suffix="kg"/>
         <Field label="ALTURA (cm)"     value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm"/>
       </div>
 
       {(dias!==null||pp||dados.peso||idade!==null) && <>
         <SecTitle>PARÃMETROS CALCULADOS</SecTitle>
-        <div style={gridParametros}>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           {idade!==null && <Pill label="IDADE"        value={idade}        unit="anos"            color="#c084fc"/>}
           {dias!==null  && <Pill label="INTERNAÃÃO"   value={`D${dias}`}   unit="dias"            color="#a78bfa"/>}
           {dados.peso   && <Pill label="PESO ATUAL"   value={dados.peso}   unit="kg"              color="#f59e0b"/>}
@@ -3702,8 +3685,8 @@ export default function App() {
   const pp   = pesoPredito(leito.altura, leito.sexo);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const pagePadding = isDesktop ? "28px 40px" : "28px 32px";
-  const contentWide = "100%";
-  const contentMedium = "100%";
+  const contentWide = isDesktop ? "min(100%, 1180px)" : "100%";
+  const contentMedium = isDesktop ? "min(100%, 960px)" : "100%";
 
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
