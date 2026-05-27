@@ -1,5 +1,5 @@
 {
-  "buildCommand": "rm -rf dist node_modules/.vite .vite && vite build",
+  "buildCommand": "echo 'skip build - using prebuilt'",
   "outputDirectory": "dist",
-  "installCommand": "npm install"
+  "installCommand": "echo 'no install'"
 }
