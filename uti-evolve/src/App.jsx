@@ -1,9 +1,9 @@
 // UTI Evolve v2.5 — 2026-05-10
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
-console.warn("UTI-EVOLVE-BUILD-2026-05-27T04:15:00-compact-desktop-grid");
+console.warn("UTI-EVOLVE-BUILD-2026-05-27T02:45:28-572bdddc");
 import { supabase } from './supabase.js';
-const BUILD_TS = "2026-05-27T04:15"; // cache-bust
+const BUILD_TS = "2026-05-10T21:15"; // cache-bust
 
 
 // ── Logo SVG — Cérebro com sensor Brain for Care ──────────────────────────────
@@ -283,26 +283,6 @@ const LIGHT = {
 
 const ThemeCtx = React.createContext(DARK);
 const useTheme = () => React.useContext(ThemeCtx);
-
-function useMediaQuery(query) {
-  const getMatch = () => (typeof window !== "undefined" ? window.matchMedia(query).matches : false);
-  const [matches, setMatches] = useState(getMatch);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia(query);
-    const listener = () => setMatches(media.matches);
-    listener();
-    if (media.addEventListener) media.addEventListener("change", listener);
-    else media.addListener(listener);
-    return () => {
-      if (media.removeEventListener) media.removeEventListener("change", listener);
-      else media.removeListener(listener);
-    };
-  }, [query]);
-
-  return matches;
-}
 
 function Pill({ label, value, unit, color="#38bdf8", warn=false }) {
   const T = useTheme();
@@ -1214,18 +1194,10 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
 
 // ── PacientePanel ─────────────────────────────────────────────────────────────
 function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={} }) {
-  const isDesktop = useMediaQuery("(min-width: 1200px)");
   const dias  = diasInternacao(dados.dataInternacao);
   const pp    = pesoPredito(dados.altura, dados.sexo);
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
   const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
-
-  const patientGrid = isDesktop
-    ? { display:"grid", gridTemplateColumns:"3fr 3fr 2fr 2fr 2fr", gap:10, alignItems:"end", marginBottom:10 }
-    : { display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 };
-  const anthropoGrid = isDesktop
-    ? { display:"grid", gridTemplateColumns:"minmax(160px, 1fr) minmax(160px, 1fr) 3fr", gap:10, alignItems:"end" }
-    : { display:"flex", gap:10, flexWrap:"wrap" };
 
   const idade = dados.dataNascimento
     ? Math.floor((new Date() - new Date(dados.dataNascimento)) / (365.25*86400000))
@@ -1239,26 +1211,27 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   return (
     <div>
       <SecTitle>DADOS DO PACIENTE</SecTitle>
-      <div style={patientGrid}>
-        <Field label="NOME / ID" value={dados.paciente} onChange={v=>onChange({...dados,paciente:v})} placeholder="Nome ou prontuário"/>
-        <Field label="DIAGNÓSTICO" value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="Diagnóstico principal"/>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
+        <Field label="NOME / ID"      value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuário"/>
+        <Field label="DIAGNÓSTICO"    value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="Diagnóstico principal"/>
+      </div>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
         <Field label="DATA INTERNAÇÃO" value={dados.dataInternacao} onChange={v=>onChange({...dados,dataInternacao:v})} type="date"/>
         <Field label="DATA NASCIMENTO" value={dados.dataNascimento||""} onChange={v=>onChange({...dados,dataNascimento:v})} type="date"/>
-        <div style={{ flex:1, minWidth:isDesktop?0:220 }}>
+        <div style={{ flex:1 }}>
           <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÓGICO</div>
           <div style={{ display:"flex", gap:6 }}>
             {["M","F"].map(s=>(
-              <button key={s} onClick={()=>onChange({...dados,sexo:s})} style={{ flex:1, padding:"8px", borderRadius:8, border:`1px solid ${dados.sexo===s?"#38bdf8":"rgba(255,255,255,0.1)"}`, background:dados.sexo===s?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.03)", color:dados.sexo===s?"#38bdf8":"#64748b", fontWeight:700, cursor:"pointer", fontSize:13, whiteSpace:"nowrap" }}>
+              <button key={s} onClick={()=>onChange({...dados,sexo:s})} style={{ flex:1, padding:"8px", borderRadius:8, border:`1px solid ${dados.sexo===s?"#38bdf8":"rgba(255,255,255,0.1)"}`, background:dados.sexo===s?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.03)", color:dados.sexo===s?"#38bdf8":"#64748b", fontWeight:700, cursor:"pointer", fontSize:13 }}>
                 {s==="M"?"♂ Masculino":"♀ Feminino"}
               </button>
             ))}
           </div>
         </div>
       </div>
-      <div style={anthropoGrid}>
-        <Field label="PESO ATUAL (kg)" value={dados.peso} onChange={v=>onChange({...dados,peso:v})} type="number" placeholder="70" suffix="kg"/>
-        <Field label="ALTURA (cm)" value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm"/>
-        {isDesktop && <div />}
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+        <Field label="PESO ATUAL (kg)" value={dados.peso}   onChange={v=>onChange({...dados,peso:v})}   type="number" placeholder="70" suffix="kg"/>
+        <Field label="ALTURA (cm)"     value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm"/>
       </div>
 
       {(dias!==null||pp||dados.peso||idade!==null) && <>
@@ -3827,7 +3800,7 @@ export default function App() {
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="paciente" ? (
-              <div style={{maxWidth:1180}}><PacientePanel
+              <div style={{maxWidth:680}}><PacientePanel
                 dados={leito} onChange={atualizar} config={config}
                 onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
                 diureseHoje={(()=>{
