@@ -1,5 +1,5 @@
 {
-  "buildCommand": "echo 'skip build - using prebuilt'",
-  "outputDirectory": "dist",
-  "installCommand": "echo 'no install'"
+  "buildCommand": "",
+  "outputDirectory": "public",
+  "installCommand": "echo ok"
 }
