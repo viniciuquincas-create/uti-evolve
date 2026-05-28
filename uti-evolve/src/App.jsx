@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 // 2026-05-28T04:48:32
 // 2026-05-28T05:24:20
 // 2026-05-28T05:46:58
+// 2026-05-28T05:55:06
 console.warn("UTI-EVOLVE-BUILD-2026-05-28T03:23:53-LAYOUT");
 import React from "react";
 import { supabase } from './supabase.js';
@@ -1510,7 +1511,13 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
     setBusca(""); setShowBusca(false);
   };
   const remAtb = (id) => onChange(antibioticos.filter(a => a.id !== id));
-  const updAtb = (id, field, val) => onChange(antibioticos.map(a => a.id===id ? {...a,[field]:val} : a));
+  const updAtb = (id, field, val) => onChange(antibioticos.map(a => {
+    if (a.id !== id) return a;
+    const updated = {...a, [field]: val};
+    // Reset confirmação se dose ou intervalo mudar
+    if (field === "dose" || field === "intervalo") updated.doseConfirmada = false;
+    return updated;
+  }));
 
   const fmtData = (d) => d ? new Date(d+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"2-digit"}) : "";
 
@@ -1536,7 +1543,6 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
           const horas48  = diasAtb !== null && diasAtb < 2;
           const cK = chaveR;
           const ajuste = (!horas48 && atb.nome) ? atbAjusteRenal(cK(atb.nome), clcr) : null;
-          const doseOk = atb.doseConfirmada || (ajuste && ajuste.ok);
           const isSuspendendo = suspendendo === atb.id;
 
           return (
@@ -1586,29 +1592,45 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                   style={{minWidth:115,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 6px",color:T.text2,fontSize:11}}/>
               </div>
 
-              {/* Alerta renal — só se relevante */}
+              {/* Alerta renal automático */}
               {(()=>{
                 if (!atb.nome) return null;
-                if (horas48) return <div style={{marginTop:5,fontSize:10,color:"#475569",fontFamily:mono}}>⏱ &lt;48h — sem ajuste renal</div>;
-                if (clcr===null||!ajuste) return null;
-                if (doseOk) {
-                  const dd = fmtDoseDiaria(doseDiaria(atb.dose, atb.intervalo));
-                  return <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>✅ Dose ok — ClCr {clcr} mL/min{dd?` · ${dd}`:""}</div>;
-                }
-                {/* Check if entered dose matches recommendation */}
+                if (horas48) return <div style={{marginTop:5,fontSize:10,color:"#475569",fontFamily:mono}}>⏱ &lt;48h — sem ajuste</div>;
+                if (clcr===null || !ajuste) return null;
+                const dd = fmtDoseDiaria(doseDiaria(atb.dose, atb.intervalo));
+                const ddStr = dd ? ` · ${dd}` : "";
+                // Dose adequada (ClCr ok para esse ATB)
+                if (ajuste.ok) return (
+                  <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>
+                    ✅ Dose ok — ClCr {clcr} mL/min{ddStr}
+                  </div>
+                );
+                // Verifica compatibilidade automática dose+intervalo
                 const compat = doseCompativel(atb.dose, atb.intervalo, ajuste.rec);
-                if (compat === true) {
-                  const dd = fmtDoseDiaria(doseDiaria(atb.dose, atb.intervalo));
-                  return <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>✅ Dose compatível com ajuste renal{dd?` · ${dd}`:""}</div>;
-                }
+                if (compat === true) return (
+                  <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>
+                    ✅ Dose ajustada corretamente — ClCr {clcr} mL/min{ddStr}
+                  </div>
+                );
+                // Usuário confirmou manualmente
+                if (atb.doseConfirmada) return (
+                  <div style={{marginTop:5,display:"flex",alignItems:"center",gap:6,fontSize:10,color:"#34d399",fontFamily:mono}}>
+                    <span>✅ Dose confirmada — ClCr {clcr} mL/min{ddStr}</span>
+                    <button onClick={()=>updAtb(atb.id,"doseConfirmada",false)}
+                      style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>
+                      rever
+                    </button>
+                  </div>
+                );
+                // Ajuste necessário e dose não verificada
                 return (
                   <div style={{marginTop:5,borderRadius:5,overflow:"hidden",border:"1px solid rgba(248,113,113,0.2)"}}>
                     <div style={{padding:"4px 8px",background:"rgba(248,113,113,0.06)",fontSize:10,color:"#f87171",fontFamily:mono}}>
-                      ⚠️ ClCr {clcr} mL/min → {ajuste.rec}
+                      ⚠️ ClCr {clcr} mL/min → recomendado: {ajuste.rec}{dd?` (sua dose: ${dd})`:""}
                     </div>
                     <button onClick={()=>updAtb(atb.id,"doseConfirmada",true)}
                       style={{width:"100%",padding:"3px 8px",background:"rgba(52,211,153,0.05)",border:"none",borderTop:"1px solid rgba(248,113,113,0.1)",color:"#34d399",cursor:"pointer",fontSize:10,fontFamily:mono,textAlign:"left"}}>
-                      ✓ Dose já ajustada
+                      ✓ Dose já ajustada corretamente
                     </button>
                   </div>
                 );
@@ -3753,7 +3775,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
           style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
         <button onClick={()=>add(nova)} style={{padding:"9px 14px",background:"rgba(56,189,248,0.15)",border:"1px solid #38bdf8",borderRadius:8,color:"#38bdf8",fontWeight:700,cursor:"pointer",fontSize:16}}>+</button>
       </div>
-      {(()=>{const sugs=[];const cr=parseFloat(tabelaHoje?.cr||0),peso=parseFloat(leito.peso||0);const idadeA=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento))/(365.25*86400000)):null;const clcr=cr&&peso&&idadeA?Math.round(((140-idadeA)*peso)/(72*cr)*(leito.sexo==="F"?0.85:1)):null;(leito.antibioticos||[]).forEach(atb=>{if(!atb.nome||!atb.dataInicio)return;const dias=Math.floor((new Date()-new Date(atb.dataInicio+"T00:00:00"))/86400000);if(dias<2)return;const lc=atb.nome.toLowerCase();const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.includes("imipenem")?"imipenem":lc.split(" ")[0].replace(/[^a-z]/g,"");if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(a=>clcr<a.tfg);if(aj)sugs.push({txt:`⚠️ Ajustar ${atb.nome}: ClCr ${clcr}→${aj.rec}`,alert:true});}});const disps=leito.dispositivos||{},alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach((inst,i)=>{if(!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}${disps[d.key].length>1?` ${i+1}`:""}:D${dd}(lim${alts[d.key]}d)`,alert:true});}));DISP_SINGULAR.forEach(d=>{const inst=disps[d.key];if(!inst?.ativo||!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}:D${dd}(lim${alts[d.key]}d)`,alert:true});});METAS_SUGESTOES.forEach(s=>sugs.push({txt:s,alert:false}));const ac=sugs.filter(s=>s.alert).length;return(<><button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:ac?"#f87171":"#64748b",fontSize:12,cursor:"pointer",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{show?"▲ Fechar":"▼ Ver sugestões"}{ac>0&&<span style={{padding:"1px 7px",background:"rgba(248,113,113,0.15)",borderRadius:10,fontSize:10}}>{ac} alertas</span>}</button>{show&&<div style={{marginBottom:14}}>{sugs.map((sg,i)=>(<div key={i} onClick={()=>add(sg.txt)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,marginBottom:4,cursor:"pointer",color:sg.alert?"#f87171":"#94a3b8",background:sg.alert?"rgba(248,113,113,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${sg.alert?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.05)"}`}} onMouseEnter={e=>e.currentTarget.style.opacity="0.7"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{sg.alert?"":"+  "}{sg.txt}</div>))}</div>}</>);})()}
+      {(()=>{const sugs=[];const cr=parseFloat(tabelaHoje?.cr||0),peso=parseFloat(leito.peso||0);const idadeA=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento))/(365.25*86400000)):null;const clcr=cr&&peso&&idadeA?Math.round(((140-idadeA)*peso)/(72*cr)*(leito.sexo==="F"?0.85:1)):null;(leito.antibioticos||[]).filter(a=>!a.dataFim).forEach(atb=>{if(!atb.nome||!atb.dataInicio)return;const dias=Math.floor((new Date()-new Date(atb.dataInicio+"T00:00:00"))/86400000);if(dias<2)return;const lc=atb.nome.toLowerCase();const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.includes("imipenem")?"imipenem":lc.split(" ")[0].replace(/[^a-z]/g,"");if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(a=>clcr<a.tfg);if(aj)sugs.push({txt:`⚠️ Ajustar ${atb.nome}: ClCr ${clcr}→${aj.rec}`,alert:true});}});const disps=leito.dispositivos||{},alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach((inst,i)=>{if(!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}${disps[d.key].length>1?` ${i+1}`:""}:D${dd}(lim${alts[d.key]}d)`,alert:true});}));DISP_SINGULAR.forEach(d=>{const inst=disps[d.key];if(!inst?.ativo||!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}:D${dd}(lim${alts[d.key]}d)`,alert:true});});METAS_SUGESTOES.forEach(s=>sugs.push({txt:s,alert:false}));const ac=sugs.filter(s=>s.alert).length;return(<><button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:ac?"#f87171":"#64748b",fontSize:12,cursor:"pointer",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{show?"▲ Fechar":"▼ Ver sugestões"}{ac>0&&<span style={{padding:"1px 7px",background:"rgba(248,113,113,0.15)",borderRadius:10,fontSize:10}}>{ac} alertas</span>}</button>{show&&<div style={{marginBottom:14}}>{sugs.map((sg,i)=>(<div key={i} onClick={()=>add(sg.txt)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,marginBottom:4,cursor:"pointer",color:sg.alert?"#f87171":"#94a3b8",background:sg.alert?"rgba(248,113,113,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${sg.alert?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.05)"}`}} onMouseEnter={e=>e.currentTarget.style.opacity="0.7"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{sg.alert?"":"+  "}{sg.txt}</div>))}</div>}</>);})()}
       {metas.length===0 && <div style={{textAlign:"center",padding:24,color:"#334155",fontSize:13}}>Nenhuma meta cadastrada para este plantão</div>}
       {metas.map(m=>(
         <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:8,marginBottom:6,border:"1px solid rgba(255,255,255,0.06)"}}>
