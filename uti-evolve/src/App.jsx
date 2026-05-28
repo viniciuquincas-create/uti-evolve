@@ -1,11 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-// BUILD 2026-05-28T03:46:11
-// 2026-05-28T04:20:52
-// 2026-05-28T04:48:32
-// 2026-05-28T05:24:20
-console.warn("UTI-EVOLVE-BUILD-2026-05-28T03:23:53-LAYOUT");
 import React from "react";
 import { supabase } from './supabase.js';
+
+// UTI Evolve — build 2026-05-28T18:12:42
 
 // ── Logo SVG — Cérebro com sensor Brain for Care ──────────────────────────────
 const BrainLogo = ({ size = 32 }) => (
@@ -1153,7 +1150,7 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
   );
 }
 
-// ── VentilaçãoPanel ────────────────────────────────────────────────────────────
+// ── VentilacaoPanel ────────────────────────────────────────────────────────────
 const VM_MODOS = [
   { id:"ar_ambiente",  label:"Ar ambiente",                       icone:"🌬️"  },
   { id:"cn",           label:"Cateter Nasal (CN)",                 icone:"👃"  },
@@ -1232,7 +1229,7 @@ function gerarTextoVM(leito) {
   return `${label}: ${partes.join(" / ")}`;
 }
 
-function VentilaçãoPanel({ leito, onChange }) {
+function VentilacaoPanel({ leito, onChange }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [busca, setBusca] = useState("");
@@ -1726,6 +1723,51 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
 const LAB_MAP_TEXT={"hb":"hb","hemoglobina":"hb","ht":"ht","leuco":"leuco","leucocitos":"leuco","plaq":"plaq","plaquetas":"plaq","cr":"cr","creatinina":"cr","ur":"ur","ureia":"ur","na":"na","sodio":"na","k":"k","potassio":"k","mg":"mg","magnesio":"mg","cai":"cai","calcio":"cai","ca":"cai","p":"p","fosforo":"p","fa":"falc","falc":"falc","ggt":"ggt","tgo":"tgo","ast":"tgo","tgp":"tgp","alt":"tgp","bt":"bttot","bttot":"bttot","alb":"alb","rni":"rni","inr":"rni","ttpa":"ttpa","fibri":"fibri","ph":"ph","bic":"hco3","hco3":"hco3","be":"be","pco2":"pco2","po2":"po2","lact":"lact","lactato":"lact","trop":"trop","bnp":"bnp","ntpro":"ntpro","pcr":"pcr"};
 function parsearLabsTexto(txt){const result={};txt.split(/[/;\n]+/).forEach(part=>{const m=part.trim().match(/^([a-zA-Z\u00C0-\u00FF0-9_]+)\s+([0-9.,]+k?)/i);if(!m)return;const[,nome,valRaw]=m;const chave=nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");const key=LAB_MAP_TEXT[chave];let val=valRaw.replace(",",".");if(val.endsWith("k"))val=String(parseFloat(val)*1000);if(key)result[key]=val;else result[`_extra_${nome.toLowerCase()}`]=val;});return result;}
 
+
+const CTRL_MAP_TEXT = {
+  // Temperatura
+  "t":"c24_temp","temp":"c24_temp","temperatura":"c24_temp",
+  // Frequências
+  "fc":"c24_fc","frequenciacardiaca":"c24_fc","cardíaca":"c24_fc",
+  "fr":"c24_fr","frequenciarespiratoria":"c24_fr","respiratoria":"c24_fr",
+  // Pressão arterial
+  "pas":"c24_pas","sistolica":"c24_pas",
+  "pad":"c24_pad","diastolica":"c24_pad",
+  "pam":"c24_pam","pamedia":"c24_pam","arterial":"c24_pam",
+  // Saturação / glicemia
+  "spo2":"c24_sat","sat":"c24_sat","sato2":"c24_sat","saturacao":"c24_sat",
+  "dextro":"c24_dextro","glicemia":"c24_dextro","hgt":"c24_dextro","glic":"c24_dextro",
+  // Ganhos
+  "dietavol":"c24_diet_vol","dieta":"c24_diet_vol","npt":"c24_diet_vol",
+  // Perdas
+  "du":"c24_diur","diurese":"c24_diur","uo":"c24_diur","diu":"c24_diur","debito":"c24_diur","debitourinario":"c24_diur",
+  "hd":"c24_hd","hemodialise":"c24_hd","hemodiálise":"c24_hd","crrt":"c24_hd","uf":"c24_hd",
+  // Balanço
+  "bh":"c24_bh","balanco":"c24_bh","balanço":"c24_bh","balancohidrico":"c24_bh",
+  "bhac":"c24_bh_ac","bhacum":"c24_bh_ac","balancoac":"c24_bh_ac","acumulado":"c24_bh_ac",
+};
+
+function parsearControlesTexto(txt) {
+  const result = {};
+  // Split on / or ; or newline
+  txt.split(/[/;\n]+/).forEach(part => {
+    // Match "KEY value" where value can be "37 - 36.5" or "-900" or "500"
+    // Key can be multi-word: "PAM 78 - 60" or "DU 500" or "BH -900"
+    const m = part.trim().match(/^([a-zA-ZÀ-ú0-9_\s]+?)\s+([-]?[0-9]+(?:[.,][0-9]+)?(?:\s*[-–]\s*[-]?[0-9]+(?:[.,][0-9]+)?)*)$/i);
+    if (!m) return;
+    const [, nomeRaw, valRaw] = m;
+    const chave = nomeRaw.trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
+    const key = CTRL_MAP_TEXT[chave];
+    // Normalize value: use dash separator for ranges
+    const val = valRaw.trim().replace(/\s*[-–]\s*/g, " / ").replace(",", ".");
+    if (key) result[key] = val;
+    // else ignore — controles not recognized are discarded silently
+  });
+  return result;
+}
+
 // ── UploadAnalyzer ────────────────────────────────────────────────────────────
 function UploadAnalyzer({ onResult, onManualResult }) {
   const [loading,setLoading]=useState(false);
@@ -1733,9 +1775,20 @@ function UploadAnalyzer({ onResult, onManualResult }) {
   const [draft,setDraft]=useState(null);
   const [rev,setRev]=useState(false);
   const [textoManual,setTextoManual]=useState("");
+  const [textoCtrl,setTextoCtrl]=useState("");
   const [importadoMsg,setImportadoMsg]=useState("");
+  const [importadoCtrlMsg,setImportadoCtrlMsg]=useState("");
   const fileRef=useRef();
   const areaRef=useRef();
+  const importarControles=()=>{
+    if(!textoCtrl.trim())return;
+    const parsed=parsearControlesTexto(textoCtrl);
+    if(!Object.keys(parsed).length){setImportadoCtrlMsg("Nenhum campo reconhecido.");return;}
+    if(onManualResult)onManualResult(parsed);
+    const campos=Object.keys(parsed).map(k=>k.replace("c24_","")).join(", ");
+    setImportadoCtrlMsg(`✅ Importados: ${campos}`);
+    setTextoCtrl("");
+  };
   const importarManual=()=>{if(!textoManual.trim())return;const parsed=parsearLabsTexto(textoManual);if(!Object.keys(parsed).length){setImportadoMsg("Nenhum campo reconhecido.");return;}if(onManualResult)onManualResult(parsed);const campos=Object.keys(parsed).filter(k=>!k.startsWith("_extra_")).join(", ");const extras=Object.keys(parsed).filter(k=>k.startsWith("_extra_")).map(k=>k.replace("_extra_","")).join(", ");setImportadoMsg(`✅ Importados: ${campos}${extras?` · extras: ${extras}`:""}`);setTextoManual("");};
 
   const handleFile = useCallback(async (file) => {
@@ -1780,13 +1833,28 @@ function UploadAnalyzer({ onResult, onManualResult }) {
 
   return (
     <div>
-      <div style={{marginBottom:16,padding:"12px 14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:10}}>
-        <div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}><strong style={{color:"#38bdf8"}}>📋 Entrada manual de labs</strong><span style={{marginLeft:8,fontSize:10,color:"#475569"}}>Ex: Hb 9.8 / Leuco 12k / Plaq 323k / Cr 3 / Na 140 / K 4 / pH 7.21 / Bic 12</span></div>
-        <div style={{display:"flex",gap:8}}>
-          <input placeholder="Cole ou digite os labs..." value={textoManual} onChange={e=>setTextoManual(e.target.value)} onKeyDown={e=>e.key==="Enter"&&importarManual()} style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:12,outline:"none"}}/>
-          <button onClick={importarManual} style={{padding:"8px 14px",background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,color:"#38bdf8",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>→ Importar</button>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:10,marginBottom:16}}>
+        {/* Labs */}
+        <div style={{padding:"12px 14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:10}}>
+          <div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}><strong style={{color:"#38bdf8"}}>🔬 Entrada manual de labs</strong></div>
+          <div style={{fontSize:10,color:"#475569",marginBottom:6}}>Ex: Hb 9.8 / Leuco 12k / Cr 3 / Na 140 / K 4 / pH 7.21 / Bic 12</div>
+          <div style={{display:"flex",gap:6}}>
+            <input placeholder="Labs aqui..." value={textoManual} onChange={e=>setTextoManual(e.target.value)} onKeyDown={e=>e.key==="Enter"&&importarManual()} style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,outline:"none"}}/>
+            <button onClick={importarManual} style={{padding:"7px 12px",background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:7,color:"#38bdf8",cursor:"pointer",fontSize:12,fontWeight:600}}>→</button>
+          </div>
+          {importadoMsg&&<div style={{marginTop:5,fontSize:11,color:"#34d399"}}>{importadoMsg}</div>}
         </div>
-        {importadoMsg&&<div style={{marginTop:6,fontSize:11,color:"#34d399"}}>{importadoMsg}</div>}
+        {/* Controles 24h */}
+        <div style={{padding:"12px 14px",background:"rgba(52,211,153,0.04)",border:"1px solid rgba(52,211,153,0.15)",borderRadius:10}}>
+          <div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}><strong style={{color:"#34d399"}}>📊 Controles 24h (manual)</strong></div>
+          <div style={{fontSize:10,color:"#475569",marginBottom:6}}>Ex: T 37.1-36 / FC 100-120 / PAM 78-60 / DU 500 / HD 1000 / BH -900</div>
+          <div style={{fontSize:10,color:"#334155",marginBottom:6}}>Abrev: T, FC, FR, PAS, PAD, PAM, SpO2, Dextro/HGT/Glic, DU/Diurese, HD/CRRT, BH, Dieta/NPT</div>
+          <div style={{display:"flex",gap:6}}>
+            <input placeholder="Controles aqui..." value={textoCtrl} onChange={e=>setTextoCtrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&importarControles()} style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,outline:"none"}}/>
+            <button onClick={importarControles} style={{padding:"7px 12px",background:"rgba(52,211,153,0.12)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:7,color:"#34d399",cursor:"pointer",fontSize:12,fontWeight:600}}>→</button>
+          </div>
+          {importadoCtrlMsg&&<div style={{marginTop:5,fontSize:11,color:"#34d399"}}>{importadoCtrlMsg}</div>}
+        </div>
       </div>
       <div onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} onDragOver={e=>e.preventDefault()} onClick={()=>fileRef.current?.click()}
         style={{ border:"1.5px dashed rgba(56,189,248,0.3)", borderRadius:12, padding:24, textAlign:"center", cursor:"pointer", background:"rgba(56,189,248,0.03)", marginBottom:16 }}>
@@ -4247,7 +4315,7 @@ export default function App() {
             ) : aba==="dadosclinicos" ? (
               <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
                 <div style={{flex:2,minWidth:340}}>
-                  <VentilaçãoPanel leito={leito} onChange={atualizar}/>
+                  <VentilacaoPanel leito={leito} onChange={atualizar}/>
                 </div>
                 <div style={{flex:3,minWidth:340}}>
                   {leito.peso && <>
