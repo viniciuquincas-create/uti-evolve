@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 // BUILD 2026-05-28T03:46:11
+// 2026-05-28T04:20:52
 console.warn("UTI-EVOLVE-BUILD-2026-05-28T03:23:53-LAYOUT");
 import React from "react";
 import { supabase } from './supabase.js';
@@ -987,51 +988,36 @@ const diasDisp = (ds) => {
 function DispCard({ label, icone, alertaDias, disp, onUpdate, onRemove }) {
   const dias = diasDisp(disp.data);
   const alerta = dias !== null && dias > alertaDias;
+  const [showObs, setShowObs] = useState(false);
   return (
-    <div style={{
-      borderRadius:10,
-      border:`1px solid ${alerta?"rgba(248,113,113,0.4)":"rgba(56,189,248,0.2)"}`,
-      background:alerta?"rgba(248,113,113,0.04)":"rgba(56,189,248,0.03)",
-      overflow:"hidden", marginBottom:8,
-    }}>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px"}}>
-        <span style={{fontSize:15}}>{icone}</span>
+    <div style={{borderRadius:10,border:`1px solid ${alerta?"rgba(248,113,113,0.4)":"rgba(56,189,248,0.2)"}`,background:alerta?"rgba(248,113,113,0.04)":"rgba(56,189,248,0.03)",overflow:"hidden"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px"}}>
+        <span style={{fontSize:14}}>{icone}</span>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0"}}>{label}</div>
-          {disp.site && <div style={{fontSize:11,color:"#64748b",marginTop:1}}>{disp.site}</div>}
+          <div style={{fontSize:12,fontWeight:600,color:"#e2e8f0"}}>{label}</div>
+          {disp.site&&<div style={{fontSize:10,color:"#64748b"}}>{disp.site}</div>}
         </div>
-        {dias !== null && (
-          <div style={{textAlign:"center",padding:"4px 10px",borderRadius:8,minWidth:50,
-            background:alerta?"rgba(248,113,113,0.12)":"rgba(56,189,248,0.1)",
-            border:`1px solid ${alerta?"rgba(248,113,113,0.35)":"rgba(56,189,248,0.25)"}`}}>
-            <div style={{fontSize:15,fontWeight:700,color:alerta?"#f87171":"#38bdf8",lineHeight:1}}>
-              {dias===0?"D0":`D${dias}`}
-            </div>
-            {alerta&&<div style={{fontSize:9,color:"#f87171",fontFamily:mono,marginTop:1}}>REVISAR</div>}
-          </div>
-        )}
-        <button onClick={onRemove} style={{
-          background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.25)",
-          borderRadius:8,color:"#f87171",cursor:"pointer",fontSize:11,padding:"4px 10px",fontWeight:600,
-        }}>Retirar</button>
+        {dias!==null&&<div style={{textAlign:"center",padding:"3px 8px",borderRadius:6,minWidth:40,background:alerta?"rgba(248,113,113,0.12)":"rgba(56,189,248,0.1)",border:`1px solid ${alerta?"rgba(248,113,113,0.35)":"rgba(56,189,248,0.25)"}`}}>
+          <div style={{fontSize:13,fontWeight:700,color:alerta?"#f87171":"#38bdf8",lineHeight:1}}>{dias===0?"D0":`D${dias}`}</div>
+          {alerta&&<div style={{fontSize:8,color:"#f87171",fontFamily:mono}}>REVISAR</div>}
+        </div>}
+        <button onClick={()=>setShowObs(s=>!s)} title="Obs" style={{background:"none",border:"none",color:showObs?"#38bdf8":"#475569",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>📝</button>
+        <button onClick={onRemove} style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:10,padding:"3px 8px",fontWeight:600}}>✕</button>
       </div>
-      <div style={{padding:"0 14px 12px",borderTop:"1px solid rgba(255,255,255,0.04)",paddingTop:10,display:"flex",gap:8,flexWrap:"wrap"}}>
-        <div style={{flex:1,minWidth:120}}>
-          <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DATA INSERÇÃO</div>
-          <input type="date" value={disp.data||""} onChange={e=>onUpdate("data",e.target.value)}
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
+      <div style={{padding:"0 12px 8px",borderTop:"1px solid rgba(255,255,255,0.04)",paddingTop:8,display:"flex",gap:8,flexWrap:"wrap"}}>
+        <div style={{minWidth:130,flex:1}}>
+          <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>DATA INSERÇÃO</div>
+          <input type="date" value={disp.data||""} onChange={e=>onUpdate("data",e.target.value)} style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:11}}/>
         </div>
-        <div style={{flex:1,minWidth:130}}>
-          <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>SÍTIO / LOCALIZAÇÃO</div>
-          <input value={disp.site||""} onChange={e=>onUpdate("site",e.target.value)} placeholder="Ex: Femoral E / Tórax D / Peritônio"
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
-        </div>
-        <div style={{flex:2,minWidth:160}}>
-          <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>OBSERVAÇÕES</div>
-          <input value={disp.obs||""} onChange={e=>onUpdate("obs",e.target.value)} placeholder="Curativo ok, sem sinais de infecção…"
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}/>
+        <div style={{minWidth:140,flex:2}}>
+          <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>SÍTIO / LOCALIZAÇÃO</div>
+          <input value={disp.site||""} onChange={e=>onUpdate("site",e.target.value)} placeholder="Femoral E / Tórax D" style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:11}}/>
         </div>
       </div>
+      {showObs&&<div style={{padding:"0 12px 8px"}}>
+        <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>OBSERVAÇÕES</div>
+        <input value={disp.obs||""} onChange={e=>onUpdate("obs",e.target.value)} placeholder="Curativo ok..." style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:11}}/>
+      </div>}
     </div>
   );
 }
@@ -1094,35 +1080,10 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
         </div>
       )}
 
-      {/* Múltiplos */}
-      {DISP_MULTIPLO.map(({key,label,icone})=>{
-        const lista = getMultiplos(key);
-        if (!lista.length) return null;
-        return (
-          <div key={key}>
-            {lista.map((disp,i)=>(
-              <DispCard key={disp.id}
-                label={lista.length>1?`${label} ${i+1}`:label}
-                icone={icone} alertaDias={getAlerta(key)} disp={disp}
-                onUpdate={(f,v)=>updMultiplo(key,disp.id,f,v)}
-                onRemove={()=>retirarMultiplo(key,disp.id)}
-              />
-            ))}
-          </div>
-        );
-      })}
-
-      {/* Singulares */}
-      {DISP_SINGULAR.map(({key,label,icone})=>{
-        if (!isSingularAtivo(key)) return null;
-        const disp = dispositivos[key];
-        return (
-          <DispCard key={key} label={label} icone={icone} alertaDias={getAlerta(key)} disp={disp}
-            onUpdate={(f,v)=>updSingular(key,f,v)}
-            onRemove={()=>retirarSingular(key)}
-          />
-        );
-      })}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:8,marginBottom:8}}>
+        {DISP_MULTIPLO.map(({key,label,icone})=>(Array.isArray(dispositivos[key])?dispositivos[key]:[]).map((disp,i)=>(<DispCard key={disp.id} label={(Array.isArray(dispositivos[key])&&dispositivos[key].length>1)?`${label} ${i+1}`:label} icone={icone} alertaDias={getAlerta(key)} disp={disp} onUpdate={(f,v)=>updMultiplo(key,disp.id,f,v)} onRemove={()=>retirarMultiplo(key,disp.id)}/>)))}
+        {DISP_SINGULAR.map(({key,label,icone})=>{if(!isSingularAtivo(key))return null;return <DispCard key={key} label={label} icone={icone} alertaDias={getAlerta(key)} disp={dispositivos[key]} onUpdate={(f,v)=>updSingular(key,f,v)} onRemove={()=>retirarSingular(key)}/>;})}
+      </div>
 
       {/* Botão + picker */}
       <div style={{position:"relative"}}>
@@ -1253,11 +1214,12 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
 
   const clcr = calcClCr(crSerico, peso, idadeAnos, sexo);
 
-  const addAtb = () => {
-    onChange([...antibioticos, {
-      id: Date.now(), nome:"", via:"EV", dose:"", dataInicio: hoje, obs:""
-    }]);
-  };
+  const [busca,setBusca]=useState("");
+  const [showBusca,setShowBusca]=useState(false);
+  const ATB_LISTA=["Meropenem","Imipenem","Ertapenem","Pip/Tazo","Amp/Sulbactam","Ampicilina","Cefepime","Ceftriaxona","Cefazolina","Ceftazidima","Vancomicina","Teicoplanina","Linezolida","Daptomicina","Amicacina","Gentamicina","Ciprofloxacino","Levofloxacino","Moxifloxacino","Fluconazol","Caspofungina","Micafungina","Voriconazol","Anidulafungina","Colistina","Polimixina B","Metronidazol","Clindamicina","Oxacilina","Azitromicina","Claritromicina","SMX-TMP","Tigeciclina"];
+  const atbFiltrados=busca.length>=1?ATB_LISTA.filter(a=>a.toLowerCase().includes(busca.toLowerCase())): [];
+  const chaveR=(n)=>{const lc=n.toLowerCase();if(lc.includes("pip")&&lc.includes("tazo"))return"pip/tazo";if(lc.includes("amp")&&lc.includes("sulbactam"))return"amp/sulbactam";if(lc.includes("imipenem"))return"imipenem";return lc.split(" ")[0].replace(/[^a-z]/g,"");};
+  const addAtb=(nome="")=>{onChange([...antibioticos,{id:Date.now(),nome,via:"EV",dose:"",dataInicio:hoje}]);setBusca("");setShowBusca(false);};
   const remAtb = (id) => onChange(antibioticos.filter(a=>a.id!==id));
   const updAtb = (id, field, val) => onChange(antibioticos.map(a=>a.id===id?{...a,[field]:val}:a));
 
@@ -1279,7 +1241,8 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
         {antibioticos.map(atb => {
           const diasAtb = atb.dataInicio ? Math.floor((new Date() - new Date(atb.dataInicio+"T00:00:00")) / 86400000) : null;
           const horas48  = diasAtb !== null && diasAtb < 2;
-          const ajuste   = (!horas48 && atb.nome) ? atbAjusteRenal(atb.nome, clcr) : null;
+          const cK=(n)=>{const lc=n.toLowerCase();if(lc.includes("pip")&&lc.includes("tazo"))return"pip/tazo";if(lc.includes("amp")&&lc.includes("sulbactam"))return"amp/sulbactam";if(lc.includes("imipenem"))return"imipenem";return lc.split(" ")[0].replace(/[^a-z]/g,"");};
+          const ajuste=(!horas48&&atb.nome)?atbAjusteRenal(cK(atb.nome),clcr):null;
 
           return (
             <div key={atb.id} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${ajuste&&!ajuste.ok?"rgba(248,113,113,0.35)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"12px 14px"}}>
@@ -1346,9 +1309,13 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
           );
         })}
       </div>
-      <button onClick={addAtb} style={{padding:"7px 16px",background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,color:"#38bdf8",cursor:"pointer",fontSize:12,fontWeight:600}}>
-        + Adicionar antibiótico
-      </button>
+      <div style={{position:"relative",marginTop:4}}>
+        <div style={{display:"flex",gap:8}}>
+          <input value={busca} onChange={e=>{setBusca(e.target.value);setShowBusca(true);}} onFocus={()=>setShowBusca(true)} onKeyDown={e=>{if(e.key==="Enter"&&busca.trim()){if(atbFiltrados.length>0)addAtb(atbFiltrados[0]);else addAtb(busca.trim());}if(e.key==="Escape")setShowBusca(false);}} placeholder="Buscar ATB... (Enter para adicionar)" style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:12,outline:"none"}}/>
+          <button onClick={()=>busca.trim()&&addAtb(busca.trim())} style={{padding:"8px 14px",background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,color:"#38bdf8",cursor:"pointer",fontSize:12,fontWeight:600}}>+ Adicionar</button>
+        </div>
+        {showBusca&&atbFiltrados.length>0&&(<div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:99,background:"#0c1a10",border:"1px solid rgba(56,189,248,0.25)",borderRadius:8,marginTop:4,maxHeight:220,overflowY:"auto"}}>{atbFiltrados.map(a=>(<div key={a} onClick={()=>addAtb(a)} style={{padding:"8px 14px",cursor:"pointer",fontSize:12,color:"#cbd5e1",borderBottom:"1px solid rgba(255,255,255,0.04)"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.1)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{a}{ATB_RENAL[chaveR(a)]?.length===0?<span style={{marginLeft:8,fontSize:10,color:"#34d399"}}>sem ajuste</span>:ATB_RENAL[chaveR(a)]?.length>0?<span style={{marginLeft:8,fontSize:10,color:"#fbbf24"}}>⚠️ ajuste renal</span>:null}</div>))}</div>)}
+      </div>
     </div>
   );
 }
@@ -1414,9 +1381,12 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
           {vc8         && <Pill label="VC 8 mL/kg"   value={vc8}          unit="mL (máx ARDSNet)"color="#34d399"/>}
         </div>
         {pp && (
-          <div style={{ marginTop:10, padding:"10px 14px", background:"rgba(251,146,60,0.07)", border:"1px solid rgba(251,146,60,0.25)", borderRadius:8, fontSize:12, color:"#fdba74" }}>
-            💡 <strong>Peso predito (ARDSNet):</strong> {dados.sexo==="M"?"♂":"♀"} {dados.altura} cm → {pp} kg.
-            Use <strong>{vc6} mL</strong> como ponto de partida para VM protetora (6 mL/kg PP) e não ultrapasse <strong>{vc8} mL</strong> (8 mL/kg PP) no SDRA.
+          <div style={{marginTop:8,display:"flex",alignItems:"center",gap:8,padding:"7px 12px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:8,fontSize:11,color:"#cbd5e1",flexWrap:"wrap"}}>
+            <span>💡 <strong>PP:</strong> {dados.sexo==="M"?"♂":"♀"} {dados.altura}cm → <strong style={{color:"#fb923c"}}>{pp}kg</strong></span>
+            <span style={{color:"#64748b"}}>·</span>
+            <span>VC protetor <strong style={{color:"#34d399"}}>{vc6}mL</strong></span>
+            <span style={{color:"#64748b"}}>·</span>
+            <span>Máx ARDSNet <strong style={{color:"#34d399"}}>{vc8}mL</strong></span>
           </div>
         )}
       </>}
@@ -1465,14 +1435,20 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   );
 }
 
+const LAB_MAP_TEXT={"hb":"hb","hemoglobina":"hb","ht":"ht","leuco":"leuco","leucocitos":"leuco","plaq":"plaq","plaquetas":"plaq","cr":"cr","creatinina":"cr","ur":"ur","ureia":"ur","na":"na","sodio":"na","k":"k","potassio":"k","mg":"mg","magnesio":"mg","cai":"cai","calcio":"cai","ca":"cai","p":"p","fosforo":"p","fa":"falc","falc":"falc","ggt":"ggt","tgo":"tgo","ast":"tgo","tgp":"tgp","alt":"tgp","bt":"bttot","bttot":"bttot","alb":"alb","rni":"rni","inr":"rni","ttpa":"ttpa","fibri":"fibri","ph":"ph","bic":"hco3","hco3":"hco3","be":"be","pco2":"pco2","po2":"po2","lact":"lact","lactato":"lact","trop":"trop","bnp":"bnp","ntpro":"ntpro","pcr":"pcr"};
+function parsearLabsTexto(txt){const result={};txt.split(/[/;\n]+/).forEach(part=>{const m=part.trim().match(/^([a-zA-Z\u00C0-\u00FF0-9_]+)\s+([0-9.,]+k?)/i);if(!m)return;const[,nome,valRaw]=m;const chave=nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");const key=LAB_MAP_TEXT[chave];let val=valRaw.replace(",",".");if(val.endsWith("k"))val=String(parseFloat(val)*1000);if(key)result[key]=val;else result[`_extra_${nome.toLowerCase()}`]=val;});return result;}
+
 // ── UploadAnalyzer ────────────────────────────────────────────────────────────
 function UploadAnalyzer({ onResult }) {
-  const [loading, setLoading] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [draft,   setDraft]   = useState(null);
-  const [rev,     setRev]     = useState(false);
-  const fileRef = useRef();
-  const areaRef = useRef();
+  const [loading,setLoading]=useState(false);
+  const [preview,setPreview]=useState(null);
+  const [draft,setDraft]=useState(null);
+  const [rev,setRev]=useState(false);
+  const [textoManual,setTextoManual]=useState("");
+  const [importadoMsg,setImportadoMsg]=useState("");
+  const fileRef=useRef();
+  const areaRef=useRef();
+  const importarManual=()=>{if(!textoManual.trim())return;const parsed=parsearLabsTexto(textoManual);if(!Object.keys(parsed).length){setImportadoMsg("Nenhum campo reconhecido.");return;}onResult(parsed);const campos=Object.keys(parsed).filter(k=>!k.startsWith("_extra_")).join(", ");const extras=Object.keys(parsed).filter(k=>k.startsWith("_extra_")).map(k=>k.replace("_extra_","")).join(", ");setImportadoMsg(`✅ Importados: ${campos}${extras?` · extras: ${extras}`:""}`);setTextoManual("");};
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;
@@ -1516,6 +1492,14 @@ function UploadAnalyzer({ onResult }) {
 
   return (
     <div>
+      <div style={{marginBottom:16,padding:"12px 14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:10}}>
+        <div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}><strong style={{color:"#38bdf8"}}>📋 Entrada manual de labs</strong><span style={{marginLeft:8,fontSize:10,color:"#475569"}}>Ex: Hb 9.8 / Leuco 12k / Plaq 323k / Cr 3 / Na 140 / K 4 / pH 7.21 / Bic 12</span></div>
+        <div style={{display:"flex",gap:8}}>
+          <input placeholder="Cole ou digite os labs..." value={textoManual} onChange={e=>setTextoManual(e.target.value)} onKeyDown={e=>e.key==="Enter"&&importarManual()} style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:12,outline:"none"}}/>
+          <button onClick={importarManual} style={{padding:"8px 14px",background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,color:"#38bdf8",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>→ Importar</button>
+        </div>
+        {importadoMsg&&<div style={{marginTop:6,fontSize:11,color:"#34d399"}}>{importadoMsg}</div>}
+      </div>
       <div onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} onDragOver={e=>e.preventDefault()} onClick={()=>fileRef.current?.click()}
         style={{ border:"1.5px dashed rgba(56,189,248,0.3)", borderRadius:12, padding:24, textAlign:"center", cursor:"pointer", background:"rgba(56,189,248,0.03)", marginBottom:16 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
@@ -3379,7 +3363,7 @@ function FerramentasPanel() {
 }
 
 // ── MetasPanel ────────────────────────────────────────────────────────────────
-function MetasPanel({ metas, onChange }) {
+function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
   const [nova, setNova] = useState("");
   const [show, setShow] = useState(false);
   
@@ -3407,10 +3391,7 @@ function MetasPanel({ metas, onChange }) {
           style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
         <button onClick={()=>add(nova)} style={{padding:"9px 14px",background:"rgba(56,189,248,0.15)",border:"1px solid #38bdf8",borderRadius:8,color:"#38bdf8",fontWeight:700,cursor:"pointer",fontSize:16}}>+</button>
       </div>
-      <button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:12}}>
-        {show?"▲ Ocultar sugestões":"▼ Ver sugestões de metas comuns"}
-      </button>
-      {show && <div style={{marginBottom:14}}>{METAS_SUGESTOES.map(sg=><div key={sg} onClick={()=>add(sg)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,color:"#94a3b8",cursor:"pointer",background:"rgba(255,255,255,0.02)",marginBottom:4,border:"1px solid rgba(255,255,255,0.05)"}}>+ {sg}</div>)}</div>}
+      {(()=>{const sugs=[];const cr=parseFloat(tabelaHoje?.cr||0),peso=parseFloat(leito.peso||0);const idadeA=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento))/(365.25*86400000)):null;const clcr=cr&&peso&&idadeA?Math.round(((140-idadeA)*peso)/(72*cr)*(leito.sexo==="F"?0.85:1)):null;(leito.antibioticos||[]).forEach(atb=>{if(!atb.nome||!atb.dataInicio)return;const dias=Math.floor((new Date()-new Date(atb.dataInicio+"T00:00:00"))/86400000);if(dias<2)return;const lc=atb.nome.toLowerCase();const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.includes("imipenem")?"imipenem":lc.split(" ")[0].replace(/[^a-z]/g,"");if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(a=>clcr<a.tfg);if(aj)sugs.push({txt:`⚠️ Ajustar ${atb.nome}: ClCr ${clcr}→${aj.rec}`,alert:true});}});const disps=leito.dispositivos||{},alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach((inst,i)=>{if(!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}${disps[d.key].length>1?` ${i+1}`:""}:D${dd}(lim${alts[d.key]}d)`,alert:true});}));DISP_SINGULAR.forEach(d=>{const inst=disps[d.key];if(!inst?.ativo||!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}:D${dd}(lim${alts[d.key]}d)`,alert:true});});METAS_SUGESTOES.forEach(s=>sugs.push({txt:s,alert:false}));const ac=sugs.filter(s=>s.alert).length;return(<><button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:ac?"#f87171":"#64748b",fontSize:12,cursor:"pointer",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{show?"▲ Fechar":"▼ Ver sugestões"}{ac>0&&<span style={{padding:"1px 7px",background:"rgba(248,113,113,0.15)",borderRadius:10,fontSize:10}}>{ac} alertas</span>}</button>{show&&<div style={{marginBottom:14}}>{sugs.map((sg,i)=>(<div key={i} onClick={()=>add(sg.txt)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,marginBottom:4,cursor:"pointer",color:sg.alert?"#f87171":"#94a3b8",background:sg.alert?"rgba(248,113,113,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${sg.alert?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.05)"}`}} onMouseEnter={e=>e.currentTarget.style.opacity="0.7"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{sg.alert?"":"+  "}{sg.txt}</div>))}</div>}</>);})()}
       {metas.length===0 && <div style={{textAlign:"center",padding:24,color:"#334155",fontSize:13}}>Nenhuma meta cadastrada para este plantão</div>}
       {metas.map(m=>(
         <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:8,marginBottom:6,border:"1px solid rgba(255,255,255,0.06)"}}>
@@ -4233,15 +4214,10 @@ ${linha}`:linha}));
                   <div style={{fontSize:13,color:T.text3}}>Adicione metas e acompanhe o cumprimento durante o plantão.</div>
                 </div>
                 <MetasPanel
-                  metas={metasPorLeito[leitoSelId] || []}
-                  onChange={m=>{
-                    setMetasPorLeito(mp=>{
-                      const novo = {...mp,[leitoSelId]:m};
-                      salvarMetas(novo);
-                      return novo;
-                    });
-                  }}
-                />
+                  metas={metasPorLeito[leitoSelId]||[]}
+                  onChange={m=>{setMetasPorLeito(mp=>{const novo={...mp,[leitoSelId]:m};salvarMetas(novo);return novo;});}}
+                  leito={leito} config={config}
+                  tabelaHoje={(()=>{const tb=tabelaData[leitoSelId]||{};const ds=Object.keys(tb).sort().reverse();for(const d of ds)if(tb[d]?.cr)return tb[d];return tb[ds[0]]||{};})()} />
               </div>
             )}
           </div>
