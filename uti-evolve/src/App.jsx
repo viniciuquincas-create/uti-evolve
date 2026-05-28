@@ -4347,7 +4347,7 @@ ${linha}`:linha}));
                     {algum&&!previo&&<span style={{fontSize:11,color:"#475569",fontFamily:"'DM Mono',monospace"}}>soma de {datas.filter(d=>!isNaN(parseFloat(tb[d]?.c24_bh))).length} dias</span>}
                   </div>
                 );
-              })()}}
+              })()}
                 <PacientePanel
                 dados={leito} onChange={atualizar} config={config}
                 onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
