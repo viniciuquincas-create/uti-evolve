@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 // BUILD 2026-05-28T03:46:11
 // 2026-05-28T04:20:52
+// 2026-05-28T04:48:32
 console.warn("UTI-EVOLVE-BUILD-2026-05-28T03:23:53-LAYOUT");
 import React from "react";
 import { supabase } from './supabase.js';
@@ -1151,6 +1152,215 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
   );
 }
 
+// ── VentilaçãoPanel ────────────────────────────────────────────────────────────
+const VM_MODOS = [
+  { id:"ar_ambiente",  label:"Ar ambiente",                       icone:"🌬️"  },
+  { id:"cn",           label:"Cateter Nasal (CN)",                 icone:"👃"  },
+  { id:"ms",           label:"Máscara Simples (MS)",               icone:"😷"  },
+  { id:"mnr",          label:"Máscara Não Reinalante (MNR)",       icone:"🫁"  },
+  { id:"venturi",      label:"Máscara Venturi",                    icone:"💨"  },
+  { id:"cnaf",         label:"CNAF (Cateter Nasal Alto Fluxo)",    icone:"🌊"  },
+  { id:"vni",          label:"VNI (Ventilação Não Invasiva)",      icone:"🔵"  },
+  { id:"vm_psv",       label:"VM — Modo PSV (Pressão Suporte)",    icone:"🔴"  },
+  { id:"vm_pcv",       label:"VM — Modo PCV (Pressão Controlada)", icone:"🔴"  },
+  { id:"vm_vcv",       label:"VM — Modo VCV (Volume Controlado)",  icone:"🔴"  },
+  { id:"vm_aprv",      label:"VM — APRV",                         icone:"🔴"  },
+];
+
+const VM_CAMPOS = {
+  ar_ambiente: [],
+  cn:         [{ key:"vm_o2",   label:"O₂ (L/min)", type:"number", placeholder:"1-6" }],
+  ms:         [{ key:"vm_o2",   label:"O₂ (L/min)", type:"number", placeholder:"5-10" }],
+  mnr:        [{ key:"vm_o2",   label:"O₂ (L/min)", type:"number", placeholder:"10-15" }],
+  venturi:    [{ key:"vm_fio2", label:"FiO₂ (%)",   type:"number", placeholder:"24-60" },
+               { key:"vm_o2",   label:"O₂ (L/min)", type:"number", placeholder:"" }],
+  cnaf:       [{ key:"vm_flow", label:"Flow (L/min)",type:"number", placeholder:"20-60" },
+               { key:"vm_fio2", label:"FiO₂ (%)",   type:"number", placeholder:"21-100" }],
+  vni:        [{ key:"vm_ipap", label:"IPAP (cmH₂O)",type:"number",placeholder:"" },
+               { key:"vm_epap", label:"EPAP (cmH₂O)",type:"number",placeholder:"" },
+               { key:"vm_fio2", label:"FiO₂ (%)",   type:"number", placeholder:"" },
+               { key:"vm_br",   label:"Backup FR",   type:"number", placeholder:"" }],
+  vm_psv:     [{ key:"vm_ps",   label:"PS (cmH₂O)",  type:"number", placeholder:"5-20" },
+               { key:"vm_peep", label:"PEEP (cmH₂O)",type:"number", placeholder:"5-20" },
+               { key:"vm_fio2", label:"FiO₂ (%)",    type:"number", placeholder:"21-100" },
+               { key:"vm_fr",   label:"FR espontânea",type:"number",placeholder:"" },
+               { key:"vm_vt",   label:"VC corrente (mL)",type:"number",placeholder:"" },
+               { key:"vm_p01",  label:"P0.1 (cmH₂O)", type:"number",placeholder:"" },
+               { key:"vm_pocc", label:"Pocc (cmH₂O)", type:"number",placeholder:"" },
+               { key:"vm_pmusc",label:"Pmusc (cmH₂O)",type:"number",placeholder:"" }],
+  vm_pcv:     [{ key:"vm_pins", label:"Pins (cmH₂O)", type:"number",placeholder:"" },
+               { key:"vm_peep", label:"PEEP (cmH₂O)", type:"number",placeholder:"5-20" },
+               { key:"vm_fio2", label:"FiO₂ (%)",     type:"number",placeholder:"21-100" },
+               { key:"vm_fr",   label:"FR prog. (irpm)",type:"number",placeholder:"" },
+               { key:"vm_pplat",label:"Pplatô (cmH₂O)",type:"number",placeholder:"<30" },
+               { key:"vm_vt",   label:"VC medido (mL)",type:"number",placeholder:"" }],
+  vm_vcv:     [{ key:"vm_vt",   label:"VC prog. (mL)", type:"number",placeholder:"" },
+               { key:"vm_peep", label:"PEEP (cmH₂O)",  type:"number",placeholder:"5-20" },
+               { key:"vm_fio2", label:"FiO₂ (%)",      type:"number",placeholder:"21-100" },
+               { key:"vm_fr",   label:"FR prog. (irpm)",type:"number",placeholder:"" },
+               { key:"vm_pplat",label:"Pplatô (cmH₂O)",type:"number",placeholder:"<30" },
+               { key:"vm_ppico",label:"Ppico (cmH₂O)", type:"number",placeholder:"" }],
+  vm_aprv:    [{ key:"vm_phigh",label:"Phigh (cmH₂O)", type:"number",placeholder:"" },
+               { key:"vm_plow", label:"Plow (cmH₂O)",  type:"number",placeholder:"" },
+               { key:"vm_thigh",label:"Thigh (s)",      type:"number",placeholder:"" },
+               { key:"vm_tlow", label:"Tlow (s)",        type:"number",placeholder:"" },
+               { key:"vm_fio2", label:"FiO₂ (%)",       type:"number",placeholder:"21-100" }],
+};
+
+function gerarTextoVM(leito) {
+  const modo = leito.vm_modo;
+  if (!modo || modo === "ar_ambiente") return "Ar ambiente";
+  const m = VM_MODOS.find(x=>x.id===modo);
+  const label = m ? m.label : modo;
+  const campos = VM_CAMPOS[modo] || [];
+  const partes = campos.map(c=>{
+    const v = leito[c.key];
+    if (!v) return null;
+    return `${c.label.replace(/ \(.*\)/,"")}: ${v}`;
+  }).filter(Boolean);
+  if (leito.vm_obs) partes.push(leito.vm_obs);
+  // Calculados
+  if ((modo==="vm_pcv"||modo==="vm_vcv")&&leito.vm_pplat&&leito.vm_peep) {
+    const dp = parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep);
+    if (!isNaN(dp)) partes.push(`DP: ${Math.round(dp*10)/10} cmH₂O`);
+  }
+  if (modo==="vm_vcv"&&leito.vm_vt&&leito.vm_pplat&&leito.vm_peep) {
+    const csr = parseFloat(leito.vm_vt)/(parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep));
+    if (!isNaN(csr)&&isFinite(csr)) partes.push(`Csr: ${Math.round(csr)} mL/cmH₂O`);
+  }
+  return `${label}: ${partes.join(" / ")}`;
+}
+
+function VentilaçãoPanel({ leito, onChange }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const [busca, setBusca] = useState("");
+  const [showBusca, setShowBusca] = useState(false);
+
+  const modoAtual = VM_MODOS.find(m=>m.id===leito.vm_modo);
+  const campos = VM_CAMPOS[leito.vm_modo] || [];
+
+  const modosFiltrados = busca.length >= 1
+    ? VM_MODOS.filter(m=>m.label.toLowerCase().includes(busca.toLowerCase()))
+    : [];
+
+  // Calculados em tempo real
+  const peep  = parseFloat(leito.vm_peep||0)  || 0;
+  const pplat = parseFloat(leito.vm_pplat||0) || 0;
+  const vt    = parseFloat(leito.vm_vt||0)    || 0;
+  const pins  = parseFloat(leito.vm_pins||0)  || 0;
+  const ps    = parseFloat(leito.vm_ps||0)    || 0;
+  const fio2  = parseFloat(leito.vm_fio2||0)  || 0;
+  const po2   = parseFloat(leito.vm_pf||0)    || 0; // P/F
+
+  const dp    = (pplat && peep) ? Math.round((pplat - peep)*10)/10 : null;
+  const csr   = (vt && pplat && peep && pplat>peep) ? Math.round(vt/(pplat-peep)) : null;
+  const ppeak_est = leito.vm_ppico ? parseFloat(leito.vm_ppico) : null;
+  const pf_calc = (po2>0&&fio2>0) ? Math.round(po2/(fio2/100)) : null;
+
+  const set = (key, val) => onChange({...leito, [key]: val});
+
+  return (
+    <div>
+      <SecTitle>SUPORTE VENTILATÓRIO</SecTitle>
+
+      {/* Seletor de modo */}
+      <div style={{marginBottom:12,position:"relative"}}>
+        {modoAtual ? (
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:10}}>
+            <span style={{fontSize:20}}>{modoAtual.icone}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{modoAtual.label}</div>
+            </div>
+            <button onClick={()=>{onChange({...leito,vm_modo:""});setBusca("");}} style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:11,padding:"3px 10px"}}>Trocar modo</button>
+          </div>
+        ) : (
+          <div>
+            <input value={busca} onChange={e=>{setBusca(e.target.value);setShowBusca(true);}} onFocus={()=>setShowBusca(true)}
+              onKeyDown={e=>{if(e.key==="Enter"&&modosFiltrados.length>0)onChange({...leito,vm_modo:modosFiltrados[0].id});if(e.key==="Escape")setShowBusca(false);}}
+              placeholder="Buscar modo ventilação... (ex: PSV, CNAF, VNI)"
+              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",color:"#e2e8f0",fontSize:13,outline:"none"}}/>
+            {showBusca&&modosFiltrados.length>0&&(
+              <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:99,background:"#0c1a10",border:"1px solid rgba(56,189,248,0.25)",borderRadius:8,marginTop:4,maxHeight:280,overflowY:"auto"}}>
+                {modosFiltrados.map(m=>(
+                  <div key={m.id} onClick={()=>{onChange({...leito,vm_modo:m.id});setBusca("");setShowBusca(false);}}
+                    style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#cbd5e1",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.1)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <span style={{fontSize:18}}>{m.icone}</span>{m.label}
+                  </div>
+                ))}
+              </div>
+            )}
+            {!busca&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+              {VM_MODOS.map(m=>(
+                <button key={m.id} onClick={()=>onChange({...leito,vm_modo:m.id})}
+                  style={{padding:"5px 12px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#94a3b8",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",gap:5}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}>
+                  {m.icone} {m.label.replace("VM — ","").replace(" (Cateter Nasal Alto Fluxo)","").replace("Modo ","").split(" ")[0]}
+                </button>
+              ))}
+            </div>}
+          </div>
+        )}
+      </div>
+
+      {/* Campos do modo selecionado */}
+      {modoAtual && leito.vm_modo !== "ar_ambiente" && (
+        <>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+            {campos.map(c=>(
+              <div key={c.key} style={{minWidth:120,flex:1}}>
+                <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{c.label.toUpperCase()}</div>
+                <input type={c.type||"text"} value={leito[c.key]||""} onChange={e=>set(c.key,e.target.value)}
+                  placeholder={c.placeholder}
+                  style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+              </div>
+            ))}
+          </div>
+
+          {/* Calculados em tempo real */}
+          {(dp!==null||csr!==null||pf_calc!==null) && (
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+              {dp!==null&&<div style={{padding:"5px 12px",borderRadius:8,background:dp>15?"rgba(248,113,113,0.1)":"rgba(52,211,153,0.08)",border:`1px solid ${dp>15?"rgba(248,113,113,0.3)":"rgba(52,211,153,0.2)"}`,fontSize:12,color:dp>15?"#f87171":"#34d399"}}>
+                DP: <strong>{dp} cmH₂O</strong> {dp>15?"⚠️ alto":dp<=10?"✅ baixo":""}
+              </div>}
+              {csr!==null&&<div style={{padding:"5px 12px",borderRadius:8,background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.15)",fontSize:12,color:"#38bdf8"}}>
+                Csr: <strong>{csr} mL/cmH₂O</strong>
+              </div>}
+              {pf_calc!==null&&<div style={{padding:"5px 12px",borderRadius:8,background:pf_calc<150?"rgba(248,113,113,0.1)":pf_calc<200?"rgba(251,191,36,0.1)":"rgba(52,211,153,0.08)",border:"1px solid rgba(255,255,255,0.1)",fontSize:12,color:pf_calc<150?"#f87171":pf_calc<200?"#fbbf24":"#34d399"}}>
+                P/F: <strong>{pf_calc}</strong> {pf_calc<150?"SDRA grave":pf_calc<200?"SDRA moderada":pf_calc<300?"SDRA leve":"OK"}
+              </div>}
+            </div>
+          )}
+
+          {/* P/F manual se não calculado */}
+          {!pf_calc&&(leito.vm_modo==="vm_psv"||leito.vm_modo==="vm_pcv"||leito.vm_modo==="vm_vcv")&&(
+            <div style={{display:"flex",gap:10,marginBottom:10}}>
+              <div style={{minWidth:120,flex:1}}>
+                <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ / P/F (mmHg)</div>
+                <input type="number" value={leito.vm_pf||""} onChange={e=>set("vm_pf",e.target.value)}
+                  placeholder="Ex: 280"
+                  style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+              </div>
+            </div>
+          )}
+
+          {/* Observações */}
+          <div>
+            <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>OBSERVAÇÕES / PARÂMETROS ADICIONAIS</div>
+            <textarea value={leito.vm_obs||""} onChange={e=>set("vm_obs",e.target.value)}
+              placeholder="Ex: Prone 16h, sincronismo adequado, ajuste de sedação..." rows={2}
+              style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,resize:"vertical",fontFamily:"inherit"}}/>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
 // ── AntibioticosPanel ─────────────────────────────────────────────────────────
 // Referências de ajuste renal: Cockroft-Gault (NKF recomenda para ajuste de dose)
 // Thresholds baseados em Sanford Guide 2024, Nebraska Med Guidelines, SBRAFH
@@ -1287,24 +1497,35 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                   ⏱ Dentro das primeiras 48h — ajuste renal não recomendado ainda
                 </div>
               )}
-              {!horas48 && ajuste && (
-                <div style={{fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:6,
-                  background:ajuste.ok?"rgba(52,211,153,0.08)":"rgba(248,113,113,0.08)",
-                  border:`1px solid ${ajuste.ok?"rgba(52,211,153,0.2)":"rgba(248,113,113,0.25)"}`,
-                  color:ajuste.ok?"#34d399":"#f87171"}}>
-                  {ajuste.ok?"✅":"⚠️"} {ajuste.rec}
-                </div>
-              )}
-              {!horas48 && !ajuste && atb.nome && clcr===null && (
-                <div style={{fontSize:11,color:"#64748b",fontFamily:mono,padding:"4px 0"}}>
-                  ℹ️ Informe creatinina na tabela clínica + peso + data de nasc. para checar ajuste renal
-                </div>
-              )}
-              {!horas48 && !ajuste && atb.nome && clcr!==null && !ATB_RENAL[atb.nome.trim().toLowerCase()] && (
-                <div style={{fontSize:11,color:"#64748b",fontFamily:mono,padding:"4px 0"}}>
-                  ℹ️ ATB não encontrado na tabela de referência — checar manualmente
-                </div>
-              )}
+              {/* Renal adjustment signal */}
+              {(()=>{
+                if (horas48 && atb.nome) return (
+                  <div style={{fontSize:11,color:"#94a3b8",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:6,padding:"5px 10px",fontFamily:mono}}>
+                    ⏱ &lt; 48h — ajuste renal não aplicado ainda
+                  </div>
+                );
+                if (!atb.nome) return null;
+                if (clcr===null) return (
+                  <div style={{fontSize:11,color:"#64748b",fontFamily:mono,padding:"4px 0"}}>
+                    ℹ️ Adicione creatinina na tabela + peso + data nasc. para calcular ClCr
+                  </div>
+                );
+                if (!ajuste) return (
+                  <div style={{fontSize:11,color:"#64748b",fontFamily:mono,padding:"4px 0"}}>
+                    ℹ️ ATB não encontrado na referência — checar Sanford/bula
+                  </div>
+                );
+                return (
+                  <div style={{fontSize:11,fontFamily:mono,padding:"6px 10px",borderRadius:6,
+                    background:ajuste.ok?"rgba(52,211,153,0.08)":"rgba(248,113,113,0.08)",
+                    border:`1px solid ${ajuste.ok?"rgba(52,211,153,0.2)":"rgba(248,113,113,0.25)"}`,
+                    color:ajuste.ok?"#34d399":"#f87171"}}>
+                    <div style={{marginBottom:3}}>{ajuste.ok?"✅ Dose adequada para função renal atual":"⚠️ Ajuste renal necessário"}</div>
+                    <div style={{opacity:0.85}}>ClCr {clcr} mL/min → <strong>{ajuste.rec}</strong></div>
+                    {atb.dose&&<div style={{marginTop:3,color:"#94a3b8"}}>Dose lançada: {atb.dose} {atb.via||"EV"}</div>}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
@@ -1439,7 +1660,7 @@ const LAB_MAP_TEXT={"hb":"hb","hemoglobina":"hb","ht":"ht","leuco":"leuco","leuc
 function parsearLabsTexto(txt){const result={};txt.split(/[/;\n]+/).forEach(part=>{const m=part.trim().match(/^([a-zA-Z\u00C0-\u00FF0-9_]+)\s+([0-9.,]+k?)/i);if(!m)return;const[,nome,valRaw]=m;const chave=nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");const key=LAB_MAP_TEXT[chave];let val=valRaw.replace(",",".");if(val.endsWith("k"))val=String(parseFloat(val)*1000);if(key)result[key]=val;else result[`_extra_${nome.toLowerCase()}`]=val;});return result;}
 
 // ── UploadAnalyzer ────────────────────────────────────────────────────────────
-function UploadAnalyzer({ onResult }) {
+function UploadAnalyzer({ onResult, onManualResult }) {
   const [loading,setLoading]=useState(false);
   const [preview,setPreview]=useState(null);
   const [draft,setDraft]=useState(null);
@@ -1448,7 +1669,7 @@ function UploadAnalyzer({ onResult }) {
   const [importadoMsg,setImportadoMsg]=useState("");
   const fileRef=useRef();
   const areaRef=useRef();
-  const importarManual=()=>{if(!textoManual.trim())return;const parsed=parsearLabsTexto(textoManual);if(!Object.keys(parsed).length){setImportadoMsg("Nenhum campo reconhecido.");return;}onResult(parsed);const campos=Object.keys(parsed).filter(k=>!k.startsWith("_extra_")).join(", ");const extras=Object.keys(parsed).filter(k=>k.startsWith("_extra_")).map(k=>k.replace("_extra_","")).join(", ");setImportadoMsg(`✅ Importados: ${campos}${extras?` · extras: ${extras}`:""}`);setTextoManual("");};
+  const importarManual=()=>{if(!textoManual.trim())return;const parsed=parsearLabsTexto(textoManual);if(!Object.keys(parsed).length){setImportadoMsg("Nenhum campo reconhecido.");return;}if(onManualResult)onManualResult(parsed);const campos=Object.keys(parsed).filter(k=>!k.startsWith("_extra_")).join(", ");const extras=Object.keys(parsed).filter(k=>k.startsWith("_extra_")).map(k=>k.replace("_extra_","")).join(", ");setImportadoMsg(`✅ Importados: ${campos}${extras?` · extras: ${extras}`:""}`);setTextoManual("");};
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;
@@ -2191,6 +2412,19 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     // TGI: glicemia + drenos dinâmicos
     const tgCtrl = [dextroStr, drenosStr].filter(Boolean).join(" · ");
     if (tgCtrl) campos.tg24h = tgCtrl;
+
+    // Ventilação mecânica → re24h
+    const vmTexto = typeof gerarTextoVM !== "undefined" ? gerarTextoVM(leito) : "";
+    if (vmTexto && vmTexto !== "Ar ambiente") {
+      campos.re24h = campos.re24h ? `${campos.re24h} · ${vmTexto}` : vmTexto;
+    }
+
+    // Antibioticoterapia → heAtb
+    const atbTexto = (leito.antibioticos||[]).filter(a=>a.nome&&a.dose).map(a=>{
+      const diasAtb = a.dataInicio ? Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1 : null;
+      return `${a.nome} ${a.dose} ${a.via||"EV"}${diasAtb?` (D${diasAtb})`:""}`;
+    }).join(" / ");
+    if (atbTexto) campos.heAtb = atbTexto;
 
     onAplicarEvolucao(campos);
   };
@@ -3944,53 +4178,9 @@ export default function App() {
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="dadosclinicos" ? (
               <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
-                {/* Ventilação */}
-                <div style={{flex:2,minWidth:320}}>
-                  <SecTitle style={{marginBottom:10}}>SUPORTE VENTILATÓRIO</SecTitle>
-                  <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
-                    {[
-                      {key:"vm_modo",  label:"MODO",        placeholder:"VCV / PCV / PSV / VNI / CNAF"},
-                      {key:"vm_fio2",  label:"FiO₂ (%)",    placeholder:"21-100", type:"number"},
-                      {key:"vm_peep",  label:"PEEP (cmH₂O)",placeholder:"5-20",   type:"number"},
-                      {key:"vm_tv",    label:"VC prog. (mL)",placeholder:"350-500",type:"number"},
-                      {key:"vm_fr",    label:"FR prog. (irpm)",placeholder:"12-20",type:"number"},
-                      {key:"vm_pplatô",label:"P. Platô (cmH₂O)",placeholder:"<30", type:"number"},
-                      {key:"vm_fio2real",label:"FiO₂ real (%)",placeholder:"",    type:"number"},
-                      {key:"vm_pf",   label:"P/F (mmHg)",   placeholder:"",       type:"number"},
-                    ].map(f=>(
-                      <div key={f.key} style={{minWidth:130,flex:1}}>
-                        <div style={{fontSize:9,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:3}}>{f.label}</div>
-                        <input type={f.type||"text"} value={leito[f.key]||""} onChange={e=>atualizar({...leito,[f.key]:e.target.value})}
-                          placeholder={f.placeholder}
-                          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Driving pressure calculado */}
-                  {(()=>{
-                    const pplat = parseFloat(leito.vm_pplatô||0);
-                    const peep  = parseFloat(leito.vm_peep||0);
-                    const dp = pplat && peep ? pplat - peep : null;
-                    const pf  = parseFloat(leito.vm_pf||0);
-                    return dp!==null ? (
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
-                        <div style={{padding:"6px 14px",borderRadius:8,background:dp>15?"rgba(248,113,113,0.1)":"rgba(52,211,153,0.08)",border:`1px solid ${dp>15?"rgba(248,113,113,0.3)":"rgba(52,211,153,0.2)"}`,fontSize:12,color:dp>15?"#f87171":"#34d399"}}>
-                          Driving Pressure: <strong>{dp} cmH₂O</strong> {dp>15?"⚠️ > 15 — alto risco":"✅ ≤ 15"}
-                        </div>
-                        {pf>0&&<div style={{padding:"6px 14px",borderRadius:8,background:pf<150?"rgba(248,113,113,0.1)":pf<200?"rgba(251,191,36,0.1)":"rgba(52,211,153,0.08)",border:"1px solid rgba(255,255,255,0.1)",fontSize:12,color:pf<150?"#f87171":pf<200?"#fbbf24":"#34d399"}}>
-                          P/F: <strong>{pf}</strong> {pf<150?"SDRA grave":pf<200?"SDRA moderada":pf<300?"SDRA leve":"OK"}
-                        </div>}
-                      </div>
-                    ) : null;
-                  })()}
-                  <div style={{marginBottom:10}}>
-                    <div style={{fontSize:9,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:3}}>OBSERVAÇÕES / PARÂMETROS ADICIONAIS</div>
-                    <textarea value={leito.vm_obs||""} onChange={e=>atualizar({...leito,vm_obs:e.target.value})}
-                      placeholder="Ex: Prone 16h, sincronismo adequado, CPAP 10/5 FiO2 40%..." rows={2}
-                      style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,resize:"vertical",fontFamily:"inherit"}}/>
-                  </div>
+                <div style={{flex:2,minWidth:340}}>
+                  <VentilaçãoPanel leito={leito} onChange={atualizar}/>
                 </div>
-                {/* Drogas + Dieta */}
                 <div style={{flex:3,minWidth:340}}>
                   {leito.peso && <>
                     <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
@@ -4047,7 +4237,16 @@ ${linha}`:linha}));
                   <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:T.text1}}>Importar dados via imagem</div>
                   <div style={{fontSize:13,color:T.text3}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
-                <UploadAnalyzer onResult={d=>{
+                <UploadAnalyzer
+                  onManualResult={parsed=>{
+                    const hoje = new Date().toISOString().split("T")[0];
+                    setTabelaData(t=>{
+                      const novo = {...t,[leitoSelId]:{...(t[leitoSelId]||{}),[hoje]:{...((t[leitoSelId]||{})[hoje]||{}),...parsed}}};
+                      salvarTabela(novo);
+                      return novo;
+                    });
+                  }}
+                  onResult={d=>{
                   const hoje = new Date().toISOString().split("T")[0];
                   // Usa a data de coleta do exame se disponível, senão hoje
                   const dataAlvo = d.dataColeta || hoje;
