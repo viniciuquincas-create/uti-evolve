@@ -2413,17 +2413,18 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     const tgCtrl = [dextroStr, drenosStr].filter(Boolean).join(" · ");
     if (tgCtrl) campos.tg24h = tgCtrl;
 
-    // Ventilação mecânica → re24h
-    const vmTexto = typeof gerarTextoVM !== "undefined" ? gerarTextoVM(leito) : "";
+    // Ventilação mecânica → reVM (campo "Ventilação — Modo" na evolução)
+    const vmTexto = gerarTextoVM(leito);
     if (vmTexto && vmTexto !== "Ar ambiente") {
-      campos.re24h = campos.re24h ? `${campos.re24h} · ${vmTexto}` : vmTexto;
+      campos.reVM = vmTexto;
     }
 
-    // Antibioticoterapia → heAtb
-    const atbTexto = (leito.antibioticos||[]).filter(a=>a.nome&&a.dose).map(a=>{
+    // Antibioticoterapia → heAtb (campo "Antibióticos" na seção Infeccioso)
+    const atbTexto = (leito.antibioticos||[]).filter(a=>a.nome).map(a=>{
       const diasAtb = a.dataInicio ? Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1 : null;
-      return `${a.nome} ${a.dose} ${a.via||"EV"}${diasAtb?` (D${diasAtb})`:""}`;
-    }).join(" / ");
+      const partes = [a.nome, a.dose, a.via||"EV"].filter(Boolean).join(" ");
+      return `${partes}${diasAtb ? ` (D${diasAtb})` : ""}`;
+    }).join("\n");
     if (atbTexto) campos.heAtb = atbTexto;
 
     onAplicarEvolucao(campos);
