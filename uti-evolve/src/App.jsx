@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { supabase } from './supabase.js';
 
-// UTI Evolve — build 2026-05-28T18:12:42
+// UTI Evolve — build 2026-05-28T18:31:01 //2026-05-28T18:12:42
 
 // ── Logo SVG — Cérebro com sensor Brain for Care ──────────────────────────────
 const BrainLogo = ({ size = 32 }) => (
@@ -299,6 +299,27 @@ function SecTitle({ children }) {
     <div style={{ display:"flex", alignItems:"center", gap:8, margin:"26px 0 14px" }}>
       <div style={{ width:3, height:13, background:T.accent, borderRadius:2 }}/>
       <span style={{ fontSize:10, color:T.text3, fontFamily:mono, letterSpacing:2.5, fontWeight:500 }}>{children}</span>
+    </div>
+  );
+}
+
+function Collapsible({ title, defaultOpen=true, children, badge=null }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const T = useTheme();
+  const mono2 = "'DM Mono',monospace";
+  return (
+    <div>
+      <button onClick={()=>setOpen(o=>!o)} style={{
+        width:"100%", display:"flex", alignItems:"center", gap:8, background:"none",
+        border:"none", borderBottom:`1px solid ${T.border}`, cursor:"pointer",
+        padding:"8px 0", marginBottom:open?10:0, marginTop:16,
+      }}>
+        <div style={{width:3,height:12,background:T.accent,borderRadius:2,flexShrink:0}}/>
+        <span style={{fontSize:10,fontFamily:mono2,letterSpacing:2.5,fontWeight:500,color:T.text3,flex:1,textAlign:"left"}}>{title}</span>
+        {badge&&<span style={{fontSize:10,color:"#64748b",fontFamily:mono2,marginRight:4}}>{badge}</span>}
+        <span style={{fontSize:10,color:"#475569"}}>{open?"▲":"▼"}</span>
+      </button>
+      {open && children}
     </div>
   );
 }
@@ -1657,7 +1678,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         </div>
       </div>
       {(dias!==null||pp||dados.peso) && <>
-        <SecTitle>PARÂMETROS CALCULADOS</SecTitle>
+        <Collapsible title="PARÂMETROS CALCULADOS" defaultOpen={true}>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           {dias!==null && <Pill label="INTERNAÇÃO"   value={`D${dias}`}   unit="dias"            color="#a78bfa"/>}
           {dados.peso  && <Pill label="PESO ATUAL"   value={dados.peso}   unit="kg"              color="#f59e0b"/>}
@@ -1674,8 +1695,11 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
             <span>Máx ARDSNet <strong style={{color:"#34d399"}}>{vc8}mL</strong></span>
           </div>
         )}
+        </Collapsible>
       </>}
 
+      <Collapsible title="ANTIBIOTICOTERAPIA" defaultOpen={true}
+        badge={(dados.antibioticos||[]).filter(a=>!a.dataFim).length > 0 ? `${(dados.antibioticos||[]).filter(a=>!a.dataFim).length} ativo(s)` : null}>
       <AntibioticosPanel
         antibioticos={dados.antibioticos||[]}
         onChange={atbs=>onChange({...dados,antibioticos:atbs})}
@@ -1684,7 +1708,9 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         idadeAnos={idadeAnos}
         sexo={dados.sexo||"M"}
       />
+      </Collapsible>
 
+      <Collapsible title="DISPOSITIVOS" defaultOpen={true}>
       <DispositivosPanel
         dispositivos={dados.dispositivos||{}}
         onChange={disps=>onChange({...dados,dispositivos:disps})}
@@ -1695,13 +1721,16 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
           sng:config.alertaSNG||21, dreno:config.alertaDreno||21,
         }}
       />
+      </Collapsible>
 
+      <Collapsible title="PROCEDIMENTOS" defaultOpen={true}>
       <ProcedimentosPanel
         procedimentos={dados.procedimentos||[]}
         onChange={procs=>onChange({...dados,procedimentos:procs})}
       />
+      </Collapsible>
 
-      <SecTitle>HISTÓRICO CLÍNICO</SecTitle>
+      <Collapsible title="HISTÓRICO CLÍNICO" defaultOpen={false}>
       <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:220,marginBottom:10}}>
           <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:4}}>DOENÇAS PRÉVIAS / COMORBIDADES</div>
@@ -1716,6 +1745,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
             style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
         </div>
       </div>
+      </Collapsible>
     </div>
   );
 }
@@ -4261,7 +4291,11 @@ export default function App() {
           ) : (<>
           {leito.paciente && (
             <div style={{padding:"13px 28px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
-              <div style={{fontSize:16,fontWeight:700,color:T.text1}}>{leito.paciente}</div>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <div style={{fontSize:16,fontWeight:700,color:T.text1}}>{leito.paciente}</div>
+                {idadeAnos!==null&&<span style={{fontSize:12,fontFamily:mono,color:"#c084fc",fontWeight:600}}>{idadeAnos}a</span>}
+                {(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort();let acum=0,algum=false;datas.forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});const prev=parseFloat(leito.bhPrevio||0)||0;const tot=acum+prev;if(!algum&&!prev)return null;const cor=tot>0?"#f87171":tot<0?"#34d399":"#94a3b8";const sig=tot>=0?"+":"";return(<span style={{fontSize:11,fontFamily:mono,color:cor,fontWeight:700,padding:"2px 8px",borderRadius:10,background:`${cor}15`,border:`1px solid ${cor}30`}}>BH {sig}{Math.round(tot).toLocaleString("pt-BR")} mL</span>);})()}
+              </div>
               <div style={{fontSize:12,color:T.text3,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:2}}>
                 <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
                 {(leito.procedimentos||[]).map(p=>{
@@ -4289,26 +4323,7 @@ export default function App() {
             ))}
           </div>
 
-          {/* ── BH Acumulado Banner ── */}
-          {(()=>{
-            const tb = tabelaData[leitoSelId]||{};
-            const datas = Object.keys(tb).sort();
-            let acum = 0; let algum = false;
-            datas.forEach(d=>{ const bh=parseFloat(tb[d]?.c24_bh_ac || tb[d]?.c24_bh); if(!isNaN(bh)){acum+=bh;algum=true;} });
-            const previo = parseFloat(leito.bhPrevio||0)||0;
-            const total = acum + previo;
-            if (!algum && !previo) return null;
-            const cor = total>0?"#f87171":total<0?"#34d399":"#94a3b8";
-            const sinal = total>=0?"+":"";
-            return (
-              <div style={{display:"flex",alignItems:"center",gap:16,padding:"8px 24px",background:total>200?"rgba(248,113,113,0.06)":total<-200?"rgba(52,211,153,0.06)":"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`}}>
-                <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1}}>BH ACUMULADO</span>
-                <span style={{fontSize:16,fontWeight:700,color:cor,fontFamily:mono}}>{sinal}{Math.round(total).toLocaleString("pt-BR")} mL</span>
-                {previo!==0&&<span style={{fontSize:11,color:"#475569",fontFamily:mono}}>({algum?`${acum>=0?"+":""}${Math.round(acum)} lançado`:"sem lançamentos"} + {previo>=0?"+":""}{previo} prévio)</span>}
-                {algum&&!previo&&<span style={{fontSize:11,color:"#475569",fontFamily:mono}}>soma de {datas.filter(d=>!isNaN(parseFloat(tb[d]?.c24_bh))).length} dias lançados</span>}
-              </div>
-            );
-          })()}
+
           <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
