@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 // 2026-05-28T04:20:52
 // 2026-05-28T04:48:32
 // 2026-05-28T05:24:20
+// 2026-05-28T05:46:58
 console.warn("UTI-EVOLVE-BUILD-2026-05-28T03:23:53-LAYOUT");
 import React from "react";
 import { supabase } from './supabase.js';
@@ -1362,6 +1363,56 @@ function VentilaçãoPanel({ leito, onChange }) {
 }
 
 
+
+// Parse dose string: "1g"→1000, "500mg"→500, "3.375g"→3375
+function parseDoseMg(s) {
+  if (!s) return null;
+  const m = s.trim().match(/^([0-9]+(?:[.,][0-9]+)?)\s*(g|mg|mcg|ui|mu)?$/i);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(",","."));
+  const u = (m[2]||"mg").toLowerCase();
+  if (u==="g") return n*1000;
+  if (u==="mcg") return n/1000;
+  return n; // mg
+}
+// Parse interval string: "q8h"→8, "8/8h"→8, "12h"→12, "q6h"→6
+function parseIntervalHoras(s) {
+  if (!s) return null;
+  const lc = s.toLowerCase().replace(/\s/g,"");
+  let m = lc.match(/q([0-9]+)h/); if (m) return parseFloat(m[1]);
+  m = lc.match(/([0-9]+)[/\-]([0-9]+)h/); if (m) return parseFloat(m[1]);
+  m = lc.match(/^([0-9]+)h$/); if (m) return parseFloat(m[1]);
+  m = lc.match(/([0-9]+)x\/dia/); if (m) return 24/parseFloat(m[1]);
+  return null;
+}
+// Dose diária em mg
+function doseDiaria(doseStr, intervalStr) {
+  const dmg = parseDoseMg(doseStr);
+  const h = parseIntervalHoras(intervalStr);
+  if (!dmg || !h) return null;
+  return Math.round(dmg * (24/h));
+}
+// Formata dose diária: "3g/dia" ou "1500mg/dia"
+function fmtDoseDiaria(mg) {
+  if (!mg) return null;
+  return mg >= 1000 ? `${+(mg/1000).toFixed(2).replace(/\.?0+$/,"")}g/dia` : `${mg}mg/dia`;
+}
+// Checa se dose está dentro do esperado comparando com texto da recomendação
+function doseCompativel(doseStr, intervalStr, recStr) {
+  if (!doseStr || !intervalStr || !recStr) return null;
+  // Tenta extrair dose e intervalo da rec
+  const recParts = recStr.toLowerCase();
+  const dmg = parseDoseMg(doseStr);
+  const h   = parseIntervalHoras(intervalStr);
+  const recDose = parseDoseMg(recParts.match(/([0-9]+(?:[.,][0-9]+)?\s*(?:g|mg))/i)?.[1]||"");
+  const recH    = parseIntervalHoras(recParts);
+  if (!dmg||!h||!recDose||!recH) return null;
+  // Tolera 10% de variação
+  const doseDiff = Math.abs(dmg - recDose) / recDose;
+  const hDiff    = Math.abs(h - recH) / recH;
+  return doseDiff <= 0.1 && hDiff <= 0.1;
+}
+
 // ── AntibioticosPanel ─────────────────────────────────────────────────────────
 // Referências de ajuste renal: Cockroft-Gault (NKF recomenda para ajuste de dose)
 // Thresholds baseados em Sanford Guide 2024, Nebraska Med Guidelines, SBRAFH
@@ -1455,7 +1506,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
   const chaveR = (n) => { const lc = n.toLowerCase(); if (lc.includes("pip")&&lc.includes("tazo")) return "pip/tazo"; if (lc.includes("amp")&&lc.includes("sulbactam")) return "amp/sulbactam"; if (lc.includes("imipenem")) return "imipenem"; return lc.split(" ")[0].replace(/[^a-z]/g,""); };
 
   const addAtb = (nome="") => {
-    onChange([...antibioticos, { id: Date.now(), nome, via:"EV", dose:"", dataInicio: hoje, dataFim:"", doseConfirmada:false }]);
+    onChange([...antibioticos, { id: Date.now(), nome, via:"EV", dose:"", intervalo:"", dataInicio: hoje, dataFim:"", doseConfirmada:false }]);
     setBusca(""); setShowBusca(false);
   };
   const remAtb = (id) => onChange(antibioticos.filter(a => a.id !== id));
@@ -1526,8 +1577,11 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                   {ATB_VIAS.map(v=><option key={v} value={v}>{v}</option>)}
                 </select>
                 <input value={atb.dose} onChange={e=>updAtb(atb.id,"dose",e.target.value)}
-                  placeholder="Dose/posologia (ex: 1g q8h)"
-                  style={{flex:1,minWidth:100,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 8px",color:T.text1,fontSize:11}}/>
+                  placeholder="Dose (1g, 500mg...)"
+                  style={{minWidth:80,flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 8px",color:T.text1,fontSize:11}}/>
+                <input value={atb.intervalo||""} onChange={e=>updAtb(atb.id,"intervalo",e.target.value)}
+                  placeholder="Intervalo (q8h, q12h...)"
+                  style={{minWidth:90,flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 8px",color:T.text1,fontSize:11}}/>
                 <input type="date" value={atb.dataInicio||""} onChange={e=>updAtb(atb.id,"dataInicio",e.target.value)}
                   style={{minWidth:115,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 6px",color:T.text2,fontSize:11}}/>
               </div>
@@ -1537,7 +1591,16 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                 if (!atb.nome) return null;
                 if (horas48) return <div style={{marginTop:5,fontSize:10,color:"#475569",fontFamily:mono}}>⏱ &lt;48h — sem ajuste renal</div>;
                 if (clcr===null||!ajuste) return null;
-                if (doseOk) return <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>✅ Dose ok — ClCr {clcr} mL/min</div>;
+                if (doseOk) {
+                  const dd = fmtDoseDiaria(doseDiaria(atb.dose, atb.intervalo));
+                  return <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>✅ Dose ok — ClCr {clcr} mL/min{dd?` · ${dd}`:""}</div>;
+                }
+                {/* Check if entered dose matches recommendation */}
+                const compat = doseCompativel(atb.dose, atb.intervalo, ajuste.rec);
+                if (compat === true) {
+                  const dd = fmtDoseDiaria(doseDiaria(atb.dose, atb.intervalo));
+                  return <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>✅ Dose compatível com ajuste renal{dd?` · ${dd}`:""}</div>;
+                }
                 return (
                   <div style={{marginTop:5,borderRadius:5,overflow:"hidden",border:"1px solid rgba(248,113,113,0.2)"}}>
                     <div style={{padding:"4px 8px",background:"rgba(248,113,113,0.06)",fontSize:10,color:"#f87171",fontFamily:mono}}>
@@ -2484,8 +2547,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     // Antibioticoterapia → heAtb (campo "Antibióticos" na seção Infeccioso)
     const atbTexto = (leito.antibioticos||[]).filter(a=>a.nome&&!a.dataFim).map(a=>{
       const diasAtb = a.dataInicio ? Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1 : null;
-      const partes = [a.nome, a.dose, a.via||"EV"].filter(Boolean).join(" ");
-      return `${partes}${diasAtb ? ` (D${diasAtb})` : ""}`;
+      const dd = fmtDoseDiaria(doseDiaria(a.dose, a.intervalo));
+      const doseInfo = dd ? `${dd} (${[a.dose,a.intervalo].filter(Boolean).join(" ")})` : [a.dose,a.intervalo].filter(Boolean).join(" ");
+      const partes = [a.nome, doseInfo, a.via||"EV"].filter(Boolean).join(" ");
+      return `${partes}${diasAtb ? ` D${diasAtb}` : ""}`;
     }).join("\n");
     if (atbTexto) campos.heAtb = atbTexto;
 
@@ -4216,26 +4281,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* ── BH Acumulado Banner ── */}
-          {(()=>{
-            const tb = tabelaData[leitoSelId]||{};
-            const datas = Object.keys(tb).sort();
-            let acum = 0; let algum = false;
-            datas.forEach(d=>{ const bh=parseFloat(tb[d]?.c24_bh_ac || tb[d]?.c24_bh); if(!isNaN(bh)){acum+=bh;algum=true;} });
-            const previo = parseFloat(leito.bhPrevio||0)||0;
-            const total = acum + previo;
-            if (!algum && !previo) return null;
-            const cor = total>0?"#f87171":total<0?"#34d399":"#94a3b8";
-            const sinal = total>=0?"+":"";
-            return (
-              <div style={{display:"flex",alignItems:"center",gap:16,padding:"8px 24px",background:total>200?"rgba(248,113,113,0.06)":total<-200?"rgba(52,211,153,0.06)":"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`}}>
-                <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1}}>BH ACUMULADO</span>
-                <span style={{fontSize:16,fontWeight:700,color:cor,fontFamily:mono}}>{sinal}{Math.round(total).toLocaleString("pt-BR")} mL</span>
-                {previo!==0&&<span style={{fontSize:11,color:"#475569",fontFamily:mono}}>({algum?`${acum>=0?"+":""}${Math.round(acum)} lançado`:"sem lançamentos"} + {previo>=0?"+":""}{previo} prévio)</span>}
-                {algum&&!previo&&<span style={{fontSize:11,color:"#475569",fontFamily:mono}}>soma de {datas.filter(d=>!isNaN(parseFloat(tb[d]?.c24_bh))).length} dias lançados</span>}
-              </div>
-            );
-          })()}
           <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
@@ -4261,7 +4306,27 @@ ${linha}`:linha}));
                 </div>
               </div>
             ) : aba==="paciente" ? (
-              <div><PacientePanel
+              <div>
+                {(()=>{
+                const tb = tabelaData[leitoSelId]||{};
+                const datas = Object.keys(tb).sort();
+                let acum = 0; let algum = false;
+                datas.forEach(d=>{ const bh=parseFloat(tb[d]?.c24_bh_ac || tb[d]?.c24_bh); if(!isNaN(bh)){acum+=bh;algum=true;} });
+                const previo = parseFloat(leito.bhPrevio||0)||0;
+                const total = acum + previo;
+                if (!algum && !previo) return null;
+                const cor = total>0?"#f87171":total<0?"#34d399":"#94a3b8";
+                const sinal = total>=0?"+":"";
+                return (
+                  <div style={{marginBottom:12,padding:"6px 14px",background:total>200?"rgba(248,113,113,0.06)":total<-200?"rgba(52,211,153,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${cor}30`,borderRadius:8,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                    <span style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1}}>BH ACUMULADO</span>
+                    <span style={{fontSize:15,fontWeight:700,color:cor,fontFamily:"'DM Mono',monospace"}}>{sinal}{Math.round(total).toLocaleString("pt-BR")} mL</span>
+                    {previo!==0&&<span style={{fontSize:11,color:"#475569",fontFamily:"'DM Mono',monospace"}}>({algum?`${acum>=0?"+":""}${Math.round(acum)} lançado`:"sem lançamentos"} + {previo>=0?"+":""}{previo} prévio)</span>}
+                    {algum&&!previo&&<span style={{fontSize:11,color:"#475569",fontFamily:"'DM Mono',monospace"}}>soma de {datas.filter(d=>!isNaN(parseFloat(tb[d]?.c24_bh))).length} dias</span>}
+                  </div>
+                );
+              })()}}
+                <PacientePanel
                 dados={leito} onChange={atualizar} config={config}
                 onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
                 diureseHoje={(()=>{
