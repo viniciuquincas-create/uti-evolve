@@ -4187,6 +4187,9 @@ export default function App() {
   ];
 
   const dias = diasInternacao(leito.dataInternacao);
+  const idadeAnos = leito.dataNascimento
+    ? Math.floor((new Date()-new Date(leito.dataNascimento+'T00:00:00'))/(365.25*86400000))
+    : null;
   const pp   = pesoPredito(leito.altura, leito.sexo);
 
   if (!appReady) return (
