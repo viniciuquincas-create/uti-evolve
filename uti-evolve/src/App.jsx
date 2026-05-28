@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-console.warn("UTI-EVOLVE-BUILD-2026-05-27T03:32:41-CORRECTED");
+console.warn("UTI-EVOLVE-BUILD-2026-05-28T03:23:53-LAYOUT");
 import React from "react";
 import { supabase } from './supabase.js';
 
@@ -51,10 +51,10 @@ const SISTEMAS = [
 ];
 
 const LEITOS_INICIAIS = [
-  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
-  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", procedimentos:[], dispositivos:{} },
+  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
 ];
 
 const METAS_SUGESTOES = [
@@ -1208,28 +1208,36 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
     <div>
       <SecTitle>DADOS DO PACIENTE</SecTitle>
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
-        <Field label="NOME / ID"      value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuário"/>
-        <Field label="DIAGNÓSTICO"    value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="Diagnóstico principal"/>
+        <Field label="NOME / ID"   value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuário" style={{flex:2,minWidth:200}}/>
+        <Field label="DIAGNÓSTICO" value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="Diagnóstico principal" style={{flex:3,minWidth:200}}/>
       </div>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
-        <Field label="DATA INTERNAÇÃO" value={dados.dataInternacao} onChange={v=>onChange({...dados,dataInternacao:v})} type="date"/>
-        <Field label="DATA NASCIMENTO" value={dados.dataNascimento||""} onChange={v=>onChange({...dados,dataNascimento:v})} type="date"/>
-        <div style={{ flex:1 }}>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, alignItems:"flex-end" }}>
+        <Field label="DATA INTERNAÇÃO"   value={dados.dataInternacao}    onChange={v=>onChange({...dados,dataInternacao:v})}  type="date" style={{minWidth:150}}/>
+        <Field label="DATA NASCIMENTO"   value={dados.dataNascimento||""} onChange={v=>onChange({...dados,dataNascimento:v})} type="date" style={{minWidth:150}}/>
+        <div style={{ minWidth:150, flex:1 }}>
           <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÓGICO</div>
-          <div style={{ display:"flex", gap:6 }}>
+          <div style={{ display:"flex", gap:6, height:38 }}>
             {["M","F"].map(s=>(
-              <button key={s} onClick={()=>onChange({...dados,sexo:s})} style={{ flex:1, padding:"8px", borderRadius:8, border:`1px solid ${dados.sexo===s?"#38bdf8":"rgba(255,255,255,0.1)"}`, background:dados.sexo===s?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.03)", color:dados.sexo===s?"#38bdf8":"#64748b", fontWeight:700, cursor:"pointer", fontSize:13 }}>
-                {s==="M"?"♂ Masculino":"♀ Feminino"}
+              <button key={s} onClick={()=>onChange({...dados,sexo:s})} style={{ flex:1, borderRadius:8, border:`1px solid ${dados.sexo===s?"#38bdf8":"rgba(255,255,255,0.1)"}`, background:dados.sexo===s?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.03)", color:dados.sexo===s?"#38bdf8":"#64748b", fontWeight:700, cursor:"pointer", fontSize:13 }}>
+                {s==="M"?"♂ Masc":"♀ Fem"}
               </button>
             ))}
           </div>
         </div>
-      </div>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-        <Field label="PESO ATUAL (kg)" value={dados.peso}   onChange={v=>onChange({...dados,peso:v})}   type="number" placeholder="70" suffix="kg"/>
-        <Field label="ALTURA (cm)"     value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm"/>
+        <Field label="PESO (kg)"   value={dados.peso}   onChange={v=>onChange({...dados,peso:v})}   type="number" placeholder="70"  suffix="kg" style={{minWidth:90}}/>
+        <Field label="ALTURA (cm)" value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm" style={{minWidth:90}}/>
       </div>
 
+
+      {/* Balanço Hídrico Prévio */}
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, marginTop:10 }}>
+        <div style={{flex:1, minWidth:200}}>
+          <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>BALANÇO PRÉVIO (mL) <span style={{color:"#475569",fontWeight:400,letterSpacing:0}}>— soma antes do sistema</span></div>
+          <input type="number" value={dados.bhPrevio||""} onChange={e=>onChange({...dados,bhPrevio:e.target.value})}
+            placeholder="Ex: +1500 ou -800"
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
+        </div>
+      </div>
       {(dias!==null||pp||dados.peso) && <>
         <SecTitle>PARÂMETROS CALCULADOS</SecTitle>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -2332,7 +2340,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                             const manual = getVal(d,"c24_bh_ac");
                             if (manual) return <td key={d} style={{...tdBase}}><div style={{textAlign:"center",fontSize:11,padding:"3px 4px",color:"#a78bfa",fontWeight:600}}>{manual}</div></td>;
                             const datasAte = datas.filter(x=>x<=d);
-                            let acum=0; let algum=false;
+                            let acum=parseFloat(leito.bhPrevio||0)||0; let algum=!!acum;
                             datasAte.forEach(x=>{ const bh=parseFloat(getVal(x,"c24_bh")); if(!isNaN(bh)){acum+=bh;algum=true;} });
                             const acumStr = algum?(acum>=0?"+":"")+Math.round(acum).toLocaleString("pt-BR"):"";
                             return <td key={d} style={{...tdBase}}><div style={{textAlign:"center",fontSize:11,padding:"3px 4px",color:algum?(acum>0?"#f87171":acum<0?"#34d399":"#94a3b8"):"#334155",fontWeight:algum?700:400}}>{acumStr||"—"}</div></td>;
@@ -3765,6 +3773,26 @@ export default function App() {
             ))}
           </div>
 
+          {/* ── BH Acumulado Banner ── */}
+          {(()=>{
+            const tb = tabelaData[leitoSelId]||{};
+            const datas = Object.keys(tb).sort();
+            let acum = 0; let algum = false;
+            datas.forEach(d=>{ const bh=parseFloat(tb[d]?.c24_bh_ac || tb[d]?.c24_bh); if(!isNaN(bh)){acum+=bh;algum=true;} });
+            const previo = parseFloat(leito.bhPrevio||0)||0;
+            const total = acum + previo;
+            if (!algum && !previo) return null;
+            const cor = total>0?"#f87171":total<0?"#34d399":"#94a3b8";
+            const sinal = total>=0?"+":"";
+            return (
+              <div style={{display:"flex",alignItems:"center",gap:16,padding:"8px 24px",background:total>200?"rgba(248,113,113,0.06)":total<-200?"rgba(52,211,153,0.06)":"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`}}>
+                <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1}}>BH ACUMULADO</span>
+                <span style={{fontSize:16,fontWeight:700,color:cor,fontFamily:mono}}>{sinal}{Math.round(total).toLocaleString("pt-BR")} mL</span>
+                {previo!==0&&<span style={{fontSize:11,color:"#475569",fontFamily:mono}}>({algum?`${acum>=0?"+":""}${Math.round(acum)} lançado`:"sem lançamentos"} + {previo>=0?"+":""}{previo} prévio)</span>}
+                {algum&&!previo&&<span style={{fontSize:11,color:"#475569",fontFamily:mono}}>soma de {datas.filter(d=>!isNaN(parseFloat(tb[d]?.c24_bh))).length} dias lançados</span>}
+              </div>
+            );
+          })()}
           <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
