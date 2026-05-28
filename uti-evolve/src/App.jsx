@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 // BUILD 2026-05-28T03:46:11
 // 2026-05-28T04:20:52
 // 2026-05-28T04:48:32
+// 2026-05-28T05:24:20
 console.warn("UTI-EVOLVE-BUILD-2026-05-28T03:23:53-LAYOUT");
 import React from "react";
 import { supabase } from './supabase.js';
@@ -1429,7 +1430,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
   const ATB_LISTA=["Meropenem","Imipenem","Ertapenem","Pip/Tazo","Amp/Sulbactam","Ampicilina","Cefepime","Ceftriaxona","Cefazolina","Ceftazidima","Vancomicina","Teicoplanina","Linezolida","Daptomicina","Amicacina","Gentamicina","Ciprofloxacino","Levofloxacino","Moxifloxacino","Fluconazol","Caspofungina","Micafungina","Voriconazol","Anidulafungina","Colistina","Polimixina B","Metronidazol","Clindamicina","Oxacilina","Azitromicina","Claritromicina","SMX-TMP","Tigeciclina"];
   const atbFiltrados=busca.length>=1?ATB_LISTA.filter(a=>a.toLowerCase().includes(busca.toLowerCase())): [];
   const chaveR=(n)=>{const lc=n.toLowerCase();if(lc.includes("pip")&&lc.includes("tazo"))return"pip/tazo";if(lc.includes("amp")&&lc.includes("sulbactam"))return"amp/sulbactam";if(lc.includes("imipenem"))return"imipenem";return lc.split(" ")[0].replace(/[^a-z]/g,"");};
-  const addAtb=(nome="")=>{onChange([...antibioticos,{id:Date.now(),nome,via:"EV",dose:"",dataInicio:hoje}]);setBusca("");setShowBusca(false);};
+  const addAtb=(nome="")=>{onChange([...antibioticos,{id:Date.now(),nome,via:"EV",dose:"",dataInicio:hoje,dataFim:"",doseConfirmada:false}]);setBusca("");setShowBusca(false);};
   const remAtb = (id) => onChange(antibioticos.filter(a=>a.id!==id));
   const updAtb = (id, field, val) => onChange(antibioticos.map(a=>a.id===id?{...a,[field]:val}:a));
 
@@ -1450,18 +1451,25 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:8,marginBottom:8}}>
         {antibioticos.map(atb => {
           const diasAtb = atb.dataInicio ? Math.floor((new Date() - new Date(atb.dataInicio+"T00:00:00")) / 86400000) : null;
-          const horas48  = diasAtb !== null && diasAtb < 2;
+          const encerrado = !!atb.dataFim;
+          const diasTotal = (atb.dataInicio && atb.dataFim) ? Math.floor((new Date(atb.dataFim+"T00:00:00") - new Date(atb.dataInicio+"T00:00:00")) / 86400000) + 1 : null;
+          const horas48  = !encerrado && diasAtb !== null && diasAtb < 2;
           const cK=(n)=>{const lc=n.toLowerCase();if(lc.includes("pip")&&lc.includes("tazo"))return"pip/tazo";if(lc.includes("amp")&&lc.includes("sulbactam"))return"amp/sulbactam";if(lc.includes("imipenem"))return"imipenem";return lc.split(" ")[0].replace(/[^a-z]/g,"");};
-          const ajuste=(!horas48&&atb.nome)?atbAjusteRenal(cK(atb.nome),clcr):null;
+          const ajuste=(!encerrado&&!horas48&&atb.nome)?atbAjusteRenal(cK(atb.nome),clcr):null;
+          const doseOk = atb.doseConfirmada || (ajuste && ajuste.ok);
 
           return (
-            <div key={atb.id} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${ajuste&&!ajuste.ok?"rgba(248,113,113,0.35)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"12px 14px"}}>
+            <div key={atb.id} style={{background:encerrado?"rgba(100,116,139,0.04)":"rgba(255,255,255,0.03)",border:`1px solid ${encerrado?"rgba(100,116,139,0.2)":ajuste&&!ajuste.ok&&!doseOk?"rgba(248,113,113,0.35)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"12px 14px",opacity:encerrado?0.8:1}}>
               {/* Cabeçalho: nome + dia + remover */}
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                 <input value={atb.nome} onChange={e=>updAtb(atb.id,"nome",e.target.value)}
                   placeholder="ATB (ex: meropenem)"
-                  style={{flex:1,background:"transparent",border:"none",borderBottom:"1px solid rgba(255,255,255,0.15)",padding:"4px 0",color:T.text1,fontSize:13,fontWeight:600,outline:"none"}}/>
-                {diasAtb !== null && (
+                  style={{flex:1,background:"transparent",border:"none",borderBottom:"1px solid rgba(255,255,255,0.15)",padding:"4px 0",color:encerrado?"#64748b":T.text1,fontSize:13,fontWeight:600,outline:"none"}}/>
+                {encerrado ? (
+                  <span style={{padding:"2px 8px",borderRadius:12,fontSize:11,fontFamily:mono,fontWeight:700,background:"rgba(100,116,139,0.15)",color:"#64748b",whiteSpace:"nowrap"}}>
+                    ✓ {diasTotal ? `${diasTotal}d` : "Encerrado"}
+                  </span>
+                ) : diasAtb !== null && (
                   <span style={{padding:"2px 8px",borderRadius:12,fontSize:11,fontFamily:mono,fontWeight:700,
                     background:diasAtb===0?"rgba(56,189,248,0.12)":diasAtb<7?"rgba(52,211,153,0.1)":"rgba(251,146,60,0.1)",
                     color:diasAtb===0?"#38bdf8":diasAtb<7?"#34d399":"#fb923c",whiteSpace:"nowrap"}}>
@@ -1470,7 +1478,8 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                 )}
                 <button onClick={()=>remAtb(atb.id)} style={{background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",cursor:"pointer",padding:"2px 8px",fontSize:11}}>✕</button>
               </div>
-              {/* Via + Dose + Data */}
+
+              {/* Via + Dose + Data início + Data fim */}
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
                 <div style={{minWidth:80}}>
                   <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>VIA</div>
@@ -1485,44 +1494,56 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                     placeholder="Ex: 1g q8h em 3h"
                     style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:T.text1,fontSize:12}}/>
                 </div>
-                <div style={{minWidth:130}}>
-                  <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>DATA INÍCIO</div>
+                <div style={{minWidth:120}}>
+                  <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>INÍCIO</div>
                   <input type="date" value={atb.dataInicio||""} onChange={e=>updAtb(atb.id,"dataInicio",e.target.value)}
                     style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:T.text1,fontSize:12}}/>
                 </div>
-              </div>
-              {/* Alerta ajuste renal */}
-              {horas48 && atb.nome && (
-                <div style={{fontSize:11,color:"#94a3b8",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:6,padding:"5px 10px",fontFamily:mono}}>
-                  ⏱ Dentro das primeiras 48h — ajuste renal não recomendado ainda
+                <div style={{minWidth:120}}>
+                  <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>FIM <span style={{color:"#334155"}}>(encerrar)</span></div>
+                  <input type="date" value={atb.dataFim||""} onChange={e=>updAtb(atb.id,"dataFim",e.target.value)}
+                    style={{width:"100%",background:"rgba(255,255,255,0.04)",border:`1px solid ${encerrado?"rgba(52,211,153,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:6,padding:"5px 8px",color:encerrado?"#34d399":T.text1,fontSize:12}}/>
                 </div>
-              )}
-              {/* Renal adjustment signal */}
-              {(()=>{
-                if (horas48 && atb.nome) return (
+              </div>
+              {/* Renal adjustment */}
+              {!encerrado && (()=>{
+                if (!atb.nome) return null;
+                if (horas48) return (
                   <div style={{fontSize:11,color:"#94a3b8",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:6,padding:"5px 10px",fontFamily:mono}}>
-                    ⏱ &lt; 48h — ajuste renal não aplicado ainda
+                    ⏱ &lt; 48h — ajuste renal não recomendado ainda
                   </div>
                 );
-                if (!atb.nome) return null;
                 if (clcr===null) return (
                   <div style={{fontSize:11,color:"#64748b",fontFamily:mono,padding:"4px 0"}}>
-                    ℹ️ Adicione creatinina na tabela + peso + data nasc. para calcular ClCr
+                    ℹ️ Informe creatinina na tabela + peso + data nasc. para calcular ClCr
                   </div>
                 );
                 if (!ajuste) return (
                   <div style={{fontSize:11,color:"#64748b",fontFamily:mono,padding:"4px 0"}}>
-                    ℹ️ ATB não encontrado na referência — checar Sanford/bula
+                    ℹ️ ATB não mapeado na referência — checar Sanford/bula manualmente
+                  </div>
+                );
+                if (ajuste.ok) return (
+                  <div style={{fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:6,background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",color:"#34d399"}}>
+                    ✅ Dose adequada — ClCr {clcr} mL/min ({ajuste.rec})
+                  </div>
+                );
+                // Ajuste necessário mas dose já confirmada pelo usuário
+                if (atb.doseConfirmada) return (
+                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:6,background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",color:"#34d399"}}>
+                    <span style={{flex:1}}>✅ Dose ajustada e confirmada · ClCr {clcr} mL/min</span>
+                    <button onClick={()=>updAtb(atb.id,"doseConfirmada",false)} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:11}}>desfazer</button>
                   </div>
                 );
                 return (
-                  <div style={{fontSize:11,fontFamily:mono,padding:"6px 10px",borderRadius:6,
-                    background:ajuste.ok?"rgba(52,211,153,0.08)":"rgba(248,113,113,0.08)",
-                    border:`1px solid ${ajuste.ok?"rgba(52,211,153,0.2)":"rgba(248,113,113,0.25)"}`,
-                    color:ajuste.ok?"#34d399":"#f87171"}}>
-                    <div style={{marginBottom:3}}>{ajuste.ok?"✅ Dose adequada para função renal atual":"⚠️ Ajuste renal necessário"}</div>
-                    <div style={{opacity:0.85}}>ClCr {clcr} mL/min → <strong>{ajuste.rec}</strong></div>
-                    {atb.dose&&<div style={{marginTop:3,color:"#94a3b8"}}>Dose lançada: {atb.dose} {atb.via||"EV"}</div>}
+                  <div style={{fontSize:11,fontFamily:mono,borderRadius:6,overflow:"hidden",border:"1px solid rgba(248,113,113,0.25)"}}>
+                    <div style={{padding:"6px 10px",background:"rgba(248,113,113,0.08)",color:"#f87171"}}>
+                      ⚠️ Ajuste renal indicado — ClCr {clcr} mL/min → recomendado: <strong>{ajuste.rec}</strong>
+                    </div>
+                    <button onClick={()=>updAtb(atb.id,"doseConfirmada",true)}
+                      style={{width:"100%",padding:"5px 10px",background:"rgba(52,211,153,0.06)",border:"none",borderTop:"1px solid rgba(248,113,113,0.15)",color:"#34d399",cursor:"pointer",fontSize:11,fontFamily:mono,textAlign:"left"}}>
+                      ✓ Confirmar que a dose já foi ajustada corretamente
+                    </button>
                   </div>
                 );
               })()}
@@ -2340,11 +2361,11 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     const pegar = (keys) => keys.map(k=>{
       const abrev = ABREV[k] || TODOS_PARAMS.find(x=>x.key===k)?.label || k;
       const atuRaw = getVal(chaveHoje, k);
+      if (!atuRaw) return null;               // só lança se tem valor hoje
       const antRaw = dtAnt ? getVal(dtAnt, k) : "";
-      if (!atuRaw && !antRaw) return null;
       const atu = fmtVal(k, atuRaw);
       const ant = fmtVal(k, antRaw);
-      const val = (ant && atu && ant !== atu) ? `${ant} > ${atu}` : (atu || ant);
+      const val = (ant && atu && ant !== atu) ? `${ant} > ${atu}` : atu;
       return `${abrev} ${val}`;
     }).filter(Boolean).join(" / ");
 
@@ -2420,7 +2441,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     }
 
     // Antibioticoterapia → heAtb (campo "Antibióticos" na seção Infeccioso)
-    const atbTexto = (leito.antibioticos||[]).filter(a=>a.nome).map(a=>{
+    const atbTexto = (leito.antibioticos||[]).filter(a=>a.nome&&!a.dataFim).map(a=>{
       const diasAtb = a.dataInicio ? Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1 : null;
       const partes = [a.nome, a.dose, a.via||"EV"].filter(Boolean).join(" ");
       return `${partes}${diasAtb ? ` (D${diasAtb})` : ""}`;
