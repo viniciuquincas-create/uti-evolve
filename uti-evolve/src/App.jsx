@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+// BUILD 2026-05-28T03:46:11
 console.warn("UTI-EVOLVE-BUILD-2026-05-28T03:23:53-LAYOUT");
 import React from "react";
 import { supabase } from './supabase.js';
@@ -1189,12 +1190,177 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
   );
 }
 
+// ── AntibioticosPanel ─────────────────────────────────────────────────────────
+// Referências de ajuste renal: Cockroft-Gault (NKF recomenda para ajuste de dose)
+// Thresholds baseados em Sanford Guide 2024, Nebraska Med Guidelines, SBRAFH
+const ATB_RENAL = {
+  "meropenem":       [{tfg:50,rec:"1g q12h"},{tfg:25,rec:"500mg q12h"},{tfg:10,rec:"500mg q24h"}],
+  "imipenem":        [{tfg:70,rec:"500mg q8h"},{tfg:40,rec:"250mg q6h"},{tfg:20,rec:"250mg q12h"}],
+  "ertapenem":       [{tfg:30,rec:"500mg q24h"}],
+  "pip/tazo":        [{tfg:40,rec:"2,25g q8h (EV)"},{tfg:20,rec:"2,25g q8h (intervalo aumentado)"}],
+  "pipe/tazo":       [{tfg:40,rec:"2,25g q8h (EV)"},{tfg:20,rec:"2,25g q8h (intervalo aumentado)"}],
+  "pip-tazo":        [{tfg:40,rec:"2,25g q8h (EV)"},{tfg:20,rec:"2,25g q8h (intervalo aumentado)"}],
+  "amp/sulbactam":   [{tfg:30,rec:"1,5-3g q12h"},{tfg:15,rec:"1,5-3g q24h"}],
+  "ampicilina":      [{tfg:30,rec:"q8-12h"},{tfg:10,rec:"q12h"}],
+  "cefepime":        [{tfg:60,rec:"2g q24h"},{tfg:30,rec:"1g q24h"},{tfg:11,rec:"500mg q24h"}],
+  "ceftriaxona":     [],
+  "ceftriaxone":     [],
+  "cefazolina":      [{tfg:35,rec:"sem ajuste"},{tfg:11,rec:"50% da dose q12h"},{tfg:10,rec:"50% da dose q18-24h"}],
+  "ceftazidima":     [{tfg:50,rec:"1g q12h"},{tfg:30,rec:"1g q24h"},{tfg:15,rec:"500mg q24h"}],
+  "vancomicina":     [{tfg:90,rec:"Manter dose; ajustar intervalo por TDM"},{tfg:50,rec:"~500mg q24h; guiar por TDM"},{tfg:10,rec:"Dose única; guiar por TDM"}],
+  "teicoplanina":    [{tfg:60,rec:"q48h (após D3)"},{tfg:30,rec:"q72h (após D3)"}],
+  "amicacina":       [{tfg:60,rec:"dose normal q36h"},{tfg:40,rec:"60-75% q24h"},{tfg:20,rec:"30-70% q48h"},{tfg:10,rec:"Dose única; monitorar nível"}],
+  "gentamicina":     [{tfg:60,rec:"dose normal q36h"},{tfg:40,rec:"60-75% q24h"},{tfg:20,rec:"30-70% q48h"}],
+  "ciprofloxacino":  [{tfg:50,rec:"200-400mg q12h IV"},{tfg:30,rec:"200-400mg q24h IV"}],
+  "levofloxacino":   [{tfg:50,rec:"250mg q24h (após dose de ataque)"},{tfg:20,rec:"125mg q24h (após dose de ataque)"}],
+  "fluconazol":      [{tfg:50,rec:"50% da dose habitual"}],
+  "linezolida":      [],
+  "colistina":       [{tfg:80,rec:"2,5mg/kg q12h"},{tfg:50,rec:"2,5mg/kg q24h"},{tfg:30,rec:"1,5mg/kg q24h"}],
+  "daptomicina":     [{tfg:30,rec:"q48h"}],
+  "tigeciclina":     [],
+  "metronidazol":    [],
+  "azitromicina":    [],
+  "claritromicina":  [{tfg:30,rec:"50% da dose ou dobrar intervalo"}],
+  "oxacilina":       [],
+  "clindamicina":    [],
+};
+
+const ATB_VIAS = ["EV","VO","IM","SC","Inalatória"];
+
+function calcClCr(cr, peso, idade, sexo) {
+  if (!cr || !peso || !idade || idade <= 0) return null;
+  const crN = parseFloat(cr); const pesoN = parseFloat(peso); const idadeN = parseFloat(idade);
+  if (isNaN(crN)||isNaN(pesoN)||isNaN(idadeN)||crN<=0) return null;
+  const base = ((140 - idadeN) * pesoN) / (72 * crN);
+  return Math.round(base * (sexo==="F" ? 0.85 : 1));
+}
+
+function atbAjusteRenal(nomeAtb, clcr) {
+  const key = nomeAtb.trim().toLowerCase();
+  const tabela = ATB_RENAL[key];
+  if (!tabela) return null;           // ATB não encontrado
+  if (tabela.length === 0) return { ok:true, rec:"Sem ajuste renal necessário" };
+  if (clcr === null) return null;     // Sem dados suficientes para calcular
+  const ajuste = tabela.find(a => clcr < a.tfg);
+  if (!ajuste) return { ok:true, rec:"Dose normal para função renal atual" };
+  return { ok:false, rec:`ClCr ${clcr} mL/min → ${ajuste.rec}` };
+}
+
+function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", idadeAnos=null, sexo="M" }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const hoje = new Date().toISOString().split("T")[0];
+
+  const clcr = calcClCr(crSerico, peso, idadeAnos, sexo);
+
+  const addAtb = () => {
+    onChange([...antibioticos, {
+      id: Date.now(), nome:"", via:"EV", dose:"", dataInicio: hoje, obs:""
+    }]);
+  };
+  const remAtb = (id) => onChange(antibioticos.filter(a=>a.id!==id));
+  const updAtb = (id, field, val) => onChange(antibioticos.map(a=>a.id===id?{...a,[field]:val}:a));
+
+  return (
+    <div>
+      <SecTitle>ANTIBIOTICOTERAPIA</SecTitle>
+      {clcr !== null && (
+        <div style={{marginBottom:10,padding:"6px 12px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8,fontSize:11,color:"#94a3b8",fontFamily:mono,display:"flex",gap:16,flexWrap:"wrap"}}>
+          <span>ClCr estimado (Cockroft-Gault): <strong style={{color: clcr>=60?"#34d399":clcr>=30?"#fbbf24":"#f87171"}}>{clcr} mL/min</strong></span>
+          <span style={{color:"#475569"}}>Cr: {crSerico} mg/dL · Peso: {peso} kg · {idadeAnos}a · {sexo==="F"?"♀":"♂"}</span>
+        </div>
+      )}
+      {antibioticos.length === 0 && (
+        <div style={{padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:8,fontSize:12,color:"#475569",marginBottom:8}}>
+          Nenhum antibiótico registrado
+        </div>
+      )}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:8,marginBottom:8}}>
+        {antibioticos.map(atb => {
+          const diasAtb = atb.dataInicio ? Math.floor((new Date() - new Date(atb.dataInicio+"T00:00:00")) / 86400000) : null;
+          const horas48  = diasAtb !== null && diasAtb < 2;
+          const ajuste   = (!horas48 && atb.nome) ? atbAjusteRenal(atb.nome, clcr) : null;
+
+          return (
+            <div key={atb.id} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${ajuste&&!ajuste.ok?"rgba(248,113,113,0.35)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"12px 14px"}}>
+              {/* Cabeçalho: nome + dia + remover */}
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <input value={atb.nome} onChange={e=>updAtb(atb.id,"nome",e.target.value)}
+                  placeholder="ATB (ex: meropenem)"
+                  style={{flex:1,background:"transparent",border:"none",borderBottom:"1px solid rgba(255,255,255,0.15)",padding:"4px 0",color:T.text1,fontSize:13,fontWeight:600,outline:"none"}}/>
+                {diasAtb !== null && (
+                  <span style={{padding:"2px 8px",borderRadius:12,fontSize:11,fontFamily:mono,fontWeight:700,
+                    background:diasAtb===0?"rgba(56,189,248,0.12)":diasAtb<7?"rgba(52,211,153,0.1)":"rgba(251,146,60,0.1)",
+                    color:diasAtb===0?"#38bdf8":diasAtb<7?"#34d399":"#fb923c",whiteSpace:"nowrap"}}>
+                    {diasAtb===0?"D1":`D${diasAtb+1}`}
+                  </span>
+                )}
+                <button onClick={()=>remAtb(atb.id)} style={{background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",cursor:"pointer",padding:"2px 8px",fontSize:11}}>✕</button>
+              </div>
+              {/* Via + Dose + Data */}
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                <div style={{minWidth:80}}>
+                  <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>VIA</div>
+                  <select value={atb.via||"EV"} onChange={e=>updAtb(atb.id,"via",e.target.value)}
+                    style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:T.text2,fontSize:12,cursor:"pointer"}}>
+                    {ATB_VIAS.map(v=><option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div style={{flex:1,minWidth:120}}>
+                  <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>DOSE / POSOLOGIA</div>
+                  <input value={atb.dose} onChange={e=>updAtb(atb.id,"dose",e.target.value)}
+                    placeholder="Ex: 1g q8h em 3h"
+                    style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:T.text1,fontSize:12}}/>
+                </div>
+                <div style={{minWidth:130}}>
+                  <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>DATA INÍCIO</div>
+                  <input type="date" value={atb.dataInicio||""} onChange={e=>updAtb(atb.id,"dataInicio",e.target.value)}
+                    style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:T.text1,fontSize:12}}/>
+                </div>
+              </div>
+              {/* Alerta ajuste renal */}
+              {horas48 && atb.nome && (
+                <div style={{fontSize:11,color:"#94a3b8",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:6,padding:"5px 10px",fontFamily:mono}}>
+                  ⏱ Dentro das primeiras 48h — ajuste renal não recomendado ainda
+                </div>
+              )}
+              {!horas48 && ajuste && (
+                <div style={{fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:6,
+                  background:ajuste.ok?"rgba(52,211,153,0.08)":"rgba(248,113,113,0.08)",
+                  border:`1px solid ${ajuste.ok?"rgba(52,211,153,0.2)":"rgba(248,113,113,0.25)"}`,
+                  color:ajuste.ok?"#34d399":"#f87171"}}>
+                  {ajuste.ok?"✅":"⚠️"} {ajuste.rec}
+                </div>
+              )}
+              {!horas48 && !ajuste && atb.nome && clcr===null && (
+                <div style={{fontSize:11,color:"#64748b",fontFamily:mono,padding:"4px 0"}}>
+                  ℹ️ Informe creatinina na tabela clínica + peso + data de nasc. para checar ajuste renal
+                </div>
+              )}
+              {!horas48 && !ajuste && atb.nome && clcr!==null && !ATB_RENAL[atb.nome.trim().toLowerCase()] && (
+                <div style={{fontSize:11,color:"#64748b",fontFamily:mono,padding:"4px 0"}}>
+                  ℹ️ ATB não encontrado na tabela de referência — checar manualmente
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <button onClick={addAtb} style={{padding:"7px 16px",background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,color:"#38bdf8",cursor:"pointer",fontSize:12,fontWeight:600}}>
+        + Adicionar antibiótico
+      </button>
+    </div>
+  );
+}
+
+
 // ── PacientePanel ─────────────────────────────────────────────────────────────
 function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={} }) {
   const dias  = diasInternacao(dados.dataInternacao);
-  const idade = dados.dataNascimento
+  const idadeAnos = dados.dataNascimento
     ? Math.floor((new Date() - new Date(dados.dataNascimento)) / (365.25*86400000))
     : null;
+  const idade = idadeAnos;
   const pp    = pesoPredito(dados.altura, dados.sexo);
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
   const vc8   = pp ? Math.round(parseFloat(pp)*8) : null;
@@ -1255,16 +1421,14 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         )}
       </>}
 
-      {dados.peso && <>
-        <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-        <DrogasCalculadora peso={dados.peso} onLancarDroga={onLancarDroga} config={config}
-          vazoes={dados.drogasVazao||{}}
-          onVazaoChange={(key,val)=>onChange({...dados,drogasVazao:{...(dados.drogasVazao||{}),[key]:val}})}
-        />
-      </>}
-
-      <DietaPanel dados={dados} config={config} onChange={onChange}
-        diureseHojeVol={(tabelaHoje||{}).c24_diet_vol||""}/>
+      <AntibioticosPanel
+        antibioticos={dados.antibioticos||[]}
+        onChange={atbs=>onChange({...dados,antibioticos:atbs})}
+        crSerico={tabelaHoje?.cr||""}
+        peso={dados.peso||""}
+        idadeAnos={idadeAnos}
+        sexo={dados.sexo||"M"}
+      />
 
       <DispositivosPanel
         dispositivos={dados.dispositivos||{}}
@@ -1283,19 +1447,19 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
       />
 
       <SecTitle>HISTÓRICO CLÍNICO</SecTitle>
-      <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DOENÇAS PRÉVIAS / COMORBIDADES</div>
-        <textarea value={dados.doencasPrevias||""} onChange={e=>onChange({...dados,doencasPrevias:e.target.value})}
-          placeholder={"HAS · DM2 · ICC (FEVE 35%) · DRC estágio 3 · DPOC · FA crônica..."}
-          rows={3}
-          style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",lineHeight:1.5}}/>
-      </div>
-      <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>MEDICAÇÕES DE USO CONTÍNUO (domiciliar)</div>
-        <textarea value={dados.medicacoesContinuas||""} onChange={e=>onChange({...dados,medicacoesContinuas:e.target.value})}
-          placeholder={"- Losartana 50mg 1x/d\n- Metformina 500mg 2x/d\n- AAS 100mg 1x/d\n- Furosemida 40mg 1x/d"}
-          rows={4}
-          style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",lineHeight:1.5}}/>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:220,marginBottom:10}}>
+          <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:4}}>DOENÇAS PRÉVIAS / COMORBIDADES</div>
+          <textarea value={dados.doencasPrevias||""} onChange={e=>onChange({...dados,doencasPrevias:e.target.value})}
+            placeholder={"HAS · DM2 · ICC · DRC · DPOC · FA crônica..."} rows={4}
+            style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{flex:1,minWidth:220,marginBottom:10}}>
+          <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:4}}>MEDICAÇÕES DE USO CONTÍNUO</div>
+          <textarea value={dados.medicacoesContinuas||""} onChange={e=>onChange({...dados,medicacoesContinuas:e.target.value})}
+            placeholder={"- Losartana 50mg 1x/d\n- Metformina 500mg 2x/d\n- AAS 100mg 1x/d"} rows={4}
+            style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
       </div>
     </div>
   );
@@ -3633,11 +3797,12 @@ export default function App() {
   };
 
   const ABAS = [
-    {id:"paciente", label:"👤 Paciente & Cálculos"},
-    {id:"tabela",   label:"📊 Tabela Clínica"},
-    {id:"upload",   label:"📤 Importar Print"},
-    {id:"evolucao", label:"📝 Evolução"},
-    {id:"metas",    label:"🎯 Metas & Pendências"},
+    {id:"paciente",      label:"👤 Paciente"},
+    {id:"dadosclinicos", label:"🫁 Dados Clínicos"},
+    {id:"tabela",        label:"📊 Tabela Clínica"},
+    {id:"upload",        label:"📤 Importar Print"},
+    {id:"evolucao",      label:"📝 Evolução"},
+    {id:"metas",         label:"🎯 Metas & Pendências"},
   ];
 
   const dias = diasInternacao(leito.dataInternacao);
@@ -3796,8 +3961,73 @@ export default function App() {
           <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
+            ) : aba==="dadosclinicos" ? (
+              <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
+                {/* Ventilação */}
+                <div style={{flex:2,minWidth:320}}>
+                  <SecTitle style={{marginBottom:10}}>SUPORTE VENTILATÓRIO</SecTitle>
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+                    {[
+                      {key:"vm_modo",  label:"MODO",        placeholder:"VCV / PCV / PSV / VNI / CNAF"},
+                      {key:"vm_fio2",  label:"FiO₂ (%)",    placeholder:"21-100", type:"number"},
+                      {key:"vm_peep",  label:"PEEP (cmH₂O)",placeholder:"5-20",   type:"number"},
+                      {key:"vm_tv",    label:"VC prog. (mL)",placeholder:"350-500",type:"number"},
+                      {key:"vm_fr",    label:"FR prog. (irpm)",placeholder:"12-20",type:"number"},
+                      {key:"vm_pplatô",label:"P. Platô (cmH₂O)",placeholder:"<30", type:"number"},
+                      {key:"vm_fio2real",label:"FiO₂ real (%)",placeholder:"",    type:"number"},
+                      {key:"vm_pf",   label:"P/F (mmHg)",   placeholder:"",       type:"number"},
+                    ].map(f=>(
+                      <div key={f.key} style={{minWidth:130,flex:1}}>
+                        <div style={{fontSize:9,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:3}}>{f.label}</div>
+                        <input type={f.type||"text"} value={leito[f.key]||""} onChange={e=>atualizar({...leito,[f.key]:e.target.value})}
+                          placeholder={f.placeholder}
+                          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Driving pressure calculado */}
+                  {(()=>{
+                    const pplat = parseFloat(leito.vm_pplatô||0);
+                    const peep  = parseFloat(leito.vm_peep||0);
+                    const dp = pplat && peep ? pplat - peep : null;
+                    const pf  = parseFloat(leito.vm_pf||0);
+                    return dp!==null ? (
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+                        <div style={{padding:"6px 14px",borderRadius:8,background:dp>15?"rgba(248,113,113,0.1)":"rgba(52,211,153,0.08)",border:`1px solid ${dp>15?"rgba(248,113,113,0.3)":"rgba(52,211,153,0.2)"}`,fontSize:12,color:dp>15?"#f87171":"#34d399"}}>
+                          Driving Pressure: <strong>{dp} cmH₂O</strong> {dp>15?"⚠️ > 15 — alto risco":"✅ ≤ 15"}
+                        </div>
+                        {pf>0&&<div style={{padding:"6px 14px",borderRadius:8,background:pf<150?"rgba(248,113,113,0.1)":pf<200?"rgba(251,191,36,0.1)":"rgba(52,211,153,0.08)",border:"1px solid rgba(255,255,255,0.1)",fontSize:12,color:pf<150?"#f87171":pf<200?"#fbbf24":"#34d399"}}>
+                          P/F: <strong>{pf}</strong> {pf<150?"SDRA grave":pf<200?"SDRA moderada":pf<300?"SDRA leve":"OK"}
+                        </div>}
+                      </div>
+                    ) : null;
+                  })()}
+                  <div style={{marginBottom:10}}>
+                    <div style={{fontSize:9,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:3}}>OBSERVAÇÕES / PARÂMETROS ADICIONAIS</div>
+                    <textarea value={leito.vm_obs||""} onChange={e=>atualizar({...leito,vm_obs:e.target.value})}
+                      placeholder="Ex: Prone 16h, sincronismo adequado, CPAP 10/5 FiO2 40%..." rows={2}
+                      style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,resize:"vertical",fontFamily:"inherit"}}/>
+                  </div>
+                </div>
+                {/* Drogas + Dieta */}
+                <div style={{flex:3,minWidth:340}}>
+                  {leito.peso && <>
+                    <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
+                    <DrogasCalculadora peso={leito.peso} onLancarDroga={(linha,campo)=>{
+                      setEvolCamposComPersistencia(c=>({...c,[campo]:c[campo]?`${c[campo]}
+${linha}`:linha}));
+                      setEvolVersion(v=>v+1);
+                    }} config={config}
+                      vazoes={leito.drogasVazao||{}}
+                      onVazaoChange={(key,val)=>atualizar({...leito,drogasVazao:{...(leito.drogasVazao||{}),[key]:val}})}
+                    />
+                  </>}
+                  <DietaPanel dados={leito} config={config} onChange={atualizar}
+                    diureseHojeVol={(()=>{const tb=tabelaData[leitoSelId]||{};const ds=Object.keys(tb).sort().reverse();for(const d of ds)if(tb[d]?.c24_diet_vol)return tb[d].c24_diet_vol;return "";})()}/>
+                </div>
+              </div>
             ) : aba==="paciente" ? (
-              <div style={{maxWidth:680}}><PacientePanel
+              <div><PacientePanel
                 dados={leito} onChange={atualizar} config={config}
                 onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
                 diureseHoje={(()=>{
