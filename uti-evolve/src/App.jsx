@@ -2493,6 +2493,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
   const pp   = pesoPredito(leito.altura, leito.sexo);
   const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
   const dias = diasInternacao(leito.dataInternacao);
+  const idade = leito.dataNascimento
+    ? Math.floor((new Date() - new Date(leito.dataNascimento)) / (365.25*86400000))
+    : null;
   const disps = leito.dispositivos || {};
   const ativos = [
     ...DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
