@@ -1436,7 +1436,7 @@ function atbAjusteRenal(nomeAtb, clcr) {
   return { ok:false, rec:`ClCr ${clcr} mL/min → ${ajuste.rec}` };
 }
 
-function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", idadeAnos=null, sexo="M" }) {
+function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", idadeAnos=null, sexo="M", clcrOverride=null }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const hoje = new Date().toISOString().split("T")[0];
@@ -1444,7 +1444,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
   const [showBusca, setShowBusca] = useState(false);
   const [suspendendo, setSuspendendo] = useState(null); // id do atb sendo suspenso
 
-  const clcr = calcClCr(crSerico, peso, idadeAnos, sexo);
+  const clcr = clcrOverride !== null ? clcrOverride : calcClCr(crSerico, peso, idadeAnos, sexo);
 
   const ATB_LISTA = [
     // Carbapenems
@@ -1707,6 +1707,18 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         peso={dados.peso||""}
         idadeAnos={idadeAnos}
         sexo={dados.sexo||"M"}
+        clcrOverride={(()=>{
+          const hoje2 = new Date().toISOString().split("T")[0];
+          const sel = (dados.tfgSel||{})[hoje2];
+          const cr = tabelaHoje?.cr;
+          const p = parseFloat(dados.peso)||null;
+          const ia = idadeAnos;
+          const sx = dados.sexo||"M";
+          if (!sel || !cr || !p || !ia) return null;
+          if (sel==="ckdepi") return calcCKDEPI(cr,ia,sx);
+          if (sel==="cg")     return calcCockcroftGault(cr,ia,p,sx);
+          return null; // kegfr handled via tabelaHoje
+        })()}
       />
       </Collapsible>
 
@@ -2514,7 +2526,7 @@ function OptionalDrenosUI({ data, onChange, datas, hoje }) {
 }
 
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
-function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) {
+function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange, config={} }) {
   const T = useTheme();
   const hoje = new Date().toISOString().split("T")[0];
   const [novaData, setNovaData] = useState("");
@@ -2666,6 +2678,21 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
     // TGI: glicemia + drenos dinâmicos
     const tgCtrl = [dextroStr, drenosStr].filter(Boolean).join(" · ");
     if (tgCtrl) campos.tg24h = tgCtrl;
+
+    // TFG selecionada → inclui no campo renal da evolução
+    const hoje3 = new Date().toISOString().split("T")[0];
+    const tfgSelHoje = (leito.tfgSel||{})[hoje3];
+    const crHoje = pegarCtrl(["cr"]) ? getVal(chaveHoje,"cr") : "";
+    if (tfgSelHoje && crHoje) {
+      const p3 = parseFloat(leito.peso)||null;
+      const ia3 = leito.dataNascimento ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
+      const sx3 = leito.sexo||"M";
+      const tfgVal = tfgSelHoje==="ckdepi" ? calcCKDEPI(crHoje,ia3,sx3)
+                   : tfgSelHoje==="cg"     ? calcCockcroftGault(crHoje,ia3,p3,sx3)
+                   : null;
+      const tfgLabel = tfgSelHoje==="ckdepi" ? "CKD-EPI" : tfgSelHoje==="cg" ? "CG" : "KeGFR";
+      if (tfgVal) campos.reLab = (campos.reLab||"") + (campos.reLab?"\n":"") + `TFG: ${tfgVal} mL/min (${tfgLabel})`;
+    }
 
     // Ventilação mecânica → reVM (campo "Ventilação — Modo" na evolução)
     const vmTexto = gerarTextoVM(leito);
@@ -2828,15 +2855,22 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                       const peso = parseFloat(leito.peso)||null;
                       const sexo = leito.sexo||"M";
                       const tfgRows = [
-                        { lbl:"↳ CKD-EPI 2021",  unit:"mL/min/1.73m²",
+                        { id:"ckdepi", lbl:"↳ CKD-EPI 2021",   unit:"mL/min/1.73m²",
                           calc:(d)=>calcCKDEPI(getVal(d,"cr"),idadeA,sexo) },
-                        { lbl:"↳ Cockroft-Gault", unit:"mL/min",
+                        { id:"cg",     lbl:"↳ Cockcroft-Gault", unit:"mL/min",
                           calc:(d)=>calcCockcroftGault(getVal(d,"cr"),idadeA,peso,sexo) },
-                        { lbl:"↳ KeGFR (Chen)",   unit:"mL/min",
+                        { id:"kegfr",  lbl:"↳ KeGFR (Chen)",    unit:"mL/min",
                           calc:(d,di)=>calcKeGFR(di>0?getVal(datas[di-1],"cr"):null,getVal(d,"cr"),peso,sexo,idadeA) },
                       ];
+                      const tfgSel = leito.tfgSel || {};
+                      const setSel = (d, fid) => {
+                        const novo = {...tfgSel, [d]: fid};
+                        onChange({...data, __meta__: {...(data.__meta__||{})}});
+                        // store in leito
+                        if(onLeitoChange) onLeitoChange({...leito, tfgSel: novo});
+                      };
                       return tfgRows.map(row=>(
-                        <tr key={row.lbl} style={{opacity:0.82}}>
+                        <tr key={row.id} style={{opacity:0.85}}>
                           <td style={{...tdBase,padding:"3px 12px",fontSize:10,color:"#64748b",textAlign:"left",fontStyle:"italic",position:"sticky",left:0,background:T.bgTableSticky}}>
                             {row.lbl}
                           </td>
@@ -2845,14 +2879,28 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                           </td>
                           {datas.map((d,di)=>{
                             const val=row.calc(d,di);
+                            const selId = tfgSel[d];
+                            const isSel = selId === row.id;
+                            const ativo = isHoje(d);
                             return (
-                              <td key={d} style={{...tdBase,background:isHoje(d)?"rgba(56,189,248,0.02)":undefined}}>
-                                {val!==null
-                                  ? <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"3px 4px",color:corTFG(val),fontWeight:600}}>
+                              <td key={d} style={{...tdBase,background:isSel?"rgba(52,211,153,0.06)":ativo?"rgba(56,189,248,0.02)":undefined,
+                                outline:isSel?`1px solid rgba(52,211,153,0.3)`:"none"}}>
+                                {val!==null ? (
+                                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                                    <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"2px 3px",
+                                      color:isSel?"#34d399":corTFG(val),fontWeight:isSel?700:600}}>
                                       {val}<span style={{fontSize:9,color:"#475569",marginLeft:2}}>{stageCKD(val)}</span>
                                     </div>
-                                  : <div style={{textAlign:"center",fontSize:11,color:"#1e293b"}}>—</div>
-                                }
+                                    <button onClick={()=>setSel(d,isSel?null:row.id)}
+                                      title={isSel?"Desmarcar TFG selecionada":"Usar esta TFG para ATB e evolução"}
+                                      style={{background:"none",border:"none",cursor:"pointer",fontSize:11,
+                                        color:isSel?"#34d399":"#334155",padding:"0 2px",lineHeight:1}}>
+                                      {isSel?"✓":"○"}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div style={{textAlign:"center",fontSize:11,color:"#1e293b"}}>—</div>
+                                )}
                               </td>
                             );
                           })}
@@ -4505,6 +4553,7 @@ ${linha}`:linha}));
               <TabelaClinica
                 leito={leito}
                 config={config}
+                onLeitoChange={novoLeito=>atualizar(novoLeito)}
                 data={tabelaData[leitoSelId] || {}}
                 onChange={d=>{
                   setTabelaData(t=>{
