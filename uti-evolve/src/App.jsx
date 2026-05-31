@@ -2294,16 +2294,38 @@ function calcCockcroftGault(cr, idadeA, peso, sexo) {
   return Math.round(cg);
 }
 
-// Kinetic eGFR (KeGFR) — Chen et al. 2013, usa 2 creatininas consecutivas
-// KeGFR (mL/min) = Vd(mL) × |ΔCr| / (Δt_min × Cr_mean)
-// Vd = 0.6 × peso (♂) ou 0.5 × peso (♀), em litros → × 1000 = mL
-function calcKeGFR(cr1, cr2, peso, sexo, deltaTMin = 1440) {
-  if (!cr1 || !cr2 || !peso) return null;
-  const C1 = parseFloat(cr1), C2 = parseFloat(cr2), wt = parseFloat(peso);
-  if (isNaN(C1) || isNaN(C2) || isNaN(wt) || C1 <= 0 || C2 <= 0) return null;
-  if (Math.abs(C1 - C2) < 0.05) return null; // sem mudança significativa
-  const Vd_mL = (sexo === "F" ? 0.5 : 0.6) * wt * 1000;
-  const kegfr = (Vd_mL * Math.abs(C1 - C2)) / (deltaTMin * (C1 + C2) / 2);
+// Kinetic eGFR — Chen et al. (PLOS ONE 2013, doi:10.1371/journal.pone.0225601)
+// Eq A: KeGFR = (SSPCr × CrCl / MeanPCr) × (1 - 24×ΔPCr / (ΔTime_h × MaxΔPCr/day))
+// Eq B: MaxΔPCr = SSPCr × CrCl / TBW
+// SSPCr = creatinina estável de referência (usamos Cr do dia anterior estável = cr1)
+// CrCl  = Cockcroft-Gault com SSPCr
+// MeanPCr = (cr1 + cr2) / 2
+// ΔPCr  = cr2 - cr1  (positivo = piorando, negativo = melhorando)
+// TBW   = 0.6 × peso (kg)  [total body water]
+// ΔTime = 24h entre dias consecutivos
+function calcKeGFR(cr1, cr2, peso, sexo, idadeA, deltaTh = 24) {
+  if (!cr1 || !cr2 || !peso || !idadeA) return null;
+  const C1 = parseFloat(cr1), C2 = parseFloat(cr2);
+  const wt = parseFloat(peso), age = parseFloat(idadeA);
+  if (isNaN(C1)||isNaN(C2)||isNaN(wt)||isNaN(age)||C1<=0||C2<=0||wt<=0) return null;
+  if (Math.abs(C1-C2) < 0.05) return null; // variação insuficiente
+
+  const SSPCr = C1;                                       // Cr estável = dia anterior
+  const TBW   = 0.6 * wt;                                // L
+  const CrCl  = calcCockcroftGault(SSPCr, age, wt, sexo); // mL/min (com SSPCr)
+  if (!CrCl || CrCl <= 0) return null;
+
+  const MeanPCr    = (C1 + C2) / 2;
+  const DeltaPCr   = C2 - C1;                            // positivo = subindo
+  const MaxDeltaPCr = (SSPCr * CrCl) / TBW;              // Eq B: mL/min / L = mg/dL/h·correction
+  // MaxΔPCr/day = MaxΔPCr × 24 (mg/dL por 24h)
+  const MaxDeltaPCr_per_day = MaxDeltaPCr;                // já é por unidade de tempo consistente
+
+  // Eq A
+  const kegfr = (SSPCr * CrCl / MeanPCr) *
+                (1 - (24 * DeltaPCr) / (deltaTh * MaxDeltaPCr_per_day));
+
+  if (!isFinite(kegfr) || kegfr < 0) return null;
   return Math.round(kegfr);
 }
 
@@ -2811,7 +2833,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                         { lbl:"↳ Cockroft-Gault", unit:"mL/min",
                           calc:(d)=>calcCockcroftGault(getVal(d,"cr"),idadeA,peso,sexo) },
                         { lbl:"↳ KeGFR (Chen)",   unit:"mL/min",
-                          calc:(d,di)=>calcKeGFR(di>0?getVal(datas[di-1],"cr"):null,getVal(d,"cr"),peso,sexo) },
+                          calc:(d,di)=>calcKeGFR(di>0?getVal(datas[di-1],"cr"):null,getVal(d,"cr"),peso,sexo,idadeA) },
                       ];
                       return tfgRows.map(row=>(
                         <tr key={row.lbl} style={{opacity:0.82}}>
