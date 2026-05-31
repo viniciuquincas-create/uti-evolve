@@ -2263,6 +2263,73 @@ function ConfigPanel({ config, onChange, onVoltar }) {
   );
 }
 
+
+// ── Fórmulas TFG ─────────────────────────────────────────────────────────────
+// CKD-EPI 2021 (race-free) — Inker et al. NEJM 2021
+function calcCKDEPI(cr, idadeA, sexo) {
+  if (!cr || !idadeA) return null;
+  const Scr = parseFloat(cr);
+  const age  = parseFloat(idadeA);
+  if (isNaN(Scr) || isNaN(age) || Scr <= 0 || age <= 0) return null;
+  const k = sexo === "F" ? 0.7  : 0.9;
+  const a = sexo === "F" ? -0.241 : -0.302;
+  const sex_mult = sexo === "F" ? 1.012 : 1.0;
+  const ratio = Scr / k;
+  const egfr = 142
+    * Math.pow(Math.min(ratio, 1), a)
+    * Math.pow(Math.max(ratio, 1), -1.200)
+    * Math.pow(0.9938, age)
+    * sex_mult;
+  return Math.round(egfr);
+}
+
+// Cockcroft-Gault — em mL/min
+function calcCockcroftGault(cr, idadeA, peso, sexo) {
+  if (!cr || !idadeA || !peso) return null;
+  const Scr = parseFloat(cr);
+  const age  = parseFloat(idadeA);
+  const wt   = parseFloat(peso);
+  if (isNaN(Scr) || isNaN(age) || isNaN(wt) || Scr <= 0) return null;
+  const cg = ((140 - age) * wt) / (72 * Scr) * (sexo === "F" ? 0.85 : 1);
+  return Math.round(cg);
+}
+
+// Kinetic eGFR (KeGFR) — Chen et al. 2013, usa 2 creatininas consecutivas
+// KeGFR (mL/min) = Vd(mL) × |ΔCr| / (Δt_min × Cr_mean)
+// Vd = 0.6 × peso (♂) ou 0.5 × peso (♀), em litros → × 1000 = mL
+function calcKeGFR(cr1, cr2, peso, sexo, deltaTMin = 1440) {
+  if (!cr1 || !cr2 || !peso) return null;
+  const C1 = parseFloat(cr1), C2 = parseFloat(cr2), wt = parseFloat(peso);
+  if (isNaN(C1) || isNaN(C2) || isNaN(wt) || C1 <= 0 || C2 <= 0) return null;
+  if (Math.abs(C1 - C2) < 0.05) return null; // sem mudança significativa
+  const Vd_mL = (sexo === "F" ? 0.5 : 0.6) * wt * 1000;
+  const kegfr = (Vd_mL * Math.abs(C1 - C2)) / (deltaTMin * (C1 + C2) / 2);
+  return Math.round(kegfr);
+}
+
+// Cor por faixa TFG
+function corTFG(v) {
+  if (v === null) return "#64748b";
+  if (v >= 90) return "#34d399";
+  if (v >= 60) return "#a3e635";
+  if (v >= 45) return "#fbbf24";
+  if (v >= 30) return "#fb923c";
+  if (v >= 15) return "#f87171";
+  return "#ef4444";
+}
+
+// Estágio CKD
+function stageCKD(v) {
+  if (v === null) return "";
+  if (v >= 90) return "G1";
+  if (v >= 60) return "G2";
+  if (v >= 45) return "G3a";
+  if (v >= 30) return "G3b";
+  if (v >= 15) return "G4";
+  return "G5";
+}
+
+
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
 const GRUPOS_LAB = [
   { grupo:"🩸 Hematológico", params:[
@@ -2895,7 +2962,58 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                           })}
                         </tr>
                       )}
-                                            {/* Débito urinário calculado — logo abaixo da Diurese */}
+                                            {/* TFG calculada — CKD-EPI, CG, KeGFR — abaixo da creatinina */}
+                      {key==="cr" && (leito.dataNascimento||leito.peso) && (() => {
+                        const idadeA = leito.dataNascimento
+                          ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000))
+                          : null;
+                        const peso = parseFloat(leito.peso)||null;
+                        const sexo = leito.sexo||"M";
+
+                        const rows = [
+                          { lbl:"↳ CKD-EPI 2021",  unit:"mL/min/1.73m²",
+                            calc: (d) => calcCKDEPI(getVal(d,"cr"), idadeA, sexo) },
+                          { lbl:"↳ Cockroft-Gault", unit:"mL/min",
+                            calc: (d) => calcCockcroftGault(getVal(d,"cr"), idadeA, peso, sexo) },
+                          { lbl:"↳ KeGFR (Chen)",   unit:"mL/min",
+                            calc: (d, dIdx) => {
+                              const cr2 = getVal(d,"cr");
+                              const cr1 = dIdx > 0 ? getVal(datas[dIdx-1],"cr") : null;
+                              return calcKeGFR(cr1, cr2, peso, sexo);
+                            }},
+                        ];
+
+                        return rows.map(row => (
+                          <tr key={row.lbl} style={{opacity:0.82}}>
+                            <td style={{...tdBase,padding:"3px 12px",fontSize:10,color:"#64748b",textAlign:"left",
+                              position:"sticky",left:0,background:T.bgTableSticky,fontStyle:"italic"}}>
+                              {row.lbl}
+                            </td>
+                            <td style={{...tdBase,fontSize:9,color:"#475569",fontFamily:mono,
+                              position:"sticky",left:155,background:T.bgTableSticky}}>
+                              {row.unit}
+                            </td>
+                            {datas.map((d,dIdx)=>{
+                              const val = row.calc(d, dIdx);
+                              const ativo = isHoje(d);
+                              return (
+                                <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.02)":undefined}}>
+                                  {val !== null ? (
+                                    <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"3px 4px",
+                                      color:corTFG(val),fontWeight:600}}>
+                                      {val}
+                                      <span style={{fontSize:9,color:"#475569",marginLeft:3}}>{stageCKD(val)}</span>
+                                    </div>
+                                  ) : (
+                                    <div style={{textAlign:"center",fontSize:11,color:"#1e293b"}}>—</div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ));
+                      })()}
+                      {/* Débito urinário calculado — logo abaixo da Diurese */}
                       {key==="c24_diur" && parseFloat(leito.peso) > 0 && (
                         <tr style={{opacity:0.75}}>
                           <td style={{...tdBase,padding:"4px 12px",fontSize:11,color:T.text3,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky,fontStyle:"italic"}}>↳ Débito urinário</td>
