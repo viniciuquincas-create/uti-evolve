@@ -2772,7 +2772,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                     </td>
                   </tr>
                   {params.map(({key,label,unit})=>(
-                    <tr key={key}
+                    <React.Fragment key={key}>
+                    <tr
                       onMouseEnter={e=>e.currentTarget.style.background=T.bgCardHover}
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       <td style={{...tdBase,padding:"4px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>{label}</td>
@@ -2797,6 +2798,46 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                         );
                       })}
                     </tr>
+                    {/* TFG abaixo da creatinina */}
+                    {key==="cr" && (leito.dataNascimento||leito.peso) && (()=>{
+                      const idadeA = leito.dataNascimento
+                        ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000))
+                        : null;
+                      const peso = parseFloat(leito.peso)||null;
+                      const sexo = leito.sexo||"M";
+                      const tfgRows = [
+                        { lbl:"↳ CKD-EPI 2021",  unit:"mL/min/1.73m²",
+                          calc:(d)=>calcCKDEPI(getVal(d,"cr"),idadeA,sexo) },
+                        { lbl:"↳ Cockroft-Gault", unit:"mL/min",
+                          calc:(d)=>calcCockcroftGault(getVal(d,"cr"),idadeA,peso,sexo) },
+                        { lbl:"↳ KeGFR (Chen)",   unit:"mL/min",
+                          calc:(d,di)=>calcKeGFR(di>0?getVal(datas[di-1],"cr"):null,getVal(d,"cr"),peso,sexo) },
+                      ];
+                      return tfgRows.map(row=>(
+                        <tr key={row.lbl} style={{opacity:0.82}}>
+                          <td style={{...tdBase,padding:"3px 12px",fontSize:10,color:"#64748b",textAlign:"left",fontStyle:"italic",position:"sticky",left:0,background:T.bgTableSticky}}>
+                            {row.lbl}
+                          </td>
+                          <td style={{...tdBase,fontSize:9,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>
+                            {row.unit}
+                          </td>
+                          {datas.map((d,di)=>{
+                            const val=row.calc(d,di);
+                            return (
+                              <td key={d} style={{...tdBase,background:isHoje(d)?"rgba(56,189,248,0.02)":undefined}}>
+                                {val!==null
+                                  ? <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"3px 4px",color:corTFG(val),fontWeight:600}}>
+                                      {val}<span style={{fontSize:9,color:"#475569",marginLeft:2}}>{stageCKD(val)}</span>
+                                    </div>
+                                  : <div style={{textAlign:"center",fontSize:11,color:"#1e293b"}}>—</div>
+                                }
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ));
+                    })()}
+                    </React.Fragment>
                   ))}
                 </React.Fragment>
               ))}
@@ -2962,57 +3003,6 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, config={} }) 
                           })}
                         </tr>
                       )}
-                                            {/* TFG calculada — CKD-EPI, CG, KeGFR — abaixo da creatinina */}
-                      {key==="cr" && (leito.dataNascimento||leito.peso) && (() => {
-                        const idadeA = leito.dataNascimento
-                          ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000))
-                          : null;
-                        const peso = parseFloat(leito.peso)||null;
-                        const sexo = leito.sexo||"M";
-
-                        const rows = [
-                          { lbl:"↳ CKD-EPI 2021",  unit:"mL/min/1.73m²",
-                            calc: (d) => calcCKDEPI(getVal(d,"cr"), idadeA, sexo) },
-                          { lbl:"↳ Cockroft-Gault", unit:"mL/min",
-                            calc: (d) => calcCockcroftGault(getVal(d,"cr"), idadeA, peso, sexo) },
-                          { lbl:"↳ KeGFR (Chen)",   unit:"mL/min",
-                            calc: (d, dIdx) => {
-                              const cr2 = getVal(d,"cr");
-                              const cr1 = dIdx > 0 ? getVal(datas[dIdx-1],"cr") : null;
-                              return calcKeGFR(cr1, cr2, peso, sexo);
-                            }},
-                        ];
-
-                        return rows.map(row => (
-                          <tr key={row.lbl} style={{opacity:0.82}}>
-                            <td style={{...tdBase,padding:"3px 12px",fontSize:10,color:"#64748b",textAlign:"left",
-                              position:"sticky",left:0,background:T.bgTableSticky,fontStyle:"italic"}}>
-                              {row.lbl}
-                            </td>
-                            <td style={{...tdBase,fontSize:9,color:"#475569",fontFamily:mono,
-                              position:"sticky",left:155,background:T.bgTableSticky}}>
-                              {row.unit}
-                            </td>
-                            {datas.map((d,dIdx)=>{
-                              const val = row.calc(d, dIdx);
-                              const ativo = isHoje(d);
-                              return (
-                                <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.02)":undefined}}>
-                                  {val !== null ? (
-                                    <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"3px 4px",
-                                      color:corTFG(val),fontWeight:600}}>
-                                      {val}
-                                      <span style={{fontSize:9,color:"#475569",marginLeft:3}}>{stageCKD(val)}</span>
-                                    </div>
-                                  ) : (
-                                    <div style={{textAlign:"center",fontSize:11,color:"#1e293b"}}>—</div>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ));
-                      })()}
                       {/* Débito urinário calculado — logo abaixo da Diurese */}
                       {key==="c24_diur" && parseFloat(leito.peso) > 0 && (
                         <tr style={{opacity:0.75}}>
