@@ -2417,10 +2417,10 @@ const GRUPOS_CONTROLES = [
     {key:"c24_dextro",label:"Dextro (mín/máx)",       unit:"mg/dL"},
   ]},
   { grupo:"🧠 Neurológico", params:[
-    {key:"c24_pic",   label:"PIC (mín/máx)",          unit:"mmHg", opcional:true},
-    {key:"c24_ppc",   label:"PPC (mín/máx)",          unit:"mmHg", opcional:true},
-    {key:"c24_dve",   label:"DVE débito",              unit:"mL",   opcional:true},
-  ]},
+    {key:"c24_pic",   label:"PIC (mín/máx)",          unit:"mmHg"},
+    {key:"c24_ppc",   label:"PPC (mín/máx)",          unit:"mmHg"},
+    {key:"c24_dve",   label:"DVE débito",              unit:"mL"},
+  ], opcional:true},
   { grupo:"📥 Ganhos", params:[
     {key:"c24_diet_vol", label:"Vol. Dieta recebida", unit:"mL"},
   ]},
@@ -2747,6 +2747,14 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
             {label}
           </button>
         ))}
+        {tabela==="controles" && (
+          <button onClick={()=>atualizar({...leito,ctrlGrupoNeurologico:!leito.ctrlGrupoNeurologico})}
+            style={{padding:"4px 10px",background:leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",
+              border:`1px solid ${leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.08)"}`,
+              borderRadius:6,color:leito.ctrlGrupoNeurologico?"#c084fc":"#475569",cursor:"pointer",fontSize:11}}>
+            🧠 Neurocrítico
+          </button>
+        )}
       </div>
 
       {showAddCol && (
@@ -3027,7 +3035,9 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                 </tr>
               </thead>
               <tbody>
-                {GRUPOS_CONTROLES.map(({grupo,params})=>(
+                {GRUPOS_CONTROLES.map(({grupo,params,opcional})=>{
+                  if(opcional){const hasD=params.some(({key})=>datas.some(d=>getVal(d,key)));const en=leito.ctrlGrupoNeurologico;if(!hasD&&!en)return null;}
+                  return(
                   <React.Fragment key={grupo}>
                     <tr>
                       <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:T.accent,background:T.bgTableGroupCtrl,fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>
@@ -3128,7 +3138,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                       </React.Fragment>
                     ))}
                   </React.Fragment>
-                ))}
+                   );
+                  })}
                 {/* Drenos dinâmicos (_dreno_*) */}
                 {(()=>{
                   const drenoKeys = Array.from(new Set(datas.flatMap(d=>Object.keys(data[d]||{}).filter(k=>k.startsWith('_dreno_')))));
@@ -4535,10 +4546,25 @@ export default function App() {
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="dadosclinicos" ? (
               <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
-                <div style={{flex:2,minWidth:340}}>
+                {/* Coluna esquerda: Ventilatório + Nutricional */}
+                <div style={{flex:2,minWidth:320}}>
                   <VentilacaoPanel leito={leito} onChange={atualizar}/>
+                  <DietaPanel dados={leito} config={config} onChange={atualizar}
+                    diureseHojeVol={(()=>{const tb=tabelaData[leitoSelId]||{};const ds=Object.keys(tb).sort().reverse();for(const d of ds)if(tb[d]?.c24_diet_vol)return tb[d].c24_diet_vol;return "";})()}/>
                 </div>
-                <div style={{flex:3,minWidth:340}}>
+                {/* Coluna direita: Drogas → ATB → Dispositivos */}
+                <div style={{flex:3,minWidth:320}}>
+                  {leito.peso && <>
+                    <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
+                    <DrogasCalculadora peso={leito.peso} onLancarDroga={(linha,campo)=>{
+                      setEvolCamposComPersistencia(c=>({...c,[campo]:c[campo]?`${c[campo]}
+${linha}`:linha}));
+                      setEvolVersion(v=>v+1);
+                    }} config={config}
+                      vazoes={leito.drogasVazao||{}}
+                      onVazaoChange={(key,val)=>atualizar({...leito,drogasVazao:{...(leito.drogasVazao||{}),[key]:val}})}
+                    />
+                  </>}
                   <Collapsible title="ANTIBIOTICOTERAPIA" defaultOpen={true}
                     badge={(leito.antibioticos||[]).filter(a=>!a.dataFim).length > 0 ? `${(leito.antibioticos||[]).filter(a=>!a.dataFim).length} ativo(s)` : null}>
                   <AntibioticosPanel
@@ -4570,19 +4596,6 @@ export default function App() {
                     alertas={config}
                   />
                   </Collapsible>
-                  {leito.peso && <>
-                    <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-                    <DrogasCalculadora peso={leito.peso} onLancarDroga={(linha,campo)=>{
-                      setEvolCamposComPersistencia(c=>({...c,[campo]:c[campo]?`${c[campo]}
-${linha}`:linha}));
-                      setEvolVersion(v=>v+1);
-                    }} config={config}
-                      vazoes={leito.drogasVazao||{}}
-                      onVazaoChange={(key,val)=>atualizar({...leito,drogasVazao:{...(leito.drogasVazao||{}),[key]:val}})}
-                    />
-                  </>}
-                  <DietaPanel dados={leito} config={config} onChange={atualizar}
-                    diureseHojeVol={(()=>{const tb=tabelaData[leitoSelId]||{};const ds=Object.keys(tb).sort().reverse();for(const d of ds)if(tb[d]?.c24_diet_vol)return tb[d].c24_diet_vol;return "";})()}/>
                 </div>
               </div>
             ) : aba==="paciente" ? (
