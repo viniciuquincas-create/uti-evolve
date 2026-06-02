@@ -2653,9 +2653,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       const val = getVal(chaveHoje, cc.key);
       if (!val) return;
       const campoAlvo = cc.sistema || "rm24h";
-      campos[campoAlvo] = (campos[campoAlvo]||"") + (campos[campoAlvo]?"\n":"") + `${cc.label}: ${val}${cc.unit?" "+cc.unit:""}`
+      campos[campoAlvo] = (campos[campoAlvo]||"") + (campos[campoAlvo]?"\n":"") + `${cc.label}: ${val}${cc.unit?" "+cc.unit:""}`;
+    });
 
-    // Drenos dinâmicos (_dreno_*) → TGI
+    // Drenos dinâmicos    // Drenos dinâmicos (_dreno_*) → TGI
     const drenosKeys = Object.keys(data[chaveHoje]||{}).filter(k => k.startsWith('_dreno_'));
     const drenosStr  = drenosKeys.map(k=>{
       const nome = k.replace(/^_dreno_/, '').replace(/_/g,' ');
@@ -2740,7 +2741,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const atbTexto = (leito.antibioticos||[]).filter(a=>a.nome&&!a.dataFim).map(a=>{
       const diasAtb = a.dataInicio ? Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1 : null;
       const partes = [a.nome, a.dose, a.via||"EV"].filter(Boolean).join(" ");
-      return `${partes}${diasAtb ? ` (D${diasAtb})` : ""}`;
+      return `${partes}${diasAtb ? " (D"+diasAtb+")" : ""}`;
     }).join("\n");
     if (atbTexto) campos.heAtb = atbTexto;
 
