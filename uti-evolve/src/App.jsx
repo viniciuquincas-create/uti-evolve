@@ -122,7 +122,7 @@ const DROGAS_PROTOCOLO = {
     modoCalcDefault:"mg_kg_h",
     modoCalcOpcoes:["mg_kg_h","mcg_kg_min","mg_h"],
     max:4, unidadeLabel:"mg/kg/h",
-    doseInfo:"5 – 50 mcg/kg/min  (= 0,3 – 3 mg/kg/h)\nSedação leve: 5–10 mcg/kg/min\nSedação profunda: 25–50 mcg/kg/min\nAlerta PRIS: > 4 mg/kg/h por > 48h",
+    doseInfo:"5 – 50 mcg/kg/min  (= 0,3 – 3 mg/kg/h) · 1,1 kcal/mL\nSedação leve: 5–10 mcg/kg/min\nSedação profunda: 25–50 mcg/kg/min\nAlerta PRIS: > 4 mg/kg/h por > 48h",
   },
   midazolam: {
     label:"Midazolam", grupo:"sedacao",
@@ -510,7 +510,15 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
   const conf = DROGAS_PROTOCOLO[drogaSel];
   const modoAtual = (vazoes||{})[`${drogaSel}_modo`] || (config?.drogasModo?.[drogaSel]) || conf.modoCalcDefault;
   const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined, modoAtual, config);
-  const acimaDose = resultado && conf.max && parseFloat(resultado.dose) > conf.max;
+  // Normalize max check: conf.max is in conf.modoCalcDefault unit
+  const acimaDose = resultado && conf.max && (() => {
+    if (modoAtual === conf.modoCalcDefault) return parseFloat(resultado.dose) > conf.max;
+    // convert resultado to default unit for comparison
+    const dose = parseFloat(resultado.dose);
+    if (modoAtual==="mcg_kg_min" && conf.modoCalcDefault==="mg_kg_h") return dose*60/1000 > conf.max;
+    if (modoAtual==="mg_kg_h" && conf.modoCalcDefault==="mcg_kg_min") return dose*1000/60 > conf.max;
+    return dose > conf.max;
+  })();
   const resBg     = acimaDose ? "rgba(248,113,113,0.1)" : resultado ? "rgba(56,189,248,0.08)" : "rgba(255,255,255,0.04)";
   const resBorder = acimaDose ? "rgba(248,113,113,0.4)" : resultado ? "rgba(56,189,248,0.3)"  : "rgba(255,255,255,0.08)";
   const resCor    = acimaDose ? "#f87171" : resultado ? "#38bdf8" : "#475569";
@@ -538,6 +546,9 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
   const lancarNaEvolucao = () => {
     if (!resultado || !onLancarDroga) return;
     const dose = `${fmtDose(resultado.dose)} ${resultado.label}`;
+    const kcalProp = drogaSel==="propofol" && parseFloat(mlh) > 0
+      ? ` · ${(parseFloat(mlh)*1.1).toFixed(0)} kcal/h`
+      : "";
     const linha = `${conf.label} ${mlh}mL/h (${dose})`;
     const campo = CAMPO_EVOLUCAO[conf.grupo] || "cvDVA";
     onLancarDroga(linha, campo);
@@ -1174,15 +1185,15 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
 // ── VentilacaoPanel ────────────────────────────────────────────────────────────
 const VM_MODOS = [
   { id:"ar_ambiente",  label:"Ar ambiente",                       icone:"🌬️"  },
-  { id:"cn",           label:"Cateter Nasal (CN)",                 icone:"👃"  },
-  { id:"ms",           label:"Máscara Simples (MS)",               icone:"😷"  },
-  { id:"mnr",          label:"Máscara Não Reinalante (MNR)",       icone:"🫁"  },
+  { id:"cn",           label:"Cateter Nasal",                 icone:"👃"  },
+  { id:"ms",           label:"Máscara Simples",               icone:"😷"  },
+  { id:"mnr",          label:"Máscara Não Reinalante",       icone:"🫁"  },
   { id:"venturi",      label:"Máscara Venturi",                    icone:"💨"  },
-  { id:"cnaf",         label:"CNAF (Cateter Nasal Alto Fluxo)",    icone:"🌊"  },
-  { id:"vni",          label:"VNI (Ventilação Não Invasiva)",      icone:"🔵"  },
-  { id:"vm_psv",       label:"VM — Modo PSV (Pressão Suporte)",    icone:"🔴"  },
-  { id:"vm_pcv",       label:"VM — Modo PCV (Pressão Controlada)", icone:"🔴"  },
-  { id:"vm_vcv",       label:"VM — Modo VCV (Volume Controlado)",  icone:"🔴"  },
+  { id:"cnaf",         label:"CNAF",    icone:"🌊"  },
+  { id:"vni",          label:"VNI",      icone:"🔵"  },
+  { id:"vm_psv",       label:"VM — PSV",    icone:"🔴"  },
+  { id:"vm_pcv",       label:"VM — PCV", icone:"🔴"  },
+  { id:"vm_vcv",       label:"VM — VCV",  icone:"🔴"  },
   { id:"vm_aprv",      label:"VM — APRV",                         icone:"🔴"  },
 ];
 
@@ -1339,6 +1350,22 @@ function VentilacaoPanel({ leito, onChange }) {
             ))}
           </div>
 
+          {/* Tidal volume vs peso predito */}
+          {(()=>{
+            const pp2 = pesoPredito(leito.altura, leito.sexo);
+            const vt2 = parseFloat(leito.vm_vt||0);
+            if (!pp2 || !vt2) return null;
+            const mlkg = (vt2 / parseFloat(pp2)).toFixed(1);
+            const cor2 = parseFloat(mlkg)>8?"#f87171":parseFloat(mlkg)>6?"#fbbf24":"#34d399";
+            return (
+              <div style={{padding:"5px 12px",borderRadius:8,background:`${cor2}15`,border:`1px solid ${cor2}30`,
+                fontSize:12,color:cor2,display:"inline-flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                <strong>{vt2} mL</strong>
+                <span>= {mlkg} mL/kg PP ({pp2}kg)</span>
+                {parseFloat(mlkg)>8&&<span>⚠️ acima 8 mL/kg</span>}
+              </div>
+            );
+          })()}
           {/* Calculados em tempo real */}
           {(dp!==null||csr!==null||pf_calc!==null) && (
             <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
@@ -1518,7 +1545,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                 <input value={atb.nome} onChange={e=>updAtb(atb.id,"nome",e.target.value)}
                   placeholder="ATB / Antifúngico"
                   style={{flex:1,background:"transparent",border:"none",borderBottom:"1px solid rgba(255,255,255,0.12)",padding:"2px 0",color:T.text1,fontSize:12,fontWeight:600,outline:"none"}}/>
-                {diasAtb !== null && (
+                {diasAtb !== null && atb.dose && (
                   <span style={{padding:"1px 7px",borderRadius:10,fontSize:10,fontFamily:mono,fontWeight:700,
                     background:diasAtb===0?"rgba(56,189,248,0.12)":diasAtb<7?"rgba(52,211,153,0.1)":"rgba(251,146,60,0.1)",
                     color:diasAtb===0?"#38bdf8":diasAtb<7?"#34d399":"#fb923c",whiteSpace:"nowrap"}}>
@@ -1698,42 +1725,6 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         </Collapsible>
       </>}
 
-      <Collapsible title="ANTIBIOTICOTERAPIA" defaultOpen={true}
-        badge={(dados.antibioticos||[]).filter(a=>!a.dataFim).length > 0 ? `${(dados.antibioticos||[]).filter(a=>!a.dataFim).length} ativo(s)` : null}>
-      <AntibioticosPanel
-        antibioticos={dados.antibioticos||[]}
-        onChange={atbs=>onChange({...dados,antibioticos:atbs})}
-        crSerico={tabelaHoje?.cr||""}
-        peso={dados.peso||""}
-        idadeAnos={idadeAnos}
-        sexo={dados.sexo||"M"}
-        clcrOverride={(()=>{
-          const hoje2 = new Date().toISOString().split("T")[0];
-          const sel = (dados.tfgSel||{})[hoje2];
-          const cr = tabelaHoje?.cr;
-          const p = parseFloat(dados.peso)||null;
-          const ia = idadeAnos;
-          const sx = dados.sexo||"M";
-          if (!sel || !cr || !p || !ia) return null;
-          if (sel==="ckdepi") return calcCKDEPI(cr,ia,sx);
-          if (sel==="cg")     return calcCockcroftGault(cr,ia,p,sx);
-          return null; // kegfr handled via tabelaHoje
-        })()}
-      />
-      </Collapsible>
-
-      <Collapsible title="DISPOSITIVOS" defaultOpen={true}>
-      <DispositivosPanel
-        dispositivos={dados.dispositivos||{}}
-        onChange={disps=>onChange({...dados,dispositivos:disps})}
-        alertas={{
-          cvc:config.alertaCVC||7, pai:config.alertaPAI||7,
-          svd:config.alertaSVD||14, dialise:config.alertaDialise||14,
-          tot:config.alertaTOT||99, tqt:config.alertaTQT||99,
-          sng:config.alertaSNG||21, dreno:config.alertaDreno||21,
-        }}
-      />
-      </Collapsible>
 
       <Collapsible title="PROCEDIMENTOS" defaultOpen={true}>
       <ProcedimentosPanel
@@ -2425,6 +2416,11 @@ const GRUPOS_CONTROLES = [
     {key:"c24_sat",   label:"SpO2 (mín/máx)",         unit:"%"},
     {key:"c24_dextro",label:"Dextro (mín/máx)",       unit:"mg/dL"},
   ]},
+  { grupo:"🧠 Neurológico", params:[
+    {key:"c24_pic",   label:"PIC (mín/máx)",          unit:"mmHg", opcional:true},
+    {key:"c24_ppc",   label:"PPC (mín/máx)",          unit:"mmHg", opcional:true},
+    {key:"c24_dve",   label:"DVE débito",              unit:"mL",   opcional:true},
+  ]},
   { grupo:"📥 Ganhos", params:[
     {key:"c24_diet_vol", label:"Vol. Dieta recebida", unit:"mL"},
   ]},
@@ -2437,6 +2433,7 @@ const GRUPOS_CONTROLES = [
     {key:"c24_bh_ac", label:"Balanço Acumulado",      unit:"mL"},
   ]},
   // Drenos/SNG/Evac: adicionados dinamicamente como _dreno_[nome]
+  // Custom: adicionados dinamicamente como _ctrl_[key]
 ];
 
 const TODOS_PARAMS = [
@@ -2697,7 +2694,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     // Ventilação mecânica → reVM (campo "Ventilação — Modo" na evolução)
     const vmTexto = gerarTextoVM(leito);
     if (vmTexto && vmTexto !== "Ar ambiente") {
-      campos.reVM = vmTexto;
+      const pp4 = pesoPredito(leito.altura, leito.sexo);
+      const vt4 = parseFloat(leito.vm_vt||0);
+      const vtInfo = (pp4 && vt4) ? ` · VC ${vt4}mL = ${(vt4/parseFloat(pp4)).toFixed(1)}mL/kg PP` : "";
+      campos.reVM = vmTexto + vtInfo;
     }
 
     // Antibioticoterapia → heAtb (campo "Antibióticos" na seção Infeccioso)
@@ -3280,7 +3280,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     if(get("reVM"))    p.push(`- Ventilação: ${get("reVM")}`);
     if(get("reEF"))    p.push(`- EF: ${get("reEF")}`);
     if(get("re24h"))   p.push(`- 24h: ${get("re24h")}`);
-    if(get("reGaso"))  p.push(`- *nova* Gaso: ${get("reGaso")}`);
+    if(get("reGaso"))  p.push(`Gaso: ${get("reGaso")}`);
     if(get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
     if(get("reObs"))   p.push(`*${get("reObs")}`);
     return p.join("\n");
@@ -3310,6 +3310,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     }else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
     if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
+    if(get("tgUltEvac")){const d=Math.floor((new Date()-new Date(get("tgUltEvac")+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
+    if(get("tgLAMG"))   p.push(`- LAMG: ${get("tgLAMG")}`);
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(get("tgObs"))  p.push(`*${get("tgObs")}`);
     return p.join("\n");
@@ -3551,7 +3553,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     if(get("reVM"))   p.push(`- Ventilação: ${get("reVM")}`);
     if(get("reEF"))   p.push(`- EF: ${get("reEF")}`);
     if(get("re24h"))  p.push(`- 24h: ${get("re24h")}`);
-    if(get("reGaso")) p.push(`- *nova* Gaso: ${get("reGaso")}`);
+    if(get("reGaso")) p.push(`Gaso: ${get("reGaso")}`);
     if(vis.rePocus&&get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
     if(vis.reObs&&get("reObs")) p.push(`*${get("reObs")}`);
     return p.join("\n");
@@ -3577,6 +3579,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
     if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
+    if(get("tgUltEvac")){const d=Math.floor((new Date()-new Date(get("tgUltEvac")+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
+    if(get("tgLAMG"))   p.push(`- LAMG: ${get("tgLAMG")}`);
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(vis.add_tgi_interconsulta&&getExtra("add_tgi_interconsulta")) p.push(`- IC: ${getExtra("add_tgi_interconsulta")}`);
     if(vis.add_tgi_exames&&getExtra("add_tgi_exames")) p.push(`- Exames: ${getExtra("add_tgi_exames")}`);
@@ -3786,6 +3790,27 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
             return <span style={{marginLeft:8,color:"#94a3b8"}}>· Kcal: <strong style={{color:pctKcal>=80?"#34d399":"#f87171"}}>{pctKcal}%</strong> · Ptn: <strong style={{color:pctPtn>=80?"#34d399":"#f87171"}}>{pctPtn}%</strong></span>;
           })()}
         </div>}
+        <Row>
+          <Col><FL>Última evacuação</FL>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <input type="date" value={campos.tgUltEvac||""} onChange={e=>onCampoEdit("tgUltEvac",e.target.value)}
+                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12}}/>
+              {campos.tgUltEvac&&<span style={{fontSize:11,color:"#94a3b8",fontFamily:"'DM Mono',monospace"}}>
+                {Math.floor((new Date()-new Date(campos.tgUltEvac+"T00:00:00"))/86400000)}d atrás
+              </span>}
+            </div>
+          </Col>
+          <Col><FL>Profilaxia LAMG</FL>
+            <select value={campos.tgLAMG||""} onChange={e=>onCampoEdit("tgLAMG",e.target.value)}
+              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12,cursor:"pointer"}}>
+              <option value="">— sem profilaxia —</option>
+              <option value="Omeprazol 40mg EV 1x/d">Omeprazol 40mg EV</option>
+              <option value="Esomeprazol 40mg SNE 1x/d">Esomeprazol SNE</option>
+              <option value="Omeprazol 80mg EV 1x/d">Omeprazol 80mg EV</option>
+              <option value="Pantoprazol 40mg EV 1x/d">Pantoprazol 40mg EV</option>
+            </select>
+          </Col>
+        </Row>
         <Row>
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
           <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} sugestao="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
@@ -4514,6 +4539,37 @@ export default function App() {
                   <VentilacaoPanel leito={leito} onChange={atualizar}/>
                 </div>
                 <div style={{flex:3,minWidth:340}}>
+                  <Collapsible title="ANTIBIOTICOTERAPIA" defaultOpen={true}
+                    badge={(leito.antibioticos||[]).filter(a=>!a.dataFim).length > 0 ? `${(leito.antibioticos||[]).filter(a=>!a.dataFim).length} ativo(s)` : null}>
+                  <AntibioticosPanel
+                    antibioticos={leito.antibioticos||[]}
+                    onChange={atbs=>atualizar({...leito,antibioticos:atbs})}
+                    crSerico={(()=>{const tb=tabelaData[leitoSelId]||{};const ds=Object.keys(tb).sort().reverse();for(const d of ds)if(tb[d]?.cr)return tb[d].cr;return "";})()}
+                    peso={leito.peso||""}
+                    idadeAnos={idadeAnos}
+                    sexo={leito.sexo||"M"}
+                    clcrOverride={(()=>{
+                      const hoje2=new Date().toISOString().split("T")[0];
+                      const sel=(leito.tfgSel||{})[hoje2];
+                      const tb=tabelaData[leitoSelId]||{};
+                      const ds=Object.keys(tb).sort().reverse();
+                      const cr=ds.length?tb[ds[0]]?.cr:null;
+                      const p=parseFloat(leito.peso)||null;
+                      const ia=idadeAnos;const sx=leito.sexo||"M";
+                      if(!sel||!cr||!p||!ia)return null;
+                      if(sel==="ckdepi")return calcCKDEPI(cr,ia,sx);
+                      if(sel==="cg")return calcCockcroftGault(cr,ia,p,sx);
+                      return null;
+                    })()}
+                  />
+                  </Collapsible>
+                  <Collapsible title="DISPOSITIVOS" defaultOpen={true}>
+                  <DispositivosPanel
+                    dispositivos={leito.dispositivos||{}}
+                    onChange={disps=>atualizar({...leito,dispositivos:disps})}
+                    alertas={config}
+                  />
+                  </Collapsible>
                   {leito.peso && <>
                     <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
                     <DrogasCalculadora peso={leito.peso} onLancarDroga={(linha,campo)=>{
