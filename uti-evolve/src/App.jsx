@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { supabase } from './supabase.js';
 
-// UTI Evolve — build 2026-05-28T18:31:01 //2026-05-28T18:12:42
+// UTI Evolve — build 2026-06-04T20:46:10 2026-05-28T18:31:01 //2026-05-28T18:12:42
 
 // ── Logo SVG — Cérebro com sensor Brain for Care ──────────────────────────────
 const BrainLogo = ({ size = 32 }) => (
