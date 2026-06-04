@@ -3573,6 +3573,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   }, [campos]);
 
   const gerarTextoCompleto = () => {
+    try {
     const get = k => refs[k]?.current?.value || campos[k] || "";
     const dt=new Date().toLocaleDateString("pt-BR");
     let t=`EVOLUÇÃO UTI — ${dt}`;
@@ -3584,6 +3585,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(v) t+=`\n${v}`;
     });
     return t.trim();
+    } catch(e) { return ""; }
   };
 
   const copiarTudo = () => {
@@ -4441,8 +4443,8 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
     const v = vazoes[dKey];
     const conf = DROGAS_CONFIG[dKey];
     if(!v||!conf||parseFloat(v)<=0) return null;
-    const res = calcDoseFromMLH(parseFloat(v), dKey, conf, null, null); // peso opcional
-    return <R lbl={conf.label} val={`${v}mL/h`} unit={res?`(${res.dose}${res.label})`:"" } cor="#fbbf24"/>;
+    const res = calcDoseFromMLH(dKey, parseFloat(v), null, null, null); // peso not available here
+    return <R lbl={conf.label} val={`${v}mL/h`} unit={res?`(${Math.round(parseFloat(res.dose)*100)/100} ${res.label})`:"" } cor="#fbbf24"/>;
   };
 
   return (
