@@ -4355,144 +4355,188 @@ function LoginScreen({ onLogin }) {
 function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
-  const hoje = new Date().toISOString().split("T")[0];
 
   const getHoje = (leitoId) => {
     const tb = tabelaData[leitoId]||{};
     const datas = Object.keys(tb).sort().reverse();
-    for (const d of datas) if (tb[d]) return tb[d];
+    for (const d of datas) { const row=tb[d]; if(row&&Object.keys(row).length>0) return row; }
     return {};
-  };
-
-  const getAlerts = (leito) => {
-    const alerts = [];
-    const crHoje = getHoje(leito.id)?.cr;
-    const idade = leito.dataNascimento ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
-    const clcr = (crHoje && leito.peso && idade)
-      ? Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(crHoje))*(leito.sexo==="F"?0.85:1))
-      : null;
-
-    // ATB renal
-    (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
-      const dias=Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000);
-      if(dias<2) return;
-      const lc=a.nome.toLowerCase();
-      const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
-      if(clcr!==null&&ATB_RENAL[key]?.length>0){
-        const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);
-        if(aj) alerts.push({tipo:"atb",txt:`${a.nome}: ajustar dose (ClCr ${clcr})`});
-      }
-    });
-
-    // Dispositivos vencidos
-    const disps=leito.dispositivos||{};
-    const alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};
-    DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach(inst=>{
-      if(!inst.data) return;
-      const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
-      if(dd>(alts[d.key]||99)) alerts.push({tipo:"disp",txt:`${d.label}: D${dd}`});
-    }));
-    DISP_SINGULAR.forEach(d=>{
-      const inst=disps[d.key];
-      if(!inst?.ativo||!inst.data) return;
-      const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
-      if(dd>(alts[d.key]||99)) alerts.push({tipo:"disp",txt:`${d.label}: D${dd}`});
-    });
-
-    return alerts;
   };
 
   const fmtBH = (leitoId, leito) => {
     const tb=tabelaData[leitoId]||{};
     const datas=Object.keys(tb).sort();
-    let acum=0,algum=false;
+    let acum=0, algum=false;
     datas.forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});
     const prev=parseFloat(leito.bhPrevio||0)||0;
     const tot=acum+prev;
     if(!algum&&!prev) return null;
-    return {val:tot,cor:tot>200?"#f87171":tot<-200?"#34d399":"#94a3b8"};
+    return {val:tot, cor:tot>200?"#f87171":tot<-200?"#34d399":"#94a3b8"};
   };
 
+  const getAlerts = (leito) => {
+    const alerts = [];
+    const h = getHoje(leito.id);
+    const idade = leito.dataNascimento ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
+    const clcr = (h.cr && leito.peso && idade) ? Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(h.cr))*(leito.sexo==="F"?0.85:1)) : null;
+    (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
+      const dias=Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000);
+      if(dias<2) return;
+      const lc=a.nome.toLowerCase();
+      const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
+      if(clcr&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);if(aj)alerts.push(`ATB ${a.nome}: ajuste renal (ClCr ${clcr})`);}
+    });
+    const disps=leito.dispositivos||{};
+    const alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14};
+    DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach(inst=>{
+      if(!inst.data) return;
+      const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
+      if(dd>(alts[d.key]||99)) alerts.push(`${d.label}: D${dd}`);
+    }));
+    return alerts;
+  };
+
+  // A data row: label + value
+  const DataRow = ({label, value, unit="", cor="#cbd5e1", hide=false}) => hide||!value ? null : (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"2px 0",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
+      <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{label}</span>
+      <span style={{fontSize:12,fontFamily:mono,color:cor,fontWeight:600}}>{value}{unit&&<span style={{fontSize:10,color:"#475569",fontWeight:400,marginLeft:3}}>{unit}</span>}</span>
+    </div>
+  );
+
+  // Section header
+  const Sec = ({label, cor="#475569"}) => (
+    <div style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:cor,marginTop:8,marginBottom:3,paddingBottom:2,borderBottom:`1px solid ${cor}30`}}>{label}</div>
+  );
+
   return (
-    <div style={{padding:"24px 28px"}}>
-      <div style={{fontSize:18,fontWeight:700,color:T.text1,marginBottom:20}}>🏥 Visão Geral da UTI</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16}}>
+    <div style={{padding:"20px 24px",overflowY:"auto"}}>
+      <div style={{fontSize:17,fontWeight:700,color:T.text1,marginBottom:16}}>🏥 Visão Geral da UTI</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
         {leitos.map(l=>{
           if (!l.paciente) return (
-            <div key={l.id} style={{padding:"20px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.06)",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,color:"#334155",fontSize:12}}>
-              <span>{l.nome}</span><span style={{color:"#1e293b"}}>— Vago</span>
+            <div key={l.id} style={{padding:18,background:"rgba(255,255,255,0.015)",border:"1px dashed rgba(255,255,255,0.06)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",color:"#1e293b",fontSize:12,gap:8}}>
+              {l.nome} — Vago
             </div>
           );
 
+          const h = getHoje(l.id);
           const dias = diasInternacao(l.dataInternacao);
           const idade = l.dataNascimento ? Math.floor((new Date()-new Date(l.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
-          const h = getHoje(l.id);
-          const alerts = getAlerts(l);
-          const metas = metasPorLeito[l.id]||[];
-          const pendentes = metas.filter(m=>!m.feito);
           const bh = fmtBH(l.id, l);
+          const alerts = getAlerts(l);
           const atbAtivos = (l.antibioticos||[]).filter(a=>!a.dataFim&&a.nome);
+          const vm = l.vm_modo ? (VM_MODOS.find(m=>m.id===l.vm_modo)||{label:l.vm_modo}) : null;
           const pp = pesoPredito(l.altura, l.sexo);
+          const dispsAtivos = [
+            ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((l.dispositivos||{})[def.key])?(l.dispositivos[def.key]).map(inst=>({label:def.label,icone:def.icone,data:inst.data,alertaDias:config[`alerta${def.key.charAt(0).toUpperCase()+def.key.slice(1)}`]||99})):[]) ),
+            ...DISP_SINGULAR.filter(def=>(l.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label,icone:def.icone,data:(l.dispositivos[def.key]).data,alertaDias:config[`alerta${def.key.charAt(0).toUpperCase()+def.key.slice(1)}`]||99}))
+          ];
 
           return (
-            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${alerts.length>0?"rgba(248,113,113,0.3)":T.border}`,borderRadius:12,overflow:"hidden"}}>
-              {/* Header */}
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,background:alerts.length>0?"rgba(248,113,113,0.04)":"transparent"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontSize:14,fontWeight:700,color:T.text1,flex:1}}>{l.paciente}</span>
-                  {idade&&<span style={{fontSize:11,fontFamily:mono,color:"#c084fc"}}>{idade}a</span>}
-                  {dias!==null&&<span style={{fontSize:11,fontFamily:mono,color:"#a78bfa",background:"rgba(167,139,250,0.1)",padding:"2px 8px",borderRadius:10}}>D{dias}</span>}
-                  {bh&&<span style={{fontSize:11,fontFamily:mono,color:bh.cor,fontWeight:700}}>{bh.val>=0?"+":""}{Math.round(bh.val)}mL</span>}
+            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${alerts.length>0?"rgba(248,113,113,0.3)":T.border}`,borderRadius:10,overflow:"hidden"}}>
+              {/* ── Cabeçalho ── */}
+              <div style={{padding:"10px 14px",background:"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3,flexWrap:"wrap"}}>
+                  <span style={{fontWeight:700,color:T.text1,fontSize:13,flex:1}}>{l.paciente}</span>
+                  {idade&&<span style={{fontSize:10,fontFamily:mono,color:"#c084fc"}}>{idade}a</span>}
+                  {dias!==null&&<span style={{fontSize:10,fontFamily:mono,color:"#a78bfa",background:"rgba(167,139,250,0.1)",padding:"1px 6px",borderRadius:8}}>D{dias}</span>}
+                  {bh&&<span style={{fontSize:11,fontFamily:mono,color:bh.cor,fontWeight:700,padding:"1px 7px",borderRadius:8,background:`${bh.cor}15`}}>{bh.val>=0?"+":""}{Math.round(bh.val)}mL</span>}
                 </div>
-                <div style={{fontSize:11,color:T.text3}}>{l.diagnostico}</div>
+                <div style={{fontSize:10,color:T.text3}}>{l.diagnostico}</div>
               </div>
 
-              {/* Body */}
-              <div style={{padding:"10px 16px",display:"flex",flexDirection:"column",gap:8}}>
-                {/* Vitais hoje */}
-                {(h.c24_fc||h.c24_pam||h.c24_temp||h.c24_sat) && (
-                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                    {h.c24_temp&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>T </span><span style={{color:"#fb923c"}}>{h.c24_temp}</span></div>}
-                    {h.c24_fc&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>FC </span><span style={{color:"#f87171"}}>{h.c24_fc}</span></div>}
-                    {h.c24_pam&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>PAM </span><span style={{color:"#38bdf8"}}>{h.c24_pam}</span></div>}
-                    {h.c24_sat&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>SpO2 </span><span style={{color:"#34d399"}}>{h.c24_sat}</span></div>}
-                    {h.c24_dextro&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>Glicemia </span><span style={{color:"#fbbf24"}}>{h.c24_dextro}</span></div>}
-                  </div>
-                )}
+              {/* ── Sistemas ── */}
+              <div style={{padding:"8px 14px"}}>
 
-                {/* Labs principais */}
-                {(h.cr||h.na||h.hb) && (
-                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                    {h.cr&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>Cr </span><span style={{color:"#f87171"}}>{h.cr}</span></div>}
-                    {h.na&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>Na </span><span style={{color:"#cbd5e1"}}>{h.na}</span></div>}
-                    {h.hb&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>Hb </span><span style={{color:"#fb923c"}}>{h.hb}</span></div>}
-                    {h.ph&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>pH </span><span style={{color:parseFloat(h.ph)<7.35?"#f87171":parseFloat(h.ph)>7.45?"#34d399":"#cbd5e1"}}>{h.ph}</span></div>}
-                  </div>
-                )}
+                {/* NEURO */}
+                {(h.c24_pic||h.c24_ppc||h.c24_dve) && <>
+                  <Sec label="🧠 NEURO" cor="#c084fc"/>
+                  <DataRow label="PIC" value={h.c24_pic} unit="mmHg" cor={parseFloat(h.c24_pic)>20?"#f87171":"#cbd5e1"}/>
+                  <DataRow label="PPC" value={h.c24_ppc} unit="mmHg" cor={parseFloat(h.c24_ppc)<60?"#f87171":"#34d399"}/>
+                  <DataRow label="DVE" value={h.c24_dve} unit="mL"/>
+                </>}
 
-                {/* ATBs ativos */}
-                {atbAtivos.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {/* HEMODINÂMICO */}
+                {(h.c24_fc||h.c24_pam||h.c24_pas) && <>
+                  <Sec label="❤️ HEMODINÂMICO" cor="#f87171"/>
+                  <DataRow label="FC" value={h.c24_fc} unit="bpm" cor={parseFloat(h.c24_fc)>100?"#fbbf24":parseFloat(h.c24_fc)<60?"#fbbf24":"#34d399"}/>
+                  <DataRow label="PAM" value={h.c24_pam} unit="mmHg" cor={parseFloat(h.c24_pam)<65?"#f87171":parseFloat(h.c24_pam)>110?"#fbbf24":"#34d399"}/>
+                  {h.c24_pas&&h.c24_pad&&<DataRow label="PA" value={`${h.c24_pas}/${h.c24_pad}`} unit="mmHg"/>}
+                </>}
+
+                {/* RESPIRATÓRIO */}
+                {(vm||h.c24_sat||h.c24_fr||h.po2||h.ph) && <>
+                  <Sec label="🫁 RESPIRATÓRIO" cor="#38bdf8"/>
+                  {vm&&<DataRow label="Modo" value={vm.label} cor="#38bdf8"/>}
+                  {l.vm_fio2&&<DataRow label="FiO₂" value={`${l.vm_fio2}%`}/>}
+                  {l.vm_peep&&<DataRow label="PEEP" value={l.vm_peep} unit="cmH₂O"/>}
+                  {h.c24_sat&&<DataRow label="SpO₂" value={h.c24_sat} unit="%" cor={parseFloat(h.c24_sat)<92?"#f87171":"#34d399"}/>}
+                  {h.c24_fr&&<DataRow label="FR" value={h.c24_fr} unit="irpm" cor={parseFloat(h.c24_fr)>25?"#f87171":"#cbd5e1"}/>}
+                  {h.ph&&<DataRow label="pH" value={h.ph} cor={parseFloat(h.ph)<7.35?"#f87171":parseFloat(h.ph)>7.45?"#fbbf24":"#34d399"}/>}
+                  {h.hco3&&<DataRow label="HCO₃" value={h.hco3} unit="mEq/L"/>}
+                  {h.po2&&<DataRow label="pO₂" value={h.po2} unit="mmHg"/>}
+                </>}
+
+                {/* RENAL/METABÓLICO */}
+                {(h.cr||h.na||h.k||h.c24_diur||h.c24_bh) && <>
+                  <Sec label="🫘 RENAL / METABÓLICO" cor="#34d399"/>
+                  <DataRow label="Creatinina" value={h.cr} unit="mg/dL" cor={parseFloat(h.cr)>1.2?"#fbbf24":"#34d399"}/>
+                  <DataRow label="Sódio" value={h.na} unit="mEq/L" cor={parseFloat(h.na)<135||parseFloat(h.na)>145?"#fbbf24":"#cbd5e1"}/>
+                  <DataRow label="Potássio" value={h.k} unit="mEq/L" cor={parseFloat(h.k)<3.5||parseFloat(h.k)>5.5?"#f87171":parseFloat(h.k)<3.8||parseFloat(h.k)>5.0?"#fbbf24":"#34d399"}/>
+                  {h.c24_diur&&<DataRow label="Diurese" value={h.c24_diur} unit="mL"/>}
+                  {h.c24_bh&&<DataRow label="BH 24h" value={`${parseFloat(h.c24_bh)>=0?"+":""}${h.c24_bh}`} unit="mL" cor={parseFloat(h.c24_bh)>500?"#f87171":parseFloat(h.c24_bh)<-500?"#34d399":"#94a3b8"}/>}
+                </>}
+
+                {/* HEMATOLÓGICO */}
+                {(h.hb||h.leuco||h.plaq||h.trop||h.lact) && <>
+                  <Sec label="🩸 HEMATOLÓGICO" cor="#fb923c"/>
+                  <DataRow label="Hb" value={h.hb} unit="g/dL" cor={parseFloat(h.hb)<7?"#f87171":parseFloat(h.hb)<8?"#fbbf24":"#34d399"}/>
+                  <DataRow label="Leucócitos" value={h.leuco} unit="/mm³" cor={parseFloat(h.leuco)>12000||parseFloat(h.leuco)<4000?"#fbbf24":"#cbd5e1"}/>
+                  <DataRow label="Plaquetas" value={h.plaq} unit="/mm³" cor={parseFloat(h.plaq)<50000?"#f87171":parseFloat(h.plaq)<100000?"#fbbf24":"#34d399"}/>
+                  {h.lact&&<DataRow label="Lactato" value={h.lact} unit="mmol/L" cor={parseFloat(h.lact)>2?"#fbbf24":parseFloat(h.lact)>4?"#f87171":"#34d399"}/>}
+                  {h.trop&&<DataRow label="Troponina" value={h.trop} cor="#fbbf24"/>}
+                </>}
+
+                {/* INFECCIOSO */}
+                {atbAtivos.length>0 && <>
+                  <Sec label="🦠 INFECCIOSO" cor="#a3e635"/>
                   {atbAtivos.map(a=>{
                     const dd=a.dataInicio?Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1:null;
-                    return <span key={a.id} style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"rgba(251,146,60,0.1)",border:"1px solid rgba(251,146,60,0.2)",color:"#fb923c",fontFamily:mono}}>{a.nome}{dd?` D${dd}`:""}</span>;
+                    return <DataRow key={a.id} label={a.nome} value={dd?`D${dd}`:""} unit={a.dose||""} cor="#a3e635"/>;
                   })}
-                </div>}
+                </>}
 
-                {/* Alertas */}
-                {alerts.length>0&&<div style={{display:"flex",flexDirection:"column",gap:3}}>
-                  {alerts.map((a,i)=>(
-                    <div key={i} style={{fontSize:10,color:"#f87171",fontFamily:mono,background:"rgba(248,113,113,0.06)",padding:"3px 8px",borderRadius:4}}>⚠️ {a.txt}</div>
-                  ))}
-                </div>}
+                {/* TGI */}
+                {(h.c24_dextro||l.tgUltEvac) && <>
+                  <Sec label="🍽 TGI" cor="#fb923c"/>
+                  <DataRow label="Glicemia" value={h.c24_dextro} unit="mg/dL" cor={parseFloat(h.c24_dextro)>180||parseFloat(h.c24_dextro)<70?"#fbbf24":"#34d399"}/>
+                  {l.tgUltEvac&&<DataRow label="Última evac." value={`${Math.floor((new Date()-new Date(l.tgUltEvac+"T00:00:00"))/86400000)}d atrás`}/>}
+                </>}
 
-                {/* Metas pendentes */}
-                {pendentes.length>0&&<div style={{borderTop:`1px solid ${T.border}`,paddingTop:6,marginTop:2}}>
-                  <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>PENDÊNCIAS ({pendentes.length})</div>
-                  {pendentes.slice(0,3).map((m,i)=>(
-                    <div key={i} style={{fontSize:10,color:"#94a3b8",marginBottom:2}}>· {m.texto||m}</div>
-                  ))}
-                  {pendentes.length>3&&<div style={{fontSize:10,color:"#475569"}}>+ {pendentes.length-3} mais</div>}
-                </div>}
+                {/* DISPOSITIVOS */}
+                {dispsAtivos.length>0 && <>
+                  <Sec label="🔌 DISPOSITIVOS" cor="#38bdf8"/>
+                  {dispsAtivos.map((d,i)=>{
+                    const dd=d.data?Math.floor((new Date()-new Date(d.data+"T00:00:00"))/86400000):null;
+                    const alerta=dd!==null&&dd>d.alertaDias;
+                    return <DataRow key={i} label={`${d.icone} ${d.label}`} value={dd!==null?`D${dd}`:""} cor={alerta?"#f87171":"#38bdf8"}/>;
+                  })}
+                </>}
+
+                {/* ALERTAS */}
+                {alerts.length>0 && (
+                  <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:2}}>
+                    {alerts.map((a,i)=>(
+                      <div key={i} style={{fontSize:10,color:"#f87171",fontFamily:mono,background:"rgba(248,113,113,0.06)",padding:"3px 7px",borderRadius:4}}>⚠️ {a}</div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Se nenhum dado ainda */}
+                {!h.cr&&!h.c24_fc&&!h.c24_pam&&!vm&&atbAtivos.length===0&&dispsAtivos.length===0&&(
+                  <div style={{fontSize:11,color:"#334155",textAlign:"center",padding:"12px 0"}}>Sem dados lançados hoje</div>
+                )}
               </div>
             </div>
           );
@@ -4501,7 +4545,6 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
     </div>
   );
 }
-
 // ── PlantaoPanel ──────────────────────────────────────────────────────────────
 function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config={} }) {
   const T = useTheme();
