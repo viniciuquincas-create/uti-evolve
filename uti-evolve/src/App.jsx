@@ -3305,6 +3305,54 @@ function aplicarIA(dadosIA) {
   };
 }
 
+
+// ── ProbFloating — painel flutuante de Problemas Ativos ──────────────────────
+function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar }) {
+  const [open, setOpen] = useState(true);
+  const mono2 = "'DM Mono',monospace";
+  return (
+    <div style={{
+      position:"fixed", right:20, top:100, zIndex:200,
+      width:260, maxHeight:"80vh", display:"flex", flexDirection:"column",
+      filter:"drop-shadow(0 4px 24px rgba(0,0,0,0.5))",
+      borderRadius:12, overflow:"hidden",
+    }} className="prob-floating">
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",
+        background:"rgba(15,23,42,0.98)",border:"1px solid rgba(248,113,113,0.3)",
+        borderBottom:"none",borderRadius:"12px 12px 0 0",cursor:"pointer"}}
+        onClick={()=>setOpen(o=>!o)}>
+        <span style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1}}>🔴 PROBLEMAS ATIVOS</span>
+        <span style={{color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
+      </div>
+      {open && (
+        <div style={{background:"rgba(10,15,30,0.97)",border:"1px solid rgba(248,113,113,0.25)",
+          borderRadius:"0 0 12px 12px",padding:"10px 12px",overflowY:"auto",flex:1}}>
+          <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
+            sugestao={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"}
+            rows={7} fieldName="probAtivos" onBlurSave={salvar}/>
+          <button onClick={()=>{
+            const t=refs.probAtivos?.current?.value||campos.probAtivos||"";
+            if(t){navigator.clipboard?.writeText(t).catch(()=>{});
+              setCopiado(c=>({...c,probAtivos:true}));
+              setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}}
+            style={{width:"100%",marginTop:5,padding:"3px",background:"rgba(248,113,113,0.08)",
+              border:"1px solid rgba(248,113,113,0.15)",borderRadius:6,
+              color:"#f87171",cursor:"pointer",fontSize:10}}>
+            {copiado.probAtivos?"✅ Copiado":"📋 Copiar"}
+          </button>
+          <div style={{marginTop:10,borderTop:"1px solid rgba(52,211,153,0.2)",paddingTop:8}}>
+            <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#34d399",marginBottom:5}}>✅ RESOLVIDOS</div>
+            <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
+              sugestao={"1. Choque séptico (D5)\n2. Acidose metabólica"} rows={3} fieldName="probResolvidos" onBlurSave={salvar}/>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
@@ -3708,9 +3756,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
   const [impGerado, setImpGerado] = useState(false);
 
   return (
-    <div style={{display:"grid",gridTemplateColumns:"1fr 260px",gridTemplateRows:"auto 1fr",gap:20}} className="evol-grid">
-    <div style={{gridColumn:"1",gridRow:"1 / -1",minWidth:0}}>
-      <style>{".evol-grid{@media(max-width:700px){grid-template-columns:1fr}}"}</style>
+    <div>
+      <div>
       {/* ── Cabeçalho clínico (pills) ── */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
         {idade!==null && <Pill label="IDADE" value={idade} unit="anos" color="#c084fc"/>}
@@ -4011,20 +4058,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
       <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(56,189,248,0.15)":"linear-gradient(135deg,rgba(22,163,74,0.25),rgba(21,128,61,0.25))",border:`1.5px solid ${copiado.tudo?"#38bdf8":"#0ea5e9"}`,borderRadius:10,color:copiado.tudo?"#38bdf8":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
         {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
       </button>
-    </div>
-    <div style={{gridColumn:"2",gridRow:"1 / -1",position:"sticky",top:16,alignSelf:"flex-start",display:"flex",flexDirection:"column",gap:10}} className="prob-sticky-col">
-      <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"10px 12px"}}>
-        <div style={{fontSize:9,fontFamily:mono,letterSpacing:2,color:"#f87171",marginBottom:6}}>{"🔴 PROBLEMAS ATIVOS"}</div>
-        <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} sugestao={"1. Problema\n2. Problema"} rows={8} fieldName="probAtivos" onBlurSave={salvar}/>
-        <button onClick={()=>{const t=refs.probAtivos?.current?.value||campos.probAtivos||"";if(t){navigator.clipboard?.writeText(t).catch(()=>{});setCopiado(c=>({...c,probAtivos:true}));setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}} style={{marginTop:6,width:"100%",padding:"4px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.15)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:10}}>
-          {copiado.probAtivos?"✅ Copiado":"📋 Copiar"}
-        </button>
       </div>
-      <div style={{background:"rgba(52,211,153,0.05)",border:"1px solid rgba(52,211,153,0.15)",borderRadius:10,padding:"10px 12px"}}>
-        <div style={{fontSize:9,fontFamily:mono,letterSpacing:2,color:"#34d399",marginBottom:6}}>{"✅ PROBLEMAS RESOLVIDOS"}</div>
-        <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} sugestao={"1. Resolvido (D5)"} rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
-      </div>
-    </div>
+
+      {/* ── Problemas: painel fixo flutuante ── */}
+      <ProbFloating
+        refs={refs} campos={campos} isAntigo={isAntigo}
+        copiado={copiado} setCopiado={setCopiado} salvar={salvar}/>
     </div>
   );
 }
@@ -4535,6 +4574,7 @@ export default function App() {
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${T.accent}44;border-radius:4px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:${theme==="light"?"none":"invert(0.5)"}} button:hover{opacity:0.88}
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
+        @media(max-width:700px){.prob-floating{position:static!important;width:100%!important;margin-bottom:12px;filter:none!important}}
         @media(max-width:700px){
           .prob-sticky-col{position:static!important;width:100%!important;order:-1}
         }
