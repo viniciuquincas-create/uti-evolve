@@ -2620,6 +2620,19 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   // Compara datas ignorando hora para determinar "hoje"
   const isHoje = (ds) => ds === hoje || ds.startsWith(hoje + "T");
 
+  const [autoApply, setAutoApply] = useState(false);
+  const autoRef = useRef(autoApply);
+  useEffect(()=>{ autoRef.current = autoApply; }, [autoApply]);
+  const prevDataHash = useRef(null);
+  useEffect(()=>{
+    if (!autoRef.current) return;
+    const hash = JSON.stringify({d: data[hoje]||{}, v: leito.drogasVazao||{}});
+    if (prevDataHash.current !== null && prevDataHash.current !== hash) {
+      gerarEvolucao();
+    }
+    prevDataHash.current = hash;
+  });
+
   const gerarEvolucao = () => {
     const datasHoje = datas.filter(d => isHoje(d)).sort();
     const chaveHoje = datasHoje[datasHoje.length - 1] || hoje;
@@ -2771,6 +2784,12 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
           {tabela==="labs" && <button onClick={()=>setShowAddExame(v=>!v)} style={{padding:"8px 14px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,color:"#c4b5fd",fontWeight:600,fontSize:12,cursor:"pointer"}}>
             {showAddExame?"✕ Fechar":"🧪 Novo exame"}
           </button>}
+          <button onClick={()=>setAutoApply(a=>!a)}
+            style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${autoApply?"rgba(52,211,153,0.4)":"rgba(255,255,255,0.1)"}`,
+              background:autoApply?"rgba(52,211,153,0.1)":"rgba(255,255,255,0.03)",
+              color:autoApply?"#34d399":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600,marginRight:4}}>
+            {autoApply?"⚡ Auto":"○ Manual"}
+          </button>
           <button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0ea5e9,#0284c7)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
             📝 Aplicar na evolução
           </button>
@@ -3689,7 +3708,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
   const [impGerado, setImpGerado] = useState(false);
 
   return (
-    <div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 260px",gridTemplateRows:"auto 1fr",gap:20}} className="evol-grid">
+    <div style={{gridColumn:"1",gridRow:"1 / -1",minWidth:0}}>
+      <style>{".evol-grid{@media(max-width:700px){grid-template-columns:1fr}}"}</style>
       {/* ── Cabeçalho clínico (pills) ── */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
         {idade!==null && <Pill label="IDADE" value={idade} unit="anos" color="#c084fc"/>}
@@ -3923,18 +3944,31 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
         {vis["inObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={ExtraRef("inObs")} defaultValue={campos["inObs"]||""} sugestao="Reavaliação com culturas em 48h" rows={1} fieldName="inObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
-      <SysB id="prob" sigla="📋 Prob:" label="Problemas" color="#94a3b8" txtFn={txtProblemas}>
-        <Row>
-          <Col>
-            <FL>🔴 Problemas Ativos</FL>
-            <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} sugestao={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"} rows={4} fieldName="probAtivos" onBlurSave={salvar}/>
-          </Col>
-          <Col>
-            <FL>✅ Problemas Resolvidos</FL>
-            <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} sugestao={"1. Choque séptico (resolvido D5)\n2. Acidose metabólica"} rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
-          </Col>
-        </Row>
-      </SysB>
+
+
+      <div style={{
+        position:"sticky", top:16,
+        width:260, flexShrink:0,
+        alignSelf:"flex-start",
+        display:"flex", flexDirection:"column", gap:10,
+      }} className="prob-sticky-col">
+        {/* Problemas Ativos */}
+        <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:9,fontFamily:"'DM Mono',monospace",letterSpacing:2,color:"#f87171",marginBottom:6}}>🔴 PROBLEMAS ATIVOS</div>
+          <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
+            sugestao={`Problemas Ativos:\n1. `} rows={8} fieldName="probAtivos" onBlurSave={salvar}/>
+          <button onClick={()=>{const t=refs.probAtivos?.current?.value||campos.probAtivos||"";if(t){navigator.clipboard?.writeText(t).catch(()=>{});setCopiado(c=>({...c,probAtivos:true}));setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}}
+            style={{marginTop:6,width:"100%",padding:"4px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.15)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:10}}>
+            {copiado.probAtivos?"✅ Copiado":"📋 Copiar"}
+          </button>
+        </div>
+        {/* Problemas Resolvidos */}
+        <div style={{background:"rgba(52,211,153,0.05)",border:"1px solid rgba(52,211,153,0.15)",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:9,fontFamily:"'DM Mono',monospace",letterSpacing:2,color:"#34d399",marginBottom:6}}>✅ PROBLEMAS RESOLVIDOS</div>
+          <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
+            rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
+        </div>
+      </div>
 
       {/* ── Impressão ── */}
       <div style={{marginBottom:10,border:`1px solid rgba(56,189,248,0.2)`,borderRadius:10,overflow:"hidden",background:"rgba(56,189,248,0.02)"}}>
@@ -3974,9 +4008,23 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
         </div>
       </div>
 
-            <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(56,189,248,0.15)":"linear-gradient(135deg,rgba(22,163,74,0.25),rgba(21,128,61,0.25))",border:`1.5px solid ${copiado.tudo?"#38bdf8":"#0ea5e9"}`,borderRadius:10,color:copiado.tudo?"#38bdf8":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+      <button onClick={copiarTudo} style={{width:"100%",padding:"13px",marginTop:6,background:copiado.tudo?"rgba(56,189,248,0.15)":"linear-gradient(135deg,rgba(22,163,74,0.25),rgba(21,128,61,0.25))",border:`1.5px solid ${copiado.tudo?"#38bdf8":"#0ea5e9"}`,borderRadius:10,color:copiado.tudo?"#38bdf8":"#38bdf8",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
         {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
       </button>
+    </div>
+    <div style={{gridColumn:"2",gridRow:"1 / -1",position:"sticky",top:16,alignSelf:"flex-start",display:"flex",flexDirection:"column",gap:10}} className="prob-sticky-col">
+      <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"10px 12px"}}>
+        <div style={{fontSize:9,fontFamily:mono,letterSpacing:2,color:"#f87171",marginBottom:6}}>{"🔴 PROBLEMAS ATIVOS"}</div>
+        <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} sugestao={"1. Problema\n2. Problema"} rows={8} fieldName="probAtivos" onBlurSave={salvar}/>
+        <button onClick={()=>{const t=refs.probAtivos?.current?.value||campos.probAtivos||"";if(t){navigator.clipboard?.writeText(t).catch(()=>{});setCopiado(c=>({...c,probAtivos:true}));setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}} style={{marginTop:6,width:"100%",padding:"4px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.15)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:10}}>
+          {copiado.probAtivos?"✅ Copiado":"📋 Copiar"}
+        </button>
+      </div>
+      <div style={{background:"rgba(52,211,153,0.05)",border:"1px solid rgba(52,211,153,0.15)",borderRadius:10,padding:"10px 12px"}}>
+        <div style={{fontSize:9,fontFamily:mono,letterSpacing:2,color:"#34d399",marginBottom:6}}>{"✅ PROBLEMAS RESOLVIDOS"}</div>
+        <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} sugestao={"1. Resolvido (D5)"} rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
+      </div>
+    </div>
     </div>
   );
 }
@@ -4487,6 +4535,9 @@ export default function App() {
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${T.accent}44;border-radius:4px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:${theme==="light"?"none":"invert(0.5)"}} button:hover{opacity:0.88}
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
+        @media(max-width:700px){
+          .prob-sticky-col{position:static!important;width:100%!important;order:-1}
+        }
       `}</style>
 
       <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:`1px solid ${T.borderAccent}`,background:T.bgHeader,position:"sticky",top:0,zIndex:100,backdropFilter:"blur(12px)"}}>
