@@ -4350,6 +4350,265 @@ function LoginScreen({ onLogin }) {
   );
 }
 
+
+// ── VisaoGeralPanel ───────────────────────────────────────────────────────────
+function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const hoje = new Date().toISOString().split("T")[0];
+
+  const getHoje = (leitoId) => {
+    const tb = tabelaData[leitoId]||{};
+    const datas = Object.keys(tb).sort().reverse();
+    for (const d of datas) if (tb[d]) return tb[d];
+    return {};
+  };
+
+  const getAlerts = (leito) => {
+    const alerts = [];
+    const crHoje = getHoje(leito.id)?.cr;
+    const idade = leito.dataNascimento ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
+    const clcr = (crHoje && leito.peso && idade)
+      ? Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(crHoje))*(leito.sexo==="F"?0.85:1))
+      : null;
+
+    // ATB renal
+    (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
+      const dias=Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000);
+      if(dias<2) return;
+      const lc=a.nome.toLowerCase();
+      const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
+      if(clcr!==null&&ATB_RENAL[key]?.length>0){
+        const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);
+        if(aj) alerts.push({tipo:"atb",txt:`${a.nome}: ajustar dose (ClCr ${clcr})`});
+      }
+    });
+
+    // Dispositivos vencidos
+    const disps=leito.dispositivos||{};
+    const alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};
+    DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach(inst=>{
+      if(!inst.data) return;
+      const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
+      if(dd>(alts[d.key]||99)) alerts.push({tipo:"disp",txt:`${d.label}: D${dd}`});
+    }));
+    DISP_SINGULAR.forEach(d=>{
+      const inst=disps[d.key];
+      if(!inst?.ativo||!inst.data) return;
+      const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
+      if(dd>(alts[d.key]||99)) alerts.push({tipo:"disp",txt:`${d.label}: D${dd}`});
+    });
+
+    return alerts;
+  };
+
+  const fmtBH = (leitoId, leito) => {
+    const tb=tabelaData[leitoId]||{};
+    const datas=Object.keys(tb).sort();
+    let acum=0,algum=false;
+    datas.forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});
+    const prev=parseFloat(leito.bhPrevio||0)||0;
+    const tot=acum+prev;
+    if(!algum&&!prev) return null;
+    return {val:tot,cor:tot>200?"#f87171":tot<-200?"#34d399":"#94a3b8"};
+  };
+
+  return (
+    <div style={{padding:"24px 28px"}}>
+      <div style={{fontSize:18,fontWeight:700,color:T.text1,marginBottom:20}}>🏥 Visão Geral da UTI</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16}}>
+        {leitos.map(l=>{
+          if (!l.paciente) return (
+            <div key={l.id} style={{padding:"20px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.06)",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,color:"#334155",fontSize:12}}>
+              <span>{l.nome}</span><span style={{color:"#1e293b"}}>— Vago</span>
+            </div>
+          );
+
+          const dias = diasInternacao(l.dataInternacao);
+          const idade = l.dataNascimento ? Math.floor((new Date()-new Date(l.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
+          const h = getHoje(l.id);
+          const alerts = getAlerts(l);
+          const metas = metasPorLeito[l.id]||[];
+          const pendentes = metas.filter(m=>!m.feito);
+          const bh = fmtBH(l.id, l);
+          const atbAtivos = (l.antibioticos||[]).filter(a=>!a.dataFim&&a.nome);
+          const pp = pesoPredito(l.altura, l.sexo);
+
+          return (
+            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${alerts.length>0?"rgba(248,113,113,0.3)":T.border}`,borderRadius:12,overflow:"hidden"}}>
+              {/* Header */}
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,background:alerts.length>0?"rgba(248,113,113,0.04)":"transparent"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontSize:14,fontWeight:700,color:T.text1,flex:1}}>{l.paciente}</span>
+                  {idade&&<span style={{fontSize:11,fontFamily:mono,color:"#c084fc"}}>{idade}a</span>}
+                  {dias!==null&&<span style={{fontSize:11,fontFamily:mono,color:"#a78bfa",background:"rgba(167,139,250,0.1)",padding:"2px 8px",borderRadius:10}}>D{dias}</span>}
+                  {bh&&<span style={{fontSize:11,fontFamily:mono,color:bh.cor,fontWeight:700}}>{bh.val>=0?"+":""}{Math.round(bh.val)}mL</span>}
+                </div>
+                <div style={{fontSize:11,color:T.text3}}>{l.diagnostico}</div>
+              </div>
+
+              {/* Body */}
+              <div style={{padding:"10px 16px",display:"flex",flexDirection:"column",gap:8}}>
+                {/* Vitais hoje */}
+                {(h.c24_fc||h.c24_pam||h.c24_temp||h.c24_sat) && (
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {h.c24_temp&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>T </span><span style={{color:"#fb923c"}}>{h.c24_temp}</span></div>}
+                    {h.c24_fc&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>FC </span><span style={{color:"#f87171"}}>{h.c24_fc}</span></div>}
+                    {h.c24_pam&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>PAM </span><span style={{color:"#38bdf8"}}>{h.c24_pam}</span></div>}
+                    {h.c24_sat&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>SpO2 </span><span style={{color:"#34d399"}}>{h.c24_sat}</span></div>}
+                    {h.c24_dextro&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>Glicemia </span><span style={{color:"#fbbf24"}}>{h.c24_dextro}</span></div>}
+                  </div>
+                )}
+
+                {/* Labs principais */}
+                {(h.cr||h.na||h.hb) && (
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {h.cr&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>Cr </span><span style={{color:"#f87171"}}>{h.cr}</span></div>}
+                    {h.na&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>Na </span><span style={{color:"#cbd5e1"}}>{h.na}</span></div>}
+                    {h.hb&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>Hb </span><span style={{color:"#fb923c"}}>{h.hb}</span></div>}
+                    {h.ph&&<div style={{fontSize:11,fontFamily:mono}}><span style={{color:"#64748b"}}>pH </span><span style={{color:parseFloat(h.ph)<7.35?"#f87171":parseFloat(h.ph)>7.45?"#34d399":"#cbd5e1"}}>{h.ph}</span></div>}
+                  </div>
+                )}
+
+                {/* ATBs ativos */}
+                {atbAtivos.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {atbAtivos.map(a=>{
+                    const dd=a.dataInicio?Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1:null;
+                    return <span key={a.id} style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"rgba(251,146,60,0.1)",border:"1px solid rgba(251,146,60,0.2)",color:"#fb923c",fontFamily:mono}}>{a.nome}{dd?` D${dd}`:""}</span>;
+                  })}
+                </div>}
+
+                {/* Alertas */}
+                {alerts.length>0&&<div style={{display:"flex",flexDirection:"column",gap:3}}>
+                  {alerts.map((a,i)=>(
+                    <div key={i} style={{fontSize:10,color:"#f87171",fontFamily:mono,background:"rgba(248,113,113,0.06)",padding:"3px 8px",borderRadius:4}}>⚠️ {a.txt}</div>
+                  ))}
+                </div>}
+
+                {/* Metas pendentes */}
+                {pendentes.length>0&&<div style={{borderTop:`1px solid ${T.border}`,paddingTop:6,marginTop:2}}>
+                  <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>PENDÊNCIAS ({pendentes.length})</div>
+                  {pendentes.slice(0,3).map((m,i)=>(
+                    <div key={i} style={{fontSize:10,color:"#94a3b8",marginBottom:2}}>· {m.texto||m}</div>
+                  ))}
+                  {pendentes.length>3&&<div style={{fontSize:10,color:"#475569"}}>+ {pendentes.length-3} mais</div>}
+                </div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── PlantaoPanel ──────────────────────────────────────────────────────────────
+function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config={} }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const [filtro, setFiltro] = useState("todos"); // "todos" | "pendentes"
+
+  const getAlerts = (leito) => {
+    const alerts = [];
+    const tb=tabelaData[leito.id]||{};
+    const ds=Object.keys(tb).sort().reverse();
+    const crHoje=ds.length?tb[ds[0]]?.cr:null;
+    const idade=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)):null;
+    const clcr=(crHoje&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(crHoje))*(leito.sexo==="F"?0.85:1)):null;
+    (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
+      const dias=Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000);
+      if(dias<2) return;
+      const lc=a.nome.toLowerCase();
+      const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
+      if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);if(aj)alerts.push(`⚠️ Ajustar ${a.nome} (ClCr ${clcr} mL/min → ${aj.rec})`);}
+    });
+    const disps=leito.dispositivos||{};
+    const alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};
+    DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach((inst,i)=>{if(!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))alerts.push(`🔴 Revisar ${d.label}${disps[d.key].length>1?" "+(i+1):"" }: D${dd}`);}));
+    DISP_SINGULAR.forEach(d=>{const inst=disps[d.key];if(!inst?.ativo||!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))alerts.push(`🔴 Revisar ${d.label}: D${dd}`);});
+    return alerts;
+  };
+
+  const leitosComDados = leitos.filter(l=>l.paciente);
+
+  return (
+    <div style={{padding:"20px 24px",height:"100%",display:"flex",flexDirection:"column"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{fontSize:18,fontWeight:700,color:T.text1}}>📋 Metas & Pendências — Plantão</div>
+        <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
+          {["todos","pendentes"].map(f=>(
+            <button key={f} onClick={()=>setFiltro(f)}
+              style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${filtro===f?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
+                background:filtro===f?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
+                color:filtro===f?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11}}>
+              {f==="todos"?"Todos":"Só pendentes"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:12}}>
+        {leitosComDados.map(l=>{
+          const metas = (metasPorLeito[l.id]||[]);
+          const autoAlerts = getAlerts(l);
+          const dias = diasInternacao(l.dataInternacao);
+          const pendentes = metas.filter(m=>!m.feito);
+          if (filtro==="pendentes" && pendentes.length===0 && autoAlerts.length===0) return null;
+
+          return (
+            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+              {/* Header */}
+              <div style={{padding:"10px 16px",background:"rgba(255,255,255,0.02)",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${T.border}`}}>
+                <span style={{fontWeight:700,color:T.text1,fontSize:13}}>{l.paciente}</span>
+                {dias!==null&&<span style={{fontSize:10,fontFamily:mono,color:"#a78bfa",background:"rgba(167,139,250,0.1)",padding:"1px 6px",borderRadius:8}}>D{dias}</span>}
+                <span style={{fontSize:11,color:T.text3,flex:1}}>{l.diagnostico}</span>
+                <span style={{fontSize:11,fontFamily:mono,color:pendentes.length>0?"#f87171":"#34d399"}}>
+                  {pendentes.length>0?`${pendentes.length} pendente${pendentes.length>1?"s":""}`:metas.length>0?"✅ Em dia":"Sem metas"}
+                </span>
+              </div>
+
+              {/* Alertas automáticos */}
+              {autoAlerts.length>0&&(
+                <div style={{padding:"6px 16px",background:"rgba(248,113,113,0.04)",borderBottom:`1px solid rgba(248,113,113,0.1)`}}>
+                  {autoAlerts.map((a,i)=>(
+                    <div key={i} style={{fontSize:11,color:"#f87171",fontFamily:mono,marginBottom:i<autoAlerts.length-1?3:0}}>{a}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* Metas editáveis */}
+              {metas.length>0&&(
+                <div style={{padding:"8px 16px",display:"flex",flexDirection:"column",gap:4}}>
+                  {metas.map((m,i)=>(
+                    <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                      <button onClick={()=>{
+                        const novas=metas.map((x,j)=>j===i?{...x,feito:!x.feito}:x);
+                        onMetaChange(l.id,novas);
+                      }} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:"0",marginTop:-1,
+                        color:(m.feito?"#34d399":"#334155"),flexShrink:0}}>
+                        {m.feito?"☑":"☐"}
+                      </button>
+                      <span style={{fontSize:12,color:m.feito?"#475569":"#cbd5e1",textDecoration:m.feito?"line-through":"none",flex:1}}>{m.texto||m}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {metas.length===0&&autoAlerts.length===0&&(
+                <div style={{padding:"8px 16px",fontSize:11,color:"#334155"}}>Nenhuma meta lançada para este leito</div>
+              )}
+            </div>
+          );
+        })}
+        {leitosComDados.length===0&&(
+          <div style={{padding:40,textAlign:"center",color:"#334155",fontSize:14}}>Nenhum paciente cadastrado</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [authed,     setAuthed]     = useState(false);
@@ -4649,7 +4908,19 @@ export default function App() {
             </div>
           ))}
           <div style={{marginTop:16,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
-            <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} style={{width:"100%",padding:"9px 12px",background:viewGlobal==="ferramentas"?T.accentBg:"none",border:`1px solid ${viewGlobal==="ferramentas"?T.accentBorder:T.border}`,borderRadius:8,color:viewGlobal==="ferramentas"?T.accent:T.text3,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
+            <button onClick={()=>setViewGlobal(v=>v==="visao_geral"?"leitos":"visao_geral")}
+            style={{width:"100%",padding:"7px",marginBottom:4,background:viewGlobal==="visao_geral"?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
+              border:`1px solid ${viewGlobal==="visao_geral"?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.08)"}`,
+              borderRadius:7,color:viewGlobal==="visao_geral"?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
+            🏥 Visão Geral
+          </button>
+          <button onClick={()=>setViewGlobal(v=>v==="plantao"?"leitos":"plantao")}
+            style={{width:"100%",padding:"7px",marginBottom:4,background:viewGlobal==="plantao"?"rgba(167,139,250,0.1)":"rgba(255,255,255,0.03)",
+              border:`1px solid ${viewGlobal==="plantao"?"rgba(167,139,250,0.3)":"rgba(255,255,255,0.08)"}`,
+              borderRadius:7,color:viewGlobal==="plantao"?"#c084fc":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
+            📋 Plantão
+          </button>
+          <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} style={{width:"100%",padding:"9px 12px",background:viewGlobal==="ferramentas"?T.accentBg:"none",border:`1px solid ${viewGlobal==="ferramentas"?T.accentBorder:T.border}`,borderRadius:8,color:viewGlobal==="ferramentas"?T.accent:T.text3,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
               📚 Links & Protocolos
             </button>
           </div>
@@ -4658,6 +4929,18 @@ export default function App() {
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
+          ) : viewGlobal==="visao_geral" ? (
+            <div style={{flex:1,overflowY:"auto"}}>
+              <VisaoGeralPanel leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config}/>
+            </div>
+          ) : viewGlobal==="plantao" ? (
+            <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+              <PlantaoPanel
+                leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config}
+                onMetaChange={(leitoId, novasMetas)=>{
+                  setMetasPorLeito(mp=>{const novo={...mp,[leitoId]:novasMetas};salvarMetas(novo);return novo;});
+                }}/>
+            </div>
           ) : (<>
           {leito.paciente && (
             <div style={{padding:"13px 28px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
