@@ -3353,7 +3353,7 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar }) {
 }
 
 
-function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }) {
+function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, onBoletim }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
@@ -3557,6 +3557,33 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={} }
     // Problemas ativos
     if (get("probAtivos")) linhas.push(`\nProblemas ativos:\n${get("probAtivos")}`);
     return linhas.join("\n");
+  };
+
+  // Ctrl+B: save boletim to leito (visible in Visão Geral)
+  useEffect(()=>{
+    const handler = (e) => {
+      if ((e.ctrlKey||e.metaKey) && e.key==="b") {
+        e.preventDefault();
+        const full = gerarTextoCompleto();
+        if (full && onBoletim) onBoletim(full);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return ()=>window.removeEventListener("keydown", handler);
+  }, [campos]);
+
+  const gerarTextoCompleto = () => {
+    const get = k => refs[k]?.current?.value || campos[k] || "";
+    const dt=new Date().toLocaleDateString("pt-BR");
+    let t=`EVOLUÇÃO UTI — ${dt}`;
+    if(leito.paciente) t+=`\nPaciente: ${leito.paciente}`;
+    // Collect all SysB content
+    const secs = ["hda","re","cv","neuro","rm","tg","he","in"];
+    secs.forEach(s=>{
+      const v = get(s)||get(s+"24h")||get(s+"Gaso")||get(s+"VM")||"";
+      if(v) t+=`\n${v}`;
+    });
+    return t.trim();
   };
 
   const copiarTudo = () => {
@@ -4356,185 +4383,214 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
 
-  const getHoje = (leitoId) => {
-    const tb = tabelaData[leitoId]||{};
-    const datas = Object.keys(tb).sort().reverse();
-    for (const d of datas) { const row=tb[d]; if(row&&Object.keys(row).length>0) return row; }
+  const NEURO_DRUGS  = ["propofol","midazolam","fentanil","cetamina","precedex","morfina"];
+  const CARDIO_DRUGS = ["noradrenalina","dobutamina","vasopressina","nitroglicerina","nitroprussiato","furosemida","amiodarona"];
+
+  const getHoje = (lid) => {
+    const tb = tabelaData[lid]||{};
+    const ds = Object.keys(tb).sort().reverse();
+    for(const d of ds){ if(tb[d]&&Object.keys(tb[d]).length>0) return tb[d]; }
     return {};
   };
 
-  const fmtBH = (leitoId, leito) => {
-    const tb=tabelaData[leitoId]||{};
-    const datas=Object.keys(tb).sort();
-    let acum=0, algum=false;
-    datas.forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});
+  const fmtBH = (lid, leito) => {
+    const tb=tabelaData[lid]||{};
+    let acum=0,algum=false;
+    Object.keys(tb).sort().forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});
     const prev=parseFloat(leito.bhPrevio||0)||0;
     const tot=acum+prev;
     if(!algum&&!prev) return null;
-    return {val:tot, cor:tot>200?"#f87171":tot<-200?"#34d399":"#94a3b8"};
+    return{val:tot,cor:tot>200?"#f87171":tot<-200?"#34d399":"#94a3b8"};
   };
 
   const getAlerts = (leito) => {
-    const alerts = [];
-    const h = getHoje(leito.id);
-    const idade = leito.dataNascimento ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
-    const clcr = (h.cr && leito.peso && idade) ? Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(h.cr))*(leito.sexo==="F"?0.85:1)) : null;
+    const h=getHoje(leito.id);
+    const alerts=[];
+    const idade=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)):null;
+    const clcr=(h.cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(h.cr))*(leito.sexo==="F"?0.85:1)):null;
     (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
       const dias=Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000);
       if(dias<2) return;
       const lc=a.nome.toLowerCase();
       const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
-      if(clcr&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);if(aj)alerts.push(`ATB ${a.nome}: ajuste renal (ClCr ${clcr})`);}
+      if(clcr&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);if(aj)alerts.push(`ATB ${a.nome}: ajuste (ClCr ${clcr})`);}
     });
-    const disps=leito.dispositivos||{};
-    const alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14};
-    DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach(inst=>{
+    DISP_MULTIPLO.forEach(d=>(Array.isArray((leito.dispositivos||{})[d.key])?(leito.dispositivos[d.key]):[]).forEach(inst=>{
       if(!inst.data) return;
       const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
-      if(dd>(alts[d.key]||99)) alerts.push(`${d.label}: D${dd}`);
+      if(dd>(config[`alerta${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`]||99)) alerts.push(`${d.label}: D${dd}`);
     }));
     return alerts;
   };
 
-  // A data row: label + value
-  const DataRow = ({label, value, unit="", cor="#cbd5e1", hide=false}) => hide||!value ? null : (
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"2px 0",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
-      <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{label}</span>
-      <span style={{fontSize:12,fontFamily:mono,color:cor,fontWeight:600}}>{value}{unit&&<span style={{fontSize:10,color:"#475569",fontWeight:400,marginLeft:3}}>{unit}</span>}</span>
+  // Helper: row with label + value
+  const R = ({lbl, val, unit="", cor="#cbd5e1"}) => !val ? null : (
+    <div style={{display:"flex",justifyContent:"space-between",padding:"2px 0",borderBottom:"1px solid rgba(255,255,255,0.025)"}}>
+      <span style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{lbl}</span>
+      <span style={{fontSize:11,fontFamily:mono,color:cor,fontWeight:600}}>{val}{unit&&<span style={{fontSize:9,color:"#475569",marginLeft:2}}>{unit}</span>}</span>
     </div>
   );
 
   // Section header
-  const Sec = ({label, cor="#475569"}) => (
-    <div style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:cor,marginTop:8,marginBottom:3,paddingBottom:2,borderBottom:`1px solid ${cor}30`}}>{label}</div>
+  const Sec = ({ico, lbl, cor="#475569"}) => (
+    <div style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:cor,marginTop:8,marginBottom:3,paddingBottom:2,borderBottom:`1px solid ${cor}25`}}>{ico} {lbl}</div>
   );
+
+  // Drug row from drogasVazao
+  const DrugRow = ({dKey, vazoes}) => {
+    const v = vazoes[dKey];
+    const conf = DROGAS_CONFIG[dKey];
+    if(!v||!conf||parseFloat(v)<=0) return null;
+    const res = calcDoseFromMLH(parseFloat(v), dKey, conf, null, null); // peso opcional
+    return <R lbl={conf.label} val={`${v}mL/h`} unit={res?`(${res.dose}${res.label})`:"" } cor="#fbbf24"/>;
+  };
 
   return (
     <div style={{padding:"20px 24px",overflowY:"auto"}}>
-      <div style={{fontSize:17,fontWeight:700,color:T.text1,marginBottom:16}}>🏥 Visão Geral da UTI</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+      <div style={{fontSize:16,fontWeight:700,color:T.text1,marginBottom:14}}>🏥 Visão Geral da UTI</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))",gap:12}}>
         {leitos.map(l=>{
-          if (!l.paciente) return (
-            <div key={l.id} style={{padding:18,background:"rgba(255,255,255,0.015)",border:"1px dashed rgba(255,255,255,0.06)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",color:"#1e293b",fontSize:12,gap:8}}>
+          if(!l.paciente) return(
+            <div key={l.id} style={{padding:14,background:"rgba(255,255,255,0.015)",border:"1px dashed rgba(255,255,255,0.06)",borderRadius:10,color:"#1e293b",fontSize:12,textAlign:"center"}}>
               {l.nome} — Vago
             </div>
           );
 
-          const h = getHoje(l.id);
-          const dias = diasInternacao(l.dataInternacao);
-          const idade = l.dataNascimento ? Math.floor((new Date()-new Date(l.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
-          const bh = fmtBH(l.id, l);
-          const alerts = getAlerts(l);
-          const atbAtivos = (l.antibioticos||[]).filter(a=>!a.dataFim&&a.nome);
-          const vm = l.vm_modo ? (VM_MODOS.find(m=>m.id===l.vm_modo)||{label:l.vm_modo}) : null;
-          const pp = pesoPredito(l.altura, l.sexo);
-          const dispsAtivos = [
-            ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((l.dispositivos||{})[def.key])?(l.dispositivos[def.key]).map(inst=>({label:def.label,icone:def.icone,data:inst.data,alertaDias:config[`alerta${def.key.charAt(0).toUpperCase()+def.key.slice(1)}`]||99})):[]) ),
-            ...DISP_SINGULAR.filter(def=>(l.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label,icone:def.icone,data:(l.dispositivos[def.key]).data,alertaDias:config[`alerta${def.key.charAt(0).toUpperCase()+def.key.slice(1)}`]||99}))
-          ];
+          const h=getHoje(l.id);
+          const dias=diasInternacao(l.dataInternacao);
+          const idade=l.dataNascimento?Math.floor((new Date()-new Date(l.dataNascimento+"T00:00:00"))/(365.25*86400000)):null;
+          const bh=fmtBH(l.id,l);
+          const alerts=getAlerts(l);
+          const vaz=l.drogasVazao||{};
+          const atbAtivos=(l.antibioticos||[]).filter(a=>!a.dataFim&&a.nome);
+          const vm=l.vm_modo?VM_MODOS.find(m=>m.id===l.vm_modo):null;
+          const pp=pesoPredito(l.altura,l.sexo);
+          const boletim=l.boletim;
 
-          return (
-            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${alerts.length>0?"rgba(248,113,113,0.3)":T.border}`,borderRadius:10,overflow:"hidden"}}>
-              {/* ── Cabeçalho ── */}
-              <div style={{padding:"10px 14px",background:"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3,flexWrap:"wrap"}}>
+          const hasNeuro = NEURO_DRUGS.some(k=>vaz[k]&&parseFloat(vaz[k])>0)||h.c24_pic||h.c24_ppc;
+          const hasCardio = CARDIO_DRUGS.some(k=>vaz[k]&&parseFloat(vaz[k])>0)||h.c24_fc||h.c24_pam;
+          const hasResp = vm||h.c24_sat||h.c24_fr||h.po2||h.ph||h.pco2;
+          const hasRenal = h.cr||h.na||h.k||h.c24_diur||h.c24_bh;
+          const hasHema = h.hb||h.leuco||h.plaq||h.c24_temp||h.lact;
+          const hasInf = atbAtivos.length>0||h.heCulturas;
+          const hasTgi = h.c24_dextro||l.tgUltEvac||h.c24_diet_vol;
+
+          return(
+            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${alerts.length>0?"rgba(248,113,113,0.3)":T.border}`,borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+              {/* Header */}
+              <div style={{padding:"10px 13px",background:"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2,flexWrap:"wrap"}}>
                   <span style={{fontWeight:700,color:T.text1,fontSize:13,flex:1}}>{l.paciente}</span>
                   {idade&&<span style={{fontSize:10,fontFamily:mono,color:"#c084fc"}}>{idade}a</span>}
                   {dias!==null&&<span style={{fontSize:10,fontFamily:mono,color:"#a78bfa",background:"rgba(167,139,250,0.1)",padding:"1px 6px",borderRadius:8}}>D{dias}</span>}
-                  {bh&&<span style={{fontSize:11,fontFamily:mono,color:bh.cor,fontWeight:700,padding:"1px 7px",borderRadius:8,background:`${bh.cor}15`}}>{bh.val>=0?"+":""}{Math.round(bh.val)}mL</span>}
+                  {bh&&<span style={{fontSize:10,fontFamily:mono,color:bh.cor,fontWeight:700,padding:"1px 6px",borderRadius:8,background:`${bh.cor}15`}}>{bh.val>=0?"+":""}{Math.round(bh.val)}mL</span>}
                 </div>
                 <div style={{fontSize:10,color:T.text3}}>{l.diagnostico}</div>
               </div>
 
-              {/* ── Sistemas ── */}
-              <div style={{padding:"8px 14px"}}>
+              <div style={{padding:"8px 13px",flex:1}}>
 
-                {/* NEURO */}
-                {(h.c24_pic||h.c24_ppc||h.c24_dve) && <>
-                  <Sec label="🧠 NEURO" cor="#c084fc"/>
-                  <DataRow label="PIC" value={h.c24_pic} unit="mmHg" cor={parseFloat(h.c24_pic)>20?"#f87171":"#cbd5e1"}/>
-                  <DataRow label="PPC" value={h.c24_ppc} unit="mmHg" cor={parseFloat(h.c24_ppc)<60?"#f87171":"#34d399"}/>
-                  <DataRow label="DVE" value={h.c24_dve} unit="mL"/>
-                </>}
-
-                {/* HEMODINÂMICO */}
-                {(h.c24_fc||h.c24_pam||h.c24_pas) && <>
-                  <Sec label="❤️ HEMODINÂMICO" cor="#f87171"/>
-                  <DataRow label="FC" value={h.c24_fc} unit="bpm" cor={parseFloat(h.c24_fc)>100?"#fbbf24":parseFloat(h.c24_fc)<60?"#fbbf24":"#34d399"}/>
-                  <DataRow label="PAM" value={h.c24_pam} unit="mmHg" cor={parseFloat(h.c24_pam)<65?"#f87171":parseFloat(h.c24_pam)>110?"#fbbf24":"#34d399"}/>
-                  {h.c24_pas&&h.c24_pad&&<DataRow label="PA" value={`${h.c24_pas}/${h.c24_pad}`} unit="mmHg"/>}
-                </>}
-
-                {/* RESPIRATÓRIO */}
-                {(vm||h.c24_sat||h.c24_fr||h.po2||h.ph) && <>
-                  <Sec label="🫁 RESPIRATÓRIO" cor="#38bdf8"/>
-                  {vm&&<DataRow label="Modo" value={vm.label} cor="#38bdf8"/>}
-                  {l.vm_fio2&&<DataRow label="FiO₂" value={`${l.vm_fio2}%`}/>}
-                  {l.vm_peep&&<DataRow label="PEEP" value={l.vm_peep} unit="cmH₂O"/>}
-                  {h.c24_sat&&<DataRow label="SpO₂" value={h.c24_sat} unit="%" cor={parseFloat(h.c24_sat)<92?"#f87171":"#34d399"}/>}
-                  {h.c24_fr&&<DataRow label="FR" value={h.c24_fr} unit="irpm" cor={parseFloat(h.c24_fr)>25?"#f87171":"#cbd5e1"}/>}
-                  {h.ph&&<DataRow label="pH" value={h.ph} cor={parseFloat(h.ph)<7.35?"#f87171":parseFloat(h.ph)>7.45?"#fbbf24":"#34d399"}/>}
-                  {h.hco3&&<DataRow label="HCO₃" value={h.hco3} unit="mEq/L"/>}
-                  {h.po2&&<DataRow label="pO₂" value={h.po2} unit="mmHg"/>}
-                </>}
-
-                {/* RENAL/METABÓLICO */}
-                {(h.cr||h.na||h.k||h.c24_diur||h.c24_bh) && <>
-                  <Sec label="🫘 RENAL / METABÓLICO" cor="#34d399"/>
-                  <DataRow label="Creatinina" value={h.cr} unit="mg/dL" cor={parseFloat(h.cr)>1.2?"#fbbf24":"#34d399"}/>
-                  <DataRow label="Sódio" value={h.na} unit="mEq/L" cor={parseFloat(h.na)<135||parseFloat(h.na)>145?"#fbbf24":"#cbd5e1"}/>
-                  <DataRow label="Potássio" value={h.k} unit="mEq/L" cor={parseFloat(h.k)<3.5||parseFloat(h.k)>5.5?"#f87171":parseFloat(h.k)<3.8||parseFloat(h.k)>5.0?"#fbbf24":"#34d399"}/>
-                  {h.c24_diur&&<DataRow label="Diurese" value={h.c24_diur} unit="mL"/>}
-                  {h.c24_bh&&<DataRow label="BH 24h" value={`${parseFloat(h.c24_bh)>=0?"+":""}${h.c24_bh}`} unit="mL" cor={parseFloat(h.c24_bh)>500?"#f87171":parseFloat(h.c24_bh)<-500?"#34d399":"#94a3b8"}/>}
-                </>}
-
-                {/* HEMATOLÓGICO */}
-                {(h.hb||h.leuco||h.plaq||h.trop||h.lact) && <>
-                  <Sec label="🩸 HEMATOLÓGICO" cor="#fb923c"/>
-                  <DataRow label="Hb" value={h.hb} unit="g/dL" cor={parseFloat(h.hb)<7?"#f87171":parseFloat(h.hb)<8?"#fbbf24":"#34d399"}/>
-                  <DataRow label="Leucócitos" value={h.leuco} unit="/mm³" cor={parseFloat(h.leuco)>12000||parseFloat(h.leuco)<4000?"#fbbf24":"#cbd5e1"}/>
-                  <DataRow label="Plaquetas" value={h.plaq} unit="/mm³" cor={parseFloat(h.plaq)<50000?"#f87171":parseFloat(h.plaq)<100000?"#fbbf24":"#34d399"}/>
-                  {h.lact&&<DataRow label="Lactato" value={h.lact} unit="mmol/L" cor={parseFloat(h.lact)>2?"#fbbf24":parseFloat(h.lact)>4?"#f87171":"#34d399"}/>}
-                  {h.trop&&<DataRow label="Troponina" value={h.trop} cor="#fbbf24"/>}
-                </>}
-
-                {/* INFECCIOSO */}
-                {atbAtivos.length>0 && <>
-                  <Sec label="🦠 INFECCIOSO" cor="#a3e635"/>
-                  {atbAtivos.map(a=>{
-                    const dd=a.dataInicio?Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1:null;
-                    return <DataRow key={a.id} label={a.nome} value={dd?`D${dd}`:""} unit={a.dose||""} cor="#a3e635"/>;
-                  })}
-                </>}
-
-                {/* TGI */}
-                {(h.c24_dextro||l.tgUltEvac) && <>
-                  <Sec label="🍽 TGI" cor="#fb923c"/>
-                  <DataRow label="Glicemia" value={h.c24_dextro} unit="mg/dL" cor={parseFloat(h.c24_dextro)>180||parseFloat(h.c24_dextro)<70?"#fbbf24":"#34d399"}/>
-                  {l.tgUltEvac&&<DataRow label="Última evac." value={`${Math.floor((new Date()-new Date(l.tgUltEvac+"T00:00:00"))/86400000)}d atrás`}/>}
-                </>}
-
-                {/* DISPOSITIVOS */}
-                {dispsAtivos.length>0 && <>
-                  <Sec label="🔌 DISPOSITIVOS" cor="#38bdf8"/>
-                  {dispsAtivos.map((d,i)=>{
-                    const dd=d.data?Math.floor((new Date()-new Date(d.data+"T00:00:00"))/86400000):null;
-                    const alerta=dd!==null&&dd>d.alertaDias;
-                    return <DataRow key={i} label={`${d.icone} ${d.label}`} value={dd!==null?`D${dd}`:""} cor={alerta?"#f87171":"#38bdf8"}/>;
-                  })}
-                </>}
-
-                {/* ALERTAS */}
-                {alerts.length>0 && (
-                  <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:2}}>
-                    {alerts.map((a,i)=>(
-                      <div key={i} style={{fontSize:10,color:"#f87171",fontFamily:mono,background:"rgba(248,113,113,0.06)",padding:"3px 7px",borderRadius:4}}>⚠️ {a}</div>
-                    ))}
+                {/* Boletim (Ctrl+B) */}
+                {boletim&&(
+                  <div style={{background:"rgba(56,189,248,0.05)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:6,padding:"6px 9px",marginBottom:8,fontSize:10,color:"#94a3b8",whiteSpace:"pre-wrap",maxHeight:120,overflowY:"auto",fontFamily:mono,lineHeight:1.5}}>
+                    {boletim}
                   </div>
                 )}
 
-                {/* Se nenhum dado ainda */}
-                {!h.cr&&!h.c24_fc&&!h.c24_pam&&!vm&&atbAtivos.length===0&&dispsAtivos.length===0&&(
+                {/* Alertas */}
+                {alerts.length>0&&(
+                  <div style={{marginBottom:6,display:"flex",flexDirection:"column",gap:2}}>
+                    {alerts.map((a,i)=><div key={i} style={{fontSize:10,color:"#f87171",fontFamily:mono,background:"rgba(248,113,113,0.06)",padding:"2px 7px",borderRadius:4}}>⚠️ {a}</div>)}
+                  </div>
+                )}
+
+                {/* 🧠 Neurológico */}
+                {hasNeuro&&<>
+                  <Sec ico="🧠" lbl="NEUROLÓGICO" cor="#c084fc"/>
+                  {NEURO_DRUGS.map(k=><DrugRow key={k} dKey={k} vazoes={vaz}/>)}
+                  <R lbl="PIC" val={h.c24_pic} unit="mmHg" cor={parseFloat(h.c24_pic)>20?"#f87171":"#cbd5e1"}/>
+                  <R lbl="PPC" val={h.c24_ppc} unit="mmHg" cor={parseFloat(h.c24_ppc)<60?"#f87171":"#34d399"}/>
+                  <R lbl="DVE" val={h.c24_dve} unit="mL"/>
+                </>}
+
+                {/* ❤️ Cardiovascular */}
+                {hasCardio&&<>
+                  <Sec ico="❤️" lbl="CARDIOVASCULAR" cor="#f87171"/>
+                  {CARDIO_DRUGS.map(k=><DrugRow key={k} dKey={k} vazoes={vaz}/>)}
+                  <R lbl="FC" val={h.c24_fc} unit="bpm" cor={parseFloat(h.c24_fc)>100||parseFloat(h.c24_fc)<60?"#fbbf24":"#34d399"}/>
+                  <R lbl="PAM" val={h.c24_pam} unit="mmHg" cor={parseFloat(h.c24_pam)<65?"#f87171":"#34d399"}/>
+                  {h.c24_pas&&<R lbl="PAS/PAD" val={h.c24_pas+(h.c24_pad?"/"+h.c24_pad:"")} unit="mmHg"/>}
+                </>}
+
+                {/* 🫁 Respiratório */}
+                {hasResp&&<>
+                  <Sec ico="🫁" lbl="RESPIRATÓRIO" cor="#38bdf8"/>
+                  {vm&&<R lbl="Modo" val={vm.label} cor="#38bdf8"/>}
+                  {l.vm_fio2&&<R lbl="FiO₂" val={l.vm_fio2} unit="%"/>}
+                  {l.vm_peep&&<R lbl="PEEP" val={l.vm_peep} unit="cmH₂O"/>}
+                  {l.vm_ps&&<R lbl="PS" val={l.vm_ps} unit="cmH₂O"/>}
+                  {l.vm_pplat&&l.vm_peep&&<R lbl="DP" val={parseFloat(l.vm_pplat)-parseFloat(l.vm_peep)} unit="cmH₂O" cor={parseFloat(l.vm_pplat)-parseFloat(l.vm_peep)>15?"#f87171":"#34d399"}/>}
+                  {pp&&l.vm_vt&&<R lbl="VC mL/kg" val={(parseFloat(l.vm_vt)/parseFloat(pp)).toFixed(1)} cor={parseFloat(l.vm_vt)/parseFloat(pp)>8?"#f87171":parseFloat(l.vm_vt)/parseFloat(pp)<=6?"#34d399":"#fbbf24"}/>}
+                  <R lbl="SpO₂" val={h.c24_sat} unit="%" cor={parseFloat(h.c24_sat)<92?"#f87171":"#34d399"}/>
+                  <R lbl="FR" val={h.c24_fr} unit="irpm" cor={parseFloat(h.c24_fr)>25?"#fbbf24":"#cbd5e1"}/>
+                  <R lbl="pH" val={h.ph} cor={parseFloat(h.ph)<7.35?"#f87171":parseFloat(h.ph)>7.45?"#fbbf24":"#34d399"}/>
+                  <R lbl="HCO₃" val={h.hco3} unit="mEq/L"/>
+                  <R lbl="pO₂" val={h.po2} unit="mmHg"/>
+                  <R lbl="pCO₂" val={h.pco2} unit="mmHg" cor={parseFloat(h.pco2)>50?"#fbbf24":parseFloat(h.pco2)<35?"#fbbf24":"#34d399"}/>
+                  <R lbl="BE" val={h.be} unit="mEq/L" cor={parseFloat(h.be)<-4?"#f87171":parseFloat(h.be)>4?"#fbbf24":"#34d399"}/>
+                </>}
+
+                {/* 🫘 Renal / Metabólico */}
+                {hasRenal&&<>
+                  <Sec ico="🫘" lbl="RENAL / METABÓLICO" cor="#34d399"/>
+                  <R lbl="Creatinina" val={h.cr} unit="mg/dL" cor={parseFloat(h.cr)>1.2?"#fbbf24":"#34d399"}/>
+                  <R lbl="Ureia" val={h.ur} unit="mg/dL" cor={parseFloat(h.ur)>60?"#fbbf24":"#cbd5e1"}/>
+                  <R lbl="Sódio" val={h.na} unit="mEq/L" cor={parseFloat(h.na)<135||parseFloat(h.na)>145?"#fbbf24":"#34d399"}/>
+                  <R lbl="Potássio" val={h.k} unit="mEq/L" cor={parseFloat(h.k)<3.5||parseFloat(h.k)>5.5?"#f87171":parseFloat(h.k)<3.8?"#fbbf24":"#34d399"}/>
+                  <R lbl="Magnésio" val={h.mg} unit="mg/dL"/>
+                  <R lbl="Cálcio iônico" val={h.cai} unit="mmol/L"/>
+                  <R lbl="Fósforo" val={h.p} unit="mg/dL"/>
+                  <R lbl="Diurese" val={h.c24_diur} unit="mL"/>
+                  {h.c24_hd&&<R lbl="HD/CRRT" val={h.c24_hd} unit="mL"/>}
+                  <R lbl="BH 24h" val={h.c24_bh&&(parseFloat(h.c24_bh)>=0?"+":"")+h.c24_bh} unit="mL" cor={parseFloat(h.c24_bh)>500?"#f87171":parseFloat(h.c24_bh)<-500?"#34d399":"#94a3b8"}/>
+                </>}
+
+                {/* 🩸 Hematológico */}
+                {hasHema&&<>
+                  <Sec ico="🩸" lbl="HEMATOLÓGICO" cor="#fb923c"/>
+                  <R lbl="Temperatura" val={h.c24_temp} unit="°C" cor={parseFloat(h.c24_temp)>38?"#f87171":parseFloat(h.c24_temp)<36?"#38bdf8":"#34d399"}/>
+                  <R lbl="Hb" val={h.hb} unit="g/dL" cor={parseFloat(h.hb)<7?"#f87171":parseFloat(h.hb)<8?"#fbbf24":"#34d399"}/>
+                  <R lbl="Leucócitos" val={h.leuco} unit="/mm³" cor={parseFloat(h.leuco)>12000||parseFloat(h.leuco)<4000?"#fbbf24":"#34d399"}/>
+                  <R lbl="Plaquetas" val={h.plaq} unit="/mm³" cor={parseFloat(h.plaq)<50000?"#f87171":parseFloat(h.plaq)<100000?"#fbbf24":"#34d399"}/>
+                  <R lbl="Lactato" val={h.lact} unit="mmol/L" cor={parseFloat(h.lact)>2?"#fbbf24":parseFloat(h.lact)>4?"#f87171":"#34d399"}/>
+                  <R lbl="TGO/AST" val={h.tgo} unit="U/L" cor={parseFloat(h.tgo)>40?"#fbbf24":"#cbd5e1"}/>
+                  <R lbl="TGP/ALT" val={h.tgp} unit="U/L" cor={parseFloat(h.tgp)>40?"#fbbf24":"#cbd5e1"}/>
+                  <R lbl="Bilirrubina" val={h.bttot} unit="mg/dL"/>
+                  <R lbl="RNI" val={h.rni} cor={parseFloat(h.rni)>1.5?"#fbbf24":"#34d399"}/>
+                  <R lbl="PCR" val={h.pcr} unit="mg/dL" cor={parseFloat(h.pcr)>10?"#fbbf24":"#34d399"}/>
+                </>}
+
+                {/* 🦠 Infeccioso */}
+                {hasInf&&<>
+                  <Sec ico="🦠" lbl="INFECCIOSO" cor="#a3e635"/>
+                  {atbAtivos.map(a=>{
+                    const dd=a.dataInicio?Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1:null;
+                    const doseInfo=[a.dose,a.intervalo].filter(Boolean).join(" ");
+                    return <R key={a.id} lbl={a.nome} val={dd?`D${dd}`:""} unit={doseInfo} cor="#a3e635"/>;
+                  })}
+                  {h.heCulturas&&<div style={{marginTop:3,fontSize:10,color:"#94a3b8",fontFamily:mono,padding:"2px 0"}}>🧫 {h.heCulturas}</div>}
+                </>}
+
+                {/* 🍽 TGI */}
+                {hasTgi&&<>
+                  <Sec ico="🍽" lbl="TGI" cor="#fb923c"/>
+                  <R lbl="Glicemia" val={h.c24_dextro} unit="mg/dL" cor={parseFloat(h.c24_dextro)>180||parseFloat(h.c24_dextro)<70?"#fbbf24":"#34d399"}/>
+                  {l.tgUltEvac&&<R lbl="Última evacuação" val={`${Math.floor((new Date()-new Date(l.tgUltEvac+"T00:00:00"))/86400000)}d atrás`}/>}
+                  {h.c24_diet_vol&&<R lbl="Dieta" val={h.c24_diet_vol} unit="mL"/>}
+                  <R lbl="Albumina" val={h.alb} unit="g/dL" cor={parseFloat(h.alb)<3?"#f87171":parseFloat(h.alb)<3.5?"#fbbf24":"#34d399"}/>
+                </>}
+
+                {!hasNeuro&&!hasCardio&&!hasResp&&!hasRenal&&!hasHema&&!hasInf&&!hasTgi&&!boletim&&!alerts.length&&(
                   <div style={{fontSize:11,color:"#334155",textAlign:"center",padding:"12px 0"}}>Sem dados lançados hoje</div>
                 )}
               </div>
@@ -5274,6 +5330,7 @@ ${linha}`:linha}));
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#86efac"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
                   <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
+                    onBoletim={txt=>atualizar({...leito,boletim:txt})}
                     config={config}
                     tabelaHoje={(()=>{
                       const tb = tabelaData[leitoSelId]||{};
