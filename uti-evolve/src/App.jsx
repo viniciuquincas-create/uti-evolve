@@ -3309,6 +3309,7 @@ function aplicarIA(dadosIA) {
 // ── ProbFloating — painel flutuante de Problemas Ativos ──────────────────────
 function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, metas=[], onMetaChange }) {
   const [open, setOpen] = useState(true);
+  const [openResolvidos, setOpenResolvidos] = useState(false);
   const mono2 = "'DM Mono',monospace";
   return (
     <div style={{
@@ -3341,10 +3342,14 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
               color:"#f87171",cursor:"pointer",fontSize:10}}>
             {copiado.probAtivos?"✅ Copiado":"📋 Copiar"}
           </button>
-          <div style={{marginTop:10,borderTop:"1px solid rgba(52,211,153,0.2)",paddingTop:8}}>
-            <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#34d399",marginBottom:5}}>✅ RESOLVIDOS</div>
-            <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
-              sugestao={"1. Choque séptico (D5)\n2. Acidose metabólica"} rows={3} fieldName="probResolvidos" onBlurSave={salvar}/>
+          <div style={{marginTop:8,borderTop:"1px solid rgba(52,211,153,0.15)"}}>
+            <div onClick={()=>setOpenResolvidos(o=>!o)}
+              style={{padding:"5px 0",cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#34d399"}}>✅ RESOLVIDOS</span>
+              <span style={{fontSize:9,color:"#334155",marginLeft:"auto"}}>{openResolvidos?"▲":"▼"}</span>
+            </div>
+            {openResolvidos&&<TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
+              sugestao={"1. Choque séptico (D5)\n2. Acidose metabólica"} rows={3} fieldName="probResolvidos" onBlurSave={salvar}/>}
           </div>
           {/* ── Metas / Pendências ── */}
           <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
@@ -3374,7 +3379,7 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
 }
 
 
-function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, onBoletim, onMetaChange }) {
+function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, onMetaChange, metas=[] }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
@@ -4120,7 +4125,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <ProbFloating
         refs={refs} campos={campos} isAntigo={isAntigo}
         copiado={copiado} setCopiado={setCopiado} salvar={salvar}
-        metas={leito.evolMetas||[]} onMetaChange={onMetaChange}/>
+        metas={metas} onMetaChange={onMetaChange}/>
     </div>
   );
 }
@@ -4409,7 +4414,7 @@ function LoginScreen({ onLogin }) {
 
 
 // ── VisaoGeralPanel ───────────────────────────────────────────────────────────
-function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
+function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCamposPorLeito={}, onLeitoChange }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
 
@@ -4453,6 +4458,19 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
     return alerts;
   };
 
+
+  // Campos da evolução disponíveis por sistema
+  const EVOL_SYS_FIELDS = {
+    "NEUROLÓGICO":       [{k:"nEF",l:"EF Neuro"},{k:"nSeda",l:"Sedação"},{k:"nAnalg",l:"Analgesia"},{k:"nPsiq",l:"Psiquiatria"},{k:"nObs",l:"Obs"}],
+    "CARDIOVASCULAR":    [{k:"cvEF",l:"EF CV"},{k:"cv24h",l:"24h CV"},{k:"cvDVA",l:"Vasoativas"},{k:"cvMed",l:"Medicações"},{k:"cvPerf",l:"Perfusão"},{k:"cvObs",l:"Obs"}],
+    "RESPIRATÓRIO":      [{k:"reVM",l:"VM"},{k:"reEF",l:"EF Resp"},{k:"re24h",l:"24h Resp"},{k:"reGaso",l:"Gasometria"},{k:"rePocus",l:"POCUS"},{k:"reObs",l:"Obs"}],
+    "RENAL / METABÓLICO":[{k:"rm24h",l:"24h Renal"},{k:"rmLabs",l:"Labs"},{k:"rmTRS",l:"TRS"},{k:"rmObs",l:"Obs"}],
+    "HEMATOLÓGICO":      [{k:"heLabs",l:"Labs Hema"},{k:"heTemp",l:"Temperatura"},{k:"heMed",l:"Medicações"},{k:"heObs",l:"Obs"}],
+    "INFECCIOSO":        [{k:"heAtb",l:"Antibióticos"},{k:"heCulturas",l:"Culturas"},{k:"heProf",l:"Profilaxia"}],
+    "TGI":               [{k:"tgEF",l:"EF TGI"},{k:"tg24h",l:"24h TGI"},{k:"tgLabs",l:"Labs TGI"},{k:"tgObs",l:"Obs"}],
+  };
+  const [vgpPicker, setVgpPicker] = useState(null); // {leitoId, sysKey}
+
   // Helper: row with label + value
   const R = ({lbl, val, unit="", cor="#cbd5e1"}) => !val ? null : (
     <div style={{display:"flex",justifyContent:"space-between",padding:"2px 0",borderBottom:"1px solid rgba(255,255,255,0.025)"}}>
@@ -4466,13 +4484,19 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
   const Sec = ({ico, lbl, cor="#475569", cid}) => {
     const key = cid+lbl;
     const isOpen = !collapsed[key];
+    const hasPicker = EVOL_SYS_FIELDS[lbl];
     return (
-      <div onClick={()=>setCollapsed(s=>({...s,[key]:!s[key]}))}
-        style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:cor,marginTop:8,marginBottom:isOpen?3:0,
-          paddingBottom:2,borderBottom:`1px solid ${cor}25`,cursor:"pointer",display:"flex",alignItems:"center",
-          userSelect:"none"}}>
-        <span style={{flex:1}}>{ico} {lbl}</span>
-        <span style={{fontSize:9,color:"#334155"}}>{isOpen?"▲":"▼"}</span>
+      <div style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:cor,marginTop:8,marginBottom:isOpen?3:0,
+          paddingBottom:2,borderBottom:`1px solid ${cor}25`,display:"flex",alignItems:"center",userSelect:"none"}}>
+        <span onClick={()=>setCollapsed(s=>({...s,[key]:!s[key]}))}
+          style={{flex:1,cursor:"pointer"}}>{ico} {lbl}</span>
+        {hasPicker&&<span onClick={e=>{e.stopPropagation();setVgpPicker(vgpPicker?.leitoId===cid&&vgpPicker?.sysKey===lbl?null:{leitoId:cid,sysKey:lbl});}}
+          style={{marginLeft:4,fontSize:11,cursor:"pointer",color:"#475569",
+            background:"rgba(255,255,255,0.05)",borderRadius:4,padding:"0 4px",lineHeight:"14px"}}
+          title="Adicionar campo da evolução">
+          ⊕
+        </span>}
+        <span onClick={()=>setCollapsed(s=>({...s,[key]:!s[key]}))} style={{cursor:"pointer",marginLeft:4,color:"#334155"}}>{isOpen?"▲":"▼"}</span>
       </div>
     );
   };
@@ -4654,6 +4678,54 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
                   </SecBody>
                 </>}
 
+                {/* Field picker popup */}
+                {vgpPicker?.leitoId===l.id&&(()=>{
+                  const fields = EVOL_SYS_FIELDS[vgpPicker.sysKey]||[];
+                  const ec = evolCamposPorLeito[l.id]||{};
+                  const cur = (l.vgpMap||{})[vgpPicker.sysKey]||[];
+                  return(
+                    <div style={{background:"rgba(15,23,42,0.98)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,padding:"8px 10px",marginTop:6,zIndex:10}}>
+                      <div style={{fontSize:9,fontFamily:mono,color:"#38bdf8",letterSpacing:1,marginBottom:6}}>CAMPOS A MOSTRAR — {vgpPicker.sysKey}</div>
+                      {fields.map(f=>(
+                        <label key={f.k} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,cursor:"pointer"}}>
+                          <input type="checkbox" checked={cur.includes(f.k)}
+                            onChange={e=>{
+                              const nova=e.target.checked?[...cur,f.k]:cur.filter(x=>x!==f.k);
+                              if(onLeitoChange) onLeitoChange({...l,vgpMap:{...(l.vgpMap||{}),[vgpPicker.sysKey]:nova}});
+                            }}/>
+                          <span style={{fontSize:10,color:ec[f.k]?"#cbd5e1":"#475569"}}>{f.l}{ec[f.k]?<span style={{color:"#38bdf8",marginLeft:4}}>✓</span>:""}</span>
+                        </label>
+                      ))}
+                      <button onClick={()=>setVgpPicker(null)} style={{marginTop:4,width:"100%",padding:"3px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:5,color:"#64748b",cursor:"pointer",fontSize:10}}>Fechar</button>
+                    </div>
+                  );
+                })()}
+
+                {/* Extra campos selecionados via ⊕ */}
+                {(()=>{
+                  const vmap = l.vgpMap||{};
+                  const ec = evolCamposPorLeito[l.id]||{};
+                  const rows = Object.entries(vmap).flatMap(([sys,keys])=>
+                    (keys||[]).map(k=>{
+                      const f = (EVOL_SYS_FIELDS[sys]||[]).find(x=>x.k===k);
+                      const val = ec[k];
+                      if(!val) return null;
+                      return {sys,label:f?.l||k,val};
+                    }).filter(Boolean)
+                  );
+                  if(!rows.length) return null;
+                  return(
+                    <div style={{marginTop:6,borderTop:"1px solid rgba(56,189,248,0.1)",paddingTop:6}}>
+                      {rows.map((r,i)=>(
+                        <div key={i} style={{marginBottom:5}}>
+                          <div style={{fontSize:9,fontFamily:mono,color:"#38bdf8",letterSpacing:1}}>{r.sys} · {r.label}</div>
+                          <div style={{fontSize:11,color:"#94a3b8",marginTop:2,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{r.val}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                 {!hasNeuro&&!hasCardio&&!hasResp&&!hasRenal&&!hasHema&&!hasInf&&!hasTgi&&!boletim&&!alerts.length&&(
                   <div style={{fontSize:11,color:"#334155",textAlign:"center",padding:"12px 0"}}>Sem dados lançados hoje</div>
                 )}
@@ -4782,6 +4854,7 @@ export default function App() {
   const [aba,        setAba]        = useState("paciente");
   const [dadosIA,    setDadosIA]    = useState(null);
   const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
+  const [evolCamposPorLeito, setEvolCamposPorLeito] = useState({});
   const [evolVersion, setEvolVersion] = useState(0);
   const [evolPorLeito, setEvolPorLeito] = useState({});
   const [tabelaData, setTabelaData] = useState({});
@@ -5098,7 +5171,7 @@ export default function App() {
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : viewGlobal==="visao_geral" ? (
             <div style={{flex:1,overflowY:"auto"}}>
-              <VisaoGeralPanel leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config}/>
+              <VisaoGeralPanel leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config} evolCamposPorLeito={evolCamposPorLeito} onLeitoChange={novoLeito=>{setLeitos(ls=>ls.map(l=>l.id===novoLeito.id?novoLeito:l));salvarLeitos(ls=>ls.map(l=>l.id===novoLeito.id?novoLeito:l));}}/>
             </div>
           ) : viewGlobal==="plantao" ? (
             <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
@@ -5398,9 +5471,8 @@ ${linha}`:linha}));
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#86efac"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
                   <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
-                    onBoletim={txt=>atualizar({...leito,boletim:txt})}
+                    metas={metasPorLeito[leitoSelId]||[]}
                     onMetaChange={(novas)=>{
-                      atualizar({...leito,evolMetas:novas});
                       setMetasPorLeito(mp=>{const novo={...mp,[leitoSelId]:novas};salvarMetas(novo);return novo;});
                     }}
                     config={config}
