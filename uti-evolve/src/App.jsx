@@ -3346,6 +3346,27 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
             <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
               sugestao={"1. Choque séptico (D5)\n2. Acidose metabólica"} rows={3} fieldName="probResolvidos" onBlurSave={salvar}/>
           </div>
+          {/* ── Metas / Pendências ── */}
+          <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
+            <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS</div>
+            {metas.map((m,i)=>(
+              <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
+                <button onClick={()=>onMetaChange&&onMetaChange(metas.map((x,j)=>j===i?{...x,feito:!x.feito}:x))}
+                  style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
+                  {m.feito?"☑":"☐"}
+                </button>
+                <span style={{fontSize:10,color:m.feito?"#475569":"#94a3b8",
+                  textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
+              </div>
+            ))}
+            <button onClick={()=>{
+              const txt=window.prompt("Nova meta:");
+              if(txt&&onMetaChange) onMetaChange([...metas,{id:Date.now()+"",texto:txt.trim(),feito:false}]);
+            }} style={{marginTop:4,width:"100%",padding:"3px 0",background:"rgba(56,189,248,0.06)",
+              border:"1px solid rgba(56,189,248,0.15)",borderRadius:5,color:"#38bdf8",cursor:"pointer",fontSize:10}}>
+              + meta
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -4536,24 +4557,29 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
                 {/* 🧠 Neurológico */}
                 {hasNeuro&&<>
                   <Sec ico="🧠" lbl="NEUROLÓGICO" cor="#c084fc" cid={l.id}/>
+                  <SecBody cid={l.id} lbl="NEUROLÓGICO">
                   {NEURO_DRUGS.map(k=><DrugRow key={k} dKey={k} vazoes={vaz}/>)}
                   <R lbl="PIC" val={h.c24_pic} unit="mmHg" cor={parseFloat(h.c24_pic)>20?"#f87171":"#cbd5e1"}/>
                   <R lbl="PPC" val={h.c24_ppc} unit="mmHg" cor={parseFloat(h.c24_ppc)<60?"#f87171":"#34d399"}/>
                   <R lbl="DVE" val={h.c24_dve} unit="mL"/>
+                  </SecBody>
                 </>}
 
                 {/* ❤️ Cardiovascular */}
                 {hasCardio&&<>
                   <Sec ico="❤️" lbl="CARDIOVASCULAR" cor="#f87171" cid={l.id}/>
+                  <SecBody cid={l.id} lbl="CARDIOVASCULAR">
                   {CARDIO_DRUGS.map(k=><DrugRow key={k} dKey={k} vazoes={vaz}/>)}
                   <R lbl="FC" val={h.c24_fc} unit="bpm" cor={parseFloat(h.c24_fc)>100||parseFloat(h.c24_fc)<60?"#fbbf24":"#34d399"}/>
                   <R lbl="PAM" val={h.c24_pam} unit="mmHg" cor={parseFloat(h.c24_pam)<65?"#f87171":"#34d399"}/>
                   {h.c24_pas&&<R lbl="PAS/PAD" val={h.c24_pas+(h.c24_pad?"/"+h.c24_pad:"")} unit="mmHg"/>}
+                  </SecBody>
                 </>}
 
                 {/* 🫁 Respiratório */}
                 {hasResp&&<>
                   <Sec ico="🫁" lbl="RESPIRATÓRIO" cor="#38bdf8" cid={l.id}/>
+                  <SecBody cid={l.id} lbl="RESPIRATÓRIO">
                   {vm&&<R lbl="Modo" val={vm.label} cor="#38bdf8"/>}
                   {l.vm_fio2&&<R lbl="FiO₂" val={l.vm_fio2} unit="%"/>}
                   {l.vm_peep&&<R lbl="PEEP" val={l.vm_peep} unit="cmH₂O"/>}
@@ -4567,11 +4593,13 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
                   <R lbl="pO₂" val={h.po2} unit="mmHg"/>
                   <R lbl="pCO₂" val={h.pco2} unit="mmHg" cor={parseFloat(h.pco2)>50?"#fbbf24":parseFloat(h.pco2)<35?"#fbbf24":"#34d399"}/>
                   <R lbl="BE" val={h.be} unit="mEq/L" cor={parseFloat(h.be)<-4?"#f87171":parseFloat(h.be)>4?"#fbbf24":"#34d399"}/>
+                  </SecBody>
                 </>}
 
                 {/* 🫘 Renal / Metabólico */}
                 {hasRenal&&<>
                   <Sec ico="🫘" lbl="RENAL / METABÓLICO" cor="#34d399" cid={l.id}/>
+                  <SecBody cid={l.id} lbl="RENAL / METABÓLICO">
                   <R lbl="Creatinina" val={h.cr} unit="mg/dL" cor={parseFloat(h.cr)>1.2?"#fbbf24":"#34d399"}/>
                   <R lbl="Ureia" val={h.ur} unit="mg/dL" cor={parseFloat(h.ur)>60?"#fbbf24":"#cbd5e1"}/>
                   <R lbl="Sódio" val={h.na} unit="mEq/L" cor={parseFloat(h.na)<135||parseFloat(h.na)>145?"#fbbf24":"#34d399"}/>
@@ -4582,11 +4610,13 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
                   <R lbl="Diurese" val={h.c24_diur} unit="mL"/>
                   {h.c24_hd&&<R lbl="HD/CRRT" val={h.c24_hd} unit="mL"/>}
                   <R lbl="BH 24h" val={h.c24_bh&&(parseFloat(h.c24_bh)>=0?"+":"")+h.c24_bh} unit="mL" cor={parseFloat(h.c24_bh)>500?"#f87171":parseFloat(h.c24_bh)<-500?"#34d399":"#94a3b8"}/>
+                  </SecBody>
                 </>}
 
                 {/* 🩸 Hematológico */}
                 {hasHema&&<>
                   <Sec ico="🩸" lbl="HEMATOLÓGICO" cor="#fb923c" cid={l.id}/>
+                  <SecBody cid={l.id} lbl="HEMATOLÓGICO">
                   <R lbl="Temperatura" val={h.c24_temp} unit="°C" cor={parseFloat(h.c24_temp)>38?"#f87171":parseFloat(h.c24_temp)<36?"#38bdf8":"#34d399"}/>
                   <R lbl="Hb" val={h.hb} unit="g/dL" cor={parseFloat(h.hb)<7?"#f87171":parseFloat(h.hb)<8?"#fbbf24":"#34d399"}/>
                   <R lbl="Leucócitos" val={h.leuco} unit="/mm³" cor={parseFloat(h.leuco)>12000||parseFloat(h.leuco)<4000?"#fbbf24":"#34d399"}/>
@@ -4597,26 +4627,31 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
                   <R lbl="Bilirrubina" val={h.bttot} unit="mg/dL"/>
                   <R lbl="RNI" val={h.rni} cor={parseFloat(h.rni)>1.5?"#fbbf24":"#34d399"}/>
                   <R lbl="PCR" val={h.pcr} unit="mg/dL" cor={parseFloat(h.pcr)>10?"#fbbf24":"#34d399"}/>
+                  </SecBody>
                 </>}
 
                 {/* 🦠 Infeccioso */}
                 {hasInf&&<>
                   <Sec ico="🦠" lbl="INFECCIOSO" cor="#a3e635" cid={l.id}/>
+                  <SecBody cid={l.id} lbl="INFECCIOSO">
                   {atbAtivos.map(a=>{
                     const dd=a.dataInicio?Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1:null;
                     const doseInfo=[a.dose,a.intervalo].filter(Boolean).join(" ");
                     return <R key={a.id} lbl={a.nome} val={dd?`D${dd}`:""} unit={doseInfo} cor="#a3e635"/>;
                   })}
                   {h.heCulturas&&<div style={{marginTop:3,fontSize:10,color:"#94a3b8",fontFamily:mono,padding:"2px 0"}}>🧫 {h.heCulturas}</div>}
+                  </SecBody>
                 </>}
 
                 {/* 🍽 TGI */}
                 {hasTgi&&<>
                   <Sec ico="🍽" lbl="TGI" cor="#fb923c" cid={l.id}/>
+                  <SecBody cid={l.id} lbl="TGI">
                   <R lbl="Glicemia" val={h.c24_dextro} unit="mg/dL" cor={parseFloat(h.c24_dextro)>180||parseFloat(h.c24_dextro)<70?"#fbbf24":"#34d399"}/>
                   {l.tgUltEvac&&<R lbl="Última evacuação" val={`${Math.floor((new Date()-new Date(l.tgUltEvac+"T00:00:00"))/86400000)}d atrás`}/>}
                   {h.c24_diet_vol&&<R lbl="Dieta" val={h.c24_diet_vol} unit="mL"/>}
                   <R lbl="Albumina" val={h.alb} unit="g/dL" cor={parseFloat(h.alb)<3?"#f87171":parseFloat(h.alb)<3.5?"#fbbf24":"#34d399"}/>
+                  </SecBody>
                 </>}
 
                 {!hasNeuro&&!hasCardio&&!hasResp&&!hasRenal&&!hasHema&&!hasInf&&!hasTgi&&!boletim&&!alerts.length&&(
