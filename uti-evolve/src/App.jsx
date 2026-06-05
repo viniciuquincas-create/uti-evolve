@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { supabase } from './supabase.js';
 
-// UTI Evolve — build 2026-06-05T15:02:06 // 2026-06-04T20:46:10 2026-05-28T18:31:01 //2026-05-28T18:12:42
+// UTI Evolve — build 2026-06-04T20:46:10 2026-05-28T18:31:01 //2026-05-28T18:12:42
 
 // ── Logo SVG — Cérebro com sensor Brain for Care ──────────────────────────────
 const BrainLogo = ({ size = 32 }) => (
@@ -2808,8 +2808,34 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
             {label}
           </button>
         ))}
-        {tabela==="controles" && (
-          <button onClick={()=>atualizar({...leito,ctrlGrupoNeurologico:!leito.ctrlGrupoNeurologico})}
+        <button onClick={()=>setTabela("gasos")}
+          style={{padding:"5px 12px",borderRadius:7,border:`1px solid ${tabela==="gasos"?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
+            background:tabela==="gasos"?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
+            color:tabela==="gasos"?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11,whiteSpace:"nowrap"}}>
+          🫁 Gasometrias
+        </button>
+        <button onClick={()=>setTabela("culturas")}
+          style={{padding:"5px 12px",borderRadius:7,border:`1px solid ${tabela==="culturas"?"rgba(163,230,53,0.4)":"rgba(255,255,255,0.1)"}`,
+            background:tabela==="culturas"?"rgba(163,230,53,0.1)":"rgba(255,255,255,0.03)",
+            color:tabela==="culturas"?"#a3e635":"#64748b",cursor:"pointer",fontSize:11,whiteSpace:"nowrap"}}>
+          🧫 Culturas
+        </button>
+        {tabela==="gasos" && (
+        <div style={{padding:"16px 20px",overflowY:"auto",flex:1}}>
+          <GasometriaPanel
+            data={data} onChange={onChange}
+            datas={Object.keys(data).filter(k=>!k.startsWith("_")).sort()}
+            hoje={new Date().toISOString().split("T")[0]}/>
+        </div>
+      )}
+      {tabela==="culturas" && (
+        <div style={{padding:"16px 20px",overflowY:"auto",flex:1}}>
+          <CulturasPanel
+            culturas={leito.culturas||[]}
+            onChange={novas=>{if(onLeitoChange)onLeitoChange({...leito,culturas:novas});}}/>
+        </div>
+      )}
+      {tabela==="controles" && (          <button onClick={()=>atualizar({...leito,ctrlGrupoNeurologico:!leito.ctrlGrupoNeurologico})}
             style={{padding:"4px 10px",background:leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",
               border:`1px solid ${leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.08)"}`,
               borderRadius:6,color:leito.ctrlGrupoNeurologico?"#c084fc":"#475569",cursor:"pointer",fontSize:11}}>
@@ -4122,23 +4148,56 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}>
-        <Row><Col><FL>EF — GCS · RASS · Pupilas · Déficit</FL><TA fieldRef={refs.nEF} defaultValue={campos.nEF} isAntigo={isAntigo("nEF")} sugestao="GCS 12T (AO4 RV2 RM6) / RASS 0 / Pupilas isofotorreagentes 2-2" rows={2} fieldName="nEF" onBlurSave={salvar}/></Col></Row>
         <Row>
-          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} sugestao="Precedex 10ml/h (0,57 mcg/kg/h) + Quetiapina 150mg/d" rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
-          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} sugestao="Metadona 22,5mg/d + Cetamina 5ml/h" rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
+          <Col>
+            <PickField label="RASS"
+              options={["-5 Não responsivo","-4 Resposta à dor","-3 Abre olhos à voz","-2 Acorda brevemente","-1 Sonolento","0 Alerta e calmo","+1 Agitado","+2 Muito agitado","+3 Agressivo","+4 Combativo"]}
+              value={campos.nRASS||""} onChange={v=>onCampoEdit("nRASS",v)} rows={1}/>
+            <PickField label="Glasgow"
+              options={["15","14","13","12","11","10","9","8","7","6","5","4","3"]}
+              value={campos.nGlasgow||""} onChange={v=>onCampoEdit("nGlasgow",v)} rows={1} placeholder="Total ou O/V/M"/>
+          </Col>
+          <Col>
+            <PickField label="Pupilas"
+              options={["Isocóricas fotorreativas","Anisocóricas","Midríase bilateral fotofixas","Miose bilateral","Pupila esquerda midriática","Pupila direita midriática"]}
+              value={campos.nPupilas||""} onChange={v=>onCampoEdit("nPupilas",v)} rows={1}/>
+            <PickField label="Força / Déficits"
+              options={["Força preservada globalmente","Paraplegia","Hemiplegia D","Hemiplegia E","Força reduzida difusamente","Sedado — não avaliável"]}
+              value={campos.nEF||""} onChange={v=>onCampoEdit("nEF",v)} rows={2}/>
+          </Col>
         </Row>
-        {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} sugestao="Diazepam 40mg/d + Sertralina 50mg/d" rows={1} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_n_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_n_interconsulta")} defaultValue={campos["add_n_interconsulta"]||""} sugestao="Neurologia 29/04: aguarda avaliação" rows={1} fieldName="add_n_interconsulta" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_n_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_n_exames")} defaultValue={campos["add_n_exames"]||""} sugestao="RM crânio solicitada / EEG pendente" rows={1} fieldName="add_n_exames" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_n_pocus"]&&<Row><Col><FL>POCUS</FL><TA fieldRef={ExtraRef("add_n_pocus")} defaultValue={campos["add_n_pocus"]||""} sugestao="POCUS 29/04: sem alterações" rows={1} fieldName="add_n_pocus" onBlurSave={salvar}/></Col></Row>}
-        {vis["nObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} sugestao="Avaliação neuro 21/04: área hipodensa em tronco — aguarda RM" rows={1} fieldName="nObs" onBlurSave={salvar}/></Col></Row>}
+        <Row>
+          <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
+          <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
+        </Row>
+        {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} rows={2} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_n_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_n_interconsulta")} defaultValue={campos["add_n_interconsulta"]} isAntigo={isAntigo("add_n_interconsulta")} rows={2} fieldName="add_n_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_n_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_n_exames")} defaultValue={campos["add_n_exames"]} isAntigo={isAntigo("add_n_exames")} rows={2} fieldName="add_n_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_n_pocus"]&&<Row><Col><FL>POCUS</FL><TA fieldRef={ExtraRef("add_n_pocus")} defaultValue={campos["add_n_pocus"]} isAntigo={isAntigo("add_n_pocus")} rows={2} fieldName="add_n_pocus" onBlurSave={salvar}/></Col></Row>}
+        {vis["nObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} rows={2} fieldName="nObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
       <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCvFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}>
-        <Row><Col><FL>EF — Estabilidade · Ritmo · Bulhas</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} sugestao="Hemodinamicamente estável, sem DVA. RCR, 2T, BNF SS." rows={2} fieldName="cvEF" onBlurSave={salvar}/></Col></Row>
+        <Row>
+          <Col>
+            <PickField label="Hemodinâmica"
+              options={["Estável sem DVA","Compensado com DVA em queda","Compensado com DVA mantida","Instável com DVA em ascensão"]}
+              value={campos.cvHemo||""} onChange={v=>onCampoEdit("cvHemo",v)} rows={1}/>
+            <PickField label="Cardioscopia"
+              options={["Ritmo sinusal","FA com RVR","FA controlada","Flutter atrial","BAV 1° grau","BAV 2° grau","BCRD","BCRE"]}
+              value={campos.cvCardioscopia||""} onChange={v=>onCampoEdit("cvCardioscopia",v)} rows={1}/>
+          </Col>
+          <Col>
+            <PickField label="Ausculta cardíaca"
+              options={["BNF RCR 2T sem sopros","BHNF RCR 2T","BNF IRR 2T","Sopro sistólico","Sopro diastólico","HS audíveis"]}
+              value={campos.cvAusculta||""} onChange={v=>onCampoEdit("cvAusculta",v)} rows={1}/>
+            <FL>EF Cardiovascular (outros)</FL>
+            <TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} rows={2} fieldName="cvEF" onBlurSave={salvar}/>
+          </Col>
+        </Row>
         <Row>
           <Col><FL>24h — FC / PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} sugestao="FC 109 - 58 / PAM 121 - 58" rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
           <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} sugestao="Nora 5ml/h (0,08 mcg/kg/min)" rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
