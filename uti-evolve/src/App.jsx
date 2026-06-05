@@ -2756,9 +2756,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
         const tipo=(CULTURA_TIPOS.find(x=>x.id===c.tipo)||{lbl:c.tipo||""}).lbl;
         const data=c.dataColeta?new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
         const header=`${tipo}${c.material?" ("+c.material+")":""} ${data}`;
-        if(!c.germes||c.germes.length===0) return `${header}: ${c.status==="aguardando"?"aguardando resultado":"sem germe"}`;
-        const germesTxt=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;if(g.atbs)t+=` — sensível: ${g.atbs}`;return t;}).join("; ");
-        return `${header}: ${germesTxt}`;
+        if(!c.germes||c.germes.length===0) return c.status==="aguardando" ? `${header}: aguardando resultado` : `${header}: sem germe identificado`;
+        const germesTxt=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;if(g.atbs)t+=` — sensível: ${g.atbs}`;return t;}).filter(Boolean).join("; ");
+        if(!germesTxt&&c.resultado) return `${header}: ${c.resultado}`;
+        return `${header}: ${germesTxt||"sem germe identificado"}`;
       }).join("\n");
       campos.heCulturas = cTexto;
     }
@@ -4077,7 +4078,19 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const p=[];
     if(vis.inProf&&get("heMed")) p.push(get("heMed"));
     if(get("heAtb"))      p.push(get("heAtb"));
-    if(get("heCulturas")) p.push(`- Culturas: ${get("heCulturas")}`);
+    // Auto-build culturas text from leito.culturas
+    const cText = get("heCulturas") || (()=>{
+      const cs = leito.culturas||[];
+      if(!cs.length) return "";
+      return cs.map(c=>{
+        const tipo=(CULTURA_TIPOS.find(x=>x.id===c.tipo)||{lbl:c.tipo||""}).lbl;
+        const data=c.dataColeta?new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
+        const hdr=`${tipo}${c.material?" ("+c.material+")":""} ${data}`;
+        const germes=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;return t;}).filter(Boolean).join("; ");
+        return `${hdr}: ${germes||c.resultado||"aguardando resultado"}`;
+      }).join("\n");
+    })();
+    if(cText) p.push(`- Culturas:\n${cText}`);
     if(vis.add_in_interconsulta&&getExtra("add_in_interconsulta")) p.push(`- IC: ${getExtra("add_in_interconsulta")}`);
     if(vis.add_in_exames&&getExtra("add_in_exames")) p.push(`- Exames: ${getExtra("add_in_exames")}`);
     if(vis.inObs&&getExtra("inObs")) p.push(`*${getExtra("inObs")}`);
@@ -4347,9 +4360,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}>
-        {ativos.length>0&&<div style={{padding:"6px 10px",background:"rgba(148,163,184,0.07)",border:"1px solid rgba(148,163,184,0.15)",borderRadius:6,fontSize:11,color:"#94a3b8",marginBottom:8}}>
-          📎 {ativos.map(a=>{const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;}).join(" / ")}
-        </div>}
+
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
         <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} sugestao={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
         <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} sugestao={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
@@ -4809,7 +4820,23 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
   const SecBody = ({cid, lbl, children}) => {
     const key = cid+lbl;
     if(collapsed[key]) return null;
-    return <>{children}</>;
+    // Show extra campos selected via ⊕ for this system
+    const vmap = (l.vgpMap||{})[lbl]||[];
+    const ec = evolCamposPorLeito[l.id]||{};
+    const extras = vmap.map(k=>{
+      const f=(EVOL_SYS_FIELDS[lbl]||[]).find(x=>x.k===k);
+      const val=ec[k];
+      return val?{label:f?.l||k,val}:null;
+    }).filter(Boolean);
+    return <>
+      {children}
+      {extras.map((ex,i)=>(
+        <div key={i} style={{marginTop:3,padding:"3px 0",borderTop:"1px dashed rgba(56,189,248,0.1)"}}>
+          <span style={{fontSize:9,color:"#38bdf8",fontFamily:mono}}>{ex.label}: </span>
+          <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"pre-wrap"}}>{ex.val}</span>
+        </div>
+      ))}
+    </>;
   };
 
   const DRUG_LABELS = {
@@ -5011,30 +5038,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                   );
                 })()}
 
-                {/* Extra campos selecionados via ⊕ */}
-                {(()=>{
-                  const vmap = l.vgpMap||{};
-                  const ec = evolCamposPorLeito[l.id]||{};
-                  const rows = Object.entries(vmap).flatMap(([sys,keys])=>
-                    (keys||[]).map(k=>{
-                      const f = (EVOL_SYS_FIELDS[sys]||[]).find(x=>x.k===k);
-                      const val = ec[k];
-                      if(!val) return null;
-                      return {sys,label:f?.l||k,val};
-                    }).filter(Boolean)
-                  );
-                  if(!rows.length) return null;
-                  return(
-                    <div style={{marginTop:6,borderTop:"1px solid rgba(56,189,248,0.1)",paddingTop:6}}>
-                      {rows.map((r,i)=>(
-                        <div key={i} style={{marginBottom:5}}>
-                          <div style={{fontSize:9,fontFamily:mono,color:"#38bdf8",letterSpacing:1}}>{r.sys} · {r.label}</div>
-                          <div style={{fontSize:11,color:"#94a3b8",marginTop:2,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{r.val}</div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+
 
                 {!hasNeuro&&!hasCardio&&!hasResp&&!hasRenal&&!hasHema&&!hasInf&&!hasTgi&&!alerts.length&&(
                   <div style={{fontSize:11,color:"#334155",textAlign:"center",padding:"12px 0"}}>Sem dados lançados hoje</div>
