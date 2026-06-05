@@ -3309,7 +3309,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 const EVOLUCAO_VAZIA = {
   hda:"",
-  nRASS:"", nGlasgow:"", nPupilas:"", nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
+  nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
   cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
   reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
@@ -3413,32 +3413,45 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
 
 // ── PickField — campo com chips de seleção rápida ─────────────────────────
 function PickField({ label, options=[], value="", onChange, rows=2, placeholder="" }) {
+  const [open, setOpen] = useState(false);
   const T = useTheme();
   const mono = "'DM Mono',monospace";
-  const selectedOpts = options.filter(o => value.includes(o));
+  const hasVal = value.trim().length > 0;
   return (
-    <div style={{marginBottom:6}}>
-      {label&&<div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>{label}</div>}
-      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:4}}>
-        {options.map(opt=>{
-          const sel = value.includes(opt);
-          return (
-            <button key={opt} onClick={()=>{
-              if(sel) onChange(value.replace(opt,"").replace(/\s*\/\s*\/\s*/," / ").replace(/^\s*\/\s*/,"").replace(/\s*\/\s*$/,"").trim());
-              else onChange(value ? value+" / "+opt : opt);
-            }} style={{padding:"2px 8px",borderRadius:12,border:`1px solid ${sel?"rgba(56,189,248,0.5)":"rgba(255,255,255,0.1)"}`,
-              background:sel?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.03)",
-              color:sel?"#38bdf8":"#64748b",cursor:"pointer",fontSize:10,fontFamily:mono}}>
-              {opt}
-            </button>
-          );
-        })}
+    <div style={{marginBottom:6,border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,overflow:"hidden"}}>
+      {/* Header clicável */}
+      <div onClick={()=>setOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
+        cursor:"pointer",background:"rgba(255,255,255,0.02)",userSelect:"none"}}>
+        <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,flex:1}}>{label}</span>
+        {hasVal&&!open&&<span style={{fontSize:10,color:"#38bdf8",fontFamily:mono,maxWidth:200,
+          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{value}</span>}
+        <span style={{fontSize:10,color:"#334155"}}>{open?"▲":"▼"}</span>
       </div>
-      <textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows}
-        placeholder={placeholder}
-        style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
-          borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,resize:"vertical",
-          fontFamily:"'DM Mono',monospace"}}/>
+      {/* Conteúdo expansível */}
+      {open&&(
+        <div style={{padding:"8px 10px",background:"rgba(0,0,0,0.15)"}}>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
+            {options.map(opt=>{
+              const sel = value.includes(opt);
+              return (
+                <button key={opt} onClick={()=>{
+                  if(sel) onChange(value.replace(opt,"").replace(/\s*\/\s*\/\s*/," / ").replace(/^\s*\/\s*/,"").replace(/\s*\/\s*$/,"").trim());
+                  else onChange(value ? value+" / "+opt : opt);
+                }} style={{padding:"2px 8px",borderRadius:12,border:`1px solid ${sel?"rgba(56,189,248,0.5)":"rgba(255,255,255,0.1)"}`,
+                  background:sel?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.03)",
+                  color:sel?"#38bdf8":"#64748b",cursor:"pointer",fontSize:10,fontFamily:mono}}>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+          <textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows}
+            placeholder={placeholder||"Escreva livremente ou selecione acima..."}
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
+              borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,resize:"vertical",
+              fontFamily:mono}}/>
+        </div>
+      )}
     </div>
   );
 }
@@ -3955,9 +3968,13 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   // ── txt funções completas (incluem opcionais/adicionáveis) ──
   const txtNFull = () => {
     const p=[];
-    if(get("nEF"))    p.push(`- EF: ${get("nEF")}`);
-    if(get("nSeda"))  p.push(`- P: ${get("nSeda")}`);
-    if(get("nAnalg")) p.push(`- A: ${get("nAnalg")}`);
+    if(get("nRASS"))     p.push(`- RASS: ${get("nRASS")}`);
+    if(get("nGlasgow"))  p.push(`- Glasgow: ${get("nGlasgow")}`);
+    if(get("nPupilas"))  p.push(`- Pupilas: ${get("nPupilas")}`);
+    if(get("nEF"))       p.push(`- Força/Déficits: ${get("nEF")}`);
+    if(get("nDor"))      p.push(`- Dor: ${get("nDor")}`);
+    if(get("nSeda"))     p.push(`- P: ${get("nSeda")}`);
+    if(get("nAnalg"))    p.push(`- A: ${get("nAnalg")}`);
     if(vis.nPsiq&&get("nPsiq"))  p.push(`- Psiq: ${get("nPsiq")}`);
     if(vis.add_n_interconsulta&&getExtra("add_n_interconsulta")) p.push(`- IC: ${getExtra("add_n_interconsulta")}`);
     if(vis.add_n_exames&&getExtra("add_n_exames")) p.push(`- Exames: ${getExtra("add_n_exames")}`);
@@ -4164,6 +4181,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <PickField label="Força / Déficits"
               options={["Força preservada globalmente","Paraplegia","Hemiplegia D","Hemiplegia E","Força reduzida difusamente","Sedado — não avaliável"]}
               value={campos.nEF||""} onChange={v=>onCampoEdit("nEF",v)} rows={2}/>
+            <PickField label="Avaliação de Dor (BPS / EVA)"
+              options={["BPS 3 (sem dor)","BPS 4","BPS 5","BPS 6","BPS 7","BPS 8-12 (dor máx)","EVA 0/10","EVA 1-3/10 (leve)","EVA 4-6/10 (moderada)","EVA 7-9/10 (intensa)","EVA 10/10 (máxima)","Não avaliável"]}
+              value={campos.nDor||""} onChange={v=>onCampoEdit("nDor",v)} rows={1} placeholder="BPS ou EVA..."/>
           </Col>
         </Row>
         <Row>
