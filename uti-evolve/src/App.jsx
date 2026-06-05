@@ -4564,13 +4564,6 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
 
               <div style={{padding:"8px 13px",flex:1}}>
 
-                {/* Boletim (Ctrl+B) */}
-                {boletim&&(
-                  <div style={{background:"rgba(56,189,248,0.05)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:6,padding:"6px 9px",marginBottom:8,fontSize:10,color:"#94a3b8",whiteSpace:"pre-wrap",maxHeight:120,overflowY:"auto",fontFamily:mono,lineHeight:1.5}}>
-                    {boletim}
-                  </div>
-                )}
-
                 {/* Alertas */}
                 {alerts.length>0&&(
                   <div style={{marginBottom:6,display:"flex",flexDirection:"column",gap:2}}>
@@ -4726,7 +4719,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                   );
                 })()}
 
-                {!hasNeuro&&!hasCardio&&!hasResp&&!hasRenal&&!hasHema&&!hasInf&&!hasTgi&&!boletim&&!alerts.length&&(
+                {!hasNeuro&&!hasCardio&&!hasResp&&!hasRenal&&!hasHema&&!hasInf&&!hasTgi&&!alerts.length&&(
                   <div style={{fontSize:11,color:"#334155",textAlign:"center",padding:"12px 0"}}>Sem dados lançados hoje</div>
                 )}
               </div>
@@ -4854,7 +4847,6 @@ export default function App() {
   const [aba,        setAba]        = useState("paciente");
   const [dadosIA,    setDadosIA]    = useState(null);
   const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
-  const [evolCamposPorLeito, setEvolCamposPorLeito] = useState({});
   const [evolVersion, setEvolVersion] = useState(0);
   const [evolPorLeito, setEvolPorLeito] = useState({});
   const [tabelaData, setTabelaData] = useState({});
@@ -5171,7 +5163,7 @@ export default function App() {
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : viewGlobal==="visao_geral" ? (
             <div style={{flex:1,overflowY:"auto"}}>
-              <VisaoGeralPanel leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config} evolCamposPorLeito={evolCamposPorLeito} onLeitoChange={novoLeito=>{setLeitos(ls=>ls.map(l=>l.id===novoLeito.id?novoLeito:l));salvarLeitos(ls=>ls.map(l=>l.id===novoLeito.id?novoLeito:l));}}/>
+              <VisaoGeralPanel leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config} evolCamposPorLeito={evolPorLeito} onLeitoChange={novoLeito=>{setLeitos(ls=>ls.map(l=>l.id===novoLeito.id?novoLeito:l));salvarLeitos(ls=>ls.map(l=>l.id===novoLeito.id?novoLeito:l));}}/>
             </div>
           ) : viewGlobal==="plantao" ? (
             <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
