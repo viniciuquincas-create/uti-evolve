@@ -2556,7 +2556,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   const [showAddCol, setShowAddCol] = useState(false);
   const [showAddExame, setShowAddExame] = useState(false);
   const [novoExame, setNovoExame] = useState("");
-  const [tabela, setTabela] = useState("labs"); // "labs" | "controles"
+  const [tabela, setTabela] = useState("labs");
+  const [subTabLabs, setSubTabLabs] = useState("labs"); // "labs" | "controles"
 
   // Mostra colunas com dados OU marcadas como visíveis, mais hoje sempre
   // Aceita tanto "2026-04-23" quanto "2026-04-23T05:15"
@@ -2751,7 +2752,14 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     // Culturas → heCulturas auto-populated
     const culturasLeito = leito.culturas||[];
     if(culturasLeito.length>0){
-      const cTexto = culturasLeito.map(c=>`${c.tipo}${c.material?" ("+c.material+")":""} ${new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})} — ${c.status}${c.resultado?" / "+c.resultado:""}`).join("\n");
+      const cTexto = culturasLeito.map(c=>{
+        const tipo=(CULTURA_TIPOS.find(x=>x.id===c.tipo)||{lbl:c.tipo||""}).lbl;
+        const data=c.dataColeta?new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
+        const header=`${tipo}${c.material?" ("+c.material+")":""} ${data}`;
+        if(!c.germes||c.germes.length===0) return `${header}: ${c.status==="aguardando"?"aguardando resultado":"sem germe"}`;
+        const germesTxt=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;if(g.atbs)t+=` — sensível: ${g.atbs}`;return t;}).join("; ");
+        return `${header}: ${germesTxt}`;
+      }).join("\n");
       campos.heCulturas = cTexto;
     }
 
@@ -2808,18 +2816,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
             {label}
           </button>
         ))}
-        <button onClick={()=>setTabela("gasos")}
-          style={{padding:"5px 12px",borderRadius:7,border:`1px solid ${tabela==="gasos"?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
-            background:tabela==="gasos"?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
-            color:tabela==="gasos"?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11,whiteSpace:"nowrap"}}>
-          🫁 Gasometrias
-        </button>
-        <button onClick={()=>setTabela("culturas")}
-          style={{padding:"5px 12px",borderRadius:7,border:`1px solid ${tabela==="culturas"?"rgba(163,230,53,0.4)":"rgba(255,255,255,0.1)"}`,
-            background:tabela==="culturas"?"rgba(163,230,53,0.1)":"rgba(255,255,255,0.03)",
-            color:tabela==="culturas"?"#a3e635":"#64748b",cursor:"pointer",fontSize:11,whiteSpace:"nowrap"}}>
-          🧫 Culturas
-        </button>
+
         {tabela==="gasos" && (
         <div style={{padding:"16px 20px",overflowY:"auto",flex:1}}>
           <GasometriaPanel
@@ -2883,7 +2880,32 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
           </button>
         </div>
       )}
-      {tabela==="labs" && (datas.length === 0 ? (
+      {tabela==="labs" && (
+        <div style={{display:"flex",gap:5,paddingBottom:8,borderBottom:`1px solid ${T.border}`,marginBottom:8,flexShrink:0}}>
+          {[["labs","🔬 Laboratório"],["gasos","🫁 Gasometrias"],["culturas","🧫 Culturas"]].map(([id,lbl])=>(
+            <button key={id} onClick={()=>setSubTabLabs(id)}
+              style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${subTabLabs===id?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.08)"}`,
+                background:subTabLabs===id?"rgba(56,189,248,0.1)":"transparent",
+                color:subTabLabs===id?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11,fontWeight:subTabLabs===id?600:400}}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+      )}
+      {tabela==="labs" && subTabLabs==="gasos" && (
+        <div style={{overflowY:"auto",flex:1,padding:"8px 0"}}>
+          <GasometriaPanel data={data} onChange={onChange}
+            datas={Object.keys(data).filter(k=>!k.startsWith("_")).sort()}
+            hoje={hoje}/>
+        </div>
+      )}
+      {tabela==="labs" && subTabLabs==="culturas" && (
+        <div style={{overflowY:"auto",flex:1}}>
+          <CulturasPanel culturas={leito.culturas||[]}
+            onChange={novas=>{if(onLeitoChange)onLeitoChange({...leito,culturas:novas});}}/>
+        </div>
+      )}
+      {tabela==="labs" && subTabLabs==="labs" && (datas.length === 0 ? (
         <div style={{padding:40,textAlign:"center",color:T.text3,fontSize:13}}>
           Nenhum dado ainda. Cole um print na aba 📤 ou adicione um dia manualmente.
         </div>
@@ -3669,7 +3691,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     impressao:useRef(),
   };
 
-  const get = (key) => refs[key]?.current?.value?.trim() || "";
 
   const txtN = () => {
     const p=[];
@@ -3846,7 +3867,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
   const gerarTextoCompleto = () => {
     try {
-      const get = k => refs[k]?.current?.value || campos[k] || "";
+      // get defined at scope level
       const dt = new Date().toLocaleDateString("pt-BR");
       const dias2 = diasInternacao(leito.dataInternacao);
       let t = `EVOLUÇÃO — ${dt}`;
@@ -3964,6 +3985,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     return extraRefs.current[key];
   };
   const getExtra = (key) => extraRefs.current[key]?.current?.value?.trim() || campos[key] || "";
+  const get = k => refs[k]?.current?.value || campos[k] || "";
 
   // ── txt funções completas (incluem opcionais/adicionáveis) ──
   const txtNFull = () => {
