@@ -2387,10 +2387,8 @@ const GRUPOS_LAB = [
   { grupo:"🫁 Respiratório", params:[
     {key:"po2",   label:"pO2",              unit:"mmHg"},
     {key:"pco2",  label:"pCO2",             unit:"mmHg"},
-    {key:"ph",    label:"pH",               unit:""},
-    {key:"hco3",  label:"HCO3",             unit:"mEq/L"},
-    {key:"be",    label:"BE",               unit:"mEq/L"},
   ]},
+  /* Gasometria fica em painel separado */
   { grupo:"🫀 TGI / Hepático", params:[
     {key:"tgo",   label:"TGO (AST)",        unit:"U/L"},
     {key:"tgp",   label:"TGP (ALT)",        unit:"U/L"},
@@ -2748,6 +2746,13 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       const vt4 = parseFloat(leito.vm_vt||0);
       const vtInfo = (pp4 && vt4) ? ` · VC ${vt4}mL = ${(vt4/parseFloat(pp4)).toFixed(1)}mL/kg PP` : "";
       campos.reVM = vmTexto + vtInfo;
+    }
+
+    // Culturas → heCulturas auto-populated
+    const culturasLeito = leito.culturas||[];
+    if(culturasLeito.length>0){
+      const cTexto = culturasLeito.map(c=>`${c.tipo}${c.material?" ("+c.material+")":""} ${new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})} — ${c.status}${c.resultado?" / "+c.resultado:""}`).join("\n");
+      campos.heCulturas = cTexto;
     }
 
     // Antibioticoterapia → heAtb (campo "Antibióticos" na seção Infeccioso)
@@ -3278,9 +3283,9 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 const EVOLUCAO_VAZIA = {
   hda:"",
-  nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
-  cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
-  reVM:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
+  nRASS:"", nGlasgow:"", nPupilas:"", nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
+  cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
+  reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
   tgEF:"", tg24h:"", tgLabs:"", tgObs:"",
   heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
@@ -3374,6 +3379,213 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+
+// ── PickField — campo com chips de seleção rápida ─────────────────────────
+function PickField({ label, options=[], value="", onChange, rows=2, placeholder="" }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const selectedOpts = options.filter(o => value.includes(o));
+  return (
+    <div style={{marginBottom:6}}>
+      {label&&<div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>{label}</div>}
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:4}}>
+        {options.map(opt=>{
+          const sel = value.includes(opt);
+          return (
+            <button key={opt} onClick={()=>{
+              if(sel) onChange(value.replace(opt,"").replace(/\s*\/\s*\/\s*/," / ").replace(/^\s*\/\s*/,"").replace(/\s*\/\s*$/,"").trim());
+              else onChange(value ? value+" / "+opt : opt);
+            }} style={{padding:"2px 8px",borderRadius:12,border:`1px solid ${sel?"rgba(56,189,248,0.5)":"rgba(255,255,255,0.1)"}`,
+              background:sel?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.03)",
+              color:sel?"#38bdf8":"#64748b",cursor:"pointer",fontSize:10,fontFamily:mono}}>
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      <textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows}
+        placeholder={placeholder}
+        style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
+          borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,resize:"vertical",
+          fontFamily:"'DM Mono',monospace"}}/>
+    </div>
+  );
+}
+
+// ── GasometriaPanel — sub-tabela de gasometrias com horário ────────────────
+function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const CAMPOS_GASO = [
+    {k:"ph",   lbl:"pH"},
+    {k:"hco3", lbl:"HCO₃", unit:"mEq/L"},
+    {k:"pco2", lbl:"pCO₂", unit:"mmHg"},
+    {k:"po2",  lbl:"pO₂",  unit:"mmHg"},
+    {k:"be",   lbl:"BE",   unit:"mEq/L"},
+    {k:"sato2",lbl:"SatO₂",unit:"%"},
+  ];
+
+  const getGasos = (d) => {
+    const v = data[d]?._gasos;
+    if(!v) return [];
+    try { return typeof v==="string"?JSON.parse(v):v; } catch{ return []; }
+  };
+
+  const setGasos = (d, gasos) => {
+    onChange({...data, [d]:{...(data[d]||{}), _gasos: JSON.stringify(gasos)}});
+  };
+
+  const addGaso = (d) => {
+    const gasos = getGasos(d);
+    setGasos(d, [...gasos, {id:Date.now()+"", horario:"", ph:"", hco3:"", pco2:"", po2:"", be:"", sato2:""}]);
+  };
+
+  const updateGaso = (d, id, field, val) => {
+    setGasos(d, getGasos(d).map(g=>g.id===id?{...g,[field]:val}:g));
+  };
+
+  const removeGaso = (d, id) => {
+    setGasos(d, getGasos(d).filter(g=>g.id!==id));
+  };
+
+  const thS = {padding:"5px 8px",fontSize:9,fontFamily:mono,color:"#475569",letterSpacing:1,
+    background:T.bgTableHead,textAlign:"center",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"};
+
+  return (
+    <div style={{marginTop:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <div style={{fontSize:10,fontFamily:mono,letterSpacing:2,color:"#38bdf8"}}>🫁 GASOMETRIAS</div>
+        <button onClick={()=>addGaso(hoje)}
+          style={{padding:"2px 9px",borderRadius:6,border:"1px solid rgba(56,189,248,0.3)",
+            background:"rgba(56,189,248,0.08)",color:"#38bdf8",cursor:"pointer",fontSize:11}}>
+          + Gaso
+        </button>
+      </div>
+      {datas.map(d => {
+        const gasos = getGasos(d);
+        if(!gasos.length) return null;
+        const isHoje2 = d===hoje||d.startsWith(hoje+"T");
+        return (
+          <div key={d} style={{marginBottom:10}}>
+            <div style={{fontSize:9,fontFamily:mono,color:"#334155",marginBottom:4}}>
+              {new Date(d+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}
+            </div>
+            {gasos.map(g=>(
+              <div key={g.id} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,
+                background:isHoje2?"rgba(56,189,248,0.02)":"transparent",
+                border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px",flexWrap:"wrap"}}>
+                <input placeholder="Horário" value={g.horario} onChange={e=>updateGaso(d,g.id,"horario",e.target.value)}
+                  style={{width:52,background:"transparent",border:"none",color:"#94a3b8",fontSize:11,fontFamily:mono}}/>
+                {CAMPOS_GASO.map(c=>(
+                  <div key={c.k} style={{display:"flex",alignItems:"center",gap:2}}>
+                    <span style={{fontSize:9,color:"#475569",fontFamily:mono}}>{c.lbl}</span>
+                    <input value={g[c.k]||""} onChange={e=>updateGaso(d,g.id,c.k,e.target.value)}
+                      style={{width:46,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
+                        borderRadius:4,color:"#e2e8f0",fontSize:11,fontFamily:mono,padding:"1px 4px",textAlign:"center"}}/>
+                  </div>
+                ))}
+                {isHoje2&&<button onClick={()=>removeGaso(d,g.id)}
+                  style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:12,padding:0,marginLeft:2}}>✕</button>}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      {!datas.some(d=>getGasos(d).length>0)&&(
+        <div style={{fontSize:11,color:"#334155",padding:"8px 0"}}>Nenhuma gasometria registrada. Clique "+ Gaso" para adicionar.</div>
+      )}
+    </div>
+  );
+}
+
+// ── CulturasPanel — tabela de culturas ────────────────────────────────────
+const CULTURA_TIPOS = ["Hemocultura","AT - Aspirado Traqueal","Urocultura","Swab Retal","Swab Nasal","Líquido Pleural","LCR","Swab Ferida","Outro"];
+const CULTURA_STATUS = ["Aguardando","Negativa","Parcial","Resistente","Sensível"];
+
+function CulturasPanel({ culturas=[], onChange }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const [show, setShow] = useState(false);
+  const [nova, setNova] = useState({tipo:"Hemocultura",material:"",dataColeta:new Date().toISOString().split("T")[0],status:"Aguardando",resultado:""});
+
+  const adicionar = () => {
+    if(!nova.tipo) return;
+    onChange([...culturas, {...nova, id:Date.now()+""}]);
+    setNova({tipo:"Hemocultura",material:"",dataColeta:new Date().toISOString().split("T")[0],status:"Aguardando",resultado:""});
+    setShow(false);
+  };
+
+  const atualizar = (id, field, val) => onChange(culturas.map(c=>c.id===id?{...c,[field]:val}:c));
+  const remover = (id) => onChange(culturas.filter(c=>c.id!==id));
+
+  const corStatus = s => s==="Negativa"?"#34d399":s==="Parcial"?"#fbbf24":s==="Resistente"?"#f87171":s==="Sensível"?"#34d399":"#64748b";
+
+  return (
+    <div style={{padding:"12px 16px",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <div style={{fontSize:11,fontFamily:mono,letterSpacing:2,color:"#a3e635",fontWeight:700}}>🧫 CULTURAS</div>
+        <button onClick={()=>setShow(s=>!s)}
+          style={{padding:"3px 10px",borderRadius:6,border:"1px solid rgba(163,230,53,0.3)",
+            background:"rgba(163,230,53,0.08)",color:"#a3e635",cursor:"pointer",fontSize:11}}>
+          {show?"Fechar":"+ Adicionar"}
+        </button>
+      </div>
+
+      {show&&(
+        <div style={{background:"rgba(163,230,53,0.04)",border:"1px solid rgba(163,230,53,0.15)",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+            <select value={nova.tipo} onChange={e=>setNova(n=>({...n,tipo:e.target.value}))}
+              style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}>
+              {CULTURA_TIPOS.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+            <input placeholder="Material (ex: periférico, cateter)" value={nova.material}
+              onChange={e=>setNova(n=>({...n,material:e.target.value}))}
+              style={{flex:1,minWidth:120,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}/>
+            <input type="date" value={nova.dataColeta} onChange={e=>setNova(n=>({...n,dataColeta:e.target.value}))}
+              style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}/>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <select value={nova.status} onChange={e=>setNova(n=>({...n,status:e.target.value}))}
+              style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}>
+              {CULTURA_STATUS.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+            <input placeholder="Resultado / germe / resistência" value={nova.resultado}
+              onChange={e=>setNova(n=>({...n,resultado:e.target.value}))}
+              style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}/>
+            <button onClick={adicionar}
+              style={{padding:"6px 14px",background:"rgba(163,230,53,0.15)",border:"1px solid rgba(163,230,53,0.3)",borderRadius:6,color:"#a3e635",cursor:"pointer",fontSize:12,fontWeight:700}}>
+              Adicionar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {culturas.length===0&&<div style={{fontSize:11,color:"#334155"}}>Nenhuma cultura registrada</div>}
+      {culturas.map(c=>(
+        <div key={c.id} style={{display:"flex",gap:8,alignItems:"center",marginBottom:6,padding:"6px 10px",
+          background:"rgba(255,255,255,0.02)",border:`1px solid ${corStatus(c.status)}20`,borderRadius:7,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:140}}>
+            <div style={{fontSize:11,color:"#cbd5e1",fontWeight:600}}>{c.tipo}{c.material?` — ${c.material}`:""}</div>
+            <div style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{c.dataColeta&&new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR")}</div>
+          </div>
+          <select value={c.status} onChange={e=>atualizar(c.id,"status",e.target.value)}
+            style={{background:"rgba(255,255,255,0.04)",border:`1px solid ${corStatus(c.status)}40`,borderRadius:5,
+              padding:"3px 6px",color:corStatus(c.status),fontSize:10,fontFamily:mono,cursor:"pointer"}}>
+            {CULTURA_STATUS.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+          <input value={c.resultado||""} onChange={e=>atualizar(c.id,"resultado",e.target.value)}
+            placeholder="Resultado..."
+            style={{flex:2,minWidth:120,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
+              borderRadius:5,padding:"3px 7px",color:"#e2e8f0",fontSize:11}}/>
+          <button onClick={()=>remover(c.id)}
+            style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:13}}>✕</button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -3474,8 +3686,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     }else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
     if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
-    if(get("tgUltEvac")){const d=Math.floor((new Date()-new Date(get("tgUltEvac")+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
-    if(get("tgLAMG"))   p.push(`- LAMG: ${get("tgLAMG")}`);
+    const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
+    const _lamg=get("tgLAMG")||leito.tgLAMG;
+    if(_ultEvac){const d=Math.floor((new Date()-new Date(_ultEvac+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
+    if(_lamg)   p.push(`- LAMG: ${_lamg}`);
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(get("tgObs"))  p.push(`*${get("tgObs")}`);
     return p.join("\n");
@@ -3491,13 +3705,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const txtIn = () => {
     const p=[];
     if(get("heMed")) p.push(get("heMed"));
-    if(ativos.length){
-      const lista=ativos.map(a=>{
-        const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
-        return `${a.label}${a.disp.site?` ${a.disp.site}`:""} D${dd}`;
-      }).join(", ");
-      p.push(`Dispositivos: ${lista}`);
-    }
     if(get("heAtb"))      p.push(get("heAtb"));
     if(get("heCulturas")) p.push(`- Culturas: ${get("heCulturas")}`);
     return p.join("\n");
@@ -3734,7 +3941,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtCvFull = () => {
     const p=[];
-    if(get("cvEF"))   p.push(`- EF: ${get("cvEF")}`);
+    if(get("cvHemo"))       p.push(`- Hemodinâmica: ${get("cvHemo")}`);
+    if(get("cvCardioscopia")) p.push(`- Cardioscopia: ${get("cvCardioscopia")}`);
+    if(get("cvAusculta"))   p.push(`- Ausculta: ${get("cvAusculta")}`);
+    if(get("cvEF"))   p.push(`- EF CV: ${get("cvEF")}`);
     if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
     if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
     if(vis.cvMed&&get("cvMed")) p.push(`- P: ${get("cvMed")}`);
@@ -3778,8 +3988,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
     if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
-    if(get("tgUltEvac")){const d=Math.floor((new Date()-new Date(get("tgUltEvac")+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
-    if(get("tgLAMG"))   p.push(`- LAMG: ${get("tgLAMG")}`);
+    const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
+    const _lamg=get("tgLAMG")||leito.tgLAMG;
+    if(_ultEvac){const d=Math.floor((new Date()-new Date(_ultEvac+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
+    if(_lamg)   p.push(`- LAMG: ${_lamg}`);
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(vis.add_tgi_interconsulta&&getExtra("add_tgi_interconsulta")) p.push(`- IC: ${getExtra("add_tgi_interconsulta")}`);
     if(vis.add_tgi_exames&&getExtra("add_tgi_exames")) p.push(`- Exames: ${getExtra("add_tgi_exames")}`);
@@ -3799,13 +4011,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const txtInFull = () => {
     const p=[];
     if(vis.inProf&&get("heMed")) p.push(get("heMed"));
-    if(ativos.length){
-      const lista=ativos.map(a=>{
-        const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
-        return `${a.label}${a.disp.site?` ${a.disp.site}`:""} D${dd}`;
-      }).join(", ");
-      p.push(`Dispositivos: ${lista}`);
-    }
     if(get("heAtb"))      p.push(get("heAtb"));
     if(get("heCulturas")) p.push(`- Culturas: ${get("heCulturas")}`);
     if(vis.add_in_interconsulta&&getExtra("add_in_interconsulta")) p.push(`- IC: ${getExtra("add_in_interconsulta")}`);
@@ -4037,7 +4242,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {vis["heObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} sugestao="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
-      <SysB id="in" sigla="== In:" label="Infeccioso / Dispositivos" color={"#94a3b8"} txtFn={txtInFull}
+      <SysB id="in" sigla="== In:" label="Infeccioso" color={"#94a3b8"} txtFn={txtInFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}>
@@ -4656,7 +4861,18 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                     const doseInfo=[a.dose,a.intervalo].filter(Boolean).join(" ");
                     return <R key={a.id} lbl={a.nome} val={dd?`D${dd}`:""} unit={doseInfo} cor="#a3e635"/>;
                   })}
-                  {h.heCulturas&&<div style={{marginTop:3,fontSize:10,color:"#94a3b8",fontFamily:mono,padding:"2px 0"}}>🧫 {h.heCulturas}</div>}
+                  {(l.culturas||[]).length>0&&(
+                    <div style={{marginTop:4}}>
+                      {(l.culturas||[]).map(c=>(
+                        <div key={c.id} style={{fontSize:10,fontFamily:mono,marginBottom:2}}>
+                          <span style={{color:"#475569"}}>🧫 {c.tipo}{c.material?" ("+c.material+")":""}</span>
+                          <span style={{marginLeft:6,color:c.status==="Negativa"?"#34d399":c.status==="Resistente"?"#f87171":"#fbbf24"}}>
+                            {c.status}{c.resultado?" / "+c.resultado.slice(0,30):""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   </SecBody>
                 </>}
 
