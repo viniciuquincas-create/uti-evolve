@@ -4438,13 +4438,17 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={} }) {
     <div style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:cor,marginTop:8,marginBottom:3,paddingBottom:2,borderBottom:`1px solid ${cor}25`}}>{ico} {lbl}</div>
   );
 
-  // Drug row from drogasVazao
+  const DRUG_LABELS = {
+    propofol:"Propofol", midazolam:"Midazolam", fentanil:"Fentanil",
+    cetamina:"Cetamina (S+)", precedex:"Precedex (Dex)", morfina:"Morfina",
+    noradrenalina:"Noradrenalina", dobutamina:"Dobutamina", vasopressina:"Vasopressina",
+    nitroglicerina:"Nitroglicerina", nitroprussiato:"Nitroprussiato",
+    furosemida:"Furosemida", amiodarona:"Amiodarona",
+  };
   const DrugRow = ({dKey, vazoes}) => {
     const v = vazoes[dKey];
-    const conf = DROGAS_CONFIG[dKey];
-    if(!v||!conf||parseFloat(v)<=0) return null;
-    const res = calcDoseFromMLH(dKey, parseFloat(v), null, null, null); // peso not available here
-    return <R lbl={conf.label} val={`${v}mL/h`} unit={res?`(${Math.round(parseFloat(res.dose)*100)/100} ${res.label})`:"" } cor="#fbbf24"/>;
+    if(!v||parseFloat(v)<=0) return null;
+    return <R lbl={DRUG_LABELS[dKey]||dKey} val={`${v} mL/h`} cor="#fbbf24"/>;
   };
 
   return (
