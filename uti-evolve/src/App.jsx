@@ -3344,9 +3344,9 @@ const EVOLUCAO_VAZIA = {
   hda:"",
   nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
   cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
-  reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reObs:"",
+  reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
-  tgEF:"", tg24h:"", tgLabs:"", tgObs:"",
+  tgEF:"", tg24h:"", tgLabs:"", tgPocus:"", tgObs:"",
   heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
   probAtivos:"", probResolvidos:"",
   impressao:"",
@@ -3514,7 +3514,7 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
 
   const addGaso = (d) => {
     const gasos = getGasos(d);
-    setGasos(d, [...gasos, {id:Date.now()+"", horario:"", ph:"", hco3:"", pco2:"", po2:"", be:"", sato2:""}]);
+    setGasos(d, [...gasos, {id:Date.now()+"", data:d, horario:"", ph:"", hco3:"", pco2:"", po2:"", be:"", sato2:""}]);
   };
 
   const updateGaso = (d, id, field, val) => {
@@ -3551,8 +3551,10 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
               <div key={g.id} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,
                 background:isHoje2?"rgba(56,189,248,0.02)":"transparent",
                 border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px",flexWrap:"wrap"}}>
-                <input placeholder="Horário" value={g.horario} onChange={e=>updateGaso(d,g.id,"horario",e.target.value)}
-                  style={{width:52,background:"transparent",border:"none",color:"#94a3b8",fontSize:11,fontFamily:mono}}/>
+                <input type="date" value={g.data||d} onChange={e=>updateGaso(d,g.id,"data",e.target.value)}
+                  style={{background:"transparent",border:"none",color:"#64748b",fontSize:10,fontFamily:mono,width:90}}/>
+                <input placeholder="Hora" value={g.horario} onChange={e=>updateGaso(d,g.id,"horario",e.target.value)}
+                  style={{width:45,background:"transparent",border:"none",color:"#94a3b8",fontSize:11,fontFamily:mono}}/>
                 {CAMPOS_GASO.map(c=>(
                   <div key={c.k} style={{display:"flex",alignItems:"center",gap:2}}>
                     <span style={{fontSize:9,color:"#475569",fontFamily:mono}}>{c.lbl}</span>
@@ -4279,7 +4281,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"rePocus",label:"POCUS"},{key:"reObs",label:"Obs"}]}>
+        opcionais={[{key:"rePocus",label:"POCUS Pulmonar"},{key:"reLUS",label:"LUS"},{key:"reObs",label:"Obs"}]}>
         <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} sugestao="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
         <Row>
           <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} sugestao="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
@@ -4291,7 +4293,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
               const gasos=raw?(typeof raw==="string"?JSON.parse(raw):raw):[];
               if(!gasos.length) return "";
               return gasos.map(g=>{
-                const h=g.horario?`[${g.horario}] `:"";
+                const dt2=g.data&&g.data!==d?new Date(g.data+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" ":"";
+                const h=g.horario?`${dt2}[${g.horario}] `:dt2;
                 const parts=[g.ph?`pH ${g.ph}`:"",g.hco3?`HCO3 ${g.hco3}`:"",g.pco2?`pCO2 ${g.pco2}`:"",g.po2?`pO2 ${g.po2}`:"",g.be?`BE ${g.be}`:"",g.sato2?`SatO2 ${g.sato2}%`:""].filter(Boolean).join(" / ");
                 return h+parts;
               }).join("\n");
@@ -4314,7 +4317,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={"#fb923c"} txtFn={txtTGIFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"tgObs",label:"Obs"}]}
+        opcionais={[{key:"tgPocus",label:"POCUS Abdominal"},{key:"tgObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}>
         {leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>
           🍽 <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`}
