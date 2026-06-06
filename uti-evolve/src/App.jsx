@@ -4817,17 +4817,15 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
       </div>
     );
   };
-  const SecBody = ({cid, lbl, children}) => {
+  const SecBody = ({cid, lbl, children, leito: sl, ec: sec}) => {
     const key = cid+lbl;
     if(collapsed[key]) return null;
     // Show extra campos selected via ⊕ for this system
-    const vmap = (l.vgpMap||{})[lbl]||[];
-    const ec = evolCamposPorLeito[l.id]||{};
-    const extras = vmap.map(k=>{
+    const extras = sl ? ((sl.vgpMap||{})[lbl]||[]).map(k=>{
       const f=(EVOL_SYS_FIELDS[lbl]||[]).find(x=>x.k===k);
-      const val=ec[k];
+      const val=(sec||{})[k];
       return val?{label:f?.l||k,val}:null;
-    }).filter(Boolean);
+    }).filter(Boolean) : [];
     return <>
       {children}
       {extras.map((ex,i)=>(
@@ -4907,7 +4905,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                 {/* 🧠 Neurológico */}
                 {hasNeuro&&<>
                   <Sec ico="🧠" lbl="NEUROLÓGICO" cor="#c084fc" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="NEUROLÓGICO">
+                  <SecBody cid={l.id} lbl="NEUROLÓGICO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
                   {NEURO_DRUGS.map(k=><DrugRow key={k} dKey={k} vazoes={vaz}/>)}
                   <R lbl="PIC" val={h.c24_pic} unit="mmHg" cor={parseFloat(h.c24_pic)>20?"#f87171":"#cbd5e1"}/>
                   <R lbl="PPC" val={h.c24_ppc} unit="mmHg" cor={parseFloat(h.c24_ppc)<60?"#f87171":"#34d399"}/>
@@ -4918,7 +4916,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                 {/* ❤️ Cardiovascular */}
                 {hasCardio&&<>
                   <Sec ico="❤️" lbl="CARDIOVASCULAR" cor="#f87171" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="CARDIOVASCULAR">
+                  <SecBody cid={l.id} lbl="CARDIOVASCULAR" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
                   {CARDIO_DRUGS.map(k=><DrugRow key={k} dKey={k} vazoes={vaz}/>)}
                   <R lbl="FC" val={h.c24_fc} unit="bpm" cor={parseFloat(h.c24_fc)>100||parseFloat(h.c24_fc)<60?"#fbbf24":"#34d399"}/>
                   <R lbl="PAM" val={h.c24_pam} unit="mmHg" cor={parseFloat(h.c24_pam)<65?"#f87171":"#34d399"}/>
@@ -4929,7 +4927,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                 {/* 🫁 Respiratório */}
                 {hasResp&&<>
                   <Sec ico="🫁" lbl="RESPIRATÓRIO" cor="#38bdf8" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="RESPIRATÓRIO">
+                  <SecBody cid={l.id} lbl="RESPIRATÓRIO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
                   {vm&&<R lbl="Modo" val={vm.label} cor="#38bdf8"/>}
                   {l.vm_fio2&&<R lbl="FiO₂" val={l.vm_fio2} unit="%"/>}
                   {l.vm_peep&&<R lbl="PEEP" val={l.vm_peep} unit="cmH₂O"/>}
@@ -4949,7 +4947,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                 {/* 🫘 Renal / Metabólico */}
                 {hasRenal&&<>
                   <Sec ico="🫘" lbl="RENAL / METABÓLICO" cor="#34d399" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="RENAL / METABÓLICO">
+                  <SecBody cid={l.id} lbl="RENAL / METABÓLICO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
                   <R lbl="Creatinina" val={h.cr} unit="mg/dL" cor={parseFloat(h.cr)>1.2?"#fbbf24":"#34d399"}/>
                   <R lbl="Ureia" val={h.ur} unit="mg/dL" cor={parseFloat(h.ur)>60?"#fbbf24":"#cbd5e1"}/>
                   <R lbl="Sódio" val={h.na} unit="mEq/L" cor={parseFloat(h.na)<135||parseFloat(h.na)>145?"#fbbf24":"#34d399"}/>
@@ -4966,7 +4964,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                 {/* 🩸 Hematológico */}
                 {hasHema&&<>
                   <Sec ico="🩸" lbl="HEMATOLÓGICO" cor="#fb923c" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="HEMATOLÓGICO">
+                  <SecBody cid={l.id} lbl="HEMATOLÓGICO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
                   <R lbl="Temperatura" val={h.c24_temp} unit="°C" cor={parseFloat(h.c24_temp)>38?"#f87171":parseFloat(h.c24_temp)<36?"#38bdf8":"#34d399"}/>
                   <R lbl="Hb" val={h.hb} unit="g/dL" cor={parseFloat(h.hb)<7?"#f87171":parseFloat(h.hb)<8?"#fbbf24":"#34d399"}/>
                   <R lbl="Leucócitos" val={h.leuco} unit="/mm³" cor={parseFloat(h.leuco)>12000||parseFloat(h.leuco)<4000?"#fbbf24":"#34d399"}/>
@@ -4983,7 +4981,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                 {/* 🦠 Infeccioso */}
                 {hasInf&&<>
                   <Sec ico="🦠" lbl="INFECCIOSO" cor="#a3e635" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="INFECCIOSO">
+                  <SecBody cid={l.id} lbl="INFECCIOSO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
                   {atbAtivos.map(a=>{
                     const dd=a.dataInicio?Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1:null;
                     const doseInfo=[a.dose,a.intervalo].filter(Boolean).join(" ");
@@ -5007,7 +5005,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                 {/* 🍽 TGI */}
                 {hasTgi&&<>
                   <Sec ico="🍽" lbl="TGI" cor="#fb923c" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="TGI">
+                  <SecBody cid={l.id} lbl="TGI" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
                   <R lbl="Glicemia" val={h.c24_dextro} unit="mg/dL" cor={parseFloat(h.c24_dextro)>180||parseFloat(h.c24_dextro)<70?"#fbbf24":"#34d399"}/>
                   {l.tgUltEvac&&<R lbl="Última evacuação" val={`${Math.floor((new Date()-new Date(l.tgUltEvac+"T00:00:00"))/86400000)}d atrás`}/>}
                   {h.c24_diet_vol&&<R lbl="Dieta" val={h.c24_diet_vol} unit="mL"/>}
