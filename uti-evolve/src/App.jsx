@@ -2680,8 +2680,18 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
     const rmStr  = pegar(["cr","ur","na","k","mg","cai","p","ph","hco3"]);
     const cvStr  = pegar(["trop","bnp","ntpro","be","lact"]);
-    const resStr = pegar(["po2","pco2"]);
-    const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
+    // Gasometria: lê _gasos do painel dedicado + fallback tabela
+    const gasoEntries = (() => {
+      try { const raw=data[chaveHoje]?._gasos; return raw?(typeof raw==="string"?JSON.parse(raw):raw):[]; } catch{ return []; }
+    })();
+    const resStr = gasoEntries.length > 0
+      ? gasoEntries.map(g => {
+          const h = g.horario ? `[${g.horario}] ` : "";
+          const p = [g.ph?`pH ${g.ph}`:"",g.hco3?`HCO3 ${g.hco3}`:"",g.pco2?`pCO2 ${g.pco2}`:"",g.po2?`pO2 ${g.po2}`:"",g.be?`BE ${g.be}`:"",g.sato2?`SatO2 ${g.sato2}%`:""].filter(Boolean).join(" / ");
+          return h + p;
+        }).join("\n")
+      : pegar(["po2","pco2"]);
+        const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
 
     // Controles → campos certos em cada sistema
     const tempStr  = pegarCtrl(["c24_temp"]);           // He: Infeccioso/Temperatura
@@ -4275,7 +4285,18 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} sugestao="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
           <Col><FL>24h — FR / Sat (mín-máx)</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} sugestao="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso} isAntigo={isAntigo("reGaso")} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso||(()=>{
+            try {
+              const raw=tabelaHoje?._gasos;
+              const gasos=raw?(typeof raw==="string"?JSON.parse(raw):raw):[];
+              if(!gasos.length) return "";
+              return gasos.map(g=>{
+                const h=g.horario?`[${g.horario}] `:"";
+                const parts=[g.ph?`pH ${g.ph}`:"",g.hco3?`HCO3 ${g.hco3}`:"",g.pco2?`pCO2 ${g.pco2}`:"",g.po2?`pO2 ${g.po2}`:"",g.be?`BE ${g.be}`:"",g.sato2?`SatO2 ${g.sato2}%`:""].filter(Boolean).join(" / ");
+                return h+parts;
+              }).join("\n");
+            } catch { return ""; }
+          })()} isAntigo={isAntigo("reGaso")} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
         {vis["rePocus"]&&<Row><Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} sugestao="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col></Row>}
         {vis["reObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} sugestao="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
@@ -4363,7 +4384,17 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
         <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} sugestao={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} sugestao={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas||(()=>{
+            const cs=leito.culturas||[];
+            if(!cs.length) return "";
+            return cs.map(c=>{
+              const tipo=(typeof CULTURA_TIPOS!=="undefined"?(CULTURA_TIPOS.find(x=>x.id===c.tipo)||{lbl:c.tipo||""}).lbl:c.tipo||"");
+              const data2=c.dataColeta?new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
+              const hdr=`${tipo}${c.material?" ("+c.material+")":""} ${data2}`;
+              const germes=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;return t;}).filter(Boolean).join("; ");
+              return `${hdr}: ${germes||c.resultado||"aguardando resultado"}`;
+            }).join("\n");
+          })()} isAntigo={isAntigo("heCulturas")} sugestao={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
         {vis["add_in_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_in_interconsulta")} defaultValue={campos["add_in_interconsulta"]||""} sugestao="ID 29/04: avaliar troca ATB aguardando culturas" rows={1} fieldName="add_in_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_in_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_in_exames")} defaultValue={campos["add_in_exames"]||""} sugestao="Beta-D-glucana 29/04: pendente" rows={1} fieldName="add_in_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["inObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={ExtraRef("inObs")} defaultValue={campos["inObs"]||""} sugestao="Reavaliação com culturas em 48h" rows={1} fieldName="inObs" onBlurSave={salvar}/></Col></Row>}
