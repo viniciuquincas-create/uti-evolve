@@ -3342,7 +3342,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 const EVOLUCAO_VAZIA = {
   hda:"",
-  nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
+  nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nEFExtra:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
   cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
   reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
@@ -4003,45 +4003,60 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   // ── txt funções completas (incluem opcionais/adicionáveis) ──
   const txtNFull = () => {
     const p=[];
-    if(get("nRASS"))     p.push(`- RASS: ${get("nRASS")}`);
-    if(get("nGlasgow"))  p.push(`- Glasgow: ${get("nGlasgow")}`);
-    if(get("nPupilas"))  p.push(`- Pupilas: ${get("nPupilas")}`);
-    if(get("nEF"))       p.push(`- Força/Déficits: ${get("nEF")}`);
-    if(get("nDor"))      p.push(`- Dor: ${get("nDor")}`);
-    if(get("nSeda"))     p.push(`- P: ${get("nSeda")}`);
-    if(get("nAnalg"))    p.push(`- A: ${get("nAnalg")}`);
-    if(vis.nPsiq&&get("nPsiq"))  p.push(`- Psiq: ${get("nPsiq")}`);
+    // EF compacto em uma linha: RASS 0, GCS 15, Pupilas..., Força..., BPS 3
+    const ef = [
+      get("nRASS")   ? `RASS ${get("nRASS").replace(/^-?\d+\s*/,"").match(/^-?\d+/)? get("nRASS").split(" ")[0] : get("nRASS")}` : "",
+      get("nGlasgow")? `GCS ${get("nGlasgow")}` : "",
+      get("nPupilas")? get("nPupilas") : "",
+      get("nEF")     ? get("nEF") : "",
+      get("nDor")    ? get("nDor").replace(/^(BPS|EVA)\s*/i,"$1 ") : "",
+      get("nEFExtra")? get("nEFExtra") : "",
+    ].filter(Boolean).join(", ");
+    if(ef) p.push(`- EF: ${ef}`);
+    if(get("nSeda"))  p.push(`- Sedação: ${get("nSeda")}`);
+    if(get("nAnalg")) p.push(`- Analgesia: ${get("nAnalg")}`);
+    if(vis.nPsiq&&get("nPsiq")) p.push(`- Psicoativos: ${get("nPsiq")}`);
     if(vis.add_n_interconsulta&&getExtra("add_n_interconsulta")) p.push(`- IC: ${getExtra("add_n_interconsulta")}`);
     if(vis.add_n_exames&&getExtra("add_n_exames")) p.push(`- Exames: ${getExtra("add_n_exames")}`);
     if(vis.add_n_pocus&&getExtra("add_n_pocus")) p.push(`- POCUS: ${getExtra("add_n_pocus")}`);
-    if(vis.nObs&&get("nObs"))   p.push(`*${get("nObs")}`);
+    if(vis.nObs&&get("nObs")) p.push(`*${get("nObs")}`);
     return p.join("\n");
   };
   const txtCvFull = () => {
     const p=[];
-    if(get("cvHemo"))       p.push(`- Hemodinâmica: ${get("cvHemo")}`);
-    if(get("cvCardioscopia")) p.push(`- Cardioscopia: ${get("cvCardioscopia")}`);
-    if(get("cvAusculta"))   p.push(`- Ausculta: ${get("cvAusculta")}`);
-    if(get("cvEF"))   p.push(`- EF CV: ${get("cvEF")}`);
-    if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
+    // EF: hemodinâmica; ausculta; cardioscopia
+    const ef_cv = [get("cvHemo"), get("cvAusculta"), get("cvCardioscopia")?`cardioscopia: ${get("cvCardioscopia")}`:"", get("cvEF")].filter(Boolean).join("; ");
+    if(ef_cv) p.push(`- EF: ${ef_cv}`);
     if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
-    if(vis.cvMed&&get("cvMed")) p.push(`- P: ${get("cvMed")}`);
-    if(get("cvPerf")) p.push(`- Perfusão: ${get("cvPerf")}`);
-    if(vis.add_cv_interconsulta&&getExtra("add_cv_interconsulta")) p.push(`- IC: ${getExtra("add_cv_interconsulta")}`);
-    if(vis.add_cv_exames&&getExtra("add_cv_exames")) p.push(`- Exames: ${getExtra("add_cv_exames")}`);
+    if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
+    if(vis.cvPerf&&get("cvPerf")) p.push(`- Perfusão: ${get("cvPerf")}`);
+    if(vis.cvMed&&get("cvMed")) p.push(`- Medicações: ${get("cvMed")}`);
     if(vis.add_cv_pocus&&getExtra("add_cv_pocus")) p.push(`- POCUS: ${getExtra("add_cv_pocus")}`);
     if(vis.add_cv_picco&&getExtra("add_cv_picco")) p.push(`- PiCCO: ${getExtra("add_cv_picco")}`);
     if(vis.add_cv_swan&&getExtra("add_cv_swan")) p.push(`- Swan-Ganz: ${getExtra("add_cv_swan")}`);
-    if(vis.cvObs&&get("cvObs"))  p.push(`*${get("cvObs")}`);
+    if(vis.add_cv_interconsulta&&getExtra("add_cv_interconsulta")) p.push(`- IC: ${getExtra("add_cv_interconsulta")}`);
+    if(vis.cvObs&&get("cvObs")) p.push(`*${get("cvObs")}`);
     return p.join("\n");
   };
   const txtResFull = () => {
     const p=[];
-    if(get("reVM"))   p.push(`- Ventilação: ${get("reVM")}`);
-    if(get("reEF"))   p.push(`- EF: ${get("reEF")}`);
-    if(get("re24h"))  p.push(`- 24h: ${get("re24h")}`);
-    if(get("reGaso")) p.push(`Gaso: ${get("reGaso")}`);
+    // Ventilação: nebulização incluída
+    const nebTxt = (leito.nebMed||leito.nebFreq) ? ` | Neb: ${[leito.nebMed,leito.nebFreq].filter(Boolean).join(" ")}` : "";
+    if(get("reVM")) p.push(`- Ventilação: ${get("reVM")}${nebTxt}`);
+    else if(nebTxt) p.push(`- Nebulização:${nebTxt}`);
+    // EF: MV + RA + outros
+    const ef_res = [get("reMV"), get("reRA"), get("reEF")].filter(Boolean).join(" / ");
+    if(ef_res) p.push(`- EF: ${ef_res}`);
+    if(get("re24h")) p.push(`- 24h: ${get("re24h")}`);
+    // Gaso com bullet
+    const gasoTxt = get("reGaso");
+    if(gasoTxt) {
+      const bullets = gasoTxt.split("\n").map(l=>`  • ${l}`).join("\n");
+      p.push(`- Gaso:\n${bullets}`);
+    }
+    if(vis.reLUS&&get("reLUS")) p.push(`- LUS: ${get("reLUS")}`);
     if(vis.rePocus&&get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
+    if(vis.add_res_interconsulta&&getExtra("add_res_interconsulta")) p.push(`- IC: ${getExtra("add_res_interconsulta")}`);
     if(vis.reObs&&get("reObs")) p.push(`*${get("reObs")}`);
     return p.join("\n");
   };
@@ -4059,18 +4074,19 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const d=leito.dieta;
     if(d?.tipo&&d.tipo!=="jejum"){
       const tl={enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
-      let dl=`Dieta: ${tl}`;
+      let dl=`- Dieta: ${tl}`;
       if(d.formula) dl+=` ${d.formula}`;
       if(d.vazao) dl+=` @ ${d.vazao}mL/h`;
-      p.push(`- ${dl}`);
+      p.push(dl);
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
-    if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
-    if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
+    if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
+    if(get("tg24h")) p.push(`- 24h: ${get("tg24h")}`);
     const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
     const _lamg=get("tgLAMG")||leito.tgLAMG;
-    if(_ultEvac){const d=Math.floor((new Date()-new Date(_ultEvac+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
-    if(_lamg)   p.push(`- LAMG: ${_lamg}`);
+    if(_ultEvac){const dx=Math.floor((new Date()-new Date(_ultEvac+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${dx}d atrás`);}
+    if(_lamg) p.push(`- LAMG: ${_lamg}`);
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
+    if(vis.tgPocus&&get("tgPocus")) p.push(`- POCUS: ${get("tgPocus")}`);
     if(vis.add_tgi_interconsulta&&getExtra("add_tgi_interconsulta")) p.push(`- IC: ${getExtra("add_tgi_interconsulta")}`);
     if(vis.add_tgi_exames&&getExtra("add_tgi_exames")) p.push(`- Exames: ${getExtra("add_tgi_exames")}`);
     if(vis.tgObs&&get("tgObs")) p.push(`*${get("tgObs")}`);
@@ -4210,7 +4226,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtNFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
+        opcionais={[{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}>
         <Row>
           <Col>
@@ -4225,7 +4241,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <PickField label="Pupilas"
               options={["Isocóricas fotorreativas","Anisocóricas","Midríase bilateral fotofixas","Miose bilateral","Pupila esquerda midriática","Pupila direita midriática"]}
               value={campos.nPupilas||""} onChange={v=>onCampoEdit("nPupilas",v)} rows={1}/>
-            <PickField label="Força / Déficits"
+            <PickField label="EF — Detalhe específico"
               options={["Força preservada globalmente","Paraplegia","Hemiplegia D","Hemiplegia E","Força reduzida difusamente","Sedado — não avaliável"]}
               value={campos.nEF||""} onChange={v=>onCampoEdit("nEF",v)} rows={2}/>
             <PickField label="Avaliação de Dor (BPS / EVA)"
@@ -4237,6 +4253,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
           <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
         </Row>
+        {vis["nEFExtra"]&&<Row><Col><FL>EF — Detalhe adicional</FL><TA fieldRef={refs.nEFExtra} defaultValue={campos.nEFExtra} isAntigo={isAntigo("nEFExtra")} rows={2} fieldName="nEFExtra" onBlurSave={salvar}/></Col></Row>}
         {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} rows={2} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
         {vis["add_n_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_n_interconsulta")} defaultValue={campos["add_n_interconsulta"]} isAntigo={isAntigo("add_n_interconsulta")} rows={2} fieldName="add_n_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_n_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_n_exames")} defaultValue={campos["add_n_exames"]} isAntigo={isAntigo("add_n_exames")} rows={2} fieldName="add_n_exames" onBlurSave={salvar}/></Col></Row>}
