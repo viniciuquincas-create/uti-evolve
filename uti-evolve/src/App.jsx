@@ -4979,12 +4979,22 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                 {hasResp&&<>
                   <Sec ico="🫁" lbl="RESPIRATÓRIO" cor="#38bdf8" cid={l.id}/>
                   <SecBody cid={l.id} lbl="RESPIRATÓRIO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
-                  {vm&&<R lbl="Modo" val={vm.label} cor="#38bdf8"/>}
-                  {l.vm_fio2&&<R lbl="FiO₂" val={l.vm_fio2} unit="%"/>}
-                  {l.vm_peep&&<R lbl="PEEP" val={l.vm_peep} unit="cmH₂O"/>}
-                  {l.vm_ps&&<R lbl="PS" val={l.vm_ps} unit="cmH₂O"/>}
-                  {l.vm_pplat&&l.vm_peep&&<R lbl="DP" val={parseFloat(l.vm_pplat)-parseFloat(l.vm_peep)} unit="cmH₂O" cor={parseFloat(l.vm_pplat)-parseFloat(l.vm_peep)>15?"#f87171":"#34d399"}/>}
-                  {pp&&l.vm_vt&&<R lbl="VC mL/kg" val={(parseFloat(l.vm_vt)/parseFloat(pp)).toFixed(1)} cor={parseFloat(l.vm_vt)/parseFloat(pp)>8?"#f87171":parseFloat(l.vm_vt)/parseFloat(pp)<=6?"#34d399":"#fbbf24"}/>}
+                  {(()=>{
+                    const mId=l.vm_modo||"";
+                    const isVM=["vm_psv","vm_pcv","vm_vcv"].includes(mId);
+                    const isVNI=mId==="vni";
+                    const isCNAF=mId==="cnaf";
+                    const usesPEEP=isVM||isVNI;
+                    const usesPS=isVM||isVNI;
+                    return<>
+                      {vm&&<R lbl="Modo" val={vm.label} cor="#38bdf8"/>}
+                      {l.vm_fio2&&<R lbl={isCNAF?"Fluxo":"FiO₂"} val={`${l.vm_fio2}${isCNAF?" L/min":"%"}`}/>}
+                      {usesPEEP&&l.vm_peep&&<R lbl="PEEP" val={l.vm_peep} unit="cmH₂O"/>}
+                      {usesPS&&l.vm_ps&&<R lbl="PS" val={l.vm_ps} unit="cmH₂O"/>}
+                      {isVM&&l.vm_pplat&&l.vm_peep&&<R lbl="DP" val={parseFloat(l.vm_pplat)-parseFloat(l.vm_peep)} unit="cmH₂O" cor={parseFloat(l.vm_pplat)-parseFloat(l.vm_peep)>15?"#f87171":"#34d399"}/>}
+                      {isVM&&pp&&l.vm_vt&&<R lbl="VC mL/kg" val={(parseFloat(l.vm_vt)/parseFloat(pp)).toFixed(1)} cor={parseFloat(l.vm_vt)/parseFloat(pp)>8?"#f87171":parseFloat(l.vm_vt)/parseFloat(pp)<=6?"#34d399":"#fbbf24"}/>}
+                    </>;
+                  })()}
                   <R lbl="SpO₂" val={h.c24_sat} unit="%" cor={parseFloat(h.c24_sat)<92?"#f87171":"#34d399"}/>
                   <R lbl="FR" val={h.c24_fr} unit="irpm" cor={parseFloat(h.c24_fr)>25?"#fbbf24":"#cbd5e1"}/>
                   <R lbl="pH" val={h.ph} cor={parseFloat(h.ph)<7.35?"#f87171":parseFloat(h.ph)>7.45?"#fbbf24":"#34d399"}/>
