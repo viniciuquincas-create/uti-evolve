@@ -4404,17 +4404,22 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
         <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} sugestao={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>🧫 Culturas — material · data · resultado</FL><TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas||(()=>{
-            const cs=leito.culturas||[];
-            if(!cs.length) return "";
-            return cs.map(c=>{
-              const tipo=(typeof CULTURA_TIPOS!=="undefined"?(CULTURA_TIPOS.find(x=>x.id===c.tipo)||{lbl:c.tipo||""}).lbl:c.tipo||"");
-              const data2=c.dataColeta?new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
-              const hdr=`${tipo}${c.material?" ("+c.material+")":""} ${data2}`;
-              const germes=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;return t;}).filter(Boolean).join("; ");
-              return `${hdr}: ${germes||c.resultado||"aguardando resultado"}`;
-            }).join("\n");
-          })()} isAntigo={isAntigo("heCulturas")} sugestao={"- Hemocultura 23/04: pendente\n- Urinocultura 22/04: E.coli ESBL"} rows={3} fieldName="heCulturas" onBlurSave={salvar}/></Col></Row>
+        <Row><Col>
+          <FL>🧫 Culturas</FL>
+          {(leito.culturas||[]).length>0 ? (
+            <div style={{background:"rgba(163,230,53,0.04)",border:"1px solid rgba(163,230,53,0.12)",borderRadius:7,padding:"6px 9px",marginBottom:4}}>
+              {(leito.culturas||[]).map(c=>{
+                const tipo=(CULTURA_TIPOS.find(x=>x.id===c.tipo)||{lbl:c.tipo||""}).lbl;
+                const data2=c.dataColeta?new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
+                const hdr=`${tipo}${c.material?" ("+c.material+")":""} ${data2}`;
+                const germes=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;if(g.atbs)t+=` — sensível: ${g.atbs}`;return t;}).filter(Boolean).join("; ");
+                return <div key={c.id} style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8",marginBottom:2}}>{`${hdr}: ${germes||c.resultado||"aguardando resultado"}`}</div>;
+              })}
+            </div>
+          ) : <div style={{fontSize:10,color:"#334155",marginBottom:4}}>Nenhuma cultura. Adicione na aba 🧫 Culturas.</div>}
+          <FL>Obs. Culturas (manual)</FL>
+          <TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} rows={2} fieldName="heCulturas" onBlurSave={salvar}/>
+        </Col></Row>
         {vis["add_in_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_in_interconsulta")} defaultValue={campos["add_in_interconsulta"]||""} sugestao="ID 29/04: avaliar troca ATB aguardando culturas" rows={1} fieldName="add_in_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_in_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_in_exames")} defaultValue={campos["add_in_exames"]||""} sugestao="Beta-D-glucana 29/04: pendente" rows={1} fieldName="add_in_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["inObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={ExtraRef("inObs")} defaultValue={campos["inObs"]||""} sugestao="Reavaliação com culturas em 48h" rows={1} fieldName="inObs" onBlurSave={salvar}/></Col></Row>}
