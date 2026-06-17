@@ -81,8 +81,8 @@ const DROGAS_PROTOCOLO = {
   },
   dobutamina: {
     label:"Dobutamina", grupo:"vasoativa",
-    diluicaoDesc:"80 mL (250 mg) em SG5% 170 mL → 250 mL",
-    concMcgML: 1000,
+    diluicaoDesc:"4 amp 20mL (1000 mg) em SG5% 170 mL → 250 mL",
+    concMcgML: 4000,
     modoCalcDefault:"mcg_kg_min",
     modoCalcOpcoes:["mcg_kg_min"],
     max:20, unidadeLabel:"mcg/kg/min",
