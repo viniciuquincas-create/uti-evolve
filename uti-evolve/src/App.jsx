@@ -1452,6 +1452,20 @@ function calcClCr(cr, peso, idade, sexo) {
   return Math.round(base * (sexo==="F" ? 0.85 : 1));
 }
 
+// Conta dias de ATB em blocos exatos de 24h desde a primeira dose (data+hora)
+function diasAtb24h(dataInicio, horaInicio) {
+  if (!dataInicio) return null;
+  const inicio = new Date(`${dataInicio}T${horaInicio||"00:00"}:00`);
+  if (isNaN(inicio.getTime())) return null;
+  const ms = Date.now() - inicio.getTime();
+  if (ms < 0) return 0;
+  return Math.floor(ms / 86400000); // 0 = <24h, 1 = 24-48h (D1), 2 = 48-72h (D2)...
+}
+function lblDiaAtb(d) {
+  if (d === null || d === undefined) return null;
+  return d <= 0 ? "<24h" : `D${d}`;
+}
+
 function atbAjusteRenal(nomeAtb, clcr) {
   const key = nomeAtb.trim().toLowerCase();
   const tabela = ATB_RENAL[key];
@@ -1500,7 +1514,9 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
   const chaveR = (n) => { const lc = n.toLowerCase(); if (lc.includes("pip")&&lc.includes("tazo")) return "pip/tazo"; if (lc.includes("amp")&&lc.includes("sulbactam")) return "amp/sulbactam"; if (lc.includes("imipenem")) return "imipenem"; return lc.split(" ")[0].replace(/[^a-z]/g,""); };
 
   const addAtb = (nome="") => {
-    onChange([...antibioticos, { id: Date.now(), nome, via:"EV", dose:"", dataInicio: hoje, dataFim:"", doseConfirmada:false }]);
+    const now = new Date();
+    const horaAtual = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+    onChange([...antibioticos, { id: Date.now(), nome, via:"EV", dose:"", dataInicio: hoje, horaInicio: horaAtual, dataFim:"", doseConfirmada:false }]);
     setBusca(""); setShowBusca(false);
   };
   const remAtb = (id) => onChange(antibioticos.filter(a => a.id !== id));
@@ -1531,7 +1547,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
       {/* ATBs ativos */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:6,marginBottom:6}}>
         {ativos.map(atb => {
-          const diasAtb = atb.dataInicio ? Math.floor((new Date() - new Date(atb.dataInicio+"T00:00:00")) / 86400000) : null;
+          const diasAtb = diasAtb24h(atb.dataInicio, atb.horaInicio);
           const horas48  = diasAtb !== null && diasAtb < 2;
           const cK = chaveR;
           const ajuste = (!horas48 && atb.nome) ? atbAjusteRenal(cK(atb.nome), clcr) : null;
@@ -1547,9 +1563,9 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                   style={{flex:1,background:"transparent",border:"none",borderBottom:"1px solid rgba(255,255,255,0.12)",padding:"2px 0",color:T.text1,fontSize:12,fontWeight:600,outline:"none"}}/>
                 {diasAtb !== null && atb.dose && (
                   <span style={{padding:"1px 7px",borderRadius:10,fontSize:10,fontFamily:mono,fontWeight:700,
-                    background:diasAtb===0?"rgba(56,189,248,0.12)":diasAtb<7?"rgba(52,211,153,0.1)":"rgba(251,146,60,0.1)",
-                    color:diasAtb===0?"#38bdf8":diasAtb<7?"#34d399":"#fb923c",whiteSpace:"nowrap"}}>
-                    {diasAtb===0?"D1":`D${diasAtb+1}`}
+                    background:diasAtb<=0?"rgba(56,189,248,0.12)":diasAtb<7?"rgba(52,211,153,0.1)":"rgba(251,146,60,0.1)",
+                    color:diasAtb<=0?"#38bdf8":diasAtb<7?"#34d399":"#fb923c",whiteSpace:"nowrap"}}>
+                    {lblDiaAtb(diasAtb)}
                   </span>
                 )}
                 <button onClick={()=>setSuspendendo(isSuspendendo?null:atb.id)}
@@ -1579,7 +1595,10 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                   placeholder="Dose/posologia (ex: 1g q8h)"
                   style={{flex:1,minWidth:100,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 8px",color:T.text1,fontSize:11}}/>
                 <input type="date" value={atb.dataInicio||""} onChange={e=>updAtb(atb.id,"dataInicio",e.target.value)}
-                  style={{minWidth:115,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 6px",color:T.text2,fontSize:11}}/>
+                  style={{minWidth:100,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 6px",color:T.text2,fontSize:11}}/>
+                <input type="time" value={atb.horaInicio||""} onChange={e=>updAtb(atb.id,"horaInicio",e.target.value)}
+                  title="Hora da 1ª dose"
+                  style={{width:62,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 4px",color:T.text2,fontSize:11}}/>
               </div>
 
               {/* Alerta renal — só se relevante */}
@@ -2379,11 +2398,11 @@ const GRUPOS_LAB = [
     {key:"p",     label:"Fósforo",          unit:"mg/dL"},
   ]},
   { grupo:"❤️ Cardiovascular", params:[
-    {key:"trop",  label:"Troponina",        unit:"ng/mL"},
     {key:"bnp",   label:"BNP",              unit:"pg/mL"},
     {key:"ntpro", label:"NT-proBNP",        unit:"pg/mL"},
     {key:"lact",  label:"Lactato",          unit:"mmol/L"},
   ]},
+  /* Troponina fica em painel separado (múltiplas dosagens/dia) */
   { grupo:"🫁 Respiratório", params:[
     {key:"po2",   label:"pO2",              unit:"mmHg"},
     {key:"pco2",  label:"pCO2",             unit:"mmHg"},
@@ -2677,9 +2696,9 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     }).filter(Boolean).join(" · ");
 
     // Labs
-    const heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
-    const rmStr  = pegar(["cr","ur","na","k","mg","cai","p","ph","hco3"]);
-    const cvStr  = pegar(["trop","bnp","ntpro","be","lact"]);
+    let heStr  = pegar(["hb","ht","leuco","neut","bast","linf","plaq","rni","ttpa","fibri"]);
+    let rmStr  = pegar(["cr","ur","na","k","mg","cai","p","ph","hco3"]);
+    const cvStr  = pegar(["bnp","ntpro","be"]);
     // Gasometria: lê _gasos do painel dedicado + fallback tabela
     const gasoEntries = (() => {
       try { const raw=data[chaveHoje]?._gasos; return raw?(typeof raw==="string"?JSON.parse(raw):raw):[]; } catch{ return []; }
@@ -2691,7 +2710,21 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
           return h + p;
         }).join("\n")
       : pegar(["po2","pco2"]);
-        const tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
+    let tgStr  = pegar(["tgo","tgp","bttot","btdir","btind","falc","ggt","alb"]);
+
+    // Campos extras da Gasometria (Na/K/Ca/Cl/Glic/Lact/Hb) → lançados nos sistemas respectivos
+    const gasoExtraLines = (key, label, unit="") => gasoEntries
+      .filter(g=>g[key])
+      .map(g=>{ const h=g.horario?`[${g.horario}] `:""; return `${h}${label} ${g[key]}${unit?" "+unit:""} (gaso)`; });
+    const rmGasoExtra = [
+      ...gasoExtraLines("na","Na","mEq/L"), ...gasoExtraLines("k","K","mEq/L"),
+      ...gasoExtraLines("ca","Ca","mmol/L"), ...gasoExtraLines("cl","Cl","mEq/L"),
+    ];
+    if (rmGasoExtra.length) rmStr = [rmStr, ...rmGasoExtra].filter(Boolean).join("\n");
+    const tgGasoExtra = gasoExtraLines("glic","Glicemia","mg/dL");
+    if (tgGasoExtra.length) tgStr = [tgStr, ...tgGasoExtra].filter(Boolean).join("\n");
+    const heGasoExtra = [...gasoExtraLines("lact","Lactato","mmol/L"), ...gasoExtraLines("hb","Hb","g/dL")];
+    if (heGasoExtra.length) heStr = [heStr, ...heGasoExtra].filter(Boolean).join("\n");
 
     // Controles → campos certos em cada sistema
     const tempStr  = pegarCtrl(["c24_temp"]);           // He: Infeccioso/Temperatura
@@ -2776,9 +2809,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 
     // Antibioticoterapia → heAtb (campo "Antibióticos" na seção Infeccioso)
     const atbTexto = (leito.antibioticos||[]).filter(a=>a.nome&&!a.dataFim).map(a=>{
-      const diasAtb = a.dataInicio ? Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1 : null;
+      const diasAtb = diasAtb24h(a.dataInicio, a.horaInicio);
       const partes = [a.nome, a.dose, a.via||"EV"].filter(Boolean).join(" ");
-      return `${partes}${diasAtb ? " (D"+diasAtb+")" : ""}`;
+      const lbl = lblDiaAtb(diasAtb);
+      return `${partes}${lbl ? " ("+lbl+")" : ""}`;
     }).join("\n");
     if (atbTexto) campos.heAtb = atbTexto;
 
@@ -2893,7 +2927,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       )}
       {tabela==="labs" && (
         <div style={{display:"flex",gap:5,paddingBottom:8,borderBottom:`1px solid ${T.border}`,marginBottom:8,flexShrink:0}}>
-          {[["labs","🔬 Laboratório"],["gasos","🫁 Gasometrias"],["culturas","🧫 Culturas"]].map(([id,lbl])=>(
+          {[["labs","🔬 Laboratório"],["gasos","🫁 Gasometrias"],["tropos","🫀 Troponina"],["culturas","🧫 Culturas"]].map(([id,lbl])=>(
             <button key={id} onClick={()=>setSubTabLabs(id)}
               style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${subTabLabs===id?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.08)"}`,
                 background:subTabLabs===id?"rgba(56,189,248,0.1)":"transparent",
@@ -2906,6 +2940,13 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       {tabela==="labs" && subTabLabs==="gasos" && (
         <div style={{overflowY:"auto",flex:1,padding:"8px 0"}}>
           <GasometriaPanel data={data} onChange={onChange}
+            datas={Object.keys(data).filter(k=>!k.startsWith("_")).sort()}
+            hoje={hoje}/>
+        </div>
+      )}
+      {tabela==="labs" && subTabLabs==="tropos" && (
+        <div style={{overflowY:"auto",flex:1,padding:"8px 0"}}>
+          <TroponinaPanel data={data} onChange={onChange}
             datas={Object.keys(data).filter(k=>!k.startsWith("_")).sort()}
             hoje={hoje}/>
         </div>
@@ -3343,7 +3384,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 const EVOLUCAO_VAZIA = {
   hda:"",
   nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nEFExtra:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
-  cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvObs:"",
+  cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvTropo:"", cvObs:"",
   reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
   tgEF:"", tg24h:"", tgLabs:"", tgPocus:"", tgObs:"",
@@ -3493,6 +3534,7 @@ function PickField({ label, options=[], value="", onChange, rows=2, placeholder=
 function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
+  const [expandidos, setExpandidos] = useState({});
   const CAMPOS_GASO = [
     {k:"ph",   lbl:"pH"},
     {k:"hco3", lbl:"HCO₃", unit:"mEq/L"},
@@ -3500,6 +3542,15 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
     {k:"po2",  lbl:"pO₂",  unit:"mmHg"},
     {k:"be",   lbl:"BE",   unit:"mEq/L"},
     {k:"sato2",lbl:"SatO₂",unit:"%"},
+  ];
+  const CAMPOS_GASO_EXTRA = [
+    {k:"na",   lbl:"Na",   unit:"mEq/L"},
+    {k:"k",    lbl:"K",    unit:"mEq/L"},
+    {k:"ca",   lbl:"Ca",   unit:"mmol/L"},
+    {k:"cl",   lbl:"Cl",   unit:"mEq/L"},
+    {k:"glic", lbl:"Glic", unit:"mg/dL"},
+    {k:"lact", lbl:"Lact", unit:"mmol/L"},
+    {k:"hb",   lbl:"Hb",   unit:"g/dL"},
   ];
 
   const getGasos = (d) => {
@@ -3514,7 +3565,8 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
 
   const addGaso = (d) => {
     const gasos = getGasos(d);
-    setGasos(d, [...gasos, {id:Date.now()+"", data:d, horario:"", ph:"", hco3:"", pco2:"", po2:"", be:"", sato2:""}]);
+    setGasos(d, [...gasos, {id:Date.now()+"", data:d, horario:"", ph:"", hco3:"", pco2:"", po2:"", be:"", sato2:"",
+      na:"", k:"", ca:"", cl:"", glic:"", lact:"", hb:""}]);
   };
 
   const updateGaso = (d, id, field, val) => {
@@ -3525,8 +3577,7 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
     setGasos(d, getGasos(d).filter(g=>g.id!==id));
   };
 
-  const thS = {padding:"5px 8px",fontSize:9,fontFamily:mono,color:"#475569",letterSpacing:1,
-    background:T.bgTableHead,textAlign:"center",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"};
+  const temExtra = (g) => CAMPOS_GASO_EXTRA.some(c=>g[c.k]);
 
   return (
     <div style={{marginTop:8}}>
@@ -3537,6 +3588,7 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
             background:"rgba(56,189,248,0.08)",color:"#38bdf8",cursor:"pointer",fontSize:11}}>
           + Gaso
         </button>
+        <span style={{fontSize:9,color:"#334155",fontFamily:mono}}>Na/K/Ca/Cl/Glic/Lact/Hb → lançados nos respectivos sistemas</span>
       </div>
       {datas.map(d => {
         const gasos = getGasos(d);
@@ -3547,26 +3599,52 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
             <div style={{fontSize:9,fontFamily:mono,color:"#334155",marginBottom:4}}>
               {new Date(d+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}
             </div>
-            {gasos.map(g=>(
-              <div key={g.id} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,
+            {gasos.map(g=>{
+              const open = !!expandidos[g.id];
+              return (
+              <div key={g.id} style={{marginBottom:4,
                 background:isHoje2?"rgba(56,189,248,0.02)":"transparent",
-                border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px",flexWrap:"wrap"}}>
-                <input type="date" value={g.data||d} onChange={e=>updateGaso(d,g.id,"data",e.target.value)}
-                  style={{background:"transparent",border:"none",color:"#64748b",fontSize:10,fontFamily:mono,width:90}}/>
-                <input placeholder="Hora" value={g.horario} onChange={e=>updateGaso(d,g.id,"horario",e.target.value)}
-                  style={{width:45,background:"transparent",border:"none",color:"#94a3b8",fontSize:11,fontFamily:mono}}/>
-                {CAMPOS_GASO.map(c=>(
-                  <div key={c.k} style={{display:"flex",alignItems:"center",gap:2}}>
-                    <span style={{fontSize:9,color:"#475569",fontFamily:mono}}>{c.lbl}</span>
-                    <input value={g[c.k]||""} onChange={e=>updateGaso(d,g.id,c.k,e.target.value)}
-                      style={{width:46,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
-                        borderRadius:4,color:"#e2e8f0",fontSize:11,fontFamily:mono,padding:"1px 4px",textAlign:"center"}}/>
+                border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px"}}>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                  <input type="date" value={g.data||d} onChange={e=>updateGaso(d,g.id,"data",e.target.value)}
+                    style={{background:"transparent",border:"none",color:"#64748b",fontSize:10,fontFamily:mono,width:90}}/>
+                  <input placeholder="Hora" value={g.horario} onChange={e=>updateGaso(d,g.id,"horario",e.target.value)}
+                    style={{width:45,background:"transparent",border:"none",color:"#94a3b8",fontSize:11,fontFamily:mono}}/>
+                  {CAMPOS_GASO.map(c=>(
+                    <div key={c.k} style={{display:"flex",alignItems:"center",gap:2}}>
+                      <span style={{fontSize:9,color:"#475569",fontFamily:mono}}>{c.lbl}</span>
+                      <input value={g[c.k]||""} onChange={e=>updateGaso(d,g.id,c.k,e.target.value)}
+                        style={{width:46,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
+                          borderRadius:4,color:"#e2e8f0",fontSize:11,fontFamily:mono,padding:"1px 4px",textAlign:"center"}}/>
+                    </div>
+                  ))}
+                  <button onClick={()=>setExpandidos(e=>({...e,[g.id]:!e[g.id]}))}
+                    title="Mais parâmetros (Na/K/Ca/Cl/Glic/Lact/Hb)"
+                    style={{padding:"2px 7px",borderRadius:5,fontSize:10,cursor:"pointer",
+                      background:open||temExtra(g)?"rgba(163,230,53,0.1)":"rgba(255,255,255,0.04)",
+                      border:`1px solid ${open||temExtra(g)?"rgba(163,230,53,0.3)":"rgba(255,255,255,0.08)"}`,
+                      color:open||temExtra(g)?"#a3e635":"#64748b"}}>
+                    {open?"▲":"⊕"} mais
+                  </button>
+                  {isHoje2&&<button onClick={()=>removeGaso(d,g.id)}
+                    style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:12,padding:0,marginLeft:2}}>✕</button>}
+                </div>
+                {open&&(
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:5,paddingTop:5,
+                    borderTop:"1px dashed rgba(163,230,53,0.15)"}}>
+                    {CAMPOS_GASO_EXTRA.map(c=>(
+                      <div key={c.k} style={{display:"flex",alignItems:"center",gap:2}}>
+                        <span style={{fontSize:9,color:"#a3e635",fontFamily:mono}}>{c.lbl}</span>
+                        <input value={g[c.k]||""} onChange={e=>updateGaso(d,g.id,c.k,e.target.value)}
+                          style={{width:50,background:"rgba(163,230,53,0.05)",border:"1px solid rgba(163,230,53,0.15)",
+                            borderRadius:4,color:"#e2e8f0",fontSize:11,fontFamily:mono,padding:"1px 4px",textAlign:"center"}}/>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {isHoje2&&<button onClick={()=>removeGaso(d,g.id)}
-                  style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:12,padding:0,marginLeft:2}}>✕</button>}
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         );
       })}
@@ -3576,6 +3654,82 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
     </div>
   );
 }
+
+
+// ── TroponinaPanel — múltiplas dosagens de troponina por dia ──────────────
+function TroponinaPanel({ data={}, onChange, datas=[], hoje="" }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+
+  const getTropos = (d) => {
+    const v = data[d]?._tropos;
+    if(!v) return [];
+    try { return typeof v==="string"?JSON.parse(v):v; } catch{ return []; }
+  };
+  const setTropos = (d, tropos) => {
+    onChange({...data, [d]:{...(data[d]||{}), _tropos: JSON.stringify(tropos)}});
+  };
+  const addTropo = (d) => {
+    const tropos = getTropos(d);
+    setTropos(d, [...tropos, {id:Date.now()+"", data:d, horario:"", valor:"", unidade:"ng/mL"}]);
+  };
+  const updateTropo = (d, id, field, val) => {
+    setTropos(d, getTropos(d).map(t=>t.id===id?{...t,[field]:val}:t));
+  };
+  const removeTropo = (d, id) => {
+    setTropos(d, getTropos(d).filter(t=>t.id!==id));
+  };
+
+  return (
+    <div style={{marginTop:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <div style={{fontSize:10,fontFamily:mono,letterSpacing:2,color:"#f87171"}}>🫀 TROPONINA</div>
+        <button onClick={()=>addTropo(hoje)}
+          style={{padding:"2px 9px",borderRadius:6,border:"1px solid rgba(248,113,113,0.3)",
+            background:"rgba(248,113,113,0.08)",color:"#f87171",cursor:"pointer",fontSize:11}}>
+          + Troponina
+        </button>
+      </div>
+      {datas.map(d => {
+        const tropos = getTropos(d);
+        if(!tropos.length) return null;
+        const isHoje2 = d===hoje||d.startsWith(hoje+"T");
+        return (
+          <div key={d} style={{marginBottom:10}}>
+            <div style={{fontSize:9,fontFamily:mono,color:"#334155",marginBottom:4}}>
+              {new Date(d+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}
+            </div>
+            {tropos.map(t=>(
+              <div key={t.id} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,
+                background:isHoje2?"rgba(248,113,113,0.02)":"transparent",
+                border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px",flexWrap:"wrap"}}>
+                <input type="date" value={t.data||d} onChange={e=>updateTropo(d,t.id,"data",e.target.value)}
+                  style={{background:"transparent",border:"none",color:"#64748b",fontSize:10,fontFamily:mono,width:90}}/>
+                <input placeholder="Hora" value={t.horario} onChange={e=>updateTropo(d,t.id,"horario",e.target.value)}
+                  style={{width:45,background:"transparent",border:"none",color:"#94a3b8",fontSize:11,fontFamily:mono}}/>
+                <input placeholder="Valor" value={t.valor} onChange={e=>updateTropo(d,t.id,"valor",e.target.value)}
+                  style={{width:70,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
+                    borderRadius:4,color:"#e2e8f0",fontSize:11,fontFamily:mono,padding:"1px 6px",textAlign:"center"}}/>
+                <select value={t.unidade||"ng/mL"} onChange={e=>updateTropo(d,t.id,"unidade",e.target.value)}
+                  style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
+                    borderRadius:4,color:"#94a3b8",fontSize:10,fontFamily:mono,padding:"1px 4px"}}>
+                  <option value="ng/mL">ng/mL</option>
+                  <option value="pg/mL">pg/mL</option>
+                </select>
+                {isHoje2&&<button onClick={()=>removeTropo(d,t.id)}
+                  style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:12,padding:0,marginLeft:2}}>✕</button>}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      {!datas.some(d=>getTropos(d).length>0)&&(
+        <div style={{fontSize:11,color:"#334155",padding:"8px 0"}}>Nenhuma troponina registrada. Clique "+ Troponina" para adicionar.</div>
+      )}
+    </div>
+  );
+}
+
 
 // ── CulturasPanel — tabela de culturas ────────────────────────────────────
 const CULTURA_TIPOS = ["Hemocultura","AT - Aspirado Traqueal","Urocultura","Swab Retal","Swab Nasal","Líquido Pleural","LCR","Swab Ferida","Outro"];
@@ -3665,7 +3819,7 @@ function CulturasPanel({ culturas=[], onChange }) {
 }
 
 
-function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, onMetaChange, metas=[] }) {
+function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[] }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
@@ -4030,6 +4184,28 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
     if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
     if(vis.cvPerf&&get("cvPerf")) p.push(`- Perfusão: ${get("cvPerf")}`);
+    if(vis.cvTropo){
+      const allTropos = (()=>{
+        try {
+          return Object.entries(tabelaDataLeito||{})
+            .filter(([k])=>!k.startsWith("_")&&!k.startsWith("__"))
+            .flatMap(([d,row])=>{
+              const raw=row?._tropos; if(!raw) return [];
+              const arr=typeof raw==="string"?JSON.parse(raw):raw;
+              return (arr||[]).map(t=>({...t,_dataOrd:(t.data||d)+(t.horario||"")}));
+            }).filter(t=>t.valor).sort((a,b)=>a._dataOrd.localeCompare(b._dataOrd));
+        } catch { return []; }
+      })();
+      if(allTropos.length){
+        const bullets = allTropos.map(t=>{
+          const dt=t.data?new Date(t.data+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
+          const h=t.horario?` ${t.horario}`:"";
+          return `  • [${dt}${h}] ${t.valor} ${t.unidade||"ng/mL"}`;
+        }).join("\n");
+        p.push(`- Troponina:\n${bullets}`);
+      }
+      if(get("cvTropo")) p.push(`- Obs. Troponina: ${get("cvTropo")}`);
+    }
     if(vis.cvMed&&get("cvMed")) p.push(`- Medicações: ${get("cvMed")}`);
     if(vis.add_cv_pocus&&getExtra("add_cv_pocus")) p.push(`- POCUS: ${getExtra("add_cv_pocus")}`);
     if(vis.add_cv_picco&&getExtra("add_cv_picco")) p.push(`- PiCCO: ${getExtra("add_cv_picco")}`);
@@ -4263,7 +4439,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCvFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvObs",label:"Obs"}]}
+        opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}>
         <Row>
           <Col>
@@ -4288,6 +4464,37 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </Row>
         {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
         <Row><Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} sugestao="TEC 2 seg / Lactato 12 > 22" rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col></Row>
+        {vis["cvTropo"]&&<Row><Col>
+          <FL>🫀 Troponina</FL>
+          {(()=>{
+            const allTropos = (()=>{
+              try {
+                return Object.entries(tabelaDataLeito||{})
+                  .filter(([k])=>!k.startsWith("_")&&!k.startsWith("__"))
+                  .flatMap(([d,row])=>{
+                    const raw = row?._tropos;
+                    if(!raw) return [];
+                    const arr = typeof raw==="string"?JSON.parse(raw):raw;
+                    return (arr||[]).map(t=>({...t, _dataOrd:(t.data||d)+(t.horario||"")}));
+                  })
+                  .filter(t=>t.valor)
+                  .sort((a,b)=>a._dataOrd.localeCompare(b._dataOrd));
+              } catch { return []; }
+            })();
+            if(!allTropos.length) return <div style={{fontSize:10,color:"#334155",marginBottom:4}}>Nenhuma troponina lançada. Adicione na aba 🫀 Troponina.</div>;
+            return (
+              <div style={{background:"rgba(248,113,113,0.04)",border:"1px solid rgba(248,113,113,0.12)",borderRadius:6,padding:"6px 8px",marginBottom:4,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
+                {allTropos.map(t=>{
+                  const dt = t.data ? new Date(t.data+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}) : "";
+                  const h = t.horario ? ` ${t.horario}` : "";
+                  return <div key={t.id} style={{marginBottom:2}}>{`[${dt}${h}] ${t.valor} ${t.unidade||"ng/mL"}`}</div>;
+                })}
+              </div>
+            );
+          })()}
+          <FL>Obs. Troponina (manual)</FL>
+          <TA fieldRef={refs.cvTropo} defaultValue={campos.cvTropo} isAntigo={isAntigo("cvTropo")} rows={1} fieldName="cvTropo" onBlurSave={salvar}/>
+        </Col></Row>}
         {vis["add_cv_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_cv_interconsulta")} defaultValue={campos["add_cv_interconsulta"]||""} sugestao="Cardiologia 29/04: Eco TT marcado" rows={1} fieldName="add_cv_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_cv_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_cv_exames")} defaultValue={campos["add_cv_exames"]||""} sugestao="ECG 29/04: RS, sem alterações" rows={1} fieldName="add_cv_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["add_cv_pocus"]&&<Row><Col><FL>POCUS</FL><TA fieldRef={ExtraRef("add_cv_pocus")} defaultValue={campos["add_cv_pocus"]||""} sugestao="POCUS 29/04: FE ~50%, sem derrame" rows={1} fieldName="add_cv_pocus" onBlurSave={salvar}/></Col></Row>}
@@ -4589,7 +4796,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
           style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
         <button onClick={()=>add(nova)} style={{padding:"9px 14px",background:"rgba(56,189,248,0.15)",border:"1px solid #38bdf8",borderRadius:8,color:"#38bdf8",fontWeight:700,cursor:"pointer",fontSize:16}}>+</button>
       </div>
-      {(()=>{const sugs=[];const cr=parseFloat(tabelaHoje?.cr||0),peso=parseFloat(leito.peso||0);const idadeA=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento))/(365.25*86400000)):null;const clcr=cr&&peso&&idadeA?Math.round(((140-idadeA)*peso)/(72*cr)*(leito.sexo==="F"?0.85:1)):null;(leito.antibioticos||[]).filter(a=>!a.dataFim).forEach(atb=>{if(!atb.nome||!atb.dataInicio)return;const dias=Math.floor((new Date()-new Date(atb.dataInicio+"T00:00:00"))/86400000);if(dias<2)return;const lc=atb.nome.toLowerCase();const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.includes("imipenem")?"imipenem":lc.split(" ")[0].replace(/[^a-z]/g,"");if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(a=>clcr<a.tfg);if(aj)sugs.push({txt:`⚠️ Ajustar ${atb.nome}: ClCr ${clcr}→${aj.rec}`,alert:true});}});const disps=leito.dispositivos||{},alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach((inst,i)=>{if(!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}${disps[d.key].length>1?` ${i+1}`:""}:D${dd}(lim${alts[d.key]}d)`,alert:true});}));DISP_SINGULAR.forEach(d=>{const inst=disps[d.key];if(!inst?.ativo||!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}:D${dd}(lim${alts[d.key]}d)`,alert:true});});METAS_SUGESTOES.forEach(s=>sugs.push({txt:s,alert:false}));const ac=sugs.filter(s=>s.alert).length;return(<><button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:ac?"#f87171":"#64748b",fontSize:12,cursor:"pointer",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{show?"▲ Fechar":"▼ Ver sugestões"}{ac>0&&<span style={{padding:"1px 7px",background:"rgba(248,113,113,0.15)",borderRadius:10,fontSize:10}}>{ac} alertas</span>}</button>{show&&<div style={{marginBottom:14}}>{sugs.map((sg,i)=>(<div key={i} onClick={()=>add(sg.txt)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,marginBottom:4,cursor:"pointer",color:sg.alert?"#f87171":"#94a3b8",background:sg.alert?"rgba(248,113,113,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${sg.alert?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.05)"}`}} onMouseEnter={e=>e.currentTarget.style.opacity="0.7"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{sg.alert?"":"+  "}{sg.txt}</div>))}</div>}</>);})()}
+      {(()=>{const sugs=[];const cr=parseFloat(tabelaHoje?.cr||0),peso=parseFloat(leito.peso||0);const idadeA=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento))/(365.25*86400000)):null;const clcr=cr&&peso&&idadeA?Math.round(((140-idadeA)*peso)/(72*cr)*(leito.sexo==="F"?0.85:1)):null;(leito.antibioticos||[]).filter(a=>!a.dataFim).forEach(atb=>{if(!atb.nome||!atb.dataInicio)return;const dias=diasAtb24h(atb.dataInicio, atb.horaInicio);if(dias<2)return;const lc=atb.nome.toLowerCase();const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.includes("imipenem")?"imipenem":lc.split(" ")[0].replace(/[^a-z]/g,"");if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(a=>clcr<a.tfg);if(aj)sugs.push({txt:`⚠️ Ajustar ${atb.nome}: ClCr ${clcr}→${aj.rec}`,alert:true});}});const disps=leito.dispositivos||{},alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach((inst,i)=>{if(!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}${disps[d.key].length>1?` ${i+1}`:""}:D${dd}(lim${alts[d.key]}d)`,alert:true});}));DISP_SINGULAR.forEach(d=>{const inst=disps[d.key];if(!inst?.ativo||!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}:D${dd}(lim${alts[d.key]}d)`,alert:true});});METAS_SUGESTOES.forEach(s=>sugs.push({txt:s,alert:false}));const ac=sugs.filter(s=>s.alert).length;return(<><button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:ac?"#f87171":"#64748b",fontSize:12,cursor:"pointer",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{show?"▲ Fechar":"▼ Ver sugestões"}{ac>0&&<span style={{padding:"1px 7px",background:"rgba(248,113,113,0.15)",borderRadius:10,fontSize:10}}>{ac} alertas</span>}</button>{show&&<div style={{marginBottom:14}}>{sugs.map((sg,i)=>(<div key={i} onClick={()=>add(sg.txt)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,marginBottom:4,cursor:"pointer",color:sg.alert?"#f87171":"#94a3b8",background:sg.alert?"rgba(248,113,113,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${sg.alert?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.05)"}`}} onMouseEnter={e=>e.currentTarget.style.opacity="0.7"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{sg.alert?"":"+  "}{sg.txt}</div>))}</div>}</>);})()}
       {metas.length===0 && <div style={{textAlign:"center",padding:24,color:"#334155",fontSize:13}}>Nenhuma meta cadastrada para este plantão</div>}
       {metas.map(m=>(
         <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:8,marginBottom:6,border:"1px solid rgba(255,255,255,0.06)"}}>
@@ -4817,7 +5024,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
     const idade=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)):null;
     const clcr=(h.cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(h.cr))*(leito.sexo==="F"?0.85:1)):null;
     (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
-      const dias=Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000);
+      const dias=diasAtb24h(a.dataInicio, a.horaInicio);
       if(dias<2) return;
       const lc=a.nome.toLowerCase();
       const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
@@ -5049,9 +5256,9 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
                   <Sec ico="🦠" lbl="INFECCIOSO" cor="#a3e635" cid={l.id}/>
                   <SecBody cid={l.id} lbl="INFECCIOSO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
                   {atbAtivos.map(a=>{
-                    const dd=a.dataInicio?Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000)+1:null;
+                    const dd=diasAtb24h(a.dataInicio, a.horaInicio);
                     const doseInfo=[a.dose,a.intervalo].filter(Boolean).join(" ");
-                    return <R key={a.id} lbl={a.nome} val={dd?`D${dd}`:""} unit={doseInfo} cor="#a3e635"/>;
+                    return <R key={a.id} lbl={a.nome} val={lblDiaAtb(dd)||""} unit={doseInfo} cor="#a3e635"/>;
                   })}
                   {(l.culturas||[]).length>0&&(
                     <div style={{marginTop:4}}>
@@ -5130,7 +5337,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
     const idade=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)):null;
     const clcr=(cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(cr))*(leito.sexo==="F"?0.85:1)):null;
     (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
-      const dias=Math.floor((new Date()-new Date(a.dataInicio+"T00:00:00"))/86400000);
+      const dias=diasAtb24h(a.dataInicio, a.horaInicio);
       if(dias<2) return;
       const lc=a.nome.toLowerCase();
       const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
@@ -5848,6 +6055,7 @@ ${linha}`:linha}));
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#86efac"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
                   <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
+                    tabelaDataLeito={tabelaData[leitoSelId]||{}}
                     metas={metasPorLeito[leitoSelId]||[]}
                     onMetaChange={(novas)=>{
                       setMetasPorLeito(mp=>{const novo={...mp,[leitoSelId]:novas};salvarMetas(novo);return novo;});
