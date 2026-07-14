@@ -3593,7 +3593,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 const EVOLUCAO_VAZIA = {
   hda:"",
   nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nEFExtra:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
-  cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvPerf:"", cvTropo:"", cvObs:"",
+  cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvTEC:"", cvLact:"", cvDeltaCO2:"", cvDeltaPP:"", cvTropo:"", cvObs:"",
   reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
   tgEF:"", tg24h:"", tgLabs:"", tgPocus:"", tgObs:"",
@@ -4391,21 +4391,16 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
             <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
           </button>
-          {open && opcionais.length>0 && (
-            <div style={{display:"flex",gap:3,marginRight:4}}>
-              {opcionais.map(o=>(
-                <button key={o.key} onClick={()=>toggle(o.key)}
-                  title={`${vis[o.key]?"Ocultar":"Mostrar"} ${o.label}`}
-                  style={{padding:"2px 7px",borderRadius:4,border:`1px solid ${vis[o.key]?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.07)"}`,background:vis[o.key]?"rgba(255,255,255,0.08)":"transparent",color:vis[o.key]?"#e2e8f0":"#475569",cursor:"pointer",fontSize:10,fontFamily:mono}}>
-                  {o.label}
-                </button>
-              ))}
+          {open && (opcionais.length>0||adicionaveis.length>0) && (
+            <div style={{position:"relative"}}>
+              <button onClick={()=>setShowAdd(s=>!s)}
+                style={{margin:"4px 2px",padding:"3px 10px",borderRadius:6,
+                  border:`1px solid ${showAdd?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.12)"}`,
+                  background:showAdd?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",
+                  color:showAdd?"#a78bfa":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
+                ⊕
+              </button>
             </div>
-          )}
-          {open && adicionaveis.length>0 && (
-            <button onClick={()=>setShowAdd(s=>!s)}
-              style={{margin:"4px 2px",padding:"2px 8px",borderRadius:4,border:`1px solid ${showAdd?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}`,background:showAdd?"rgba(167,139,250,0.1)":"transparent",color:showAdd?"#a78bfa":"#475569",cursor:"pointer",fontSize:12}}
-              title="Adicionar campo">+</button>
           )}
           <button onClick={abrirPreview}
             style={{margin:"4px 2px",padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
@@ -4423,9 +4418,18 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             {cp2?"✓ Copiado!":"📋 Copiar"}
           </button>
         </div>
-        {open && showAdd && adicionaveisNaoAtivos.length>0 && (
+        {open && showAdd && (opcionais.length>0||adicionaveisNaoAtivos.length>0) && (
           <div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",background:"rgba(167,139,250,0.04)",display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{fontSize:9,color:"#64748b",fontFamily:mono}}>ADICIONAR:</span>
+            <span style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1}}>CAMPOS:</span>
+            {opcionais.map(o=>(
+              <button key={o.key} onClick={()=>{toggle(o.key);}}
+                style={{padding:"2px 9px",borderRadius:12,
+                  border:`1px solid ${vis[o.key]?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
+                  background:vis[o.key]?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.04)",
+                  color:vis[o.key]?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11}}>
+                {vis[o.key]?"✓ ":""}{o.label}
+              </button>
+            ))}
             {adicionaveisNaoAtivos.map(a=>(
               <button key={a.key} onClick={()=>{toggle(`add_${id}_${a.key}`);setShowAdd(false);}}
                 style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(167,139,250,0.3)",background:"rgba(167,139,250,0.08)",color:"#a78bfa",cursor:"pointer",fontSize:11}}>
@@ -4774,7 +4778,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCvFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvObs",label:"Obs"}]}
+        opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"},{key:"cvObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}>
         <Row>
           <Col>
