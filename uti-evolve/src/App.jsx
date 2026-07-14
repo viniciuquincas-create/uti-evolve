@@ -4793,9 +4793,13 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} rows={2} fieldName="cvEF" onBlurSave={salvar}/>
           </Col>
         </Row>
+                {/* ── DVA / Bombas Cardiovasculares ── */}
+        {onLeitoChange&&<MiniBombas title="DVA / BOMBAS CARDIOVASCULARES"
+          drogaKeys={["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato","amiodarona","furosemida"]}
+          peso={leito.peso} vazoes={leito.drogasVazao||{}} config={config}
+          onVazaoChange={(k,v)=>onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>}
         <Row>
-          <Col><FL>24h — FC / PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} sugestao="FC 109 - 58 / PAM 121 - 58" rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
-          <Col><FL>DVA — Droga + vazão + dose</FL><TA fieldRef={refs.cvDVA} defaultValue={campos.cvDVA} isAntigo={isAntigo("cvDVA")} sugestao="Nora 5ml/h (0,08 mcg/kg/min)" rows={1} fieldName="cvDVA" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — FC · PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} rows={2} fieldName="cv24h" onBlurSave={salvar}/></Col>
         </Row>
         {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
         <Row><Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} sugestao="TEC 2 seg / Lactato 12 > 22" rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col></Row>
@@ -4841,20 +4845,18 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rePocus",label:"POCUS Pulmonar"},{key:"reLUS",label:"LUS"},{key:"reObs",label:"Obs"}]}>
-        {/* Suporte Ventilatório — resumo */}
-        {leito.vm_modo&&(()=>{
+        {/* ── Suporte Ventilatório ── */}
+        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange}/>}
+        {!onLeitoChange&&leito.vm_modo&&(()=>{
           const vm2=VM_MODOS.find(m=>m.id===leito.vm_modo);
-          return vm2?(
-            <div style={{padding:"6px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
-              <span style={{color:"#38bdf8",fontWeight:700}}>🫁 {vm2.label}</span>
-              {leito.vm_fio2&&<span style={{marginLeft:10}}>FiO₂: {leito.vm_fio2}%</span>}
-              {leito.vm_peep&&<span style={{marginLeft:10}}>PEEP: {leito.vm_peep}</span>}
-              {leito.vm_ps&&<span style={{marginLeft:10}}>PS: {leito.vm_ps}</span>}
-              {leito.nebMed&&<span style={{marginLeft:10,color:"#a3e635"}}>💨 {leito.nebMed} {leito.nebFreq}</span>}
-            </div>
-          ):null;
+          return vm2?<div style={{padding:"6px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.1)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
+            <span style={{color:"#38bdf8",fontWeight:700}}>🫁 {vm2.label}</span>
+            {leito.vm_fio2&&<span style={{marginLeft:8}}>FiO₂ {leito.vm_fio2}%</span>}
+            {leito.vm_peep&&<span style={{marginLeft:8}}>PEEP {leito.vm_peep}</span>}
+            {leito.vm_ps&&<span style={{marginLeft:8}}>PS {leito.vm_ps}</span>}
+            {leito.nebMed&&<span style={{marginLeft:8,color:"#a3e635"}}>💨 {leito.nebMed} {leito.nebFreq}</span>}
+          </div>:null;
         })()}
-        <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} sugestao="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
         <Row>
           <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} sugestao="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
           <Col><FL>24h — FR / Sat (mín-máx)</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} sugestao="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
@@ -4891,21 +4893,11 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"tgPocus",label:"POCUS Abdominal"},{key:"tgObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}>
-        {leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:6,fontSize:11,color:"#fb923c",marginBottom:8}}>
-          🍽 <strong>{leito.dieta.tipo}</strong>{leito.dieta.formula&&` — ${leito.dieta.formula}`}{leito.dieta.vazao&&` @ ${leito.dieta.vazao} mL/h`}
-          {(()=>{
-            const volHoje = parseFloat(tabelaHoje?.c24_diet_vol)||0;
-            const dietaSel = getDietasCatalogo(config).find(d=>d.id===leito.dieta?.catalogId);
-            const metaAbs = calcMetaAbsoluta(leito.dieta?.meta, parseFloat(leito.peso));
-            if (!dietaSel || !volHoje || !metaAbs) return null;
-            const propofolVol = parseFloat(tabelaHoje?.c24_propofol_vol)||0;
-            const kcalPropofol = propofolVol > 0 ? propofolVol * 1.1 : 0; // 1.1 kcal/mL
-            const kcalRec = ((volHoje * dietaSel.kcalML) + kcalPropofol).toFixed(0);
-            const ptnRec  = (volHoje * dietaSel.ptnML ).toFixed(1);
-            const pctKcal = metaAbs.kcal ? Math.round(kcalRec/metaAbs.kcal*100) : null;
-            const pctPtn  = metaAbs.ptn  ? Math.round(ptnRec /metaAbs.ptn *100) : null;
-            return <span style={{marginLeft:8,color:"#94a3b8"}}>· Kcal{kcalPropofol>0?` (incl. ${Math.round(kcalPropofol)} prop.)`:""}: <strong style={{color:pctKcal>=80?"#34d399":"#f87171"}}>{pctKcal}%</strong> · Ptn: <strong style={{color:pctPtn>=80?"#34d399":"#f87171"}}>{pctPtn}%</strong></span>;
-          })()}
+                {/* ── Dieta ── */}
+        {onLeitoChange&&<DietaPanel dados={leito} config={config} onChange={onLeitoChange}
+          diureseHojeVol={(()=>{const v=tabelaHoje?.c24_diet_vol;return v?parseFloat(v):0;})()}/>}
+        {!onLeitoChange&&leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.05)",borderRadius:7,marginBottom:8,fontSize:11,color:"#94a3b8"}}>
+          🍽 {leito.dieta.tipo} {leito.dieta.formula} {leito.dieta.vazao&&`@ ${leito.dieta.vazao} mL/h`}
         </div>}
         <Row>
           <Col><FL>Última evacuação</FL>
@@ -4966,7 +4958,18 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}>
 
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
-        <Row><Col><FL>Antibióticos — nome + período</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} sugestao={"- Meropenem + Vanco (15/04 - 22/04)\n- Tazocin + Claritromicina (21/03-27/03/2026)"} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
+                {/* ── Antibioticoterapia ── */}
+        {onLeitoChange?(
+          <AntibioticosPanel
+            antibioticos={leito.antibioticos||[]}
+            onChange={atbs=>onLeitoChange({...leito,antibioticos:atbs})}
+            crSerico={(()=>{const ds=Object.keys(tabelaDataLeito||{}).filter(k=>!k.startsWith("_")).sort().reverse();for(const d of ds){if(tabelaDataLeito[d]?.cr)return tabelaDataLeito[d].cr;}return "";})()}
+            peso={leito.peso||""}
+            idadeAnos={leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)):null}
+            sexo={leito.sexo||"M"}/>
+        ):(
+          <Row><Col><FL>Antibióticos</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
+        )}
         <Row><Col>
           <FL>🧫 Culturas</FL>
           {(leito.culturas||[]).length>0 ? (
