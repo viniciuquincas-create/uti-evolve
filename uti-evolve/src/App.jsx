@@ -497,35 +497,53 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
 const GRUPOS = { vasoativa:"Vasoativas", sedacao:"Sedação", analgesia:"Analgesia" };
 
 function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, config={} }) {
-  const [drogaSel, setDrogaSel] = useState("noradrenalina");
-  const [concCustom, setConcCustom] = useState("");
-  const [editandoConc, setEditandoConc] = useState(false);
-  const [lancado, setLancado]   = useState(false);
-  const [infoAberta, setInfoAberta] = useState(null); // key da droga com popup aberto
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const inputS = {
+    background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
+    borderRadius:10, padding:"10px 14px", color:"#e2e8f0", fontSize:14,
+    outline:"none", fontFamily:mono,
+  };
 
-  // mlh vem do estado persistido por droga
-  const mlh = vazoes[drogaSel] || "";
-  const setMlh = (val) => onVazaoChange && onVazaoChange(drogaSel, val);
+  // ── drug list stored in vazoes._list as JSON ──────────────────────────
+  const parseList = () => {
+    try { const r=vazoes._list; return r?JSON.parse(r):[]; } catch { return []; }
+  };
 
-  const conf = DROGAS_PROTOCOLO[drogaSel];
-  const modoAtual = (vazoes||{})[`${drogaSel}_modo`] || (config?.drogasModo?.[drogaSel]) || conf.modoCalcDefault;
-  const resultado = calcDoseFromMLH(drogaSel, mlh, peso, concCustom !== "" ? parseFloat(concCustom) : undefined, modoAtual, config);
-  // Normalize max check: conf.max is in conf.modoCalcDefault unit
-  const acimaDose = resultado && conf.max && (() => {
-    if (modoAtual === conf.modoCalcDefault) return parseFloat(resultado.dose) > conf.max;
-    // convert resultado to default unit for comparison
-    const dose = parseFloat(resultado.dose);
-    if (modoAtual==="mcg_kg_min" && conf.modoCalcDefault==="mg_kg_h") return dose*60/1000 > conf.max;
-    if (modoAtual==="mg_kg_h" && conf.modoCalcDefault==="mcg_kg_min") return dose*1000/60 > conf.max;
-    return dose > conf.max;
-  })();
-  const resBg     = acimaDose ? "rgba(248,113,113,0.1)" : resultado ? "rgba(56,189,248,0.08)" : "rgba(255,255,255,0.04)";
-  const resBorder = acimaDose ? "rgba(248,113,113,0.4)" : resultado ? "rgba(56,189,248,0.3)"  : "rgba(255,255,255,0.08)";
-  const resCor    = acimaDose ? "#f87171" : resultado ? "#38bdf8" : "#475569";
+  // Init: import from existing vazoes keys if _list is empty
+  const [list, setList] = useState(() => {
+    const existing = parseList();
+    if (existing.length) return existing;
+    return Object.entries(vazoes)
+      .filter(([k,v])=>DROGAS_PROTOCOLO[k]&&v&&!k.startsWith("_"))
+      .map(([k,v])=>({id:k+"_init", key:k, customName:DROGAS_PROTOCOLO[k].label, mlh:v}));
+  });
 
-  const porGrupo = Object.entries(DROGAS_PROTOCOLO).reduce((acc,[k,v])=>{
-    (acc[v.grupo]||(acc[v.grupo]=[])).push([k,v]); return acc;
-  },{});
+  const saveList = (newList) => {
+    setList(newList);
+    onVazaoChange&&onVazaoChange("_list", JSON.stringify(newList));
+    // Keep individual keys in sync for VGP DrugRow compatibility
+    newList.forEach(d=>{ if(d.key) onVazaoChange&&onVazaoChange(d.key, d.mlh||""); });
+  };
+
+  const addDrug = () => saveList([...list, {id:Date.now()+"", key:"", customName:"", mlh:""}]);
+
+  const removeDrug = (id) => {
+    const item = list.find(d=>d.id===id);
+    if(item?.key) onVazaoChange&&onVazaoChange(item.key,"");
+    saveList(list.filter(d=>d.id!==id));
+  };
+
+  const updateDrug = (id, updates) => {
+    const newList = list.map(d=>d.id===id?{...d,...updates}:d);
+    setList(newList);
+    onVazaoChange&&onVazaoChange("_list", JSON.stringify(newList));
+    const item = newList.find(d=>d.id===id);
+    if(item?.key) onVazaoChange&&onVazaoChange(item.key, item.mlh||"");
+  };
+
+  const [sug, setSug] = useState({}); // {id: true/false}
+  const allDrugs = Object.entries(DROGAS_PROTOCOLO).map(([k,v])=>({key:k, label:v.label}));
 
   const fmtDose = (d) => {
     const n = parseFloat(d);
@@ -536,142 +554,108 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
     return n.toFixed(2);
   };
 
-  // Mapeia grupo → campo da evolução
-  const CAMPO_EVOLUCAO = {
-    vasoativa: "cvDVA",
-    sedacao:   "nSeda",
-    analgesia: "nAnalg",
-  };
-
-  const lancarNaEvolucao = () => {
-    if (!resultado || !onLancarDroga) return;
-    const dose = `${fmtDose(resultado.dose)} ${resultado.label}`;
-    const kcalProp = drogaSel==="propofol" && parseFloat(mlh) > 0
-      ? ` · ${(parseFloat(mlh)*1.1).toFixed(0)} kcal/h`
-      : "";
-    const linha = `${conf.label} ${mlh}mL/h (${dose})`;
-    const campo = CAMPO_EVOLUCAO[conf.grupo] || "cvDVA";
-    onLancarDroga(linha, campo);
-    setLancado(true);
-    setTimeout(()=>setLancado(false), 2000);
-  };
+  const CAMPO_EVOLUCAO = { vasoativa:"cvDVA", sedacao:"nSeda", analgesia:"nAnalg" };
 
   return (
     <div>
-      <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>
-        Informe a <strong style={{color:"#e2e8f0"}}>vazão da bomba (mL/h)</strong> — o sistema calcula a dose com base na diluição padrão do protocolo.
-      </div>
-      {Object.entries(porGrupo).map(([grupo, drogas])=>(
-        <div key={grupo} style={{marginBottom:10}}>
-          <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:2,marginBottom:5,textTransform:"uppercase"}}>{GRUPOS[grupo]||grupo}</div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {drogas.map(([key,d])=>{
-              const temVazao = !!(vazoes[key]);
-              const isSel = drogaSel===key;
-              const infoOpen = infoAberta===key;
-              return (
-                <div key={key} style={{position:"relative"}}>
-                  <div style={{display:"flex",border:`1px solid ${isSel?"#38bdf8":temVazao?"rgba(251,146,60,0.6)":"rgba(255,255,255,0.1)"}`,borderRadius:20,background:isSel?"rgba(56,189,248,0.14)":temVazao?"rgba(251,146,60,0.1)":"rgba(255,255,255,0.02)",overflow:"hidden"}}>
-                    <button onClick={()=>{setDrogaSel(key);setConcCustom("");setEditandoConc(false);}}
-                      style={{padding:"5px 10px 5px 11px",background:"none",border:"none",color:isSel?"#38bdf8":temVazao?"#fb923c":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono,display:"flex",alignItems:"center",gap:5}}>
-                      {d.label}
-                      {temVazao && <span style={{fontSize:10,fontWeight:700}}>{vazoes[key]}mL/h</span>}
-                    </button>
-                    {d.doseInfo && (
-                      <button onClick={e=>{e.stopPropagation();setInfoAberta(infoOpen?null:key);}}
-                        style={{padding:"0 7px",background:infoOpen?"rgba(167,139,250,0.2)":"none",border:"none",borderLeft:`1px solid ${isSel?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.08)"}`,color:infoOpen?"#c4b5fd":"#475569",fontSize:9,cursor:"pointer",lineHeight:1}}
-                        title="Ver doses de referência">ⓘ</button>
-                    )}
+      {list.length>0&&(
+        <div style={{fontSize:9,color:"#334155",fontFamily:mono,letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>
+          Vasoativos / Inotrópicos (Bombas)
+        </div>
+      )}
+
+      {list.map(drug=>{
+        const conf = drug.key ? DROGAS_PROTOCOLO[drug.key] : null;
+        const resultado = (conf && drug.mlh) ? calcDoseFromMLH(drug.key, drug.mlh, peso, undefined, undefined, config) : null;
+        const acimaDose = resultado && conf?.max && parseFloat(resultado.dose)>conf.max;
+        const filtered = allDrugs.filter(d=>d.label.toLowerCase().includes((drug.customName||"").toLowerCase()));
+
+        return (
+          <div key={drug.id} style={{marginBottom:8, position:"relative"}}>
+            {/* Row: name | mlh | × */}
+            <div style={{display:"flex", gap:8, alignItems:"center"}}>
+              <div style={{flex:1, position:"relative"}}>
+                <input value={drug.customName||""}
+                  onChange={e=>{
+                    const name=e.target.value;
+                    const match=allDrugs.find(d=>d.label.toLowerCase()===name.toLowerCase());
+                    updateDrug(drug.id, {customName:name, key:match?match.key:""});
+                    setSug(s=>({...s,[drug.id]:name.length>0&&!match}));
+                  }}
+                  onFocus={()=>setSug(s=>({...s,[drug.id]:(drug.customName||"").length>0&&!drug.key}))}
+                  onBlur={()=>setTimeout(()=>setSug(s=>({...s,[drug.id]:false})),160)}
+                  placeholder="Nome da droga..."
+                  style={{...inputS, width:"100%"}}/>
+                {sug[drug.id]&&filtered.length>0&&(
+                  <div style={{position:"absolute",top:"calc(100% + 3px)",left:0,right:0,zIndex:60,
+                    background:"#0d1f14",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,
+                    maxHeight:180,overflowY:"auto"}}>
+                    {filtered.slice(0,8).map(d=>(
+                      <div key={d.key} onMouseDown={()=>{
+                        updateDrug(drug.id,{customName:d.label,key:d.key});
+                        setSug(s=>({...s,[drug.id]:false}));
+                      }} style={{padding:"8px 13px",cursor:"pointer",fontSize:12,color:"#cbd5e1",
+                        display:"flex",justifyContent:"space-between",borderBottom:"1px solid rgba(255,255,255,0.04)"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.1)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <span>{d.label}</span>
+                        <span style={{fontSize:10,color:"#475569"}}>
+                          {DROGAS_PROTOCOLO[d.key]?.diluicaoDesc?.split("→")[1]?.trim()||""}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  {infoOpen && d.doseInfo && (
-                    <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:50,minWidth:260,maxWidth:320,padding:"12px 14px",background:"#102010",border:"1px solid rgba(167,139,250,0.35)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
-                      <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1,marginBottom:6}}>📋 DOSES DE REFERÊNCIA — {d.label.toUpperCase()}</div>
-                      {d.doseInfo.split("\n").map((l,i)=>(
-                        <div key={i} style={{fontSize:12,color:i===0?"#e2e8f0":"#94a3b8",lineHeight:1.6,fontWeight:i===0?700:400}}>{l}</div>
-                      ))}
-                      <button onClick={()=>setInfoAberta(null)} style={{marginTop:8,background:"none",border:"none",color:"#475569",fontSize:10,cursor:"pointer",padding:0}}>✕ Fechar</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-
-      <div style={{marginTop:14,padding:"14px 16px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div>
-            <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{conf.label}</div>
-            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{conf.diluicaoDesc}</div>
-            {conf.concMcgML && <div style={{fontSize:11,color:concCustom?"#f59e0b":"#38bdf8",marginTop:1,fontFamily:mono}}>
-              {concCustom ? `★ ${concCustom} mcg/mL (personalizado)` : `= ${conf.concMcgML} mcg/mL`}
-            </div>}
-            {conf.concUIML && <div style={{fontSize:11,color:"#38bdf8",marginTop:1,fontFamily:mono}}>= {conf.concUIML} UI/mL</div>}
-          </div>
-          <button onClick={()=>setEditandoConc(e=>!e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"#64748b",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>
-            {editandoConc?"✕ Fechar":"✏️ Diluição personalizada"}
-          </button>
-        </div>
-
-        {/* Seletor de modo de cálculo (se mais de 1 opção) */}
-        {conf.modoCalcOpcoes && conf.modoCalcOpcoes.length > 1 && (
-          <div style={{marginBottom:12,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{fontSize:10,color:"#475569",fontFamily:mono,marginRight:4}}>UNIDADE:</span>
-            {conf.modoCalcOpcoes.map(m=>(
-              <button key={m} onClick={()=>onVazaoChange&&onVazaoChange(`${drogaSel}_modo`,m)}
-                style={{padding:"3px 10px",borderRadius:14,border:`1px solid ${modoAtual===m?"#f59e0b":"rgba(255,255,255,0.1)"}`,background:modoAtual===m?"rgba(245,158,11,0.12)":"rgba(255,255,255,0.02)",color:modoAtual===m?"#f59e0b":"#64748b",fontSize:10,cursor:"pointer",fontFamily:mono}}>
-                {MODOS_CALC[m]?.label||m}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {editandoConc && (
-          <div style={{marginBottom:14,padding:"10px 12px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8}}>
-            <div style={{fontSize:10,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:8}}>CONCENTRAÇÃO PERSONALIZADA (mcg/mL)</div>
-            <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
-              <Field label="CONCENTRAÇÃO" value={concCustom} onChange={setConcCustom} type="number" placeholder={String(conf.concMcgML||"")} suffix="mcg/mL"/>
-              <button onClick={()=>setConcCustom("")} style={{padding:"8px 12px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#64748b",fontSize:12,cursor:"pointer",marginBottom:1}}>
-                Resetar
+                )}
+              </div>
+              <input type="number" value={drug.mlh||""} placeholder="mL/h"
+                onChange={e=>updateDrug(drug.id,{mlh:e.target.value})}
+                style={{...inputS, width:90, textAlign:"center"}}/>
+              <button onClick={()=>removeDrug(drug.id)}
+                style={{width:38,height:38,flexShrink:0,borderRadius:8,cursor:"pointer",fontSize:18,
+                  border:"1px solid rgba(248,113,113,0.3)",background:"rgba(248,113,113,0.08)",color:"#f87171",
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                ×
               </button>
             </div>
-            <div style={{fontSize:11,color:"#64748b",marginTop:6}}>Padrão do protocolo: {conf.concMcgML} mcg/mL</div>
-          </div>
-        )}
 
-        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-          <Field label="VAZÃO DA BOMBA (mL/h)" value={mlh} onChange={setMlh} type="number" placeholder="5.0" suffix="mL/h"/>
-          <div style={{flex:1,minWidth:150}}>
-            <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DOSE RESULTANTE</div>
-            <div style={{padding:"9px 14px",borderRadius:8,textAlign:"center",background:resBg,border:`1px solid ${resBorder}`,fontSize:16,fontWeight:700,color:resCor,minHeight:38,display:"flex",alignItems:"center",justifyContent:"center"}}>
-              {resultado ? `${fmtDose(resultado.dose)} ${resultado.label}` : "—"}
-            </div>
-          </div>
-        </div>
+            {/* Inline dose line */}
+            {conf&&drug.mlh&&(
+              <div style={{fontSize:11,fontFamily:mono,marginTop:5,paddingLeft:2,lineHeight:1.5}}>
+                <span style={{color:acimaDose?"#f87171":"#38bdf8",fontWeight:600}}>
+                  {resultado?`≈ ${fmtDose(resultado.dose)} ${resultado.label}`:"—"}
+                </span>
+                <span style={{color:"#334155"}}>
+                  {" (ref. · "}{conf.diluicaoDesc}
+                  {conf.concMcgML ? ` → ${(conf.concMcgML/1000).toFixed(3).replace(/\.?0+$/,"")} mg/mL` : ""}
+                  {conf.concUIML  ? ` → ${conf.concUIML} UI/mL` : ""}
+                  {")"}
+                </span>
+                {acimaDose&&<span style={{color:"#f87171",marginLeft:8}}>⚠️ máx {conf.max} {conf.unidadeLabel}</span>}
+              </div>
+            )}
 
-        {acimaDose && (
-          <div style={{marginTop:8,padding:"6px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:6,fontSize:12,color:"#f87171"}}>
-            ⚠️ Acima do máximo recomendado: {conf.max} {conf.unidadeLabel}
+            {/* Lançar na evolução (sutil) */}
+            {resultado&&onLancarDroga&&(
+              <div style={{marginTop:3,paddingLeft:2}}>
+                <button onClick={()=>{
+                  const linha=`${conf.label} ${drug.mlh}mL/h (${fmtDose(resultado.dose)} ${resultado.label})`;
+                  onLancarDroga(linha, CAMPO_EVOLUCAO[conf.grupo]||"cvDVA");
+                }} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",
+                  fontSize:10,fontFamily:mono,padding:0,textDecoration:"underline dotted"}}>
+                  ↗ lançar na evolução
+                </button>
+              </div>
+            )}
           </div>
-        )}
-        {resultado && !acimaDose && conf.max && (
-          <div style={{marginTop:6,fontSize:11,color:"#475569"}}>
-            Máx. recomendado: {conf.max} {conf.unidadeLabel}
-          </div>
-        )}
-        {resultado && onLancarDroga && (
-          <button onClick={lancarNaEvolucao} style={{
-            width:"100%", marginTop:10, padding:"9px",
-            background: lancado ? "rgba(56,189,248,0.15)" : "rgba(56,189,248,0.1)",
-            border: `1px solid ${lancado ? "#38bdf8" : "#38bdf8"}`,
-            borderRadius:8, color: lancado ? "#38bdf8" : "#38bdf8",
-            fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all 0.2s",
-          }}>
-            {lancado ? "✅ Lançado na evolução!" : `📋 Lançar na evolução (${conf.grupo === "vasoativa" ? "== Cv: DVA" : conf.grupo === "sedacao" ? "== N: Sedação" : "== N: Analgesia"})`}
-          </button>
-        )}
-      </div>
+        );
+      })}
+
+      <button onClick={addDrug}
+        style={{width:"100%",marginTop:list.length?8:0,padding:"10px",borderRadius:8,
+          background:"transparent",border:"1px dashed rgba(56,189,248,0.2)",
+          color:"#38bdf8",cursor:"pointer",fontSize:12,fontFamily:mono,letterSpacing:1}}>
+        + adicionar droga
+      </button>
     </div>
   );
 }
