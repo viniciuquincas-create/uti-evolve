@@ -4028,7 +4028,81 @@ function CulturasPanel({ culturas=[], onChange }) {
 }
 
 
-function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[] }) {
+
+// ── MiniBombas — drogas de bomba embedadas dentro de cada SysB ───────────────
+function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChange, config={} }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const getConf = (k) => DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k)||null;
+  const fmtDose = (d) => {
+    const n=parseFloat(d); if(isNaN(n)) return d;
+    if(n<0.001) return n.toExponential(2); if(n<0.01) return n.toFixed(4);
+    if(n<1) return n.toFixed(3); return n.toFixed(2);
+  };
+
+  // chips de drogas disponíveis (que ainda não têm vazão)
+  const comVazao = drogaKeys.filter(k=>vazoes[k]&&parseFloat(vazoes[k])>0);
+  const semVazao = drogaKeys.filter(k=>!vazoes[k]||parseFloat(vazoes[k])<=0);
+  const [mostrarChips, setMostrarChips] = useState(false);
+
+  return (
+    <div style={{marginTop:4,padding:"8px 10px",background:"rgba(255,255,255,0.02)",
+      border:"1px solid rgba(255,255,255,0.06)",borderRadius:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:comVazao.length?6:0}}>
+        <span style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:2,flex:1}}>{title}</span>
+        <button onClick={()=>setMostrarChips(s=>!s)}
+          style={{fontSize:10,padding:"2px 7px",borderRadius:5,cursor:"pointer",
+            background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#475569"}}>
+          {mostrarChips?"▲ fechar":"+ droga"}
+        </button>
+      </div>
+
+      {/* Drogas ativas com input de mL/h */}
+      {comVazao.map(k=>{
+        const conf=getConf(k);
+        const mlh=vazoes[k]||"";
+        const res=conf&&mlh?calcDoseFromMLH(k,mlh,peso,undefined,undefined,config):null;
+        const acima=res&&conf?.max&&parseFloat(res.dose)>conf.max;
+        return (
+          <div key={k} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
+            <span style={{flex:1,fontSize:12,color:"#cbd5e1",fontFamily:mono,minWidth:100}}>{conf?.label||k}</span>
+            <input type="number" value={mlh} placeholder="mL/h"
+              onChange={e=>{onVazaoChange&&onVazaoChange(k,e.target.value);}}
+              style={{width:68,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+                borderRadius:6,padding:"4px 7px",color:"#e2e8f0",fontSize:12,textAlign:"center",fontFamily:mono}}/>
+            <span style={{fontSize:10,fontFamily:mono,color:acima?"#f87171":"#38bdf8",minWidth:90}}>
+              {res?`≈ ${fmtDose(res.dose)} ${res.label}`:""}
+            </span>
+            <button onClick={()=>{onVazaoChange&&onVazaoChange(k,"");}}
+              style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:12,padding:0}}>✕</button>
+          </div>
+        );
+      })}
+
+      {/* Chips para adicionar drogas */}
+      {mostrarChips&&semVazao.length>0&&(
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4,paddingTop:4,borderTop:"1px dashed rgba(255,255,255,0.06)"}}>
+          {semVazao.map(k=>{
+            const conf=getConf(k);
+            return (
+              <button key={k} onMouseDown={e=>{e.preventDefault();onVazaoChange&&onVazaoChange(k,"1");setMostrarChips(false);}}
+                style={{padding:"2px 8px",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",
+                  background:"rgba(255,255,255,0.03)",color:"#94a3b8",cursor:"pointer",fontSize:10,fontFamily:mono}}>
+                + {conf?.label||k}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {comVazao.length===0&&!mostrarChips&&(
+        <div style={{fontSize:10,color:"#1e293b",fontFamily:mono}}>nenhuma droga em bomba</div>
+      )}
+    </div>
+  );
+}
+
+
+function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[], onLeitoChange }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
@@ -4686,6 +4760,11 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
         </Row>
         {vis["nEFExtra"]&&<Row><Col><FL>EF — Detalhe adicional</FL><TA fieldRef={refs.nEFExtra} defaultValue={campos.nEFExtra} isAntigo={isAntigo("nEFExtra")} rows={2} fieldName="nEFExtra" onBlurSave={salvar}/></Col></Row>}
+        {/* Bombas: Sedação/Analgesia */}
+        <MiniBombas title="SEDAÇÃO / ANALGESIA (BOMBAS)"
+          drogaKeys={["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"]}
+          peso={leito.peso} vazoes={leito.drogasVazao||{}} config={config}
+          onVazaoChange={(k,v)=>onLeitoChange&&onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>
         {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} rows={2} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
         {vis["add_n_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_n_interconsulta")} defaultValue={campos["add_n_interconsulta"]} isAntigo={isAntigo("add_n_interconsulta")} rows={2} fieldName="add_n_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_n_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_n_exames")} defaultValue={campos["add_n_exames"]} isAntigo={isAntigo("add_n_exames")} rows={2} fieldName="add_n_exames" onBlurSave={salvar}/></Col></Row>}
@@ -4762,6 +4841,19 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rePocus",label:"POCUS Pulmonar"},{key:"reLUS",label:"LUS"},{key:"reObs",label:"Obs"}]}>
+        {/* Suporte Ventilatório — resumo */}
+        {leito.vm_modo&&(()=>{
+          const vm2=VM_MODOS.find(m=>m.id===leito.vm_modo);
+          return vm2?(
+            <div style={{padding:"6px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
+              <span style={{color:"#38bdf8",fontWeight:700}}>🫁 {vm2.label}</span>
+              {leito.vm_fio2&&<span style={{marginLeft:10}}>FiO₂: {leito.vm_fio2}%</span>}
+              {leito.vm_peep&&<span style={{marginLeft:10}}>PEEP: {leito.vm_peep}</span>}
+              {leito.vm_ps&&<span style={{marginLeft:10}}>PS: {leito.vm_ps}</span>}
+              {leito.nebMed&&<span style={{marginLeft:10,color:"#a3e635"}}>💨 {leito.nebMed} {leito.nebFreq}</span>}
+            </div>
+          ):null;
+        })()}
         <Row><Col><FL>Ventilação — Modo · PS · PEEP · FiO2 · Pocc</FL><TA fieldRef={refs.reVM} defaultValue={campos.reVM} isAntigo={isAntigo("reVM")} sugestao="TQT em VM modo PSV, PS12 PEEP6 Fi30% / Pocc 7" rows={2} fieldName="reVM" onBlurSave={salvar}/></Col></Row>
         <Row>
           <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} sugestao="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
@@ -4836,7 +4928,15 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             </select>
           </Col>
         </Row>
-        <Row>
+                {/* Dieta — resumo */}
+        {leito.dieta&&leito.dieta.tipo&&(
+          <div style={{padding:"6px 10px",background:"rgba(251,146,60,0.04)",border:"1px solid rgba(251,146,60,0.12)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
+            <span style={{color:"#fb923c",fontWeight:700}}>🍽 {leito.dieta.tipo==="enteral"?"Enteral":leito.dieta.tipo==="parenteral"?"NPT":leito.dieta.tipo==="oral"?"VO":"Jejum"}</span>
+            {leito.dieta.formula&&<span style={{marginLeft:10}}>{leito.dieta.formula}</span>}
+            {leito.dieta.vazao&&<span style={{marginLeft:10,color:"#fbbf24"}}>{leito.dieta.vazao} mL/h</span>}
+          </div>
+        )}
+<Row>
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
           <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} sugestao="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
         </Row>
@@ -5878,10 +5978,9 @@ export default function App() {
 
   const ABAS = [
     {id:"paciente",      label:"👤 Paciente"},
-    {id:"dadosclinicos", label:"🫁 Dados Clínicos"},
+    {id:"evolucao",      label:"🏥 Beira-leito"},
     {id:"tabela",        label:"📊 Tabela Clínica"},
     {id:"upload",        label:"📤 Importar Print"},
-    {id:"evolucao",      label:"📝 Evolução"},
     {id:"metas",         label:"🎯 Metas & Pendências"},
   ];
 
@@ -5989,7 +6088,7 @@ export default function App() {
               </div>
               <div style={{flex:1}}>
                 <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config}
-                  onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("paciente");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
+                  onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("evolucao");setAba("paciente");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
                   onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
                   onRemove={leitos.length>1?()=>{
                     setLeitos(ls=>{const novo=ls.filter(x=>x.id!==l.id);salvarLeitos(novo);setLeitoSelId(novo[0].id);return novo;});
@@ -6060,7 +6159,7 @@ export default function App() {
           <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
-            ) : aba==="dadosclinicos" ? (
+            ) : aba==="dadosclinicos_legacy" ? (
               <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
                 {/* Coluna esquerda: Ventilatório + Nutricional */}
                 <div style={{flex:2,minWidth:320}}>
@@ -6311,6 +6410,7 @@ ${linha}`:linha}));
                 <div style={{maxWidth:700}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#86efac"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
                   <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
+                    onLeitoChange={atualizar}
                     tabelaDataLeito={tabelaData[leitoSelId]||{}}
                     metas={metasPorLeito[leitoSelId]||[]}
                     onMetaChange={(novas)=>{
