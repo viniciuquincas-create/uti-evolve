@@ -4292,12 +4292,24 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis}) => {
     const [open,setOpen]=useState(true);
     const [showAdd,setShowAdd]=useState(false);
-    const cp=copiado[id];
+    const [preview,setPreview]=useState(null); // null=fechado, string=texto editável
+    const [cp2,setCp2]=useState(false);
     const vis = camposVisiveis || {};
     const toggle = (key) => setCamposVisiveis && setCamposVisiveis(prev=>({...prev,[key]:!prev[key]}));
     const adicionaveisNaoAtivos = adicionaveis.filter(a=>!vis[`add_${id}_${a.key}`]);
+
+    const abrirPreview = () => {
+      if(preview!==null){setPreview(null);return;}
+      setPreview(txtFn?txtFn():"— bloco vazio —");
+    };
+    const copiar = () => {
+      const txt = preview!==null ? preview : (txtFn?txtFn():"");
+      if(!txt||txt==="— bloco vazio —") return;
+      navigator.clipboard.writeText(txt).then(()=>{setCp2(true);setTimeout(()=>setCp2(false),2000);});
+    };
+
     return (
-      <div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:10,overflow:"hidden"}}>
+      <div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:12,overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
           <button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
             <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
@@ -4310,7 +4322,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
               {opcionais.map(o=>(
                 <button key={o.key} onClick={()=>toggle(o.key)}
                   title={`${vis[o.key]?"Ocultar":"Mostrar"} ${o.label}`}
-                  style={{padding:"2px 7px",borderRadius:4,border:`1px solid ${vis[o.key]?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)"}`,background:vis[o.key]?"rgba(255,255,255,0.08)":"transparent",color:vis[o.key]?"#94a3b8":"#334155",fontSize:9,cursor:"pointer",fontFamily:mono,whiteSpace:"nowrap"}}>
+                  style={{padding:"2px 7px",borderRadius:4,border:`1px solid ${vis[o.key]?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.07)"}`,background:vis[o.key]?"rgba(255,255,255,0.08)":"transparent",color:vis[o.key]?"#e2e8f0":"#475569",cursor:"pointer",fontSize:10,fontFamily:mono}}>
                   {o.label}
                 </button>
               ))}
@@ -4318,11 +4330,23 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           )}
           {open && adicionaveis.length>0 && (
             <button onClick={()=>setShowAdd(s=>!s)}
-              style={{margin:"4px 2px",padding:"2px 8px",borderRadius:4,border:`1px solid ${showAdd?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.08)"}`,background:showAdd?"rgba(167,139,250,0.1)":"transparent",color:showAdd?"#c4b5fd":"#334155",fontSize:11,cursor:"pointer"}}
+              style={{margin:"4px 2px",padding:"2px 8px",borderRadius:4,border:`1px solid ${showAdd?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}`,background:showAdd?"rgba(167,139,250,0.1)":"transparent",color:showAdd?"#a78bfa":"#475569",cursor:"pointer",fontSize:12}}
               title="Adicionar campo">+</button>
           )}
-          <button onClick={()=>copiarBloco(id,txtFn)} style={{margin:"6px 10px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,background:cp?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${cp?"#38bdf8":"rgba(255,255,255,0.1)"}`,color:cp?"#38bdf8":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
-            {cp?"✓ Copiado":"📋 Copiar"}
+          <button onClick={abrirPreview}
+            style={{margin:"4px 2px",padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+              background:preview!==null?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)",
+              border:`1px solid ${preview!==null?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
+              color:preview!==null?"#fbbf24":"#64748b",cursor:"pointer",fontFamily:"inherit"}}
+            title="Ver e editar o texto que será copiado">
+            {preview!==null?"✕ Texto":"👁 Texto"}
+          </button>
+          <button onClick={copiar}
+            style={{margin:"6px 8px 6px 2px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,
+              background:cp2?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.05)",
+              border:`1px solid ${cp2?"#34d399":"rgba(255,255,255,0.1)"}`,
+              color:cp2?"#34d399":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
+            {cp2?"✓ Copiado!":"📋 Copiar"}
           </button>
         </div>
         {open && showAdd && adicionaveisNaoAtivos.length>0 && (
@@ -4330,13 +4354,36 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <span style={{fontSize:9,color:"#64748b",fontFamily:mono}}>ADICIONAR:</span>
             {adicionaveisNaoAtivos.map(a=>(
               <button key={a.key} onClick={()=>{toggle(`add_${id}_${a.key}`);setShowAdd(false);}}
-                style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(167,139,250,0.3)",background:"rgba(167,139,250,0.08)",color:"#c4b5fd",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>
+                style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(167,139,250,0.3)",background:"rgba(167,139,250,0.08)",color:"#a78bfa",cursor:"pointer",fontSize:11}}>
                 + {a.label}
               </button>
             ))}
           </div>
         )}
         {open&&<div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>{children}</div>}
+        {open && preview!==null && (
+          <div style={{borderTop:"2px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.03)",padding:"10px 14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <span style={{fontSize:9,color:"#fbbf24",fontFamily:mono,letterSpacing:2}}>TEXTO — edite antes de copiar</span>
+              <button onClick={()=>setPreview(txtFn?txtFn():"")}
+                style={{fontSize:10,color:"#64748b",background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>
+                ↺ Regenerar
+              </button>
+            </div>
+            <textarea value={preview} onChange={e=>setPreview(e.target.value)}
+              rows={Math.max(3,preview.split("\n").length+1)}
+              style={{width:"100%",background:"rgba(0,0,0,0.25)",border:"1px solid rgba(251,191,36,0.2)",
+                borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,resize:"vertical",
+                fontFamily:"'DM Mono',monospace",lineHeight:1.65}}/>
+            <button onClick={copiar}
+              style={{marginTop:6,width:"100%",padding:"8px",borderRadius:7,fontWeight:700,fontSize:13,
+                background:cp2?"rgba(52,211,153,0.12)":"rgba(251,191,36,0.08)",
+                border:`1px solid ${cp2?"#34d399":"rgba(251,191,36,0.3)"}`,
+                color:cp2?"#34d399":"#fbbf24",cursor:"pointer",fontFamily:"inherit"}}>
+              {cp2?"✅ Copiado!":"📋 Copiar este texto"}
+            </button>
+          </div>
+        )}
       </div>
     );
   };
