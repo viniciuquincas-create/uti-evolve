@@ -4512,6 +4512,15 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtCvFull = () => {
     const p=[];
+    // DVA drogas de bomba
+    {const CK=["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato","amiodarona","furosemida"];
+    const vz=leito.drogasVazao||{};const fD=d=>{const n=parseFloat(d);if(isNaN(n))return d;return n<0.01?n.toFixed(4):n<1?n.toFixed(3):n.toFixed(2);};
+    const cd=CK.filter(k=>vz[k]&&parseFloat(vz[k])>0).map(k=>{
+      const cf=DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k);
+      const rs=cf?calcDoseFromMLH(k,vz[k],leito.peso,undefined,cf.modoCalcDefault,config):null;
+      return `${cf?.label||k} ${vz[k]}mL/h${rs?` (≈${fD(rs.dose)} ${rs.label})`:""}`;
+    });
+    if(cd.length)p.push(`- DVA: ${cd.join(" · ")}`);}
     // EF: hemodinâmica; ausculta; cardioscopia
     const ef_cv = [get("cvHemo"), get("cvAusculta"), get("cvCardioscopia")?`cardioscopia: ${get("cvCardioscopia")}`:"", get("cvEF")].filter(Boolean).join("; ");
     if(ef_cv) p.push(`- EF: ${ef_cv}`);
