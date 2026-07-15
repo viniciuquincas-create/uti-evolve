@@ -637,7 +637,7 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
 
       {list.map(drug=>{
         const conf = drug.key ? getConf(drug.key) : null;
-        const resultado = (conf && drug.mlh) ? calcDoseFromMLH(drug.key, drug.mlh, peso, undefined, undefined, config) : null;
+        const resultado = (conf && drug.mlh) ? calcDoseFromMLH(drug.key, drug.mlh, peso, undefined, conf?.modoCalcDefault, config) : null;
         const acimaDose = resultado && conf?.max && parseFloat(resultado.dose)>conf.max;
         const filtered = allDrugs.filter(d=>d.label.toLowerCase().includes((drug.customName||"").toLowerCase()));
 
@@ -4061,7 +4061,7 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
       {comVazao.map(k=>{
         const conf=getConf(k);
         const mlh=vazoes[k]||"";
-        const res=conf&&mlh?calcDoseFromMLH(k,mlh,peso,undefined,undefined,config):null;
+        const res=conf&&mlh?calcDoseFromMLH(k,mlh,peso,undefined,conf.modoCalcDefault,config):null;
         const acima=res&&conf?.max&&parseFloat(res.dose)>conf.max;
         return (
           <div key={k} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
@@ -4504,6 +4504,13 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("nSeda"))  p.push(`- Sedação: ${get("nSeda")}`);
     if(get("nAnalg")) p.push(`- Analgesia: ${get("nAnalg")}`);
     if(vis.nPsiq&&get("nPsiq")) p.push(`- Psicoativos: ${get("nPsiq")}`);
+    {const NK=["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"];
+    const vz=leito.drogasVazao||{};const fD=d=>{const n=parseFloat(d);if(isNaN(n))return d;return n<1?n.toFixed(3):n.toFixed(2);};
+    const nd=NK.filter(k=>vz[k]&&parseFloat(vz[k])>0).map(k=>{
+      const cf=DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k);
+      const rs=cf?calcDoseFromMLH(k,vz[k],leito.peso,undefined,cf.modoCalcDefault,config):null;
+      return `${cf?.label||k} ${vz[k]}mL/h${rs?` (≈${fD(rs.dose)} ${rs.label})`:""}`;
+    });if(nd.length)p.push(`- Sedação/Analgesia (bombas): ${nd.join(" · ")}`);}
     if(vis.add_n_interconsulta&&getExtra("add_n_interconsulta")) p.push(`- IC: ${getExtra("add_n_interconsulta")}`);
     if(vis.add_n_exames&&getExtra("add_n_exames")) p.push(`- Exames: ${getExtra("add_n_exames")}`);
     if(vis.add_n_pocus&&getExtra("add_n_pocus")) p.push(`- POCUS: ${getExtra("add_n_pocus")}`);
@@ -4815,7 +4822,26 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <Col><FL>24h — FC · PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} rows={2} fieldName="cv24h" onBlurSave={salvar}/></Col>
         </Row>
         {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
-        <Row><Col><FL>Perfusão — TEC · Lactato</FL><TA fieldRef={refs.cvPerf} defaultValue={campos.cvPerf} isAntigo={isAntigo("cvPerf")} sugestao="TEC 2 seg / Lactato 12 > 22" rows={1} fieldName="cvPerf" onBlurSave={salvar}/></Col></Row>
+        <Row>
+        <Col><FL>Perfusão — TEC</FL>
+          <input value={campos.cvTEC||""} onChange={e=>onCampoEdit("cvTEC",e.target.value)}
+            placeholder="< 3s" onBlur={e=>salvar("cvTEC",e.target.value)}
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
+        <Col><FL>Perfusão — Lactato</FL>
+          <input value={campos.cvLact||""} onChange={e=>onCampoEdit("cvLact",e.target.value)}
+            placeholder="mmol/L" onBlur={e=>salvar("cvLact",e.target.value)}
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
+      </Row>
+      {vis["cvDeltaCO2"]&&<Row>
+        <Col><FL>ΔCO₂ — Gap venoarterial</FL>
+          <input value={campos.cvDeltaCO2||""} onChange={e=>onCampoEdit("cvDeltaCO2",e.target.value)}
+            placeholder="mmHg (normal < 6)" onBlur={e=>salvar("cvDeltaCO2",e.target.value)}
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
+        <Col><FL>ΔPP — Var. pressão de pulso</FL>
+          <input value={campos.cvDeltaPP||""} onChange={e=>onCampoEdit("cvDeltaPP",e.target.value)}
+            placeholder="% (responde > 13%)" onBlur={e=>salvar("cvDeltaPP",e.target.value)}
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
+      </Row>}
         {vis["cvTropo"]&&<Row><Col>
           <FL>🫀 Troponina</FL>
           {(()=>{
