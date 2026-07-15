@@ -252,7 +252,7 @@ function calcDoseFromMLH(drogaKey, mlh, peso, concCustom, modoCustom, config={})
   }
   if (!conc || conc <= 0) return null;
   // Modo: config override > modoCustom > default do protocolo
-  const modoKey = (config?.drogasModo?.[drogaKey]) || modoCustom || conf.modoCalcDefault;
+  const modoKey = modoCustom || (config?.drogasModo?.[drogaKey]) || conf.modoCalcDefault;
   const modo = MODOS_CALC[modoKey];
   if (!modo) return null;
   const dose = modo.fn(mlhN, conc, p);
@@ -4824,21 +4824,21 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
         <Row>
         <Col><FL>Perfusão — TEC</FL>
-          <input value={campos.cvTEC||""} onChange={e=>onCampoEdit("cvTEC",e.target.value)}
+          <input key={campos.cvTEC||""} defaultValue={campos.cvTEC||""}
             placeholder="< 3s" onBlur={e=>salvar("cvTEC",e.target.value)}
             style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
         <Col><FL>Perfusão — Lactato</FL>
-          <input value={campos.cvLact||""} onChange={e=>onCampoEdit("cvLact",e.target.value)}
+          <input defaultValue={campos.cvLact||""}
             placeholder="mmol/L" onBlur={e=>salvar("cvLact",e.target.value)}
             style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
       </Row>
       {vis["cvDeltaCO2"]&&<Row>
         <Col><FL>ΔCO₂ — Gap venoarterial</FL>
-          <input value={campos.cvDeltaCO2||""} onChange={e=>onCampoEdit("cvDeltaCO2",e.target.value)}
+          <input defaultValue={campos.cvDeltaCO2||""}
             placeholder="mmHg (normal < 6)" onBlur={e=>salvar("cvDeltaCO2",e.target.value)}
             style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
         <Col><FL>ΔPP — Var. pressão de pulso</FL>
-          <input value={campos.cvDeltaPP||""} onChange={e=>onCampoEdit("cvDeltaPP",e.target.value)}
+          <input defaultValue={campos.cvDeltaPP||""}
             placeholder="% (responde > 13%)" onBlur={e=>salvar("cvDeltaPP",e.target.value)}
             style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
       </Row>}
