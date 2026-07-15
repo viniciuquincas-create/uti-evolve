@@ -4526,7 +4526,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(ef_cv) p.push(`- EF: ${ef_cv}`);
     if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
     if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
-    if(vis.cvPerf&&get("cvPerf")) p.push(`- Perfusão: ${get("cvPerf")}`);
+    {const pf=[get("cvTEC")?`TEC ${get("cvTEC")}`:null,get("cvLact")?`Lactato ${get("cvLact")} mmol/L`:null,vis["cvDeltaCO2"]&&get("cvDeltaCO2")?`ΔCO₂ ${get("cvDeltaCO2")} mmHg`:null,vis["cvDeltaCO2"]&&get("cvDeltaPP")?`ΔPP ${get("cvDeltaPP")}%`:null].filter(Boolean).join(" · ");if(pf)p.push(`- Perfusão: ${pf}`);}
     if(vis.cvTropo){
       const allTropos = (()=>{
         try {
