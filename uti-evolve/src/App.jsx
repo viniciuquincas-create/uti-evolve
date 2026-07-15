@@ -3695,15 +3695,25 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
 
 
 // ── PickField — campo com chips de seleção rápida ─────────────────────────
+// Module-level state for PickField open/close (survives component remounts)
+const _PF_OPEN = {};
+
+
 function PickField({ label, options=[], value="", onChange, rows=2, placeholder="" }) {
-  const [open, setOpen] = useState(false);
+  const _pfKey = label || options.join('|');
+  const [open, setOpen] = useState(() => !!_PF_OPEN[_pfKey]);
+  const toggleOpen = () => {
+    const next = !open;
+    _PF_OPEN[_pfKey] = next;
+    setOpen(next);
+  };
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const hasVal = value.trim().length > 0;
   return (
     <div style={{marginBottom:6,border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,overflow:"hidden"}}>
       {/* Header clicável */}
-      <div onClick={()=>setOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
+      <div onClick={toggleOpen} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
         cursor:"pointer",background:"rgba(255,255,255,0.02)",userSelect:"none"}}>
         <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,flex:1}}>{label}</span>
         {hasVal&&!open&&<span style={{fontSize:10,color:"#38bdf8",fontFamily:mono,maxWidth:200,
