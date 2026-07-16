@@ -3702,17 +3702,28 @@ const _PF_OPEN = {};
 function PickField({ label, options=[], value="", onChange, rows=2, placeholder="" }) {
   const _pfKey = label || options.join('|');
   const [open, setOpen] = useState(() => !!_PF_OPEN[_pfKey]);
+  const taRef = React.useRef(null);
+  const mono = "'DM Mono',monospace";
+
   const toggleOpen = () => {
     const next = !open;
     _PF_OPEN[_pfKey] = next;
     setOpen(next);
   };
-  const T = useTheme();
-  const mono = "'DM Mono',monospace";
-  const hasVal = value.trim().length > 0;
+
+  const applyChip = (opt, sel) => {
+    const cur = taRef.current ? taRef.current.value : value;
+    const newVal = sel
+      ? cur.replace(opt,"").replace(/\s*\/\s*\/\s*/," / ").replace(/^\s*\/\s*/,"").replace(/\s*\/\s*$/,"").trim()
+      : (cur ? cur+" / "+opt : opt);
+    if(taRef.current) taRef.current.value = newVal;
+    onChange(newVal);
+  };
+
+  const hasVal = value && value.trim().length > 0;
+
   return (
     <div style={{marginBottom:6,border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,overflow:"hidden"}}>
-      {/* Header clicável */}
       <div onClick={toggleOpen} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
         cursor:"pointer",background:"rgba(255,255,255,0.02)",userSelect:"none"}}>
         <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,flex:1}}>{label}</span>
@@ -3720,26 +3731,27 @@ function PickField({ label, options=[], value="", onChange, rows=2, placeholder=
           overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{value}</span>}
         <span style={{fontSize:10,color:"#334155"}}>{open?"▲":"▼"}</span>
       </div>
-      {/* Conteúdo expansível */}
       {open&&(
         <div style={{padding:"8px 10px",background:"rgba(0,0,0,0.15)"}}>
           <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
             {options.map(opt=>{
               const sel = value.includes(opt);
               return (
-                <button key={opt} onClick={()=>{
-                  if(sel) onChange(value.replace(opt,"").replace(/\s*\/\s*\/\s*/," / ").replace(/^\s*\/\s*/,"").replace(/\s*\/\s*$/,"").trim());
-                  else onChange(value ? value+" / "+opt : opt);
-                }} style={{padding:"2px 8px",borderRadius:12,border:`1px solid ${sel?"rgba(56,189,248,0.5)":"rgba(255,255,255,0.1)"}`,
-                  background:sel?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.03)",
-                  color:sel?"#38bdf8":"#64748b",cursor:"pointer",fontSize:10,fontFamily:mono}}>
+                <button key={opt} onMouseDown={e=>{e.preventDefault();applyChip(opt,sel);}}
+                  style={{padding:"2px 8px",borderRadius:12,border:`1px solid ${sel?"rgba(56,189,248,0.5)":"rgba(255,255,255,0.1)"}`,
+                    background:sel?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.03)",
+                    color:sel?"#38bdf8":"#64748b",cursor:"pointer",fontSize:10,fontFamily:mono}}>
                   {opt}
                 </button>
               );
             })}
           </div>
-          <textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows}
-            placeholder={placeholder||"Escreva livremente ou selecione acima..."}
+          <textarea
+            ref={taRef}
+            defaultValue={value}
+            onBlur={e=>onChange(e.target.value)}
+            rows={rows}
+            placeholder={placeholder||"Digite livremente ou selecione acima..."}
             style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
               borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,resize:"vertical",
               fontFamily:mono}}/>
@@ -3749,7 +3761,6 @@ function PickField({ label, options=[], value="", onChange, rows=2, placeholder=
   );
 }
 
-// ── GasometriaPanel — sub-tabela de gasometrias com horário ────────────────
 function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
