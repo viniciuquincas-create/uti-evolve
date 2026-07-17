@@ -5133,6 +5133,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 function FerramentasPanel() {
   const LINKS = [
     {
+      emoji:"🔗", cor:"#34d399", bg:"rgba(52,211,153,0.08)", borda:"rgba(52,211,153,0.25)",
+      titulo:"MCBEV — Links e Recursos", desc:"Protocolos, guias e materiais da equipe",
+      href:"https://linktr.ee/mcbev",
+      label:"Abrir Linktree"
+    },
+    {
       emoji:"🫁", cor:"#38bdf8", bg:"rgba(56,189,248,0.08)", borda:"rgba(56,189,248,0.25)",
       titulo:"Checklist de IOT", desc:"Passo a passo para intubação e via aérea difícil",
       href:"https://docs.google.com/forms/d/e/1FAIpQLSdGRgBUwki8uJGM2_IAEo1oFHiNlR-QIIZzt9a3oRKa11lPHw/viewform?usp=send_form",
