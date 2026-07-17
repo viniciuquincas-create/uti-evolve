@@ -5193,21 +5193,48 @@ function FerramentasPanel() {
 }
 
 // ── MetasPanel ────────────────────────────────────────────────────────────────
+const EQUIPES = [
+  {id:"enf",  label:"Enfermagem",    emoji:"🩺", cor:"#38bdf8"},
+  {id:"nut",  label:"Nutrição",      emoji:"🥗", cor:"#a3e635"},
+  {id:"fisio",label:"Fisioterapia",  emoji:"🫁", cor:"#f59e0b"},
+  {id:"fono", label:"Fonoaudiologia",emoji:"🗣️",  cor:"#a78bfa"},
+  {id:"med",  label:"Médica",        emoji:"⚕️",  cor:"#f87171"},
+];
+const equipeCor = (id) => (EQUIPES.find(e=>e.id===id)||{cor:"#64748b"}).cor;
+const equipeLabel = (id) => (EQUIPES.find(e=>e.id===id)||{label:"Geral"}).label;
+const equipeEmoji = (id) => (EQUIPES.find(e=>e.id===id)||{emoji:"📋"}).emoji;
+
+
 function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
   const [nova, setNova] = useState("");
+  const [novaEquipe, setNovaEquipe] = useState("");
   const [show, setShow] = useState(false);
-  
+  const [filtroEquipe, setFiltroEquipe] = useState(""); // "" = todas
+
   const add = (t) => {
     if (!t.trim()) return;
-    onChange([...metas, { id: Date.now(), texto: t.trim(), status: "pendente" }]);
-    setNova(""); setShow(false);
+    onChange([...metas, { id: Date.now(), texto: t.trim(), feito: false, status:"pendente", equipe: novaEquipe }]);
+    setNova(""); setNovaEquipe(""); setShow(false);
   };
-  const s = { total:metas.length, ok:metas.filter(m=>m.status==="cumprido").length, pend:metas.filter(m=>m.status==="pendente").length };
+  const s = { total:metas.length, ok:metas.filter(m=>m.feito||m.status==="cumprido").length, pend:metas.filter(m=>!m.feito&&m.status!=="cumprido").length };
+
+  const metasFiltradas = filtroEquipe ? metas.filter(m=>m.equipe===filtroEquipe) : metas;
+
+  const copiarParaTASY = () => {
+    const linhas = metasFiltradas.map(m => {
+      const feito = m.feito || m.status==="cumprido";
+      const pfx = feito ? "[✅]" : "[  ]";
+      return `${pfx} ${m.texto||m}`;
+    });
+    if (filtroEquipe) linhas.unshift(`📋 ${equipeEmoji(filtroEquipe)} ${equipeLabel(filtroEquipe).toUpperCase()}\n`);
+    navigator.clipboard?.writeText(linhas.join("\n"));
+  };
 
   return (
     <div>
+      {/* Resumo */}
       {metas.length>0 && (
-        <div style={{display:"flex",gap:12,marginBottom:16,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:8}}>
+        <div style={{display:"flex",gap:12,marginBottom:12,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:10}}>
           {[["TOTAL",s.total,"#e2e8f0"],["CUMPRIDAS",s.ok,"#38bdf8"],["PENDENTES",s.pend,"#f59e0b"]].map(([l,v,c])=>(
             <div key={l} style={{textAlign:"center",flex:1}}>
               <div style={{fontSize:20,fontWeight:700,color:c}}>{v}</div>
@@ -5216,32 +5243,111 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
           ))}
         </div>
       )}
-      <div style={{display:"flex",gap:8,marginBottom:8}}>
-        <input value={nova} onChange={e=>setNova(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add(nova)} placeholder="Nova meta ou pendência…"
-          style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-        <button onClick={()=>add(nova)} style={{padding:"9px 14px",background:"rgba(56,189,248,0.15)",border:"1px solid #38bdf8",borderRadius:8,color:"#38bdf8",fontWeight:700,cursor:"pointer",fontSize:16}}>+</button>
+
+      {/* Filtro por equipe */}
+      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+        <button onClick={()=>setFiltroEquipe("")}
+          style={{padding:"3px 10px",borderRadius:12,border:`1px solid ${!filtroEquipe?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.1)"}`,
+            background:!filtroEquipe?"rgba(255,255,255,0.1)":"transparent",
+            color:!filtroEquipe?"#e2e8f0":"#64748b",cursor:"pointer",fontSize:11}}>
+          Todas
+        </button>
+        {EQUIPES.map(e=>(
+          <button key={e.id} onClick={()=>setFiltroEquipe(filtroEquipe===e.id?"":e.id)}
+            style={{padding:"3px 10px",borderRadius:12,
+              border:`1px solid ${filtroEquipe===e.id?e.cor+"80":"rgba(255,255,255,0.1)"}`,
+              background:filtroEquipe===e.id?e.cor+"20":"transparent",
+              color:filtroEquipe===e.id?e.cor:"#64748b",cursor:"pointer",fontSize:11}}>
+            {e.emoji} {e.label} {metas.filter(m=>m.equipe===e.id&&!m.feito&&m.status!=="cumprido").length>0&&
+              <span style={{fontWeight:700,color:e.cor}}>({metas.filter(m=>m.equipe===e.id&&!m.feito&&m.status!=="cumprido").length})</span>}
+          </button>
+        ))}
       </div>
-      {(()=>{const sugs=[];const cr=parseFloat(tabelaHoje?.cr||0),peso=parseFloat(leito.peso||0);const idadeA=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento))/(365.25*86400000)):null;const clcr=cr&&peso&&idadeA?Math.round(((140-idadeA)*peso)/(72*cr)*(leito.sexo==="F"?0.85:1)):null;(leito.antibioticos||[]).filter(a=>!a.dataFim).forEach(atb=>{if(!atb.nome||!atb.dataInicio)return;const dias=diasAtb24h(atb.dataInicio, atb.horaInicio);if(dias<2)return;const lc=atb.nome.toLowerCase();const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.includes("imipenem")?"imipenem":lc.split(" ")[0].replace(/[^a-z]/g,"");if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(a=>clcr<a.tfg);if(aj)sugs.push({txt:`⚠️ Ajustar ${atb.nome}: ClCr ${clcr}→${aj.rec}`,alert:true});}});const disps=leito.dispositivos||{},alts={cvc:config.alertaCVC||7,pai:config.alertaPAI||7,svd:config.alertaSVD||14,dialise:config.alertaDialise||14,tot:config.alertaTOT||99,tqt:config.alertaTQT||99,sng:config.alertaSNG||21,dreno:config.alertaDreno||21};DISP_MULTIPLO.forEach(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).forEach((inst,i)=>{if(!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}${disps[d.key].length>1?` ${i+1}`:""}:D${dd}(lim${alts[d.key]}d)`,alert:true});}));DISP_SINGULAR.forEach(d=>{const inst=disps[d.key];if(!inst?.ativo||!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);if(dd>(alts[d.key]||99))sugs.push({txt:`🔴 ${d.label}:D${dd}(lim${alts[d.key]}d)`,alert:true});});METAS_SUGESTOES.forEach(s=>sugs.push({txt:s,alert:false}));const ac=sugs.filter(s=>s.alert).length;return(<><button onClick={()=>setShow(s=>!s)} style={{width:"100%",padding:"7px",background:"transparent",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:8,color:ac?"#f87171":"#64748b",fontSize:12,cursor:"pointer",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{show?"▲ Fechar":"▼ Ver sugestões"}{ac>0&&<span style={{padding:"1px 7px",background:"rgba(248,113,113,0.15)",borderRadius:10,fontSize:10}}>{ac} alertas</span>}</button>{show&&<div style={{marginBottom:14}}>{sugs.map((sg,i)=>(<div key={i} onClick={()=>add(sg.txt)} style={{padding:"7px 12px",borderRadius:6,fontSize:12,marginBottom:4,cursor:"pointer",color:sg.alert?"#f87171":"#94a3b8",background:sg.alert?"rgba(248,113,113,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${sg.alert?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.05)"}`}} onMouseEnter={e=>e.currentTarget.style.opacity="0.7"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{sg.alert?"":"+  "}{sg.txt}</div>))}</div>}</>);})()}
-      {metas.length===0 && <div style={{textAlign:"center",padding:24,color:"#334155",fontSize:13}}>Nenhuma meta cadastrada para este plantão</div>}
-      {metas.map(m=>(
-        <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",background:"rgba(255,255,255,0.03)",borderRadius:8,marginBottom:6,border:"1px solid rgba(255,255,255,0.06)"}}>
+
+      {/* Nova meta */}
+      <div style={{marginBottom:8}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+          {EQUIPES.map(e=>(
+            <button key={e.id} onClick={()=>setNovaEquipe(novaEquipe===e.id?"":e.id)}
+              style={{padding:"2px 8px",borderRadius:10,
+                border:`1px solid ${novaEquipe===e.id?e.cor+"80":"rgba(255,255,255,0.1)"}`,
+                background:novaEquipe===e.id?e.cor+"20":"transparent",
+                color:novaEquipe===e.id?e.cor:"#64748b",cursor:"pointer",fontSize:10}}>
+              {e.emoji} {e.label}
+            </button>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <input value={nova} onChange={e=>setNova(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&add(nova)}
+            placeholder={`Nova meta${novaEquipe?" — "+equipeLabel(novaEquipe):""}...`}
+            style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",
+              borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13}}/>
+          <button onClick={()=>add(nova)}
+            style={{padding:"9px 14px",background:"rgba(56,189,248,0.15)",border:"1px solid rgba(56,189,248,0.3)",
+              borderRadius:8,color:"#38bdf8",cursor:"pointer",fontSize:13,fontWeight:700}}>
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* Copiar filtrados */}
+      {metas.length>0&&(
+        <button onClick={copiarParaTASY}
+          style={{width:"100%",marginBottom:10,padding:"7px",borderRadius:8,
+            background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",
+            color:"#64748b",cursor:"pointer",fontSize:11}}>
+          📋 Copiar {filtroEquipe?equipeLabel(filtroEquipe):"todas"} para TASY
+        </button>
+      )}
+
+      {metasFiltradas.length===0 && <div style={{textAlign:"center",padding:24,color:"#334155",fontSize:13}}>
+        Nenhuma {filtroEquipe?equipeLabel(filtroEquipe)+" ":""} meta cadastrada
+      </div>}
+
+      {metasFiltradas.map(m=>(
+        <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",
+          background:"rgba(255,255,255,0.02)",borderRadius:10,marginBottom:6,
+          border:`1px solid ${m.equipe?equipeCor(m.equipe)+"20":"rgba(255,255,255,0.06)"}`}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:13,color:"#cbd5e1",marginBottom:6}}>{m.texto}</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
+              {m.equipe&&(
+                <span style={{fontSize:9,padding:"1px 6px",borderRadius:8,fontFamily:mono,
+                  background:equipeCor(m.equipe)+"20",color:equipeCor(m.equipe),border:`1px solid ${equipeCor(m.equipe)}40`}}>
+                  {equipeEmoji(m.equipe)} {equipeLabel(m.equipe)}
+                </span>
+              )}
+              {/* team selector */}
+              <select value={m.equipe||""} onChange={e=>onChange(metas.map(x=>x.id===m.id?{...x,equipe:e.target.value}:x))}
+                style={{fontSize:9,background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,
+                  color:"#475569",cursor:"pointer",padding:"1px 3px"}}>
+                <option value="">Sem equipe</option>
+                {EQUIPES.map(e=><option key={e.id} value={e.id}>{e.emoji} {e.label}</option>)}
+              </select>
+            </div>
+            <div style={{fontSize:13,color:"#cbd5e1",marginBottom:6}}>{m.texto||m}</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {["pendente","andamento","cumprido"].map(st=>(
-                <button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,status:st}:x))}
-                  style={{padding:"2px 10px",borderRadius:20,border:`1px solid ${m.status===st?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:m.status===st?"rgba(56,189,248,0.12)":"transparent",color:m.status===st?"#38bdf8":"#64748b",fontSize:11,cursor:"pointer",fontFamily:mono}}>
+                <button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,status:st,feito:st==="cumprido"}:x))}
+                  style={{padding:"2px 10px",borderRadius:20,
+                    border:`1px solid ${(m.status||"pendente")===st?"#38bdf8":"rgba(255,255,255,0.1)"}`,
+                    background:(m.status||"pendente")===st?"rgba(56,189,248,0.15)":"transparent",
+                    color:(m.status||"pendente")===st?"#38bdf8":"#475569",cursor:"pointer",fontSize:11}}>
                   {st==="pendente"?"● Pendente":st==="andamento"?"◑ Andamento":"✓ Cumprido"}
                 </button>
               ))}
             </div>
           </div>
-          <button onClick={()=>onChange(metas.filter(x=>x.id!==m.id))} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:16,padding:2}}>✕</button>
+          <button onClick={()=>onChange(metas.filter(x=>x.id!==m.id))}
+            style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:14,padding:"2px 4px"}}>
+            ✕
+          </button>
         </div>
       ))}
     </div>
   );
 }
+
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
 function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
@@ -5752,6 +5858,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [filtro, setFiltro] = useState("todos");
+  const [filtroEquipePlantao, setFiltroEquipePlantao] = useState("");
   const [copied, setCopied] = useState(false);
 
   const getAutoAlerts = (leito) => {
@@ -5774,15 +5881,21 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
   const leitosAtivos = leitos.filter(l=>l.paciente);
 
   const copiarTudo = () => {
-    const linhas = ["✅ CHECK DE METAS — " + new Date().toLocaleDateString("pt-BR"), ""];
+    const header = filtroEquipePlantao
+      ? `${equipeEmoji(filtroEquipePlantao)} PENDÊNCIAS — ${equipeLabel(filtroEquipePlantao).toUpperCase()} — ${new Date().toLocaleDateString("pt-BR")}`
+      : "✅ CHECK DE METAS — " + new Date().toLocaleDateString("pt-BR");
+    const linhas = [header, ""];
     leitosAtivos.forEach(l => {
-      const metas = metasPorLeito[l.id]||[];
-      const pendentes = metas.filter(m=>!m.feito);
-      const alerts = getAutoAlerts(l);
-      if(pendentes.length===0 && alerts.length===0) return;
+      const metas = (metasPorLeito[l.id]||[]).filter(m=>{
+        if(m.feito||m.status==="cumprido") return false;
+        if(filtroEquipePlantao) return m.equipe===filtroEquipePlantao;
+        return true;
+      });
+      const alerts = filtroEquipePlantao ? [] : getAutoAlerts(l);
+      if(metas.length===0 && alerts.length===0) return;
       linhas.push(`📌 ${l.paciente}${l.diagnostico?" — "+l.diagnostico:""}`);
       alerts.forEach(a=>linhas.push(`  ⚠️ ${a}`));
-      pendentes.forEach(m=>linhas.push(`  ☐ ${m.texto||m}`));
+      metas.forEach(m=>linhas.push(`  ☐ ${m.texto||m}`));
       linhas.push("");
     });
     navigator.clipboard?.writeText(linhas.join("\n")).catch(()=>{});
@@ -5815,7 +5928,11 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
         {leitosAtivos.map(l=>{
           const metas = metasPorLeito[l.id]||[];
           const alerts = getAutoAlerts(l);
-          const pendentes = metas.filter(m=>!m.feito);
+          const pendentes = metas.filter(m=>{
+        if(m.feito||m.status==="cumprido") return false;
+        if(filtroEquipePlantao) return m.equipe===filtroEquipePlantao;
+        return true;
+      });
           if(filtro==="pendentes" && pendentes.length===0 && alerts.length===0) return null;
           const dias = diasInternacao(l.dataInternacao);
 
