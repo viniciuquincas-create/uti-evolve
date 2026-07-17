@@ -5924,6 +5924,29 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
         </div>
       </div>
 
+      {/* Filtro por equipe */}
+      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+        <button onClick={()=>setFiltroEquipePlantao("")}
+          style={{padding:"4px 12px",borderRadius:10,border:`1px solid ${!filtroEquipePlantao?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.08)"}`,
+            background:!filtroEquipePlantao?"rgba(255,255,255,0.1)":"transparent",
+            color:!filtroEquipePlantao?"#e2e8f0":"#64748b",cursor:"pointer",fontSize:11,fontWeight:!filtroEquipePlantao?600:400}}>
+          Todas equipes
+        </button>
+        {EQUIPES.map(e=>{
+          const cnt = Object.values(metasPorLeito).flat().filter(m=>m.equipe===e.id&&!m.feito&&m.status!=="cumprido").length;
+          return (
+            <button key={e.id} onClick={()=>setFiltroEquipePlantao(filtroEquipePlantao===e.id?"":e.id)}
+              style={{padding:"4px 12px",borderRadius:10,
+                border:`1px solid ${filtroEquipePlantao===e.id?e.cor+"80":"rgba(255,255,255,0.08)"}`,
+                background:filtroEquipePlantao===e.id?e.cor+"18":"transparent",
+                color:filtroEquipePlantao===e.id?e.cor:"#64748b",cursor:"pointer",fontSize:11,
+                fontWeight:filtroEquipePlantao===e.id?600:400}}>
+              {e.emoji} {e.label}{cnt>0?` (${cnt})`:""} 
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{flex:1,overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,alignContent:"start"}}>
         {leitosAtivos.map(l=>{
           const metas = metasPorLeito[l.id]||[];
