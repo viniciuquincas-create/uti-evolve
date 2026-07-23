@@ -1568,6 +1568,39 @@ function atbAjusteRenal(nomeAtb, clcr) {
   return { ok:false, rec:`ClCr ${clcr} mL/min → ${ajuste.rec}` };
 }
 
+const ALERTA_CONFIG_KEY = { cvc:"alertaCVC", pai:"alertaPAI", svd:"alertaSVD", tqt:"alertaTQT", tot:"alertaTOT", sng:"alertaSNG", dreno:"alertaDreno", dialise:"alertaDialise" };
+
+// Conta alertas ativos de um leito (ATB pendente de ajuste renal + dispositivos além do limiar) — usado nos badges da sidebar (rail colapsado)
+function contarAlertasLeito(leito, tabelaData, config={}) {
+  if (!leito || !leito.paciente) return 0;
+  let n = 0;
+  const tb = (tabelaData && tabelaData[leito.id]) || {};
+  const ds = Object.keys(tb).sort().reverse();
+  let cr = null;
+  for (const d of ds) { if (tb[d]?.cr) { cr = tb[d].cr; break; } }
+  const idade = leito.dataNascimento ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
+  const clcr = calcClCr(cr, leito.peso, idade, leito.sexo);
+  (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
+    const dias = diasAtb24h(a.dataInicio, a.horaInicio);
+    if (dias===null || dias<2) return;
+    const lc = a.nome.toLowerCase();
+    const key = lc.includes("pip")&&lc.includes("tazo") ? "pip/tazo" : lc.includes("amp")&&lc.includes("sulbactam") ? "amp/sulbactam" : lc.split(" ")[0].replace(/[^a-z]/g,"");
+    if (clcr && ATB_RENAL[key]?.length>0) { const aj = ATB_RENAL[key].find(x=>clcr<x.tfg); if (aj) n++; }
+  });
+  DISP_MULTIPLO.forEach(d=>(Array.isArray((leito.dispositivos||{})[d.key])?leito.dispositivos[d.key]:[]).forEach(inst=>{
+    if (!inst.data) return;
+    const dd = Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
+    if (dd > (config[ALERTA_CONFIG_KEY[d.key]] ?? d.alertaDias)) n++;
+  }));
+  DISP_SINGULAR.forEach(d=>{
+    const inst = (leito.dispositivos||{})[d.key];
+    if (!inst?.ativo || !inst.data) return;
+    const dd = Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
+    if (dd > (config[ALERTA_CONFIG_KEY[d.key]] ?? d.alertaDias)) n++;
+  });
+  return n;
+}
+
 function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", idadeAnos=null, sexo="M", clcrOverride=null }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
@@ -6314,6 +6347,7 @@ export default function App() {
   });
   const [saving, setSaving] = useState(false);
   const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("uti_sidebar_collapsed") === "1");
   const [viewGlobal, setViewGlobal]   = useState("leitos");
   const [theme, setTheme] = useState(() => localStorage.getItem("uti_theme") || "dark");
   const T = theme === "light" ? LIGHT : DARK;
@@ -6496,6 +6530,10 @@ export default function App() {
   const dias = diasInternacao(leito.dataInternacao);
   const idadeAnos = idadeDoLeito(leito);
   const pp   = pesoPredito(leito.altura, leito.sexo);
+  const isMobile   = window.innerWidth <= 768;
+  const railMode   = !isMobile && sidebarCollapsed;
+  const alertCount = leitos.filter(l=>l.paciente).reduce((acc,l)=>acc+contarAlertasLeito(l, tabelaData, config), 0);
+  const metasPendentes = Object.values(metasPorLeito).flat().filter(m=>!m.feito&&m.status!=="cumprido").length;
 
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
@@ -6523,7 +6561,10 @@ export default function App() {
       `}</style>
 
       <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:`1px solid ${T.borderAccent}`,background:T.bgHeader,position:"sticky",top:0,zIndex:100,backdropFilter:"blur(12px)"}}>
-        <button onClick={()=>setShowSidebar(s=>!s)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:14}} title="Toggle sidebar">☰</button>
+        <button onClick={()=>{
+          if (isMobile) { setShowSidebar(s=>!s); }
+          else { setSidebarCollapsed(c=>{ const next=!c; localStorage.setItem("uti_sidebar_collapsed", next?"1":"0"); return next; }); }
+        }} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:14}} title={railMode?"Expandir sidebar":"Recolher sidebar"}>{railMode?"»":"☰"}</button>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <BrainLogo size={32}/>
           <div>
@@ -6543,12 +6584,42 @@ export default function App() {
             {theme==="dark"?"☀️":"🌙"}
           </button>
           <button onClick={logout} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:11,padding:"4px 10px",fontFamily:mono}}>Sair</button>
-          <button onClick={()=>setAba("config")} title="Configurações" style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
+          <button onClick={()=>{setViewGlobal("leitos");setAba("config");}} title="Configurações" style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:14,padding:"4px 8px"}}>⚙️</button>
         </div>
       </div>
 
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
-        {showSidebar && <div style={{width:228,borderRight:`1px solid ${T.borderAccent}`,padding:"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0}}>
+        {(!isMobile || showSidebar) && <div style={{width:railMode?64:228,borderRight:`1px solid ${T.borderAccent}`,padding:railMode?"20px 8px":"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0,transition:"width 0.18s ease"}}>
+          {railMode ? (
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+              {leitos.map(l=>{
+                const rotulo = (l.nome.match(/\d+/)||[])[0] || l.nome.slice(0,2).toUpperCase();
+                return (
+                  <button key={l.id}
+                    onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("evolucao");setAba("paciente");setViewGlobal("leitos");}}
+                    title={`${l.nome}${l.paciente?" — "+l.paciente:""}`}
+                    style={{width:40,height:40,borderRadius:10,background:(l.id===leitoSelId&&viewGlobal==="leitos")?T.accentBg:T.bgCard,border:`1.5px solid ${(l.id===leitoSelId&&viewGlobal==="leitos")?T.accent:T.border}`,color:(l.id===leitoSelId&&viewGlobal==="leitos")?T.accent:T.text3,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:mono,flexShrink:0}}>
+                    {rotulo}
+                  </button>
+                );
+              })}
+              <div style={{width:"100%",borderTop:`1px solid ${T.border}`,margin:"6px 0"}}/>
+              <button onClick={()=>setViewGlobal(v=>v==="visao_geral"?"leitos":"visao_geral")} title="Visão Geral"
+                style={{position:"relative",width:40,height:40,borderRadius:10,background:viewGlobal==="visao_geral"?"rgba(56,189,248,0.12)":"transparent",border:`1px solid ${viewGlobal==="visao_geral"?"rgba(56,189,248,0.35)":T.border}`,color:viewGlobal==="visao_geral"?"#38bdf8":T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>
+                🏥
+                {alertCount>0 && <span style={{position:"absolute",top:-4,right:-4,minWidth:16,height:16,borderRadius:8,background:"#f87171",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",lineHeight:1}}>{alertCount}</span>}
+              </button>
+              <button onClick={()=>setViewGlobal(v=>v==="plantao"?"leitos":"plantao")} title="Metas & Pendências"
+                style={{position:"relative",width:40,height:40,borderRadius:10,background:viewGlobal==="plantao"?"rgba(167,139,250,0.12)":"transparent",border:`1px solid ${viewGlobal==="plantao"?"rgba(167,139,250,0.35)":T.border}`,color:viewGlobal==="plantao"?"#c084fc":T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>
+                ✅
+                {metasPendentes>0 && <span style={{position:"absolute",top:-4,right:-4,minWidth:16,height:16,borderRadius:8,background:"#f59e0b",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",lineHeight:1}}>{metasPendentes}</span>}
+              </button>
+              <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} title="Links & Protocolos"
+                style={{width:40,height:40,borderRadius:10,background:viewGlobal==="ferramentas"?T.accentBg:"transparent",border:`1px solid ${viewGlobal==="ferramentas"?T.accentBorder:T.border}`,color:viewGlobal==="ferramentas"?T.accent:T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>
+                📚
+              </button>
+            </div>
+          ) : (<>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingLeft:4}}>
             <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:2.5}}>LEITOS</div>
             <button
@@ -6610,6 +6681,7 @@ export default function App() {
               📚 Links & Protocolos
             </button>
           </div>
+          </>)}
         </div>}
 
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
