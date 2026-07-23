@@ -5885,7 +5885,6 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
   const mono = "'DM Mono',monospace";
   const [filtro, setFiltro] = useState("todos");
   const [filtroEquipePlantao, setFiltroEquipePlantao] = useState("");
-  const [copied, setCopied] = useState(false);
 
   const getAutoAlerts = (leito) => {
     const alerts = [];
@@ -5906,29 +5905,6 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
 
   const leitosAtivos = leitos.filter(l=>l.paciente);
 
-  const copiarTudo = () => {
-    const header = filtroEquipePlantao
-      ? `${equipeEmoji(filtroEquipePlantao)} PENDÊNCIAS — ${equipeLabel(filtroEquipePlantao).toUpperCase()} — ${new Date().toLocaleDateString("pt-BR")}`
-      : "✅ CHECK DE METAS — " + new Date().toLocaleDateString("pt-BR");
-    const linhas = [header, ""];
-    leitosAtivos.forEach(l => {
-      const metas = (metasPorLeito[l.id]||[]).filter(m=>{
-        if(m.feito||m.status==="cumprido") return false;
-        if(filtroEquipePlantao) return m.equipe===filtroEquipePlantao;
-        return true;
-      });
-      const alerts = filtroEquipePlantao ? [] : getAutoAlerts(l);
-      if(metas.length===0 && alerts.length===0) return;
-      linhas.push(`📌 ${l.paciente}${l.diagnostico?" — "+l.diagnostico:""}`);
-      alerts.forEach(a=>linhas.push(`  ⚠️ ${a}`));
-      metas.forEach(m=>linhas.push(`  ☐ ${m.texto||m}`));
-      linhas.push("");
-    });
-    navigator.clipboard?.writeText(linhas.join("\n")).catch(()=>{});
-    setCopied(true);
-    setTimeout(()=>setCopied(false), 2000);
-  };
-
   return (
     <div style={{padding:"16px 20px",height:"100%",display:"flex",flexDirection:"column"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
@@ -5942,10 +5918,10 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
               {f==="todos"?"Todos":"Só pendentes"}
             </button>
           ))}
-          <button onClick={copiarTudo}
+          <button onClick={()=>window.print()}
             style={{padding:"4px 12px",borderRadius:7,border:"1px solid rgba(52,211,153,0.3)",
-              background:"rgba(52,211,153,0.08)",color:copied?"#34d399":"#64748b",cursor:"pointer",fontSize:11}}>
-            {copied?"✅ Copiado":"📋 Copiar pendências"}
+              background:"rgba(52,211,153,0.08)",color:"#34d399",cursor:"pointer",fontSize:11,fontWeight:600}}>
+            🖨️ Imprimir
           </button>
         </div>
       </div>
@@ -6007,16 +5983,73 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
                       color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                       {m.feito?"☑":"☐"}
                     </button>
-                    <span style={{fontSize:11,color:m.feito?"#475569":"#cbd5e1",
+                    <span style={{fontSize:11,color:m.feito?"#475569":"#cbd5e1",flex:1,
                       textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
+                    <button onClick={()=>onMetaChange(l.id, metas.filter((_,j)=>j!==i))}
+                      title="Excluir meta"
+                      style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#475569",flexShrink:0}}>
+                      ✕
+                    </button>
                   </div>
                 )) : alerts.length===0 && (
                   <div style={{fontSize:10,color:"#334155"}}>Sem metas</div>
                 )}
+                <button onClick={()=>{
+                  const txt=window.prompt("Nova meta:");
+                  if(txt&&txt.trim()) onMetaChange(l.id,[...metas,{id:Date.now()+"",texto:txt.trim(),feito:false}]);
+                }} style={{marginTop:5,width:"100%",padding:"3px 0",background:"rgba(56,189,248,0.06)",
+                  border:"1px solid rgba(56,189,248,0.15)",borderRadius:5,color:"#38bdf8",cursor:"pointer",fontSize:10}}>
+                  + meta
+                </button>
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* ── Folha imprimível — A4 paisagem, preto e branco, uma por leito, para check manual da enfermagem ── */}
+      <style>{`
+        .print-metas-sheet { display:none; }
+        @media print {
+          @page { size: A4 landscape; margin: 10mm; }
+          body * { visibility: hidden; }
+          .print-metas-sheet, .print-metas-sheet * { visibility: visible; }
+          .print-metas-sheet { display:block !important; position:absolute; top:0; left:0; width:100%; }
+        }
+      `}</style>
+      <div className="print-metas-sheet">
+        <div style={{fontFamily:"Arial,sans-serif",color:"#000",padding:"6mm"}}>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:2}}>
+            {filtroEquipePlantao ? `Pendências — ${equipeLabel(filtroEquipePlantao)}` : "Check de Metas"}
+          </div>
+          <div style={{fontSize:10,marginBottom:8}}>{new Date().toLocaleDateString("pt-BR")} · plantão</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"4mm"}}>
+            {leitosAtivos.map(l=>{
+              const metasImp = (metasPorLeito[l.id]||[]).filter(m=>{
+                if(m.feito||m.status==="cumprido") return false;
+                if(filtroEquipePlantao) return m.equipe===filtroEquipePlantao;
+                return true;
+              });
+              const alertsImp = filtroEquipePlantao ? [] : getAutoAlerts(l);
+              if(metasImp.length===0 && alertsImp.length===0) return null;
+              return (
+                <div key={l.id} style={{border:"1px solid #000",borderRadius:4,padding:"3mm",breakInside:"avoid"}}>
+                  <div style={{fontSize:11,fontWeight:700,borderBottom:"1px solid #000",paddingBottom:2,marginBottom:3}}>
+                    {l.nome} — {l.paciente}
+                  </div>
+                  {alertsImp.map((a,i)=>(
+                    <div key={i} style={{fontSize:9,marginBottom:2}}>⚠ {a}</div>
+                  ))}
+                  {metasImp.map((m,i)=>(
+                    <div key={i} style={{fontSize:9,display:"flex",gap:4,marginBottom:2}}>
+                      <span>☐</span><span>{m.texto||m}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
