@@ -2733,6 +2733,76 @@ const fmtVal = (key, raw) => {
   return n % 1 === 0 ? String(Math.round(n)) : raw.replace(',','.');
 };
 
+// ── Faixas de referência por exame — NÃO existiam no código (trabalho novo, REDESIGN_README §4).
+// Usadas só para decidir a COR DA FONTE do valor (âmbar = alteração leve, vermelho+negrito = importante
+// ou tendência de piora rápida) — nunca para tingir o fundo da célula. Faixas aproximadas de adulto/UTI,
+// não substituem julgamento clínico; ajustáveis conforme necessário.
+const REF_LAB = {
+  hb:    {low:12,   high:16,  critLow:7,    critHigh:20,   worse:"down"},
+  ht:    {low:36,   high:48,  critLow:21,   critHigh:60,   worse:"down"},
+  leuco: {low:4,    high:11,  critLow:2,    critHigh:25,   worse:"up"},
+  bast:  {low:0,    high:8,   critLow:0,    critHigh:20,   worse:"up"},
+  plaq:  {low:150,  high:450, critLow:50,   critHigh:700,  worse:"down"},
+  rni:   {low:0.8,  high:1.2, critLow:0,    critHigh:2,    worse:"up"},
+  ttpa:  {low:25,   high:35,  critLow:0,    critHigh:60,   worse:"up"},
+  fibri: {low:200,  high:400, critLow:100,  critHigh:800,  worse:"down"},
+  cr:    {low:0.6,  high:1.2, critLow:0,    critHigh:3,    worse:"up"},
+  ur:    {low:15,   high:45,  critLow:0,    critHigh:100,  worse:"up"},
+  na:    {low:135,  high:145, critLow:125,  critHigh:155,  worse:"either"},
+  k:     {low:3.5,  high:5.0, critLow:2.8,  critHigh:6.0,  worse:"either"},
+  mg:    {low:1.6,  high:2.6, critLow:1.0,  critHigh:4.0,  worse:"either"},
+  cai:   {low:1.1,  high:1.3, critLow:0.8,  critHigh:1.6,  worse:"either"},
+  p:     {low:2.5,  high:4.5, critLow:1.5,  critHigh:7,    worse:"either"},
+  bnp:   {low:0,    high:100, critLow:0,    critHigh:900,  worse:"up"},
+  ntpro: {low:0,    high:300, critLow:0,    critHigh:3000, worse:"up"},
+  lact:  {low:0.5,  high:2.0, critLow:0,    critHigh:4,    worse:"up"},
+  po2:   {low:80,   high:100, critLow:60,   critHigh:120,  worse:"down"},
+  pco2:  {low:35,   high:45,  critLow:20,   critHigh:70,   worse:"either"},
+  tgo:   {low:0,    high:40,  critLow:0,    critHigh:200,  worse:"up"},
+  tgp:   {low:0,    high:40,  critLow:0,    critHigh:200,  worse:"up"},
+  bttot: {low:0.2,  high:1.2, critLow:0,    critHigh:5,    worse:"up"},
+  btdir: {low:0,    high:0.3, critLow:0,    critHigh:3,    worse:"up"},
+  btind: {low:0.2,  high:0.9, critLow:0,    critHigh:4,    worse:"up"},
+  falc:  {low:40,   high:129, critLow:0,    critHigh:400,  worse:"up"},
+  ggt:   {low:8,    high:61,  critLow:0,    critHigh:300,  worse:"up"},
+  alb:   {low:3.5,  high:5.0, critLow:1.5,  critHigh:99,   worse:"down"},
+  // Gasometria (chaves próprias do GasometriaPanel)
+  ph:    {low:7.35, high:7.45,critLow:7.2,  critHigh:7.55, worse:"either"},
+  hco3:  {low:22,   high:26,  critLow:10,   critHigh:40,   worse:"either"},
+  be:    {low:-3,   high:3,   critLow:-10,  critHigh:10,   worse:"either"},
+  sato2: {low:94,   high:100, critLow:85,   critHigh:100,  worse:"down"},
+  ca:    {low:1.1,  high:1.3, critLow:0.8,  critHigh:1.6,  worse:"either"},
+  cl:    {low:98,   high:106, critLow:80,   critHigh:120,  worse:"either"},
+  glic:  {low:70,   high:180, critLow:40,   critHigh:400,  worse:"either"},
+};
+
+// Classifica um valor em "normal" | "alterado" | "importante" comparando à faixa de referência
+// e, quando há valor anterior, à tendência (variação rápida na direção de piora conta mesmo
+// dentro da faixa normal — pega "fast-worsening trend" antes de virar crítico).
+function classificarLab(key, valRaw, valAnteriorRaw) {
+  const range = REF_LAB[key];
+  if (!range || valRaw===undefined || valRaw===null || valRaw==="") return null;
+  const n = parseFloat(String(valRaw).replace(",", "."));
+  if (isNaN(n)) return null;
+  let nivel = "normal";
+  if (n < range.critLow || n > range.critHigh) nivel = "importante";
+  else if (n < range.low || n > range.high) nivel = "alterado";
+  const ant = parseFloat(String(valAnteriorRaw||"").replace(",", "."));
+  if (!isNaN(ant) && ant !== 0 && nivel !== "importante") {
+    const delta = (n - ant) / Math.abs(ant);
+    const pioraSubindo = (range.worse==="up"||range.worse==="either") && delta > 0.3;
+    const pioraDescendo = (range.worse==="down"||range.worse==="either") && delta < -0.3;
+    if (pioraSubindo || pioraDescendo) nivel = Math.abs(delta) > 0.6 ? "importante" : "alterado";
+  }
+  return nivel;
+}
+// Cor de fonte a partir do nível — usado em Laboratório/Gasometrias/Troponina
+function corNivelLab(nivel, corPadrao) {
+  if (nivel==="importante") return "#f87171";
+  if (nivel==="alterado")   return "#fbbf24";
+  return corPadrao;
+}
+
 // Sistemas disponíveis para campos custom controles
 const CTRL_SISTEMAS = [
   {key:"rm24h",  label:"Balanço/Renal"},
@@ -3244,15 +3314,15 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                         const val=getVal(d,key);
                         const idxD=datas.indexOf(d);
                         const ant=idxD>0?getVal(datas[idxD-1],key):"";
-                        const subiu=val&&ant&&val!==ant&&parseFloat(val)>parseFloat(ant);
-                        const caiu=val&&ant&&val!==ant&&parseFloat(val)<parseFloat(ant);
+                        const nivel=val?classificarLab(key,val,ant):null;
+                        const negrito=nivel==="importante"||ativo;
                         return (
                           <td key={d} style={{...tdBase,background:ativo?"rgba(56,189,248,0.03)":undefined}}>
                             <input data-nav value={val} onChange={e=>setVal(d,key,e.target.value)} onKeyDown={e=>navCell(e,key,datas.indexOf(d))}
                               style={{width:"100%",background:"transparent",border:"none",
-                                color:ativo&&subiu?"#f87171":ativo&&caiu?"#34d399":T.colorTableInput,
+                                color:corNivelLab(nivel,T.colorTableInput),
                                 fontSize:12,fontFamily:mono,textAlign:"center",padding:"3px 4px",outline:"none",
-                                fontWeight:ativo?700:400}}
+                                fontWeight:negrito?700:400}}
                               placeholder="—"
                             />
                           </td>
@@ -3873,6 +3943,16 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
 
   const temExtra = (g) => CAMPOS_GASO_EXTRA.some(c=>g[c.k]);
 
+  // Lista cronológica de todas as gasometrias (todas as datas) — usada só para achar o valor
+  // anterior de cada parâmetro e classificar tendência (âmbar/vermelho na fonte, nunca no fundo).
+  const todasGasosOrdenadas = datas.flatMap(d=>getGasos(d)).sort((a,b)=>`${a.data||""}${a.horario||""}`.localeCompare(`${b.data||""}${b.horario||""}`));
+  const anteriorDe = (g, campo) => {
+    const idx = todasGasosOrdenadas.findIndex(x=>x.id===g.id);
+    for (let i=idx-1;i>=0;i--) { if (todasGasosOrdenadas[i][campo]) return todasGasosOrdenadas[i][campo]; }
+    return "";
+  };
+  const gasoImportante = (g) => [...CAMPOS_GASO,...CAMPOS_GASO_EXTRA].some(c=>classificarLab(c.k,g[c.k],anteriorDe(g,c.k))==="importante");
+
   return (
     <div style={{marginTop:8}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
@@ -3898,20 +3978,23 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
               return (
               <div key={g.id} style={{marginBottom:4,
                 background:isHoje2?"rgba(56,189,248,0.02)":"transparent",
-                border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px"}}>
+                border:`1px solid ${gasoImportante(g)?"rgba(248,113,113,0.5)":T.border}`,borderRadius:6,padding:"4px 8px"}}>
                 <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
                   <input type="date" value={g.data||d} onChange={e=>updateGaso(d,g.id,"data",e.target.value)}
                     style={{background:"transparent",border:"none",color:"#64748b",fontSize:10,fontFamily:mono,width:90}}/>
                   <input placeholder="Hora" value={g.horario} onChange={e=>updateGaso(d,g.id,"horario",e.target.value)}
                     style={{width:45,background:"transparent",border:"none",color:"#94a3b8",fontSize:11,fontFamily:mono}}/>
-                  {CAMPOS_GASO.map(c=>(
+                  {CAMPOS_GASO.map(c=>{
+                    const nivel = classificarLab(c.k, g[c.k], anteriorDe(g,c.k));
+                    return (
                     <div key={c.k} style={{display:"flex",alignItems:"center",gap:2}}>
                       <span style={{fontSize:9,color:"#475569",fontFamily:mono}}>{c.lbl}</span>
                       <input value={g[c.k]||""} onChange={e=>updateGaso(d,g.id,c.k,e.target.value)}
                         style={{width:46,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
-                          borderRadius:4,color:"#e2e8f0",fontSize:11,fontFamily:mono,padding:"1px 4px",textAlign:"center"}}/>
+                          borderRadius:4,color:corNivelLab(nivel,"#e2e8f0"),fontWeight:nivel==="importante"?700:400,fontSize:11,fontFamily:mono,padding:"1px 4px",textAlign:"center"}}/>
                     </div>
-                  ))}
+                    );
+                  })}
                   <button onClick={()=>setExpandidos(e=>({...e,[g.id]:!e[g.id]}))}
                     title="Mais parâmetros (Na/K/Ca/Cl/Glic/Lact/Hb)"
                     style={{padding:"2px 7px",borderRadius:5,fontSize:10,cursor:"pointer",
@@ -3926,14 +4009,17 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
                 {open&&(
                   <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:5,paddingTop:5,
                     borderTop:"1px dashed rgba(163,230,53,0.15)"}}>
-                    {CAMPOS_GASO_EXTRA.map(c=>(
+                    {CAMPOS_GASO_EXTRA.map(c=>{
+                      const nivel = classificarLab(c.k, g[c.k], anteriorDe(g,c.k));
+                      return (
                       <div key={c.k} style={{display:"flex",alignItems:"center",gap:2}}>
                         <span style={{fontSize:9,color:"#a3e635",fontFamily:mono}}>{c.lbl}</span>
                         <input value={g[c.k]||""} onChange={e=>updateGaso(d,g.id,c.k,e.target.value)}
                           style={{width:50,background:"rgba(163,230,53,0.05)",border:"1px solid rgba(163,230,53,0.15)",
-                            borderRadius:4,color:"#e2e8f0",fontSize:11,fontFamily:mono,padding:"1px 4px",textAlign:"center"}}/>
+                            borderRadius:4,color:corNivelLab(nivel,"#e2e8f0"),fontWeight:nivel==="importante"?700:400,fontSize:11,fontFamily:mono,padding:"1px 4px",textAlign:"center"}}/>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -3974,6 +4060,22 @@ function TroponinaPanel({ data={}, onChange, datas=[], hoje="" }) {
     setTropos(d, getTropos(d).filter(t=>t.id!==id));
   };
 
+  // Cronologia de todas as dosagens — usada pra achar o pico e a variação % em relação à dosagem anterior.
+  // Sem faixa de referência universal (varia por ensaio/unidade — hs-troponina vs convencional), então aqui
+  // a cor de fonte é por tendência (subida forte = âmbar) e o pico é destacado à parte, como pede o README.
+  const todasTroposOrdenadas = datas.flatMap(d=>getTropos(d)).sort((a,b)=>`${a.data||""}${a.horario||""}`.localeCompare(`${b.data||""}${b.horario||""}`));
+  const picoVal = todasTroposOrdenadas.reduce((max,t)=>{const n=parseFloat(String(t.valor||"").replace(",","."));return isNaN(n)?max:Math.max(max,n);}, -Infinity);
+  const infoTropo = (t) => {
+    const n = parseFloat(String(t.valor||"").replace(",","."));
+    if (isNaN(n)) return {cor:"#e2e8f0",peso:400,pico:false};
+    const idx = todasTroposOrdenadas.findIndex(x=>x.id===t.id);
+    const ant = idx>0 ? parseFloat(String(todasTroposOrdenadas[idx-1].valor||"").replace(",",".")) : NaN;
+    const pico = n===picoVal && picoVal>-Infinity;
+    if (pico) return {cor:"#f87171",peso:700,pico:true};
+    if (!isNaN(ant) && ant>0 && (n-ant)/ant > 0.3) return {cor:"#fbbf24",peso:700,pico:false};
+    return {cor:"#e2e8f0",peso:400,pico:false};
+  };
+
   return (
     <div style={{marginTop:8}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
@@ -4003,7 +4105,8 @@ function TroponinaPanel({ data={}, onChange, datas=[], hoje="" }) {
                   style={{width:45,background:"transparent",border:"none",color:"#94a3b8",fontSize:11,fontFamily:mono}}/>
                 <input placeholder="Valor" value={t.valor} onChange={e=>updateTropo(d,t.id,"valor",e.target.value)}
                   style={{width:70,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
-                    borderRadius:4,color:"#e2e8f0",fontSize:11,fontFamily:mono,padding:"1px 6px",textAlign:"center"}}/>
+                    borderRadius:4,color:infoTropo(t).cor,fontWeight:infoTropo(t).peso,fontSize:11,fontFamily:mono,padding:"1px 6px",textAlign:"center"}}/>
+                {infoTropo(t).pico && <span style={{fontSize:10,color:"#f87171",fontWeight:700,fontFamily:mono}}>↑↑ pico</span>}
                 <select value={t.unidade||"ng/mL"} onChange={e=>updateTropo(d,t.id,"unidade",e.target.value)}
                   style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
                     borderRadius:4,color:"#94a3b8",fontSize:10,fontFamily:mono,padding:"1px 4px"}}>
