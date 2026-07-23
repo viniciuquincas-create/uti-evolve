@@ -5163,7 +5163,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
                 {/* ── Antibioticoterapia ── */}
-        {onLeitoChange?(
+        {onLeitoChange?(<>
           <AntibioticosPanel
             antibioticos={leito.antibioticos||[]}
             onChange={atbs=>onLeitoChange({...leito,antibioticos:atbs})}
@@ -5171,7 +5171,35 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             peso={leito.peso||""}
             idadeAnos={idadeDoLeito(leito)}
             sexo={leito.sexo||"M"}/>
-        ):(
+          {/* ── Sugestão de ajuste de dose por ClCr, inline por ATB — ações rápidas ── */}
+          {(()=>{
+            const crHojeIn=(()=>{const ds=Object.keys(tabelaDataLeito||{}).filter(k=>!k.startsWith("_")).sort().reverse();for(const d of ds){if(tabelaDataLeito[d]?.cr)return tabelaDataLeito[d].cr;}return "";})();
+            const clcrIn = calcClCr(crHojeIn, leito.peso, idadeDoLeito(leito), leito.sexo||"M");
+            if (!clcrIn) return null;
+            const ativos = (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&!a.ajusteRevisado);
+            return ativos.map(a=>{
+              const diasA = diasAtb24h(a.dataInicio, a.horaInicio);
+              if (diasA===null || diasA<2) return null;
+              const aj = atbAjusteRenal(a.nome, clcrIn);
+              if (!aj || aj.ok) return null;
+              const aplicar = () => onLeitoChange({...leito, antibioticos:(leito.antibioticos||[]).map(x=>x.id===a.id?{...x,dose:aj.rec,ajusteRevisado:true}:x)});
+              const manter  = () => onLeitoChange({...leito, antibioticos:(leito.antibioticos||[]).map(x=>x.id===a.id?{...x,ajusteRevisado:true}:x)});
+              return (
+                <div key={a.id} style={{marginTop:6,padding:"8px 10px",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:8}}>
+                  <div style={{fontSize:11,color:"#fbbf24",marginBottom:6}}>⚠ {a.nome} — ClCr {clcrIn} mL/min → sugestão: {aj.rec}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={aplicar} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(52,211,153,0.4)",background:"rgba(52,211,153,0.1)",color:"#34d399",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                      Aplicar sugestão
+                    </button>
+                    <button onClick={manter} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.04)",color:"#94a3b8",fontSize:11,cursor:"pointer"}}>
+                      Manter dose atual
+                    </button>
+                  </div>
+                </div>
+              );
+            });
+          })()}
+        </>):(
           <Row><Col><FL>Antibióticos</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
         )}
         <Row><Col>
