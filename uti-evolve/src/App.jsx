@@ -957,6 +957,21 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
               {dieta.vazao && <div style={{fontSize:12,color:"#64748b"}}>= {(parseFloat(dieta.vazao)*20).toFixed(0)} mL em 20h · {(parseFloat(dieta.vazao)*24).toFixed(0)} mL/24h</div>}
             </div>
             <div style={{fontSize:10,color:"#475569",marginTop:4}}>ℹ️ O volume real que entrou é registrado nos <strong style={{color:"#38bdf8"}}>Controles 24h</strong> → Vol. Dieta.</div>
+            {dietaSel && dieta.vazao && peso>0 && (()=>{
+              const volProj = parseFloat(dieta.vazao)*24;
+              const nutriProj = calcNutri(dietaSel, volProj);
+              if (!nutriProj) return null;
+              return (
+                <div style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <div style={{padding:"4px 10px",borderRadius:6,background:"rgba(251,146,60,0.08)",border:"1px solid rgba(251,146,60,0.2)",fontSize:11,color:"#fdba74"}}>
+                    <span style={{color:"#64748b"}}>projetado 24h → </span>
+                    <strong>{(nutriProj.kcal/peso).toFixed(1)} kcal/kg/d</strong>
+                    <span style={{color:"#64748b"}}> · </span>
+                    <strong>{(nutriProj.ptn/peso).toFixed(2)} g ptn/kg/d</strong>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Metas nutricionais */}
@@ -4924,7 +4939,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}
-        statusFields={[{label:"RASS",value:campos.nRASS},{label:"Glasgow",value:campos.nGlasgow},{label:"Pupilas",value:campos.nPupilas},{label:"Dor",value:campos.nDor}]}>
+        statusFields={[{label:"RASS",value:campos.nRASS},{label:"Glasgow",value:campos.nGlasgow},{label:"Pupilas",value:campos.nPupilas},{label:"Motricidade",value:campos.nEF},{label:"Dor",value:campos.nDor}]}>
         <Row>
           <Col>
             <PickField label="RASS"
@@ -4938,7 +4953,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <PickField label="Pupilas"
               options={["Isocóricas fotorreativas","Anisocóricas","Midríase bilateral fotofixas","Miose bilateral","Pupila esquerda midriática","Pupila direita midriática"]}
               value={campos.nPupilas||""} onChange={v=>onCampoEdit("nPupilas",v)} rows={1}/>
-            <PickField label="EF — Detalhe específico"
+            <PickField label="Motricidade"
               options={["Força preservada globalmente","Paraplegia","Hemiplegia D","Hemiplegia E","Força reduzida difusamente","Sedado — não avaliável"]}
               value={campos.nEF||""} onChange={v=>onCampoEdit("nEF",v)} rows={2}/>
             <PickField label="Avaliação de Dor (BPS / EVA)"
@@ -6177,6 +6192,21 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
     return alerts;
   };
 
+  // Metas sugeridas automaticamente a partir de dados clínicos (TFG, dispositivos etc.) — usuário confirma com "+ adicionar"
+  const getSuggestedGoals = (leito) => {
+    const s = [];
+    const tb=tabelaData[leito.id]||{};
+    const ds=Object.keys(tb).sort().reverse();
+    const cr=ds.length?tb[ds[0]]?.cr:null;
+    const idade=idadeDoLeito(leito);
+    const clcr=(cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(cr))*(leito.sexo==="F"?0.85:1)):null;
+    const jaTemMeta = (texto) => (metasPorLeito[leito.id]||[]).some(m=>(m.texto||m||"").toLowerCase().includes(texto.toLowerCase()));
+    if (clcr!==null && clcr<60 && !jaTemMeta("diurese")) {
+      s.push("Meta de diurese ≥0,5 mL/kg/h");
+    }
+    return s;
+  };
+
   const leitosAtivos = leitos.filter(l=>l.paciente);
 
   return (
@@ -6227,6 +6257,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
         {leitosAtivos.map(l=>{
           const metas = metasPorLeito[l.id]||[];
           const alerts = getAutoAlerts(l);
+          const sugestoes = getSuggestedGoals(l);
           const pendentes = metas.filter(m=>{
         if(m.feito||m.status==="cumprido") return false;
         if(filtroEquipePlantao) return m.equipe===filtroEquipePlantao;
@@ -6247,6 +6278,16 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
               <div style={{padding:"8px 12px"}}>
                 {alerts.map((a,i)=>(
                   <div key={i} style={{fontSize:10,color:"#f87171",fontFamily:mono,marginBottom:3}}>⚠️ {a}</div>
+                ))}
+                {sugestoes.map((s,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                    <span style={{fontSize:10,color:"#fbbf24",flex:1,lineHeight:1.4}}>⚡ {s}</span>
+                    <button onClick={()=>onMetaChange(l.id,[...metas,{id:Date.now()+"",texto:`⚡ ${s}`,feito:false}])}
+                      title="Adicionar como meta"
+                      style={{background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:5,cursor:"pointer",fontSize:9,padding:"1px 6px",color:"#fbbf24",flexShrink:0}}>
+                      + adicionar
+                    </button>
+                  </div>
                 ))}
                 {metas.length>0 ? metas.map((m,i)=>(
                   <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
