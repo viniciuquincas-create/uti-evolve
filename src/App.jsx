@@ -1294,7 +1294,7 @@ const VM_CAMPOS = {
 
 function gerarTextoVM(leito) {
   const modo = leito.vm_modo;
-  if (!modo || modo === "ar_ambiente") return "Ar ambiente";
+  if (!modo || modo === "ar_ambiente") return leito.vm_sato2 ? `Ar ambiente / SatO2 ${leito.vm_sato2}%` : "Ar ambiente";
   const m = VM_MODOS.find(x=>x.id===modo);
   const label = m ? m.label : modo;
   const campos = VM_CAMPOS[modo] || [];
@@ -1303,6 +1303,9 @@ function gerarTextoVM(leito) {
     if (!v) return null;
     return `${c.label.replace(/ \(.*\)/,"")}: ${v}`;
   }).filter(Boolean);
+  if (leito.vm_sato2) partes.push(`SatO2: ${leito.vm_sato2}%`);
+  const modosVMFull = ["vm_psv","vm_pcv","vm_vcv","vm_aprv"];
+  if (modosVMFull.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
   if (leito.vm_obs) partes.push(leito.vm_obs);
   // Calculados
   if ((modo==="vm_pcv"||modo==="vm_vcv")&&leito.vm_pplat&&leito.vm_peep) {
@@ -1390,6 +1393,26 @@ function VentilacaoPanel({ leito, onChange }) {
           </div>
         )}
       </div>
+
+      {/* SatO2 — sempre visível, independente do modo (inclusive Ar ambiente) */}
+      {modoAtual && (
+        <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+          <div style={{minWidth:120,flex:1}}>
+            <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>SATO2 (%)</div>
+            <input type="number" value={leito.vm_sato2||""} onChange={e=>set("vm_sato2",e.target.value)}
+              placeholder="90-100"
+              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+          </div>
+          {["vm_psv","vm_pcv","vm_vcv","vm_aprv"].includes(leito.vm_modo) && leito.dispositivos?.tqt?.ativo && (
+            <div style={{minWidth:120,flex:1}}>
+              <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>CUFF (TQT)</div>
+              <input value={leito.vm_cuff||""} onChange={e=>set("vm_cuff",e.target.value)}
+                placeholder="ex: 25 cmH2O"
+                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Campos do modo selecionado */}
       {modoAtual && leito.vm_modo !== "ar_ambiente" && (
@@ -3621,10 +3644,37 @@ function aplicarIA(dadosIA) {
 
 
 // ── ProbFloating — painel flutuante de Problemas Ativos ──────────────────────
-function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, metas=[], onMetaChange }) {
+// Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
+// visível nas 5 abas do paciente (Paciente · Beira-leito · Tabela Clínica · Importar Print · Metas) — não só no Beira-leito.
+function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
   const [open, setOpen] = useState(true);
   const [openResolvidos, setOpenResolvidos] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+  const [copiado, setCopiado] = useState({});
   const mono2 = "'DM Mono',monospace";
+  const refs = React.useRef({});
+  if (!refs.current.probAtivos) refs.current.probAtivos = React.createRef();
+  if (!refs.current.probResolvidos) refs.current.probResolvidos = React.createRef();
+  const hoje = new Date().toISOString().split("T")[0];
+  const isAntigo = (fieldName) => { const d = campos._datas?.[fieldName]; return d && d < hoje; };
+  const salvar = onCampoEdit || (()=>{});
+  const pendentes = metas.filter(m=>!m.feito&&m.status!=="cumprido").length;
+
+  if (minimized) {
+    return (
+      <button onClick={()=>setMinimized(false)} title="Expandir problemas ativos / metas" className="prob-floating" style={{
+        position:"fixed", right:20, top:100, zIndex:200,
+        display:"flex", alignItems:"center", gap:6,
+        background:"rgba(15,23,42,0.98)", border:"1px solid rgba(248,113,113,0.35)",
+        borderRadius:20, padding:"8px 14px", cursor:"pointer",
+        filter:"drop-shadow(0 4px 24px rgba(0,0,0,0.5))",
+      }}>
+        <span style={{fontSize:14}}>🔴</span>
+        {pendentes>0 && <span style={{fontSize:11,fontFamily:mono2,fontWeight:700,color:"#f87171"}}>{pendentes}</span>}
+      </button>
+    );
+  }
+
   return (
     <div style={{
       position:"fixed", right:20, top:100, zIndex:200,
@@ -3635,19 +3685,19 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",
         background:"rgba(15,23,42,0.98)",border:"1px solid rgba(248,113,113,0.3)",
-        borderBottom:"none",borderRadius:"12px 12px 0 0",cursor:"pointer"}}
-        onClick={()=>setOpen(o=>!o)}>
-        <span style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1}}>🔴 PROBLEMAS ATIVOS</span>
-        <span style={{color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
+        borderBottom:"none",borderRadius:"12px 12px 0 0",cursor:"pointer"}}>
+        <span onClick={()=>setOpen(o=>!o)} style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1,cursor:"pointer"}}>🔴 PROBLEMAS ATIVOS</span>
+        <button onClick={()=>setMinimized(true)} title="Minimizar" style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:12,padding:"0 2px"}}>—</button>
+        <span onClick={()=>setOpen(o=>!o)} style={{color:"#475569",fontSize:11,cursor:"pointer"}}>{open?"▲":"▼"}</span>
       </div>
       {open && (
         <div style={{background:"rgba(10,15,30,0.97)",border:"1px solid rgba(248,113,113,0.25)",
           borderRadius:"0 0 12px 12px",padding:"10px 12px",overflowY:"auto",flex:1}}>
-          <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
+          <TA fieldRef={refs.current.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
             sugestao={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"}
             rows={7} fieldName="probAtivos" onBlurSave={salvar}/>
           <button onClick={()=>{
-            const t=refs.probAtivos?.current?.value||campos.probAtivos||"";
+            const t=refs.current.probAtivos?.current?.value||campos.probAtivos||"";
             if(t){navigator.clipboard?.writeText(t).catch(()=>{});
               setCopiado(c=>({...c,probAtivos:true}));
               setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}}
@@ -3662,7 +3712,7 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
               <span style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#34d399"}}>✅ RESOLVIDOS</span>
               <span style={{fontSize:9,color:"#334155",marginLeft:"auto"}}>{openResolvidos?"▲":"▼"}</span>
             </div>
-            {openResolvidos&&<TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
+            {openResolvidos&&<TA fieldRef={refs.current.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
               sugestao={"1. Choque séptico (D5)\n2. Acidose metabólica"} rows={3} fieldName="probResolvidos" onBlurSave={salvar}/>}
           </div>
           {/* ── Metas / Pendências ── */}
@@ -3674,8 +3724,13 @@ function ProbFloating({ refs, campos, isAntigo, copiado, setCopiado, salvar, met
                   style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                   {m.feito?"☑":"☐"}
                 </button>
-                <span style={{fontSize:10,color:m.feito?"#475569":"#94a3b8",
+                <span style={{fontSize:10,color:m.feito?"#475569":"#94a3b8",flex:1,
                   textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
+                <button onClick={()=>onMetaChange&&onMetaChange(metas.filter((_,j)=>j!==i))}
+                  title="Excluir meta"
+                  style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#475569",flexShrink:0}}>
+                  ✕
+                </button>
               </div>
             ))}
             <button onClick={()=>{
@@ -4256,72 +4311,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     setTimeout(()=>setCopiado(c=>({...c,[id]:false})),2000);
   };
 
-  const gerarImpressao = () => {
-    const linhas = [];
-    // Cabeçalho clínico
-    const ident = [
-      leito.paciente,
-      leito.diagnostico && `diagnóstico de ${leito.diagnostico}`,
-      dias !== null && `D${dias} de UTI`,
-      leito.peso && `${leito.peso} kg`,
-      pp && `PP ${pp} kg`,
-    ].filter(Boolean).join(", ");
-    if (ident) linhas.push(ident + ".");
-    // HDA
-    if (get("hda")) linhas.push("\n" + get("hda"));
-    // Procedimentos
-    const procs = leito.procedimentos || [];
-    if (procs.length) {
-      const ps = procs.map(p => {
-        const po = Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-        return `${p.nome} (${po===0?"POI":`PO${po}`})`;
-      }).join(", ");
-      linhas.push(`\nSubmetido a: ${ps}.`);
-    }
-    // Dispositivos
-    if (ativos.length) {
-      const ds = ativos.map(a=>{
-        const dd = Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
-        return `${a.label}${a.disp.site?` (${a.disp.site})`:""} D${dd}`;
-      }).join(", ");
-      linhas.push(`Dispositivos: ${ds}.`);
-    }
-    // Sistemas — resumo por sistema
-    const sist = [];
-    if (get("cvEF")||get("cvDVA")) {
-      let s = `Cv: ${get("cvEF")||""}`;
-      if (get("cvDVA")) s += ` | DVA: ${get("cvDVA")}`;
-      if (get("cvPerf")) s += ` | Perfusão: ${get("cvPerf")}`;
-      sist.push(s);
-    }
-    if (get("reVM")||get("reGaso")) {
-      let s = `Res: ${get("reVM")||""}`;
-      if (get("re24h")) s += ` | ${get("re24h")}`;
-      if (get("reGaso")) s += ` | Gaso: ${get("reGaso")}`;
-      sist.push(s);
-    }
-    if (get("nEF")) sist.push(`N: ${get("nEF")}${get("nSeda")?" | Sed: "+get("nSeda"):""}`);
-    if (get("rm24h")||get("rmLabs")) sist.push(`ReMe: ${[get("rm24h"),get("rmLabs")].filter(Boolean).join(" | ")}`);
-    if (leito.dieta?.tipo) {
-      const tl={enteral:"Enteral",parenteral:"NPT",oral:"VO",mista:"Mista",jejum:"Jejum"}[leito.dieta.tipo]||leito.dieta.tipo;
-      let nut = `TGI: Dieta ${tl}`;
-      if (leito.dieta.formula) nut += ` (${leito.dieta.formula})`;
-      if (leito.dieta.vazao) nut += ` @ ${leito.dieta.vazao} mL/h`;
-      if (get("tgEF")) nut += ` | ${get("tgEF")}`;
-      sist.push(nut);
-    }
-    if (get("heTemp")||get("heLabs")) {
-      let s = "He:";
-      if (get("heTemp")) s += ` T ${get("heTemp")}`;
-      if (get("heLabs")) s += ` | ${get("heLabs")}`;
-      if (get("heAtb")) s += ` | ATB: ${get("heAtb")}`;
-      sist.push(s);
-    }
-    if (sist.length) linhas.push("\n" + sist.join(".\n") + ".");
-    // Problemas ativos
-    if (get("probAtivos")) linhas.push(`\nProblemas ativos:\n${get("probAtivos")}`);
-    return linhas.join("\n");
-  };
 
   // Ctrl+B: save boletim to leito (visible in Visão Geral)
   useEffect(()=>{
@@ -4683,7 +4672,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     return p.join("\n");
   };
 
-  const [impGerado, setImpGerado] = useState(false);
 
   return (
     <div>
@@ -4925,6 +4913,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rePocus",label:"POCUS Pulmonar"},{key:"reLUS",label:"LUS"},{key:"reObs",label:"Obs"}]}
+        adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"outro",label:"+ outro"}]}
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]}>
         {/* ── Suporte Ventilatório ── */}
         {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange}/>}
@@ -4956,6 +4945,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             } catch { return ""; }
           })()} isAntigo={isAntigo("reGaso")} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
         {vis["rePocus"]&&<Row><Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} sugestao="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_res_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_res_exames")} defaultValue={campos["add_res_exames"]||""} sugestao="Rx tórax 29/04: sem novidades" rows={1} fieldName="add_res_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_res_outro"]&&<Row><Col><FL>OUTRO</FL><TA fieldRef={ExtraRef("add_res_outro")} defaultValue={campos["add_res_outro"]||""} rows={1} fieldName="add_res_outro" onBlurSave={salvar}/></Col></Row>}
         {vis["reObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} sugestao="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
@@ -4964,6 +4955,24 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         opcionais={[{key:"rmTRS",label:"TRS"},{key:"rmObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"}]}
         statusFields={[{label:"24h — HD/BH",value:campos.rm24h},{label:"Labs renais",value:campos.rmLabs}]}>
+        {/* Em uso de ATB? — somente leitura, refletindo o bloco Infeccioso (relevante p/ ajuste de dose renal) */}
+        {(()=>{
+          const atbsAtivos = (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome);
+          return (
+            <Row><Col>
+              <FL>Em uso de ATB?</FL>
+              {atbsAtivos.length>0 ? (
+                <div style={{padding:"6px 10px",background:"rgba(148,163,184,0.06)",border:"1px solid rgba(148,163,184,0.18)",borderRadius:7,fontSize:12,color:"#cbd5e1"}}>
+                  sim — {atbsAtivos.map(a=>`${a.nome}${a.dataInicio?` ${lblDiaAtb(diasAtb24h(a.dataInicio,a.horaInicio))}`:""}`).join(", ")}
+                </div>
+              ) : (
+                <div style={{padding:"6px 10px",background:"rgba(148,163,184,0.03)",border:"1px solid rgba(148,163,184,0.1)",borderRadius:7,fontSize:12,color:"#64748b"}}>
+                  não
+                </div>
+              )}
+            </Col></Row>
+          );
+        })()}
         <Row><Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} sugestao="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
         {vis["rmTRS"]&&<Row><Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} sugestao="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row>}
         <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
@@ -5107,17 +5116,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <div style={{display:"flex",alignItems:"center",background:"rgba(56,189,248,0.05)",padding:"10px 14px",gap:8}}>
           <div style={{width:3,height:16,background:"#38bdf8",borderRadius:2,flexShrink:0}}/>
           <span style={{fontSize:12,fontWeight:700,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5}}>== Impressão:</span>
-          <span style={{fontSize:12,color:"#475569",fontWeight:400}}>Resumo automático para passagem de caso</span>
+          <span style={{fontSize:12,color:"#475569",fontWeight:400}}>Impressão clínica — texto livre, sua avaliação do quadro</span>
           <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-            <button onClick={()=>{
-              const txt = gerarImpressao();
-              if (refs.impressao?.current) refs.impressao.current.value = txt;
-              salvar("impressao", txt);
-              setImpGerado(true);
-              setTimeout(()=>setImpGerado(false), 2000);
-            }} style={{padding:"4px 12px",borderRadius:6,border:"1px solid rgba(56,189,248,0.4)",background:"rgba(56,189,248,0.1)",color:"#38bdf8",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-              {impGerado ? "✓ Gerado!" : "⚡ Gerar resumo"}
-            </button>
             <button onClick={()=>{
               const txt = refs.impressao?.current?.value?.trim() || campos.impressao || "";
               if (!txt) return;
@@ -5131,11 +5131,11 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </div>
         <div style={{padding:"12px 14px",borderTop:"1px solid rgba(56,189,248,0.1)"}}>
           <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>
-            IMPRESSÃO CLÍNICA — clique em ⚡ Gerar para montar a partir dos dados preenchidos · edite à vontade
+            IMPRESSÃO CLÍNICA — texto livre, manual · sempre a última linha da evolução copiada
           </div>
           <textarea ref={refs.impressao} defaultValue={campos.impressao||""} rows={6}
             onBlur={e=>salvar("impressao", e.target.value)}
-            placeholder={"Clique em ⚡ Gerar resumo para montar automaticamente a partir dos dados já preenchidos.\n\nOu escreva diretamente aqui sua impressão do quadro."}
+            placeholder={"Escreva aqui sua impressão clínica do quadro."}
             style={{width:"100%",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8,padding:"10px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit",resize:"vertical",lineHeight:1.7}}/>
         </div>
       </div>
@@ -5144,12 +5144,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {copiado.tudo?"✅ Evolução completa copiada!":"📋 Copiar evolução completa"}
       </button>
       </div>
-
-      {/* ── Problemas: painel fixo flutuante ── */}
-      <ProbFloating
-        refs={refs} campos={campos} isAntigo={isAntigo}
-        copiado={copiado} setCopiado={setCopiado} salvar={salvar}
-        metas={metas} onMetaChange={onMetaChange}/>
     </div>
   );
 }
@@ -6677,6 +6671,14 @@ ${linha}`:linha}));
               </div>
             )}
           </div>
+          {/* ── Problemas Ativos + Metas: painel flutuante, visível nas 5 abas do paciente ── */}
+          {leito.paciente && ABAS.some(a=>a.id===aba) && (
+            <ProbFloating
+              campos={evolCampos}
+              onCampoEdit={(field, value)=>{ setEvolCamposComPersistencia(c=>({...c, [field]: value})); }}
+              metas={metasPorLeito[leitoSelId]||[]}
+              onMetaChange={(novas)=>{ setMetasPorLeito(mp=>{const novo={...mp,[leitoSelId]:novas};salvarMetas(novo);return novo;}); }}/>
+          )}
         </>)}
         </div>
       </div>
