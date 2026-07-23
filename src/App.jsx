@@ -52,10 +52,10 @@ const SISTEMAS = [
 ];
 
 const LEITOS_INICIAIS = [
-  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
 ];
 
 const METAS_SUGESTOES = [
@@ -263,6 +263,19 @@ function calcDoseFromMLH(drogaKey, mlh, peso, concCustom, modoCustom, config={})
 
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+// Idade do leito: usa o campo direto idadeAnos (novo, spec REDESIGN_README §5) quando presente;
+// cai para o cálculo a partir de dataNascimento para registros antigos (compatibilidade).
+function idadeDoLeito(leito) {
+  if (!leito) return null;
+  if (leito.idadeAnos !== undefined && leito.idadeAnos !== null && leito.idadeAnos !== "") {
+    const n = parseInt(leito.idadeAnos, 10);
+    if (!isNaN(n)) return n;
+  }
+  if (leito.dataNascimento) {
+    return Math.floor((new Date() - new Date(leito.dataNascimento+"T00:00:00")) / (365.25*86400000));
+  }
+  return null;
+}
 function diasInternacao(ds) {
   if (!ds) return null;
   const d = Math.floor((new Date() - new Date(ds+"T00:00:00")) / 86400000);
@@ -1754,9 +1767,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
 // ── PacientePanel ─────────────────────────────────────────────────────────────
 function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={} }) {
   const dias  = diasInternacao(dados.dataInternacao);
-  const idadeAnos = dados.dataNascimento
-    ? Math.floor((new Date() - new Date(dados.dataNascimento)) / (365.25*86400000))
-    : null;
+  const idadeAnos = idadeDoLeito(dados);
   const idade = idadeAnos;
   const pp    = pesoPredito(dados.altura, dados.sexo);
   const vc6   = pp ? Math.round(parseFloat(pp)*6) : null;
@@ -1776,7 +1787,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
       </div>
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, alignItems:"flex-end" }}>
         <Field label="DATA INTERNAÇÃO"   value={dados.dataInternacao}    onChange={v=>onChange({...dados,dataInternacao:v})}  type="date" style={{minWidth:150}}/>
-        <Field label="DATA NASCIMENTO"   value={dados.dataNascimento||""} onChange={v=>onChange({...dados,dataNascimento:v})} type="date" style={{minWidth:150}}/>
+        <Field label="IDADE (ANOS)"   value={dados.idadeAnos||""} onChange={v=>onChange({...dados,idadeAnos:v})} type="number" placeholder="Ex: 68" style={{minWidth:100}}/>
         <div style={{ minWidth:150, flex:1 }}>
           <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÓGICO</div>
           <div style={{ display:"flex", gap:6, height:38 }}>
@@ -3006,7 +3017,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const crHoje = pegarCtrl(["cr"]) ? getVal(chaveHoje,"cr") : "";
     if (tfgSelHoje && crHoje) {
       const p3 = parseFloat(leito.peso)||null;
-      const ia3 = leito.dataNascimento ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
+      const ia3 = idadeDoLeito(leito);
       const sx3 = leito.sexo||"M";
       const tfgVal = tfgSelHoje==="ckdepi" ? calcCKDEPI(crHoje,ia3,sx3)
                    : tfgSelHoje==="cg"     ? calcCockcroftGault(crHoje,ia3,p3,sx3)
@@ -3249,10 +3260,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                       })}
                     </tr>
                     {/* TFG abaixo da creatinina */}
-                    {key==="cr" && (leito.dataNascimento||leito.peso) && (()=>{
-                      const idadeA = leito.dataNascimento
-                        ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000))
-                        : null;
+                    {key==="cr" && (leito.dataNascimento||leito.idadeAnos||leito.peso) && (()=>{
+                      const idadeA = idadeDoLeito(leito);
                       const peso = parseFloat(leito.peso)||null;
                       const sexo = leito.sexo||"M";
                       const tfgRows = [
@@ -4190,9 +4199,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const pp   = pesoPredito(leito.altura, leito.sexo);
   const vc6  = pp ? Math.round(parseFloat(pp)*6) : null;
   const dias = diasInternacao(leito.dataInternacao);
-  const idade = leito.dataNascimento
-    ? Math.floor((new Date() - new Date(leito.dataNascimento)) / (365.25*86400000))
-    : null;
+  const idade = idadeDoLeito(leito);
   const disps = leito.dispositivos || {};
   const ativos = [
     ...DISP_MULTIPLO.flatMap(d=>(Array.isArray(disps[d.key])?disps[d.key]:[]).map((inst,i)=>({
@@ -5059,7 +5066,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             onChange={atbs=>onLeitoChange({...leito,antibioticos:atbs})}
             crSerico={(()=>{const ds=Object.keys(tabelaDataLeito||{}).filter(k=>!k.startsWith("_")).sort().reverse();for(const d of ds){if(tabelaDataLeito[d]?.cr)return tabelaDataLeito[d].cr;}return "";})()}
             peso={leito.peso||""}
-            idadeAnos={leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)):null}
+            idadeAnos={idadeDoLeito(leito)}
             sexo={leito.sexo||"M"}/>
         ):(
           <Row><Col><FL>Antibióticos</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
@@ -5571,7 +5578,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
   const getAlerts = (leito) => {
     const h=getHoje(leito.id);
     const alerts=[];
-    const idade=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)):null;
+    const idade=idadeDoLeito(leito);
     const clcr=(h.cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(h.cr))*(leito.sexo==="F"?0.85:1)):null;
     (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
       const dias=diasAtb24h(a.dataInicio, a.horaInicio);
@@ -5676,7 +5683,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito, config={}, evolCam
 
           const h=getHoje(l.id);
           const dias=diasInternacao(l.dataInternacao);
-          const idade=l.dataNascimento?Math.floor((new Date()-new Date(l.dataNascimento+"T00:00:00"))/(365.25*86400000)):null;
+          const idade=idadeDoLeito(l);
           const bh=fmtBH(l.id,l);
           const alerts=getAlerts(l);
           const vaz=l.drogasVazao||{};
@@ -5885,7 +5892,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
     const tb=tabelaData[leito.id]||{};
     const ds=Object.keys(tb).sort().reverse();
     const cr=ds.length?tb[ds[0]]?.cr:null;
-    const idade=leito.dataNascimento?Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)):null;
+    const idade=idadeDoLeito(leito);
     const clcr=(cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(cr))*(leito.sexo==="F"?0.85:1)):null;
     (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
       const dias=diasAtb24h(a.dataInicio, a.horaInicio);
@@ -6213,9 +6220,7 @@ export default function App() {
   ];
 
   const dias = diasInternacao(leito.dataInternacao);
-  const idadeAnos = leito.dataNascimento
-    ? Math.floor((new Date()-new Date(leito.dataNascimento+'T00:00:00'))/(365.25*86400000))
-    : null;
+  const idadeAnos = idadeDoLeito(leito);
   const pp   = pesoPredito(leito.altura, leito.sexo);
 
   if (!appReady) return (
