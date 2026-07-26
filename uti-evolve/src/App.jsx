@@ -4542,6 +4542,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const statusTotal = statusFields.length;
     const statusPreenchidos = statusFields.filter(f=>String(f.value||"").trim()).length;
     const statusVazios = statusTotal - statusPreenchidos;
+    const borderColor = statusTotal===0
+      ? (open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)")
+      : (statusVazios===0 ? "rgba(52,211,153,0.35)" : "rgba(248,113,113,0.35)");
 
     const abrirPreview = () => {
       if(preview!==null){setPreview(null);return;}
@@ -4554,7 +4557,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     };
 
     return (
-      <div style={{marginBottom:10,border:`1px solid ${open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)"}`,borderRadius:12,overflow:"hidden"}}>
+      <div style={{marginBottom:10,border:`1px solid ${borderColor}`,borderRadius:12,overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
           <button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
             <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
@@ -4831,9 +4834,39 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
 
 
+  // Status agregado dos 7 blocos do sistema (mesmos campos usados no statusFields de cada SysB) — badge do topo + gate do botão "gerar evolução completa"
+  const BLOCOS_STATUS = [
+    {label:"Neurológico",       fields:[campos.nRASS, campos.nGlasgow, campos.nPupilas, campos.nEF, campos.nDor]},
+    {label:"Cardiovascular",    fields:[campos.cvHemo, campos.cvAusculta, campos.cvCardioscopia]},
+    {label:"Respiratório",      fields:[leito.vm_modo, campos.reEF]},
+    {label:"Renal/Metabólico",  fields:[campos.rm24h, campos.rmLabs]},
+    {label:"TGI",               fields:[leito.dieta?.tipo, campos.tgUltEvac]},
+    {label:"Hematológico",      fields:[campos.heTemp, campos.heLabs]},
+    {label:"Infeccioso",        fields:[(leito.antibioticos||[]).length>0?"1":campos.heCulturas]},
+  ];
+  const blocosCompletos = BLOCOS_STATUS.filter(b=>b.fields.every(f=>String(f||"").trim())).length;
+  const blocosTotal = BLOCOS_STATUS.length;
+
   return (
     <div>
       <div>
+      {/* ── Progresso dos blocos + gerar evolução completa (topo) ── */}
+      <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+        <span style={{fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:20,
+          border:`1px solid ${blocosCompletos===blocosTotal?"rgba(52,211,153,0.4)":"rgba(251,191,36,0.4)"}`,
+          color:blocosCompletos===blocosTotal?"#34d399":"#fbbf24",
+          background:blocosCompletos===blocosTotal?"rgba(52,211,153,0.08)":"rgba(251,191,36,0.08)"}}
+          title={BLOCOS_STATUS.filter(b=>!b.fields.every(f=>String(f||"").trim())).map(b=>b.label).join(", ")||"Todos os blocos completos"}>
+          {blocosCompletos} de {blocosTotal} blocos completos
+        </span>
+        <button onClick={copiarTudo} style={{padding:"7px 14px",borderRadius:8,fontWeight:700,fontSize:12,
+          background:copiado.tudo?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",
+          border:`1px solid ${copiado.tudo?"#38bdf8":"rgba(255,255,255,0.12)"}`,
+          color:copiado.tudo?"#38bdf8":"#e2e8f0",cursor:"pointer",fontFamily:"inherit"}}>
+          {copiado.tudo?"✅ Copiado!":"📋 gerar evolução completa"}
+        </button>
+      </div>
+
       {/* ── Cabeçalho clínico (pills) ── */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
         {idade!==null && <Pill label="IDADE" value={idade} unit="anos" color="#c084fc"/>}
