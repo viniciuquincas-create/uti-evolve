@@ -5887,82 +5887,153 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
 
   return (
     <div style={{padding:"20px 24px",overflowY:"auto"}}>
-      <div style={{fontSize:16,fontWeight:700,color:T.text1,marginBottom:14}}>🏥 Visão Geral da UTI</div>
+      <div style={{fontSize:16,fontWeight:700,color:T.text1,marginBottom:14}}>🏥 Visão Geral — {leitos.filter(l=>l.paciente).length} leitos ativos</div>
 
-      {/* ── Banner de alertas — todos os leitos, cada um é um link ── */}
+      {/* ── Banner de alertas — calculados (ClCr, D-day, dispositivos) ── */}
       {(()=>{
         const todos = leitos.filter(l=>l.paciente).flatMap(l=>getAlerts(l).map(a=>({leito:l, ...a})));
         if (!todos.length) return null;
         return (
           <div style={{marginBottom:16,padding:"10px 14px",background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:10}}>
-            <div style={{fontSize:10,fontFamily:mono,letterSpacing:1.5,color:"#f87171",marginBottom:6}}>⚠️ {todos.length} ALERTA(S) ATIVO(S)</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            <div style={{fontSize:10,fontFamily:mono,letterSpacing:1.5,color:"#f87171",marginBottom:6}}>ALERTAS (calculados — ClCr, D-day, metas)</div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
               {todos.map((a,i)=>(
-                <button key={i} onClick={()=>setDrawerAlerta(a)}
-                  style={{fontSize:11,color:"#f87171",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,padding:"3px 9px",cursor:"pointer",fontFamily:"inherit"}}>
-                  {a.leito.nome} — {a.texto}
-                </button>
+                <div key={i} style={{fontSize:11,color:"#cbd5e1"}}>
+                  {a.leito.nome} · {a.texto} · <button onClick={()=>setDrawerAlerta(a)} style={{background:"none",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11,textDecoration:"underline",padding:0,fontFamily:"inherit"}}>ir ao bloco</button>
+                </div>
               ))}
             </div>
           </div>
         );
       })()}
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))",gap:12}}>
-        {leitos.map(l=>{
-          if(!l.paciente) return(
-            <div key={l.id} style={{padding:14,background:"rgba(255,255,255,0.015)",border:"1px dashed rgba(255,255,255,0.06)",borderRadius:10,color:"#1e293b",fontSize:12,textAlign:"center"}}>
-              {l.nome} — Vago
+      {/* ── Tabela — uma linha por leito, uma coluna por sistema (redesign wireframe 13a) ── */}
+      {(()=>{
+        const SISTEMAS = ["Neuro","CV","Resp","Renal","Hema","Infec"];
+
+        const resumoNeuro = (l, ec, vaz) => {
+          const l1 = [ec.nRASS?`RASS ${ec.nRASS.split(" ")[0]}`:null, ec.nGlasgow?`Glasgow ${ec.nGlasgow}`:null].filter(Boolean).join(" · ") || null;
+          const l2 = ec.nPupilas || null;
+          const drogas = NEURO_DRUGS.filter(k=>vaz[k]&&parseFloat(vaz[k])>0);
+          const l3 = drogas.length ? drogas.map(k=>`${DRUG_LABELS[k]||k} ${vaz[k]}mL/h`).join(" · ") : (l1 ? "sem sedação em bomba" : null);
+          const lines = [l1,l2,l3].filter(Boolean);
+          return lines.length ? {lines, cor:"#34d399"} : null;
+        };
+
+        const resumoCV = (l, ec, vaz, h) => {
+          const l1 = ec.cvHemo || ec.cvCardioscopia || null;
+          const dva = CARDIO_DRUGS.filter(k=>vaz[k]&&parseFloat(vaz[k])>0);
+          const l2 = dva.length ? dva.map(k=>`${DRUG_LABELS[k]||k} ${vaz[k]}mL/h`).join(" · ") : null;
+          let l3 = ec.cvAusculta || null;
+          const lact = parseFloat(h.lact);
+          const corLact = !isNaN(lact) ? (lact>4?"#f87171":lact>2?"#fbbf24":"#34d399") : null;
+          if (corLact && corLact!=="#34d399") l3 = `Lactato ${h.lact} ↑`;
+          const lines = [l1,l2,l3].filter(Boolean);
+          if (!lines.length) return null;
+          const instavel = /inst[aá]vel/i.test(l1||"");
+          const cor = (instavel||corLact==="#f87171") ? "#f87171" : ((dva.length||corLact==="#fbbf24") ? "#fbbf24" : "#34d399");
+          return {lines, cor};
+        };
+
+        const resumoResp = (l, h, vm) => {
+          const isAr = l.vm_modo==="ar_ambiente";
+          const l1 = vm ? (["vni","cnaf"].includes(vm.id)?vm.label:`IOT-VM · ${vm.label.replace("VM — ","")}`) : (isAr?"Ar ambiente":null);
+          const params = [l.vm_fio2?`FiO2 ${l.vm_fio2}%`:null, l.vm_peep?`PEEP ${l.vm_peep}`:null].filter(Boolean).join(" · ") || null;
+          const sat = l.vm_sato2 || h.c24_sat || null;
+          const satN = parseFloat(sat);
+          const l3 = sat ? `SatO2 ${sat}%${!isNaN(satN)&&satN<92?" ↓":""}` : null;
+          const lines = [l1,params,l3].filter(Boolean);
+          if (!lines.length) return null;
+          const cor = (!isNaN(satN)&&satN<92) ? "#f87171" : "#34d399";
+          return {lines, cor};
+        };
+
+        const resumoRenal = (l, h) => {
+          const idade = idadeDoLeito(l);
+          const clcr = calcClCr(h.cr, l.peso, idade, l.sexo);
+          const diureseKgH = (h.c24_diur && l.peso) ? (parseFloat(h.c24_diur)/parseFloat(l.peso)/24).toFixed(1) : null;
+          const l1 = diureseKgH ? `Diurese ${diureseKgH}mL/kg/h` : null;
+          const l2 = [h.cr?`Cr ${h.cr}`:null, clcr?`TFG ${clcr}`:null].filter(Boolean).join(" · ") || null;
+          const trs = h.c24_hd ? `TRS ${h.c24_hd}mL` : null;
+          const lines = [l1,l2,trs].filter(Boolean);
+          if (!lines.length) return null;
+          const cor = clcr!==null ? (clcr<30?"#f87171":clcr<60?"#fbbf24":"#34d399") : "#34d399";
+          return {lines, cor};
+        };
+
+        const resumoHema = (l, h) => {
+          const l1 = [h.hb?`Hb ${h.hb}`:null, h.plaq?`Plq ${(parseFloat(h.plaq)/1000).toFixed(0)}k`:null].filter(Boolean).join(" · ") || null;
+          const l2 = h.c24_temp ? `Temp ${h.c24_temp}°C` : null;
+          const lines = [l1,l2].filter(Boolean);
+          if (!lines.length) return null;
+          const temp = parseFloat(h.c24_temp), hb = parseFloat(h.hb), plq = parseFloat(h.plaq);
+          const cor = (temp>=38||hb<8||plq<50000) ? "#f87171" : "#34d399";
+          return {lines, cor};
+        };
+
+        const resumoInfec = (l, atbAtivos, alerts) => {
+          if (!atbAtivos.length) return null;
+          const lines = atbAtivos.slice(0,1).map(a=>{
+            const dd = diasAtb24h(a.dataInicio, a.horaInicio);
+            return `${a.nome} ${lblDiaAtb(dd)||""}`.trim();
+          });
+          const ajuste = alerts.find(a=>a.tipo==="atb-ajuste");
+          if (ajuste) lines.push(`⚠ ajustar (ClCr ${ajuste.clcr})`);
+          const cor = ajuste ? "#f87171" : "#34d399";
+          return {lines, cor};
+        };
+
+        return (
+          <div style={{minWidth:760,overflowX:"auto"}}>
+            <div style={{display:"grid",gridTemplateColumns:"64px repeat(6,1fr) 76px",gap:0,fontSize:9,fontWeight:700,color:"#64748b",fontFamily:mono,letterSpacing:1,padding:"0 2px 6px"}}>
+              <div>LEITO</div>{SISTEMAS.map(s=><div key={s}>{s.toUpperCase()}</div>)}<div>METAS</div>
             </div>
-          );
+            {leitos.filter(l=>l.paciente).map(l=>{
+              const h = getHoje(l.id);
+              const ec = evolCamposPorLeito[l.id]||{};
+              const vaz = l.drogasVazao||{};
+              const alerts = getAlerts(l);
+              const atbAtivos = (l.antibioticos||[]).filter(a=>!a.dataFim&&a.nome);
+              const vm = l.vm_modo?VM_MODOS.find(m=>m.id===l.vm_modo):null;
+              const numero = (l.nome.match(/\d+/)||[])[0] || l.nome;
+              const metasL = metasPorLeito[l.id]||[];
+              const pend = metasL.filter(m=>!m.feito&&m.status!=="cumprido").length;
 
-          const h=getHoje(l.id);
-          const dias=diasInternacao(l.dataInternacao);
-          const idade=idadeDoLeito(l);
-          const bh=fmtBH(l.id,l);
-          const alerts=getAlerts(l);
-          const vaz=l.drogasVazao||{};
-          const atbAtivos=(l.antibioticos||[]).filter(a=>!a.dataFim&&a.nome);
-          const vm=l.vm_modo?VM_MODOS.find(m=>m.id===l.vm_modo):null;
-          const pp=pesoPredito(l.altura,l.sexo);
-          const boletim=l.boletim;
+              const cols = [
+                resumoNeuro(l, ec, vaz),
+                resumoCV(l, ec, vaz, h),
+                resumoResp(l, h, vm),
+                resumoRenal(l, h),
+                resumoHema(l, h),
+                resumoInfec(l, atbAtivos, alerts),
+              ];
 
-          const hasNeuro = NEURO_DRUGS.some(k=>vaz[k]&&parseFloat(vaz[k])>0)||h.c24_pic||h.c24_ppc;
-          const hasCardio = CARDIO_DRUGS.some(k=>vaz[k]&&parseFloat(vaz[k])>0)||h.c24_fc||h.c24_pam;
-          const hasResp = vm||h.c24_sat||h.c24_fr||h.po2||h.ph||h.pco2;
-          const hasRenal = h.cr||h.na||h.k||h.c24_diur||h.c24_bh;
-          const hasHema = h.hb||h.leuco||h.plaq||h.c24_temp||h.lact;
-          const hasInf = atbAtivos.length>0||h.heCulturas;
-          const hasTgi = h.c24_dextro||l.tgUltEvac||h.c24_diet_vol;
-
-          return(
-            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${alerts.length>0?"rgba(248,113,113,0.3)":T.border}`,borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-              {/* Header */}
-              <div style={{padding:"10px 13px",background:"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2,flexWrap:"wrap"}}>
-                  <span style={{fontWeight:700,color:T.text1,fontSize:13,flex:1}}>{l.paciente}</span>
-                  {idade&&<span style={{fontSize:10,fontFamily:mono,color:"#c084fc"}}>{idade}a</span>}
-                  {dias!==null&&<span style={{fontSize:10,fontFamily:mono,color:"#a78bfa",background:"rgba(167,139,250,0.1)",padding:"1px 6px",borderRadius:8}}>D{dias}</span>}
-                  {bh&&<span style={{fontSize:10,fontFamily:mono,color:bh.cor,fontWeight:700,padding:"1px 6px",borderRadius:8,background:`${bh.cor}15`}}>{bh.val>=0?"+":""}{Math.round(bh.val)}mL</span>}
-                  {(()=>{
-                    const metasL = metasPorLeito[l.id]||[];
-                    const pend = metasL.filter(m=>!m.feito&&m.status!=="cumprido").length;
-                    return (
-                      <button onClick={()=>setMetasAbertas(s=>({...s,[l.id]:!s[l.id]}))}
-                        style={{fontSize:10,fontFamily:mono,color:pend>0?"#38bdf8":"#475569",fontWeight:700,padding:"1px 6px",borderRadius:8,background:pend>0?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.04)",border:"none",cursor:"pointer"}}>
-                        🎯 {pend} {metasAbertas[l.id]?"▾":"▸"}
-                      </button>
-                    );
-                  })()}
-                </div>
-                <div style={{fontSize:10,color:T.text3}}>{l.diagnostico}</div>
-                {metasAbertas[l.id] && (()=>{
-                  const metasL = metasPorLeito[l.id]||[];
-                  return (
-                    <div style={{marginTop:6,padding:"6px 8px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8}}>
+              return (
+                <div key={l.id}>
+                  <div style={{display:"grid",gridTemplateColumns:"64px repeat(6,1fr) 76px",gap:8,alignItems:"start",borderTop:`1px solid ${T.border}`,padding:"9px 2px"}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:T.text1}}>{numero}</div>
+                      <div style={{fontSize:9,color:T.text3}}>{l.paciente}</div>
+                    </div>
+                    {cols.map((c,i)=>c ? (
+                      <div key={i} style={{fontSize:10,color:"#cbd5e1",lineHeight:1.5,borderLeft:`2px solid ${c.cor}`,paddingLeft:7}}>
+                        {c.lines.map((ln,j)=><div key={j}>{ln}</div>)}
+                      </div>
+                    ) : (
+                      <div key={i} style={{fontSize:10,color:"#334155",paddingLeft:7}}>— sem dado —</div>
+                    ))}
+                    <button onClick={()=>setMetasAbertas(s=>({...s,[l.id]:!s[l.id]}))}
+                      style={{fontSize:10,fontFamily:mono,color:pend>0?"#38bdf8":"#475569",fontWeight:700,padding:"4px 6px",borderRadius:6,
+                        background:pend>0?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
+                        border:`1px dashed ${pend>0?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,cursor:"pointer",textAlign:"center"}}>
+                      🎯 {pend} {metasAbertas[l.id]?"▾":"▸"}
+                    </button>
+                  </div>
+                  {metasAbertas[l.id] && (
+                    <div style={{margin:"0 2px 8px",padding:"8px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8}}>
                       {metasL.length===0 && <div style={{fontSize:10,color:"#475569"}}>Sem metas cadastradas</div>}
                       {metasL.map((m,i)=>(
-                        <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:3}}>
+                        <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
                           <button onClick={()=>onMetaChange&&onMetaChange(l.id, metasL.map((x,j)=>j===i?{...x,feito:!x.feito}:x))}
                             style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                             {m.feito?"☑":"☐"}
@@ -5971,178 +6042,16 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                         </div>
                       ))}
                     </div>
-                  );
-                })()}
-              </div>
-
-              <div style={{padding:"8px 13px",flex:1}}>
-
-                {/* Alertas */}
-                {alerts.length>0&&(
-                  <div style={{marginBottom:6,display:"flex",flexDirection:"column",gap:2}}>
-                    {alerts.map((a,i)=>(
-                      <button key={i} onClick={()=>setDrawerAlerta({leito:l, ...a})}
-                        style={{textAlign:"left",fontSize:10,color:"#f87171",fontFamily:mono,background:"rgba(248,113,113,0.06)",border:"none",padding:"2px 7px",borderRadius:4,cursor:"pointer"}}>
-                        ⚠️ {a.texto}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* 🧠 Neurológico */}
-                {hasNeuro&&<>
-                  <Sec ico="🧠" lbl="NEUROLÓGICO" cor="#c084fc" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="NEUROLÓGICO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
-                  {NEURO_DRUGS.map(k=><DrugRow key={k} dKey={k} vazoes={vaz}/>)}
-                  <R lbl="PIC" val={h.c24_pic} unit="mmHg" cor={parseFloat(h.c24_pic)>20?"#f87171":"#cbd5e1"}/>
-                  <R lbl="PPC" val={h.c24_ppc} unit="mmHg" cor={parseFloat(h.c24_ppc)<60?"#f87171":"#34d399"}/>
-                  <R lbl="DVE" val={h.c24_dve} unit="mL"/>
-                  </SecBody>
-                </>}
-
-                {/* ❤️ Cardiovascular */}
-                {hasCardio&&<>
-                  <Sec ico="❤️" lbl="CARDIOVASCULAR" cor="#f87171" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="CARDIOVASCULAR" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
-                  {CARDIO_DRUGS.map(k=><DrugRow key={k} dKey={k} vazoes={vaz}/>)}
-                  <R lbl="FC" val={h.c24_fc} unit="bpm" cor={parseFloat(h.c24_fc)>100||parseFloat(h.c24_fc)<60?"#fbbf24":"#34d399"}/>
-                  <R lbl="PAM" val={h.c24_pam} unit="mmHg" cor={parseFloat(h.c24_pam)<65?"#f87171":"#34d399"}/>
-                  {h.c24_pas&&<R lbl="PAS/PAD" val={h.c24_pas+(h.c24_pad?"/"+h.c24_pad:"")} unit="mmHg"/>}
-                  </SecBody>
-                </>}
-
-                {/* 🫁 Respiratório */}
-                {hasResp&&<>
-                  <Sec ico="🫁" lbl="RESPIRATÓRIO" cor="#38bdf8" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="RESPIRATÓRIO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
-                  {(()=>{
-                    const mId=l.vm_modo||"";
-                    const isVM=["vm_psv","vm_pcv","vm_vcv"].includes(mId);
-                    const isVNI=mId==="vni";
-                    const isCNAF=mId==="cnaf";
-                    const usesPEEP=isVM||isVNI;
-                    const usesPS=isVM||isVNI;
-                    return<>
-                      {vm&&<R lbl="Modo" val={vm.label} cor="#38bdf8"/>}
-                      {l.vm_fio2&&<R lbl={isCNAF?"Fluxo":"FiO₂"} val={`${l.vm_fio2}${isCNAF?" L/min":"%"}`}/>}
-                      {usesPEEP&&l.vm_peep&&<R lbl="PEEP" val={l.vm_peep} unit="cmH₂O"/>}
-                      {usesPS&&l.vm_ps&&<R lbl="PS" val={l.vm_ps} unit="cmH₂O"/>}
-                      {isVM&&l.vm_pplat&&l.vm_peep&&<R lbl="DP" val={parseFloat(l.vm_pplat)-parseFloat(l.vm_peep)} unit="cmH₂O" cor={parseFloat(l.vm_pplat)-parseFloat(l.vm_peep)>15?"#f87171":"#34d399"}/>}
-                      {isVM&&pp&&l.vm_vt&&<R lbl="VC mL/kg" val={(parseFloat(l.vm_vt)/parseFloat(pp)).toFixed(1)} cor={parseFloat(l.vm_vt)/parseFloat(pp)>8?"#f87171":parseFloat(l.vm_vt)/parseFloat(pp)<=6?"#34d399":"#fbbf24"}/>}
-                    </>;
-                  })()}
-                  <R lbl="SpO₂" val={h.c24_sat} unit="%" cor={parseFloat(h.c24_sat)<92?"#f87171":"#34d399"}/>
-                  <R lbl="FR" val={h.c24_fr} unit="irpm" cor={parseFloat(h.c24_fr)>25?"#fbbf24":"#cbd5e1"}/>
-                  <R lbl="pH" val={h.ph} cor={parseFloat(h.ph)<7.35?"#f87171":parseFloat(h.ph)>7.45?"#fbbf24":"#34d399"}/>
-                  <R lbl="HCO₃" val={h.hco3} unit="mEq/L"/>
-                  <R lbl="pO₂" val={h.po2} unit="mmHg"/>
-                  <R lbl="pCO₂" val={h.pco2} unit="mmHg" cor={parseFloat(h.pco2)>50?"#fbbf24":parseFloat(h.pco2)<35?"#fbbf24":"#34d399"}/>
-                  <R lbl="BE" val={h.be} unit="mEq/L" cor={parseFloat(h.be)<-4?"#f87171":parseFloat(h.be)>4?"#fbbf24":"#34d399"}/>
-                  </SecBody>
-                </>}
-
-                {/* 🫘 Renal / Metabólico */}
-                {hasRenal&&<>
-                  <Sec ico="🫘" lbl="RENAL / METABÓLICO" cor="#34d399" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="RENAL / METABÓLICO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
-                  <R lbl="Creatinina" val={h.cr} unit="mg/dL" cor={parseFloat(h.cr)>1.2?"#fbbf24":"#34d399"}/>
-                  <R lbl="Ureia" val={h.ur} unit="mg/dL" cor={parseFloat(h.ur)>60?"#fbbf24":"#cbd5e1"}/>
-                  <R lbl="Sódio" val={h.na} unit="mEq/L" cor={parseFloat(h.na)<135||parseFloat(h.na)>145?"#fbbf24":"#34d399"}/>
-                  <R lbl="Potássio" val={h.k} unit="mEq/L" cor={parseFloat(h.k)<3.5||parseFloat(h.k)>5.5?"#f87171":parseFloat(h.k)<3.8?"#fbbf24":"#34d399"}/>
-                  <R lbl="Magnésio" val={h.mg} unit="mg/dL"/>
-                  <R lbl="Cálcio iônico" val={h.cai} unit="mmol/L"/>
-                  <R lbl="Fósforo" val={h.p} unit="mg/dL"/>
-                  <R lbl="Diurese" val={h.c24_diur} unit="mL"/>
-                  {h.c24_hd&&<R lbl="HD/CRRT" val={h.c24_hd} unit="mL"/>}
-                  <R lbl="BH 24h" val={h.c24_bh&&(parseFloat(h.c24_bh)>=0?"+":"")+h.c24_bh} unit="mL" cor={parseFloat(h.c24_bh)>500?"#f87171":parseFloat(h.c24_bh)<-500?"#34d399":"#94a3b8"}/>
-                  </SecBody>
-                </>}
-
-                {/* 🩸 Hematológico */}
-                {hasHema&&<>
-                  <Sec ico="🩸" lbl="HEMATOLÓGICO" cor="#fb923c" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="HEMATOLÓGICO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
-                  <R lbl="Temperatura" val={h.c24_temp} unit="°C" cor={parseFloat(h.c24_temp)>38?"#f87171":parseFloat(h.c24_temp)<36?"#38bdf8":"#34d399"}/>
-                  <R lbl="Hb" val={h.hb} unit="g/dL" cor={parseFloat(h.hb)<7?"#f87171":parseFloat(h.hb)<8?"#fbbf24":"#34d399"}/>
-                  <R lbl="Leucócitos" val={h.leuco} unit="/mm³" cor={parseFloat(h.leuco)>12000||parseFloat(h.leuco)<4000?"#fbbf24":"#34d399"}/>
-                  <R lbl="Plaquetas" val={h.plaq} unit="/mm³" cor={parseFloat(h.plaq)<50000?"#f87171":parseFloat(h.plaq)<100000?"#fbbf24":"#34d399"}/>
-                  <R lbl="Lactato" val={h.lact} unit="mmol/L" cor={parseFloat(h.lact)>2?"#fbbf24":parseFloat(h.lact)>4?"#f87171":"#34d399"}/>
-                  <R lbl="TGO/AST" val={h.tgo} unit="U/L" cor={parseFloat(h.tgo)>40?"#fbbf24":"#cbd5e1"}/>
-                  <R lbl="TGP/ALT" val={h.tgp} unit="U/L" cor={parseFloat(h.tgp)>40?"#fbbf24":"#cbd5e1"}/>
-                  <R lbl="Bilirrubina" val={h.bttot} unit="mg/dL"/>
-                  <R lbl="RNI" val={h.rni} cor={parseFloat(h.rni)>1.5?"#fbbf24":"#34d399"}/>
-                  <R lbl="PCR" val={h.pcr} unit="mg/dL" cor={parseFloat(h.pcr)>10?"#fbbf24":"#34d399"}/>
-                  </SecBody>
-                </>}
-
-                {/* 🦠 Infeccioso */}
-                {hasInf&&<>
-                  <Sec ico="🦠" lbl="INFECCIOSO" cor="#a3e635" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="INFECCIOSO" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
-                  {atbAtivos.map(a=>{
-                    const dd=diasAtb24h(a.dataInicio, a.horaInicio);
-                    const doseInfo=[a.dose,a.intervalo].filter(Boolean).join(" ");
-                    return <R key={a.id} lbl={a.nome} val={lblDiaAtb(dd)||""} unit={doseInfo} cor="#a3e635"/>;
-                  })}
-                  {(l.culturas||[]).length>0&&(
-                    <div style={{marginTop:4}}>
-                      {(l.culturas||[]).map(c=>(
-                        <div key={c.id} style={{fontSize:10,fontFamily:mono,marginBottom:2}}>
-                          <span style={{color:"#475569"}}>🧫 {c.tipo}{c.material?" ("+c.material+")":""}</span>
-                          <span style={{marginLeft:6,color:c.status==="Negativa"?"#34d399":c.status==="Resistente"?"#f87171":"#fbbf24"}}>
-                            {c.status}{c.resultado?" / "+c.resultado.slice(0,30):""}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
                   )}
-                  </SecBody>
-                </>}
-
-                {/* 🍽 TGI */}
-                {hasTgi&&<>
-                  <Sec ico="🍽" lbl="TGI" cor="#fb923c" cid={l.id}/>
-                  <SecBody cid={l.id} lbl="TGI" leito={l} ec={evolCamposPorLeito[l.id]||{}}>
-                  <R lbl="Glicemia" val={h.c24_dextro} unit="mg/dL" cor={parseFloat(h.c24_dextro)>180||parseFloat(h.c24_dextro)<70?"#fbbf24":"#34d399"}/>
-                  {l.tgUltEvac&&<R lbl="Última evacuação" val={`${Math.floor((new Date()-new Date(l.tgUltEvac+"T00:00:00"))/86400000)}d atrás`}/>}
-                  {h.c24_diet_vol&&<R lbl="Dieta" val={h.c24_diet_vol} unit="mL"/>}
-                  <R lbl="Albumina" val={h.alb} unit="g/dL" cor={parseFloat(h.alb)<3?"#f87171":parseFloat(h.alb)<3.5?"#fbbf24":"#34d399"}/>
-                  </SecBody>
-                </>}
-
-                {/* Field picker popup */}
-                {vgpPicker?.leitoId===l.id&&(()=>{
-                  const fields = EVOL_SYS_FIELDS[vgpPicker.sysKey]||[];
-                  const ec = evolCamposPorLeito[l.id]||{};
-                  const cur = (l.vgpMap||{})[vgpPicker.sysKey]||[];
-                  return(
-                    <div style={{background:"rgba(15,23,42,0.98)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,padding:"8px 10px",marginTop:6,zIndex:10}}>
-                      <div style={{fontSize:9,fontFamily:mono,color:"#38bdf8",letterSpacing:1,marginBottom:6}}>CAMPOS A MOSTRAR — {vgpPicker.sysKey}</div>
-                      {fields.map(f=>(
-                        <label key={f.k} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,cursor:"pointer"}}>
-                          <input type="checkbox" checked={cur.includes(f.k)}
-                            onChange={e=>{
-                              const nova=e.target.checked?[...cur,f.k]:cur.filter(x=>x!==f.k);
-                              if(onLeitoChange) onLeitoChange({...l,vgpMap:{...(l.vgpMap||{}),[vgpPicker.sysKey]:nova}});
-                            }}/>
-                          <span style={{fontSize:10,color:ec[f.k]?"#cbd5e1":"#475569"}}>{f.l}{ec[f.k]?<span style={{color:"#38bdf8",marginLeft:4}}>✓</span>:""}</span>
-                        </label>
-                      ))}
-                      <button onClick={()=>setVgpPicker(null)} style={{marginTop:4,width:"100%",padding:"3px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:5,color:"#64748b",cursor:"pointer",fontSize:10}}>Fechar</button>
-                    </div>
-                  );
-                })()}
-
-
-
-                {!hasNeuro&&!hasCardio&&!hasResp&&!hasRenal&&!hasHema&&!hasInf&&!hasTgi&&!alerts.length&&(
-                  <div style={{fontSize:11,color:"#334155",textAlign:"center",padding:"12px 0"}}>Sem dados lançados hoje</div>
-                )}
-              </div>
+                </div>
+              );
+            })}
+            <div style={{fontSize:9,color:"#475569",paddingTop:8,borderTop:`1px solid ${T.border}`,marginTop:4}}>
+              colunas só mostram dado quando o bloco tem algo lançado — "— sem dado —" não é um alerta. borda: verde ok · âmbar atenção · vermelho alerta calculado. coluna Metas abre a lista de metas do leito para edição direta.
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })()}
 
       {/* ── Drawer lateral — aberto ao clicar num alerta, com ações rápidas quando aplicável ── */}
       {drawerAlerta && (()=>{
