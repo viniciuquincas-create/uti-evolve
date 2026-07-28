@@ -5807,6 +5807,16 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
       const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
       if(dd>(config[`alerta${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`]||99)) alerts.push({tipo:"dispositivo",texto:`${d.label}: D${dd}`});
     }));
+    // Metas atrasadas — sem campo de prazo: usa o próprio id (Date.now() na criação) como "criada em" e
+    // considera atrasada se ainda pendente depois de METa_ATRASO_DIAS dias. Não digitado, não é uma data extra pro usuário.
+    const METAS_ATRASO_DIAS = 2;
+    (metasPorLeito[leito.id]||[]).forEach(m=>{
+      if(m.feito||m.status==="cumprido") return;
+      const criadoEm = parseInt(m.id,10);
+      if(isNaN(criadoEm)) return;
+      const diasAberta = Math.floor((Date.now()-criadoEm)/86400000);
+      if(diasAberta>=METAS_ATRASO_DIAS) alerts.push({tipo:"meta-atrasada",texto:`Meta atrasada (${diasAberta}d): ${m.texto||m}`,metaId:m.id});
+    });
     return alerts;
   };
 
@@ -5899,7 +5909,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               {todos.map((a,i)=>(
                 <div key={i} style={{fontSize:11,color:"#cbd5e1"}}>
-                  {a.leito.nome} · {a.texto} · <button onClick={()=>setDrawerAlerta(a)} style={{background:"none",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11,textDecoration:"underline",padding:0,fontFamily:"inherit"}}>ir ao bloco</button>
+                  {a.leito.nome} · {a.texto} · <button onClick={()=>a.tipo==="meta-atrasada"?setMetasAbertas(s=>({...s,[a.leito.id]:true})):setDrawerAlerta(a)} style={{background:"none",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11,textDecoration:"underline",padding:0,fontFamily:"inherit"}}>{a.tipo==="meta-atrasada"?"ir às metas":"ir ao bloco"}</button>
                 </div>
               ))}
             </div>
