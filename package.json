@@ -6,12 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "node -e \"const{rmSync,existsSync}=require('fs');['node_modules/.vite','.vite'].forEach(p=>{try{rmSync(p,{recursive:true,force:true})}catch{}});\" && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:whatsapp": "node --test tests/whatsapp-command.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "twilio": "6.0.2"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
