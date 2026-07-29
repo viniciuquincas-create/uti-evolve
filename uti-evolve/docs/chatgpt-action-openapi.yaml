@@ -1,0 +1,60 @@
+openapi: 3.1.0
+info:
+  title: UTI Evolve Clinical Confirmation API
+  version: 1.0.0
+  description: O ChatGPT transcreve o áudio na conversa, envia a transcrição para prévia e só grava após confirmação explícita do usuário.
+servers:
+  - url: https://uti-evolve.vercel.app
+paths:
+  /api/chatgpt-preview:
+    post:
+      operationId: previewClinicalUpdate
+      summary: Gerar prévia sem alterar o prontuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transcript]
+              properties:
+                transcript:
+                  type: string
+                  description: Transcrição literal do áudio clínico feita pelo ChatGPT nesta conversa.
+      responses:
+        "200":
+          description: Prévia aguardando confirmação
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requiresConfirmation: { type: boolean }
+                  previewId: { type: string }
+                  confirmationToken: { type: string }
+                  preview: { type: object }
+  /api/chatgpt-confirm:
+    post:
+      operationId: confirmClinicalUpdate
+      summary: Gravar somente a prévia explicitamente confirmada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [previewId, confirmationToken, confirm]
+              properties:
+                previewId: { type: string }
+                confirmationToken: { type: string }
+                confirm: { type: boolean, const: true }
+      responses:
+        "200":
+          description: Alterações gravadas
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - bearerAuth: []

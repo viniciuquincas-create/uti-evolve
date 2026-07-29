@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:whatsapp": "node --test tests/whatsapp-command.test.js"
+    "test:whatsapp": "node --test tests/whatsapp-command.test.js",
+    "test:chatgpt": "node --test tests/chatgpt-clinical-flow.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

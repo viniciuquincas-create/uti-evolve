@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "node -e \"const{rmSync,existsSync}=require('fs');['node_modules/.vite','.vite'].forEach(p=>{try{rmSync(p,{recursive:true,force:true})}catch{}});\" && vite build",
     "preview": "vite preview",
-    "test:whatsapp": "node --test tests/whatsapp-command.test.js"
+    "test:whatsapp": "node --test tests/whatsapp-command.test.js",
+    "test:chatgpt": "node --test tests/chatgpt-clinical-flow.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
