@@ -6428,6 +6428,28 @@ export default function App() {
 
   const isLoaded    = useRef(false);
 
+  // Sincroniza lançamentos recebidos pelo WhatsApp ao voltar para o aplicativo.
+  useEffect(()=>{
+    if(!authed) return;
+    const atualizarLeitosRemotos=async()=>{
+      if(document.visibilityState!=="visible" || saveTimer.current) return;
+      try{
+        const {data}=await supabase.from("config").select("value").eq("key","leitos_data").single();
+        if(!data?.value) return;
+        const remotos=JSON.parse(data.value);
+        if(!Array.isArray(remotos) || !remotos.length) return;
+        setLeitos(remotos);
+        if(!remotos.some(l=>l.id===leitoSelId)) setLeitoSelId(remotos[0].id);
+      }catch(e){ console.warn("Falha ao sincronizar lançamentos do WhatsApp",e); }
+    };
+    window.addEventListener("focus",atualizarLeitosRemotos);
+    document.addEventListener("visibilitychange",atualizarLeitosRemotos);
+    return ()=>{
+      window.removeEventListener("focus",atualizarLeitosRemotos);
+      document.removeEventListener("visibilitychange",atualizarLeitosRemotos);
+    };
+  },[authed,leitoSelId]);
+
   // ── SAVES manuais (chamados explicitamente, não por useEffect) ────────────────
   const salvarLeitos = (val) => {
     if (!isLoaded.current) return;
@@ -6435,6 +6457,7 @@ export default function App() {
     setSaving(true);
     saveTimer.current = setTimeout(async()=>{
       try { await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(val)}); } catch {}
+      saveTimer.current = null;
       setSaving(false);
     }, 800);
   };
