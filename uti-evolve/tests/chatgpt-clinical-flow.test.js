@@ -1,16 +1,49 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildPreview, parseClinicalTranscript, safeTokenEqual, tokenDigest } from "../lib/chatgpt-clinical-flow.js";
+import { applyConfirmedPreview, buildPreview, parseClinicalRequest, safeTokenEqual, tokenDigest } from "../lib/chatgpt-clinical-flow.js";
 
-test("gera prévia sem alterar o leito original",()=>{
-  const leitos=[{id:1,nome:"Leito 01",paciente:"Paciente Teste",drogasVazao:{fentanil:"2"}}];
-  const parsed=parseClinicalTranscript("Leito 1, nora 20, propofol 10, psv, ps 10, fi 30, peep 6");
-  const preview=buildPreview(leitos,parsed);
+const leitos=[{id:1,nome:"Leito 01",paciente:"Paciente Teste",drogasVazao:{fentanil:"2"},dieta:{tipo:"enteral",meta:{modo:"kg"}},dispositivos:{}}];
+
+test("mantém compatibilidade com mensagem clínica simples",()=>{
+  const parsed=parseClinicalRequest({transcript:"Leito 1, nora 20, propofol 10, psv, ps 10, fi 30, peep 6"});
+  const preview=buildPreview(leitos,parsed,{});
   assert.equal(preview.bedId,1);
-  assert.equal(preview.updates.vm_modo,"vm_psv");
+  assert.equal(preview.updates.bedUpdates.vm_modo,"vm_psv");
   assert.equal(leitos[0].drogasVazao.noradrenalina,undefined);
 });
-test("token de confirmação é de uso verificável por HMAC",()=>{
+
+test("prévia estruturada inclui exame físico e dieta sem gravar",()=>{
+  const parsed=parseClinicalRequest({transcript:"Leito 1...",clinicalData:{bedNumber:1,evolutionUpdates:{nEF:"RASS -2, pupilas isocóricas",cvEF:"RCR 2T"},dietUpdates:{tipo:"enteral",formula:"Nutrison",vazao:"40",meta:{modo:"kg",kcalKg:"25"}}}});
+  assert.equal(parsed.error,undefined);
+  const preview=buildPreview(leitos,parsed,{});
+  assert.match(preview.updateLabels.join(" "),/Neurológico/);
+  assert.equal(leitos[0].dieta.formula,undefined);
+});
+
+test("confirmação aplica leito, evolução, dieta e dispositivo",()=>{
+  const parsed=parseClinicalRequest({transcript:"Atualizar leito 1",clinicalData:{bedNumber:1,bedUpdates:{vm_modo:"vm_psv",vm_peep:6},drugUpdates:{noradrenalina:20},evolutionUpdates:{reEF:"MV presente"},dietUpdates:{tipo:"enteral",vazao:40},deviceOperations:[{action:"add",type:"tot",site:"oral"}]}});
+  const preview=buildPreview(leitos,parsed,{});
+  const result=applyConfirmedPreview(leitos,{}, {command:parsed.command,preview});
+  assert.equal(result.updatedBed.vm_peep,"6");
+  assert.equal(result.updatedBed.drogasVazao.noradrenalina,"20");
+  assert.equal(result.updatedBed.dieta.vazao,"40");
+  assert.equal(result.updatedBed.dispositivos.tot.ativo,true);
+  assert.equal(result.updatedEvolutions[1].reEF,"MV presente");
+});
+
+test("rejeita campo não autorizado",()=>{
+  const parsed=parseClinicalRequest({transcript:"teste",clinicalData:{bedNumber:1,bedUpdates:{campoInventado:"x"}}});
+  assert.match(parsed.error,/não permitidos/);
+});
+
+test("bloqueia confirmação se paciente mudou",()=>{
+  const parsed=parseClinicalRequest({transcript:"teste",clinicalData:{bedNumber:1,evolutionUpdates:{nEF:"alerta"}}});
+  const preview=buildPreview(leitos,parsed,{});
+  const changed=[{...leitos[0],paciente:"Outro paciente"}];
+  assert.match(applyConfirmedPreview(changed,{}, {command:parsed.command,preview}).error,/mudou/);
+});
+
+test("token de confirmação é verificável por HMAC",()=>{
   const digest=tokenDigest("token-unico","chave-servidor");
   assert.equal(safeTokenEqual("token-unico",digest,"chave-servidor"),true);
   assert.equal(safeTokenEqual("errado",digest,"chave-servidor"),false);
