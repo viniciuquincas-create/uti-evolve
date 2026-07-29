@@ -32,6 +32,7 @@ function senderAllowed(from) {
 }
 
 export default async function handler(req, res) {
+  if (req.method === "GET") return res.status(200).json({ ok:true, service:"uti-evolve-whatsapp" });
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
   const params = typeof req.body === "string"
@@ -51,7 +52,7 @@ export default async function handler(req, res) {
   if (!Object.keys(command.updates).length) return reply(res, 400, "Não identifiquei dados para lançar. Use campos separados por vírgulas.");
 
   const supabaseUrl = process.env.SUPABASE_URL || "https://scuqankwjemqmtjwgema.supabase.co";
-  const supabaseSecret = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseSecret = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
   if (!supabaseSecret) return reply(res, 503, "Integração indisponível: chave secreta do Supabase não configurada.");
 
   try {
