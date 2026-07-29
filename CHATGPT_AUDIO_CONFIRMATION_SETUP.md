@@ -4,11 +4,11 @@
 
 1. O usuário envia/fala o áudio na conversa do ChatGPT.
 2. O ChatGPT transcreve o áudio na própria conversa.
-3. A Action chama `POST /api/chatgpt-preview` com a transcrição.
-4. A API valida o leito, gera uma prévia e **não altera** `leitos_data`.
+3. O ChatGPT organiza apenas os dados expressamente informados em `clinicalData` e chama `POST /api/chatgpt-preview`.
+4. A API valida leito, campos e operações, gera uma prévia e **não altera** os dados.
 5. O ChatGPT mostra leito, paciente e campos interpretados e pede confirmação explícita.
 6. Somente depois de o usuário confirmar, a Action chama `POST /api/chatgpt-confirm` com `confirm: true`.
-7. A API verifica token de uso único, validade de 10 minutos e se o paciente do leito continua sendo o mesmo; então grava.
+7. A API verifica token de uso único, validade de 10 minutos e se o paciente do leito continua sendo o mesmo; então grava `leitos_data` e `evolucao_data`.
 
 Este fluxo não usa WhatsApp nem Twilio e não encaminha o áudio a outro provedor pela API. Para Actions, apenas a transcrição é enviada ao UTI Evolve.
 
@@ -35,10 +35,14 @@ Mantenha também `SUPABASE_URL` e `SUPABASE_SECRET_KEY` já configurados. Faça 
    - sempre mostrar a prévia completa;
    - nunca chamar `confirmClinicalUpdate` antes de uma confirmação explícita do usuário;
    - se o usuário corrigir qualquer campo, gerar nova prévia em vez de confirmar a anterior.
+   - nunca inferir achados, doses ou unidades ausentes;
+   - enviar mensagens digitadas e áudios pelo mesmo fluxo;
+   - mapear exame físico, ventilação, drogas, dieta e dispositivos somente nos campos definidos pelo schema;
+   - usar `operation: admit` apenas quando o usuário pedir explicitamente para ocupar um leito vago.
 
 ## Endpoints
 
-- `POST /api/chatgpt-preview`: recebe `{ "transcript": "..." }`; cria prévia com validade de 10 minutos.
+- `POST /api/chatgpt-preview`: recebe `transcript` e `clinicalData`; cria prévia com validade de 10 minutos.
 - `POST /api/chatgpt-confirm`: recebe `{ "previewId":"...", "confirmationToken":"...", "confirm":true }`; grava uma única vez.
 
 ## Segurança aplicada
@@ -48,4 +52,9 @@ Mantenha também `SUPABASE_URL` e `SUPABASE_SECRET_KEY` já configurados. Faça 
 - Token de confirmação aleatório armazenado apenas como HMAC.
 - Prévia expira em 10 minutos e não pode ser reutilizada.
 - Confirmação rejeitada se o paciente do leito tiver mudado.
+- Lista fechada de campos permitidos; campos desconhecidos são rejeitados no servidor.
 - Respostas com `Cache-Control: no-store`.
+
+## Cobertura clínica
+
+O schema v2 aceita identificação/admissão em leito vago, dados demográficos, ventilação mecânica e oxigenoterapia, drogas em bomba, dieta e metas nutricionais, dispositivos invasivos e todos os campos textuais dos sistemas do Beira-leito. Para dispositivos múltiplos, atualizar ou remover exige o `deviceId` somente quando houver mais de um item do mesmo tipo.

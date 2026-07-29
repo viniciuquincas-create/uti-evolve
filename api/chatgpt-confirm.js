@@ -18,9 +18,11 @@ export default async function handler(req,res) {
     if (!safeTokenEqual(body.confirmationToken,pending.confirmationDigest,secret)) return json(res,403,{ok:false,error:"Token de confirmação inválido"});
 
     const leitos=JSON.parse(await readConfig(admin,"leitos_data") || "[]");
-    const result=applyConfirmedPreview(leitos,pending);
+    const evolutions=JSON.parse(await readConfig(admin,"evolucao_data") || "{}");
+    const result=applyConfirmedPreview(leitos,evolutions,pending);
     if (result.error) return json(res,422,{ok:false,error:result.error});
     await writeConfig(admin,"leitos_data",result.updatedLeitos);
+    await writeConfig(admin,"evolucao_data",result.updatedEvolutions);
     await writeConfig(admin,pendingKey,{...pending,status:"confirmed",confirmedAt:new Date().toISOString(),confirmationDigest:"used"});
     return json(res,200,{ok:true,confirmed:true,previewId:pending.previewId,bed:{id:result.updatedBed.id,name:result.updatedBed.nome,patientName:result.updatedBed.paciente},updates:pending.preview.updateLabels});
   } catch(error) {

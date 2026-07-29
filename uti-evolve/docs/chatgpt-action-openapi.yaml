@@ -1,28 +1,31 @@
 openapi: 3.1.0
 info:
   title: UTI Evolve Clinical Confirmation API
-  version: 1.0.0
-  description: O ChatGPT transcreve o áudio na conversa, envia a transcrição para prévia e só grava após confirmação explícita do usuário.
+  version: 2.0.0
+  description: Recebe texto ou transcrição feita pelo ChatGPT, gera prévia e só grava após confirmação explícita.
 servers:
   - url: https://uti-evolve.vercel.app
 paths:
   /api/chatgpt-preview:
     post:
       operationId: previewClinicalUpdate
-      summary: Gerar prévia sem alterar o prontuário
+      summary: Gerar prévia clínica sem gravar
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [transcript]
+              additionalProperties: false
+              required: [transcript, clinicalData]
               properties:
                 transcript:
                   type: string
-                  description: Transcrição literal do áudio clínico feita pelo ChatGPT nesta conversa.
+                  description: Mensagem textual original ou transcrição literal do áudio.
+                clinicalData:
+                  $ref: '#/components/schemas/ClinicalData'
       responses:
-        "200":
+        '200':
           description: Prévia aguardando confirmação
           content:
             application/json:
@@ -36,25 +39,187 @@ paths:
   /api/chatgpt-confirm:
     post:
       operationId: confirmClinicalUpdate
-      summary: Gravar somente a prévia explicitamente confirmada
+      summary: Gravar uma prévia explicitamente confirmada
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               required: [previewId, confirmationToken, confirm]
               properties:
                 previewId: { type: string }
                 confirmationToken: { type: string }
                 confirm: { type: boolean, const: true }
       responses:
-        "200":
-          description: Alterações gravadas
+        '200': { description: Alterações gravadas }
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
+    bearerAuth: { type: http, scheme: bearer }
+  schemas:
+    ClinicalData:
+      type: object
+      additionalProperties: false
+      required: [bedNumber]
+      properties:
+        operation:
+          type: string
+          enum: [update, admit]
+          description: Use admit apenas para ocupar um leito atualmente vago.
+        bedNumber: { type: integer, minimum: 1 }
+        bedUpdates: { $ref: '#/components/schemas/BedUpdates' }
+        drugUpdates: { $ref: '#/components/schemas/DrugUpdates' }
+        evolutionUpdates: { $ref: '#/components/schemas/EvolutionUpdates' }
+        dietUpdates: { $ref: '#/components/schemas/DietUpdates' }
+        deviceOperations:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/DeviceOperation' }
+    BedUpdates:
+      type: object
+      additionalProperties: false
+      properties:
+        paciente: { type: string }
+        diagnostico: { type: string }
+        dataInternacao: { type: string, description: YYYY-MM-DD }
+        dataNascimento: { type: string, description: YYYY-MM-DD }
+        idadeAnos: { type: number }
+        peso: { type: number }
+        altura: { type: number }
+        sexo: { type: string, enum: [M, F] }
+        bhPrevio: { type: number }
+        vm_modo: { type: string, enum: [ar_ambiente, cn, ms, mnr, venturi, cnaf, vni, vm_psv, vm_pcv, vm_vcv, vm_aprv] }
+        vm_o2: { type: number }
+        vm_flow: { type: number }
+        vm_fio2: { type: number }
+        vm_ipap: { type: number }
+        vm_epap: { type: number }
+        vm_br: { type: number }
+        vm_ps: { type: number }
+        vm_peep: { type: number }
+        vm_fr: { type: number }
+        vm_vt: { type: number }
+        vm_p01: { type: number }
+        vm_pocc: { type: number }
+        vm_pmusc: { type: number }
+        vm_pins: { type: number }
+        vm_pplat: { type: number }
+        vm_ppico: { type: number }
+        vm_phigh: { type: number }
+        vm_plow: { type: number }
+        vm_thigh: { type: number }
+        vm_tlow: { type: number }
+        vm_cuff: { type: number }
+        vm_sato2: { type: number }
+    DrugUpdates:
+      type: object
+      additionalProperties: false
+      description: Valores/vazões conforme ditados; não converter unidades.
+      properties:
+        noradrenalina: { type: number }
+        vasopressina: { type: number }
+        adrenalina: { type: number }
+        dobutamina: { type: number }
+        nitroprussiato: { type: number }
+        nitroglicerina: { type: number }
+        propofol: { type: number }
+        midazolam: { type: number }
+        fentanil: { type: number }
+        remifentanil: { type: number }
+        dexmedetomidina: { type: number }
+        cetamina: { type: number }
+        rocuronio: { type: number }
+        cisatracurio: { type: number }
+        insulina: { type: number }
+    EvolutionUpdates:
+      type: object
+      additionalProperties: false
+      description: Texto clínico por campo/sistema. Preserve o conteúdo ditado e não invente achados.
+      properties:
+        hda: { type: string }
+        nRASS: { type: string }
+        nGlasgow: { type: string }
+        nPupilas: { type: string }
+        nDor: { type: string }
+        nEF: { type: string, description: Exame físico neurológico }
+        nEFExtra: { type: string }
+        nSeda: { type: string }
+        nAnalg: { type: string }
+        nPsiq: { type: string }
+        nObs: { type: string }
+        cvHemo: { type: string }
+        cvCardioscopia: { type: string }
+        cvAusculta: { type: string }
+        cvEF: { type: string, description: Exame físico cardiovascular }
+        cv24h: { type: string }
+        cvDVA: { type: string }
+        cvMed: { type: string }
+        cvTEC: { type: string }
+        cvLact: { type: string }
+        cvDeltaCO2: { type: string }
+        cvDeltaPP: { type: string }
+        cvTropo: { type: string }
+        cvObs: { type: string }
+        reVM: { type: string }
+        reMV: { type: string }
+        reRA: { type: string }
+        reEF: { type: string, description: Exame físico respiratório }
+        re24h: { type: string }
+        reGaso: { type: string }
+        rePocus: { type: string }
+        reLUS: { type: string }
+        reObs: { type: string }
+        rm24h: { type: string }
+        rmLabs: { type: string }
+        rmTRS: { type: string }
+        rmObs: { type: string, description: Exame/observações renal-metabólicas }
+        tgEF: { type: string, description: Exame físico gastrointestinal }
+        tg24h: { type: string }
+        tgLabs: { type: string }
+        tgPocus: { type: string }
+        tgObs: { type: string }
+        tgUltEvac: { type: string }
+        tgLAMG: { type: string }
+        heTemp: { type: string }
+        heLabs: { type: string }
+        heMed: { type: string }
+        heAtb: { type: string }
+        heProf: { type: string }
+        heObs: { type: string, description: Exame/observações hematológico-infecciosas }
+        heCulturas: { type: string }
+        probAtivos: { type: string }
+        probResolvidos: { type: string }
+        impressao: { type: string }
+    DietUpdates:
+      type: object
+      additionalProperties: false
+      properties:
+        tipo: { type: string, enum: [enteral, parenteral, oral, mista, jejum] }
+        catalogId: { type: string }
+        formula: { type: string }
+        vazao: { type: number }
+        volume24h: { type: number }
+        obs: { type: string }
+        meta:
+          type: object
+          additionalProperties: false
+          properties:
+            modo: { type: string, enum: [kg, total] }
+            kcalKg: { type: number }
+            ptnKg: { type: number }
+            kcalTotal: { type: number }
+            ptnTotal: { type: number }
+    DeviceOperation:
+      type: object
+      additionalProperties: false
+      required: [action, type]
+      properties:
+        action: { type: string, enum: [add, update, remove] }
+        type: { type: string, enum: [tot, tqt, svd, pai, sng, cvc, dialise, dreno] }
+        deviceId: { type: string, description: Para atualizar/remover CVC, diálise ou dreno. Pode omitir quando houver apenas um dispositivo desse tipo. }
+        data: { type: string, description: Data de inserção YYYY-MM-DD }
+        site: { type: string }
+        obs: { type: string }
 security:
   - bearerAuth: []
