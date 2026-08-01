@@ -4465,7 +4465,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   };
 
   return (
-    <div style={{marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,.012)":"transparent"}}>
+    <div id={`sys-${id}`} style={{scrollMarginTop:12,marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,.012)":"transparent"}}>
       <div style={{display:"flex",alignItems:"center",background:open?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.015)"}}>
         <button onClick={handleOpen} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:reviewMode?"9px 12px":"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left",minWidth:0}}>
           <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
@@ -4562,13 +4562,6 @@ const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,
 
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[], onLeitoChange }) {
   const [copiado, setCopiado] = useState({});
-  const [bedsideMode,setBedsideMode] = useState("review");
-  const [activeSystem,setActiveSystem] = useState("n");
-  const focusProps = id => ({
-    controlledOpen: bedsideMode==="edit" && activeSystem===id,
-    reviewMode: bedsideMode==="review",
-    onRequestOpen: ()=>{setActiveSystem(prev=>bedsideMode==="review"?id:(prev===id?null:id));setBedsideMode("edit");},
-  });
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
     const dataEdicao = campos._datas?.[fieldName];
@@ -4960,11 +4953,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     <div>
       <div>
       {/* ── Progresso dos blocos + gerar evolução completa (topo) ── */}
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap",padding:"5px",border:"1px solid rgba(255,255,255,.06)",borderRadius:10,background:"rgba(255,255,255,.015)"}}>
-        <div style={{display:"flex",padding:2,borderRadius:8,background:"rgba(255,255,255,.035)"}}>
-          {[{id:"review",label:"Revisar"},{id:"edit",label:"Editar"}].map(m=><button key={m.id} onClick={()=>{setBedsideMode(m.id);if(m.id==="edit"&&!activeSystem)setActiveSystem("n");}} style={{padding:"6px 12px",borderRadius:6,border:"none",background:bedsideMode===m.id?"rgba(56,189,248,.16)":"transparent",color:bedsideMode===m.id?"#7dd3fc":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{m.label}</button>)}
-        </div>
-        <span style={{fontSize:10,color:"#475569"}}>{bedsideMode==="review"?"Resumo clínico sem campos de edição":"Um sistema aberto por vez"}</span>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap",padding:"7px 9px",border:"1px solid rgba(255,255,255,.06)",borderRadius:10,background:"rgba(255,255,255,.015)"}}>
+        <span style={{fontSize:11,color:"#7dd3fc",fontWeight:700}}>Visita multiprofissional</span>
+        <span style={{fontSize:10,color:"#475569"}}>Atualize os sistemas em sequência e gere a evolução ao final</span>
         <span style={{fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:20,
           marginLeft:"auto",
           border:`1px solid ${blocosCompletos===blocosTotal?"rgba(52,211,153,0.4)":"rgba(251,191,36,0.4)"}`,
@@ -4979,6 +4970,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           color:copiado.tudo?"#38bdf8":"#e2e8f0",cursor:"pointer",fontFamily:"inherit"}}>
           {copiado.tudo?"✅ Copiado!":"📋 gerar evolução completa"}
         </button>
+        <div style={{width:"100%",display:"flex",gap:5,overflowX:"auto",paddingTop:6,borderTop:"1px solid rgba(255,255,255,.05)"}}>
+          {[['hda','HDA'],['n','Neuro'],['cv','Cardio'],['res','Resp'],['reme','Renal'],['tgi','TGI'],['he','Hemato'],['in','Infecto']].map(([id,label])=><button key={id} onClick={()=>document.getElementById(`sys-${id}`)?.scrollIntoView({behavior:"smooth",block:"start"})} style={{padding:"4px 9px",borderRadius:7,border:"1px solid rgba(255,255,255,.07)",background:"rgba(255,255,255,.025)",color:"#64748b",fontSize:10,cursor:"pointer",whiteSpace:"nowrap"}}>{label}</button>)}
+        </div>
       </div>
 
       {/* ── Cabeçalho clínico (pills) ── */}
@@ -5001,7 +4995,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </div>
 
       {/* ── Legenda + limpar ── */}
-      {bedsideMode==="edit"&&<div style={{display:"flex",gap:16,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+      <div style={{display:"flex",gap:16,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
           <div style={{width:12,height:12,borderRadius:3,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.15)"}}/>
           Editado hoje
@@ -5017,11 +5011,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         }} style={{marginLeft:"auto",padding:"4px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",fontSize:11,cursor:"pointer"}}>
           🗑 Limpar evolução
         </button>
-      </div>}
+      </div>
 
       {/* ── HDA ── */}
       <SysB id="hda" sigla="== HDA:" label="História da Doença Atual" color={"#c084fc"} txtFn={()=>get("hda")}
-        {...focusProps("hda")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]} adicionaveis={[]}>
         <Row><Col><FL>HISTÓRIA — resumo clínico para passagem de caso</FL>
@@ -5084,7 +5077,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </Collapsible>
 
       <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtNFull}
-        {...focusProps("n")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}
@@ -5128,7 +5120,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCvFull}
-        {...focusProps("cv")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"},{key:"cvObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}
@@ -5219,7 +5210,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
-        {...focusProps("res")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rePocus",label:"POCUS Pulmonar"},{key:"reLUS",label:"LUS"},{key:"reObs",label:"Obs"}]}
         adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"outro",label:"+ outro"}]}
@@ -5260,7 +5250,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={"#34d399"} txtFn={txtReMeFull}
-        {...focusProps("reme")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rmTRS",label:"TRS"},{key:"rmObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"}]}
@@ -5291,7 +5280,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={"#fb923c"} txtFn={txtTGIFull}
-        {...focusProps("tgi")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"tgPocus",label:"POCUS Abdominal"},{key:"tgObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
@@ -5334,7 +5322,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="he" sigla="== He:" label="Hematológico" color={"#f59e0b"} txtFn={txtHeFull}
-        {...focusProps("he")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"heProf",label:"Profilaxias"},{key:"heObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
@@ -5350,7 +5337,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="in" sigla="== In:" label="Infeccioso" color={"#94a3b8"} txtFn={txtInFull}
-        {...focusProps("in")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
@@ -5424,7 +5410,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         position:"sticky", top:16,
         width:260, flexShrink:0,
         alignSelf:"flex-start",
-        display:bedsideMode==="edit"?"flex":"none", flexDirection:"column", gap:10,
+        display:"flex", flexDirection:"column", gap:10,
       }} className="prob-sticky-col">
         {/* Problemas Ativos */}
         <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"10px 12px"}}>
@@ -7118,7 +7104,7 @@ ${linha}`:linha}));
                   <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
                 </div>
               ) : (
-                <div style={{maxWidth:900}}>
+                <div style={{maxWidth:1100}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#86efac"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
                   <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
                     onLeitoChange={atualizar}
