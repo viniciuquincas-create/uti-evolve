@@ -6589,7 +6589,7 @@ export default function App() {
                 const rotulo = (l.nome.match(/\d+/)||[])[0] || l.nome.slice(0,2).toUpperCase();
                 return (
                   <button key={l.id}
-                    onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("evolucao");setAba("paciente");setViewGlobal("leitos");}}
+                    onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setAba("paciente");setViewGlobal("leitos");}}
                     title={`${l.nome}${l.paciente?" — "+l.paciente:""}`}
                     style={{width:40,height:40,borderRadius:10,background:(l.id===leitoSelId&&viewGlobal==="leitos")?T.accentBg:T.bgCard,border:`1.5px solid ${(l.id===leitoSelId&&viewGlobal==="leitos")?T.accent:T.border}`,color:(l.id===leitoSelId&&viewGlobal==="leitos")?T.accent:T.text3,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:mono,flexShrink:0}}>
                     {rotulo}
@@ -6659,7 +6659,7 @@ export default function App() {
               </div>
               <div style={{flex:1}}>
                 <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config}
-                  onClick={()=>{setLeitoSelId(l.id);setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);setAba("evolucao");setAba("paciente");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
+                  onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setAba("paciente");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
                   onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
                   onRemove={leitos.length>1?()=>{
                     setLeitos(ls=>{const novo=ls.filter(x=>x.id!==l.id);salvarLeitos(novo);setLeitoSelId(novo[0].id);return novo;});
