@@ -4395,13 +4395,13 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
         const res=conf&&mlh?calcDoseFromMLH(k,mlh,peso,undefined,conf.modoCalcDefault,config):null;
         const acima=res&&conf?.max&&parseFloat(res.dose)>conf.max;
         return (
-          <div key={k} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
-            <span style={{flex:1,fontSize:12,color:"#cbd5e1",fontFamily:mono,minWidth:100}}>{conf?.label||k}</span>
+          <div key={k} className="mini-bomba-row" style={{marginBottom:4}}>
+            <span style={{fontSize:12,color:"#cbd5e1",fontFamily:mono,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{conf?.label||k}</span>
             <input type="number" value={mlh} placeholder="mL/h"
               onChange={e=>{onVazaoChange&&onVazaoChange(k,e.target.value);}}
               style={{width:68,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
                 borderRadius:6,padding:"4px 7px",color:"#e2e8f0",fontSize:12,textAlign:"center",fontFamily:mono}}/>
-            <span style={{fontSize:10,fontFamily:mono,color:acima?"#f87171":"#38bdf8",minWidth:90}}>
+            <span style={{fontSize:10,fontFamily:mono,color:acima?"#f87171":"#38bdf8",minWidth:0,whiteSpace:"nowrap"}}>
               {res?`≈ ${fmtDose(res.dose)} ${res.label}`:""}
             </span>
             <button onClick={()=>{onVazaoChange&&onVazaoChange(k,"");}}
@@ -5405,30 +5405,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
 
-
-      <div style={{
-        position:"sticky", top:16,
-        width:260, flexShrink:0,
-        alignSelf:"flex-start",
-        display:"flex", flexDirection:"column", gap:10,
-      }} className="prob-sticky-col">
-        {/* Problemas Ativos */}
-        <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:9,fontFamily:"'DM Mono',monospace",letterSpacing:2,color:"#f87171",marginBottom:6}}>🔴 PROBLEMAS ATIVOS</div>
-          <TA fieldRef={refs.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
-            sugestao={`Problemas Ativos:\n1. `} rows={8} fieldName="probAtivos" onBlurSave={salvar}/>
-          <button onClick={()=>{const t=refs.probAtivos?.current?.value||campos.probAtivos||"";if(t){navigator.clipboard?.writeText(t).catch(()=>{});setCopiado(c=>({...c,probAtivos:true}));setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}}
-            style={{marginTop:6,width:"100%",padding:"4px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.15)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:10}}>
-            {copiado.probAtivos?"✅ Copiado":"📋 Copiar"}
-          </button>
-        </div>
-        {/* Problemas Resolvidos */}
-        <div style={{background:"rgba(52,211,153,0.05)",border:"1px solid rgba(52,211,153,0.15)",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:9,fontFamily:"'DM Mono',monospace",letterSpacing:2,color:"#34d399",marginBottom:6}}>✅ PROBLEMAS RESOLVIDOS</div>
-          <TA fieldRef={refs.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
-            rows={4} fieldName="probResolvidos" onBlurSave={salvar}/>
-        </div>
-      </div>
 
       {/* ── Impressão ── */}
       <div style={{marginBottom:10,border:`1px solid rgba(56,189,248,0.2)`,borderRadius:10,overflow:"hidden",background:"rgba(56,189,248,0.02)"}}>
@@ -6670,9 +6646,14 @@ export default function App() {
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${T.accent}44;border-radius:4px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:${theme==="light"?"none":"invert(0.5)"}} button:hover{opacity:0.88}
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
+        .mini-bomba-row{display:grid;grid-template-columns:minmax(120px,220px) 72px minmax(145px,220px) 18px;gap:6px;align-items:center;justify-content:start;max-width:560px}
+        @media(min-width:701px){.patient-content-with-problems{padding-right:312px!important}}
         @media(max-width:700px){.prob-floating{position:static!important;width:100%!important;margin-bottom:12px;filter:none!important}}
         @media(max-width:700px){
           .prob-sticky-col{position:static!important;width:100%!important;order:-1}
+          .mini-bomba-row{grid-template-columns:minmax(100px,1fr) 68px 18px;max-width:none}
+          .mini-bomba-row>span:nth-of-type(2){grid-column:1/3;grid-row:2}
+          .mini-bomba-row>button{grid-column:3;grid-row:1}
         }
       `}</style>
 
@@ -6853,7 +6834,7 @@ export default function App() {
           </div>
 
 
-          <div style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
+          <div className={leito.paciente&&ABAS.some(a=>a.id===aba)?"patient-content-with-problems":""} style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
               <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
             ) : aba==="dadosclinicos_legacy" ? (
