@@ -4465,12 +4465,12 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   };
 
   return (
-    <div id={`sys-${id}`} style={{scrollMarginTop:12,marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,.012)":"transparent"}}>
+    <div id={`sys-${id}`} style={{scrollMarginTop:62,marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,.012)":"transparent"}}>
       <div style={{display:"flex",alignItems:"center",background:open?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.015)"}}>
         <button onClick={handleOpen} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:reviewMode?"9px 12px":"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left",minWidth:0}}>
           <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
           {!reviewMode&&<span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>}
-          <span style={{fontSize:12,color:reviewMode?"#cbd5e1":"#475569",fontWeight:reviewMode?650:400,minWidth:reviewMode?125:0}}>{label}</span>
+          <span style={{fontSize:12,color:reviewMode?"#cbd5e1":"#94a3b8",fontWeight:reviewMode?650:500,minWidth:reviewMode?125:0}}>{label}</span>
           {statusTotal>0 && (
             <span style={{display:"flex",alignItems:"center",gap:5}} title={statusVazios===0?"Bloco completo":`${statusVazios} de ${statusTotal} campo(s) essencial(is) vazio(s)`}>
               <span style={{width:7,height:7,borderRadius:"50%",background:statusVazios===0?"#34d399":"#f87171",flexShrink:0}}/>
@@ -4499,14 +4499,15 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
             border:`1px solid ${preview!==null?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
             color:preview!==null?"#fbbf24":"#64748b",cursor:"pointer",fontFamily:"inherit"}}
           title="Ver e editar o texto que será copiado">
-          {preview!==null?"✕ Texto":"👁 Texto"}
+          {preview!==null?"✕":"👁"}
         </button>}
         {open&&<button onClick={copiar}
+          title="Copiar texto deste sistema"
           style={{margin:"6px 8px 6px 2px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,
             background:cp2?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.05)",
             border:`1px solid ${cp2?"#34d399":"rgba(255,255,255,0.1)"}`,
             color:cp2?"#34d399":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
-          {cp2?"✓ Copiado!":"📋 Copiar"}
+          {cp2?"✓":"📋"}
         </button>}
       </div>
       {open && showAdd && (opcionais.length>0||adicionaveisNaoAtivos.length>0) && (
@@ -4953,26 +4954,24 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     <div>
       <div>
       {/* ── Progresso dos blocos + gerar evolução completa (topo) ── */}
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap",padding:"7px 9px",border:"1px solid rgba(255,255,255,.06)",borderRadius:10,background:"rgba(255,255,255,.015)"}}>
+      <div className="visit-toolbar" style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap",padding:"7px 9px",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,background:"rgba(6,16,12,.94)"}}>
         <span style={{fontSize:11,color:"#7dd3fc",fontWeight:700}}>Visita multiprofissional</span>
-        <span style={{fontSize:10,color:"#475569"}}>Atualize os sistemas em sequência e gere a evolução ao final</span>
+        <div style={{display:"flex",gap:4,overflowX:"auto",flex:1,minWidth:220}}>
+          {[['hda','HDA'],['n','Neuro'],['cv','Cardio'],['res','Resp'],['reme','Renal'],['tgi','TGI'],['he','Hemato'],['in','Infecto']].map(([id,label])=><button key={id} onClick={()=>document.getElementById(`sys-${id}`)?.scrollIntoView({behavior:"smooth",block:"start"})} style={{padding:"4px 8px",borderRadius:7,border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.035)",color:"#94a3b8",fontSize:10,cursor:"pointer",whiteSpace:"nowrap"}}>{label}</button>)}
+        </div>
         <span style={{fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:20,
-          marginLeft:"auto",
           border:`1px solid ${blocosCompletos===blocosTotal?"rgba(52,211,153,0.4)":"rgba(251,191,36,0.4)"}`,
           color:blocosCompletos===blocosTotal?"#34d399":"#fbbf24",
           background:blocosCompletos===blocosTotal?"rgba(52,211,153,0.08)":"rgba(251,191,36,0.08)"}}
           title={BLOCOS_STATUS.filter(b=>!b.fields.every(f=>String(f||"").trim())).map(b=>b.label).join(", ")||"Todos os blocos completos"}>
-          {blocosCompletos} de {blocosTotal} blocos completos
+          {blocosCompletos}/{blocosTotal}
         </span>
         <button onClick={copiarTudo} style={{padding:"7px 14px",borderRadius:8,fontWeight:700,fontSize:12,
           background:copiado.tudo?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",
           border:`1px solid ${copiado.tudo?"#38bdf8":"rgba(255,255,255,0.12)"}`,
           color:copiado.tudo?"#38bdf8":"#e2e8f0",cursor:"pointer",fontFamily:"inherit"}}>
-          {copiado.tudo?"✅ Copiado!":"📋 gerar evolução completa"}
+          {copiado.tudo?"✅ Copiado!":"📋 Evolução completa"}
         </button>
-        <div style={{width:"100%",display:"flex",gap:5,overflowX:"auto",paddingTop:6,borderTop:"1px solid rgba(255,255,255,.05)"}}>
-          {[['hda','HDA'],['n','Neuro'],['cv','Cardio'],['res','Resp'],['reme','Renal'],['tgi','TGI'],['he','Hemato'],['in','Infecto']].map(([id,label])=><button key={id} onClick={()=>document.getElementById(`sys-${id}`)?.scrollIntoView({behavior:"smooth",block:"start"})} style={{padding:"4px 9px",borderRadius:7,border:"1px solid rgba(255,255,255,.07)",background:"rgba(255,255,255,.025)",color:"#64748b",fontSize:10,cursor:"pointer",whiteSpace:"nowrap"}}>{label}</button>)}
-        </div>
       </div>
 
       {/* ── Cabeçalho clínico (pills) ── */}
@@ -6646,8 +6645,9 @@ export default function App() {
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${T.accent}44;border-radius:4px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:${theme==="light"?"none":"invert(0.5)"}} button:hover{opacity:0.88}
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
+        .visit-toolbar{position:sticky;top:0;z-index:12;backdrop-filter:blur(12px);box-shadow:0 8px 22px rgba(0,0,0,.18)}
         .mini-bomba-row{display:grid;grid-template-columns:minmax(120px,220px) 72px minmax(145px,220px) 18px;gap:6px;align-items:center;justify-content:start;max-width:560px}
-        @media(min-width:701px){.patient-content-with-problems{padding-right:312px!important}}
+        @media(min-width:701px){.patient-content-with-problems{padding-right:312px!important}.patient-navigation-with-problems{padding-right:296px!important}}
         @media(max-width:700px){.prob-floating{position:static!important;width:100%!important;margin-bottom:12px;filter:none!important}}
         @media(max-width:700px){
           .prob-sticky-col{position:static!important;width:100%!important;order:-1}
@@ -6825,7 +6825,7 @@ export default function App() {
             </div>
           )}
 
-          <div style={{display:"flex",borderBottom:`1px solid ${T.border}`,paddingLeft:16,overflowX:"auto",flexShrink:0,background:T.bgCard}}>
+          <div className={leito.paciente?"patient-navigation-with-problems":""} style={{display:"flex",borderBottom:`1px solid ${T.border}`,paddingLeft:16,overflowX:"auto",flexShrink:0,background:T.bgCard}}>
             {ABAS.map(a=>(
               <button key={a.id} onClick={()=>setAba(a.id)} className="uti-tab-btn" style={{padding:"14px 16px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:500,color:aba===a.id?T.accent:T.text3,borderBottom:aba===a.id?`2px solid ${T.accent}`:"2px solid transparent",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                 {a.label}
