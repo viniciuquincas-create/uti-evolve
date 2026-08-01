@@ -1430,7 +1430,6 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
       {integrated ? (
         <div style={{marginBottom:12,border:"1px solid rgba(56,189,248,.28)",borderRadius:12,background:"linear-gradient(135deg,rgba(56,189,248,.10),rgba(56,189,248,.025))",overflow:"hidden"}}>
           <div style={{padding:"12px 14px",display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",width:38,height:38,borderRadius:10,background:"rgba(56,189,248,.10)",border:"1px solid rgba(56,189,248,.20)",fontSize:20,flexShrink:0}}>{modoAtual?.icone||"🫁"}</div>
             <div style={{minWidth:210,flex:2}}>
               <div style={{display:"flex",gap:7,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
                 <span style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:"#38bdf8",fontWeight:800}}>SUPORTE RESPIRATÓRIO ATUAL</span>
@@ -1466,7 +1465,6 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
       <div style={{marginBottom:12,position:"relative"}}>
         {modoAtual ? (
           <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:10}}>
-            <span style={{fontSize:20}}>{modoAtual.icone}</span>
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{modoAtual.label}</div>
             </div>
@@ -1485,7 +1483,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
                     style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#cbd5e1",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}
                     onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.1)"}
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <span style={{fontSize:18}}>{m.icone}</span>{m.label}
+                    {m.label}
                   </div>
                 ))}
               </div>
@@ -1496,7 +1494,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
                   style={{padding:"5px 12px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#94a3b8",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",gap:5}}
                   onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
                   onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}>
-                  {m.icone} {m.label.replace("VM — ","").replace(" (Cateter Nasal Alto Fluxo)","").replace("Modo ","").split(" ")[0]}
+                  {m.label.replace("VM — ","").replace(" (Cateter Nasal Alto Fluxo)","").replace("Modo ","").split(" ")[0]}
                 </button>
               ))}
             </div>}
