@@ -1380,11 +1380,12 @@ function gerarTextoVM(leito) {
   return `${label}: ${partes.join(" / ")}`;
 }
 
-function VentilacaoPanel({ leito, onChange }) {
+function VentilacaoPanel({ leito, onChange, integrated=false }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [busca, setBusca] = useState("");
   const [showBusca, setShowBusca] = useState(false);
+  const [showDetails, setShowDetails] = useState(!integrated);
 
   const modoAtual = VM_MODOS.find(m=>m.id===leito.vm_modo);
   const campos = VM_CAMPOS[leito.vm_modo] || [];
@@ -1406,12 +1407,60 @@ function VentilacaoPanel({ leito, onChange }) {
   const csr   = (vt && pplat && peep && pplat>peep) ? Math.round(vt/(pplat-peep)) : null;
   const ppeak_est = leito.vm_ppico ? parseFloat(leito.vm_ppico) : null;
   const pf_calc = (po2>0&&fio2>0) ? Math.round(po2/(fio2/100)) : null;
+  const suporteResumo = (()=>{
+    const itens=[];
+    if (["cn","ms","mnr"].includes(leito.vm_modo)&&leito.vm_o2) itens.push(`O₂ ${leito.vm_o2} L/min`);
+    if (leito.vm_modo==="venturi") { if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); if(leito.vm_o2)itens.push(`O₂ ${leito.vm_o2} L/min`); }
+    if (leito.vm_modo==="cnaf") { if(leito.vm_flow)itens.push(`Fluxo ${leito.vm_flow} L/min`); if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); }
+    if (leito.vm_modo==="vni") { if(leito.vm_ipap)itens.push(`IPAP ${leito.vm_ipap}`); if(leito.vm_epap)itens.push(`EPAP ${leito.vm_epap}`); if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); }
+    if (leito.vm_modo==="vm_psv"&&leito.vm_ps) itens.push(`PS ${leito.vm_ps}`);
+    if (leito.vm_modo==="vm_pcv"&&leito.vm_pins) itens.push(`Pins ${leito.vm_pins}`);
+    if (leito.vm_modo==="vm_vcv"&&leito.vm_vt) itens.push(`VC ${leito.vm_vt} mL`);
+    if (["vm_psv","vm_pcv","vm_vcv"].includes(leito.vm_modo)) { if(leito.vm_peep)itens.push(`PEEP ${leito.vm_peep}`); if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); }
+    if (leito.vm_modo==="vm_aprv") { if(leito.vm_phigh)itens.push(`Phigh ${leito.vm_phigh}`); if(leito.vm_plow)itens.push(`Plow ${leito.vm_plow}`); if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); }
+    return itens;
+  })();
+  const sat = parseFloat(leito.vm_sato2||0)||null;
+  const oxiCor = sat!==null ? (sat<90?"#f87171":sat<94?"#fbbf24":"#34d399") : pf_calc!==null ? (pf_calc<150?"#f87171":pf_calc<300?"#fbbf24":"#34d399") : "#94a3b8";
 
   const set = (key, val) => onChange({...leito, [key]: val});
 
   return (
     <div>
-      <SecTitle>SUPORTE VENTILATÓRIO</SecTitle>
+      {integrated ? (
+        <div style={{marginBottom:12,border:"1px solid rgba(56,189,248,.28)",borderRadius:12,background:"linear-gradient(135deg,rgba(56,189,248,.10),rgba(56,189,248,.025))",overflow:"hidden"}}>
+          <div style={{padding:"12px 14px",display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",width:38,height:38,borderRadius:10,background:"rgba(56,189,248,.10)",border:"1px solid rgba(56,189,248,.20)",fontSize:20,flexShrink:0}}>{modoAtual?.icone||"🫁"}</div>
+            <div style={{minWidth:210,flex:2}}>
+              <div style={{display:"flex",gap:7,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
+                <span style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:"#38bdf8",fontWeight:800}}>SUPORTE RESPIRATÓRIO ATUAL</span>
+                <span style={{fontSize:10,padding:"2px 7px",borderRadius:10,color:"#7dd3fc",background:"rgba(56,189,248,.12)",border:"1px solid rgba(56,189,248,.25)",fontWeight:700}}>{modoAtual?.label||"Não definido"}</span>
+              </div>
+              <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap",fontSize:11,fontFamily:mono,color:"#cbd5e1"}}>
+                {suporteResumo.length?supporteResumo.map((item,i)=><span key={i} style={{color:i===0?"#7dd3fc":"#cbd5e1",fontWeight:i===0?700:500}}>{item}</span>):<span style={{color:"#64748b"}}>Sem parâmetros registrados</span>}
+              </div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:6,fontSize:10,fontFamily:mono,color:"#94a3b8"}}>
+                {leito.vm_fr&&<span>FR {leito.vm_fr} irpm</span>}
+                {leito.vm_vt&&leito.vm_modo!=="vm_vcv"&&<span>VC {leito.vm_vt} mL</span>}
+                {leito.vm_cuff&&<span>Cuff {leito.vm_cuff}</span>}
+                {dp!==null&&<span>DP {dp}</span>}
+                {leito.nebMed&&<span style={{color:"#a3e635"}}>Neb: {leito.nebMed} {leito.nebFreq||""}</span>}
+              </div>
+            </div>
+            <div style={{minWidth:145,flex:1,paddingLeft:12,borderLeft:"1px solid rgba(56,189,248,.16)"}}>
+              <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>OXIGENAÇÃO</div>
+              <div style={{display:"flex",gap:12,alignItems:"baseline",flexWrap:"wrap"}}>
+                <span style={{fontSize:14,fontWeight:800,color:oxiCor}}>SatO₂ {sat!==null?`${sat}%`:"—"}</span>
+                {pf_calc!==null&&<span style={{fontSize:11,fontFamily:mono,color:oxiCor}}>P/F {pf_calc}</span>}
+              </div>
+              {leito.vm_fio2&&<div style={{fontSize:9,color:"#64748b",fontFamily:mono,marginTop:4}}>FiO₂ registrada: {leito.vm_fio2}%</div>}
+            </div>
+            <button onClick={()=>setShowDetails(v=>!v)} style={{padding:"7px 11px",borderRadius:8,border:"1px solid rgba(56,189,248,.3)",background:showDetails?"rgba(56,189,248,.14)":"rgba(56,189,248,.06)",color:"#7dd3fc",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{showDetails?"Fechar edição ↑":"Editar suporte ↓"}</button>
+          </div>
+        </div>
+      ) : <SecTitle>SUPORTE VENTILATÓRIO</SecTitle>}
+
+      {(!integrated || showDetails) && <div style={integrated?{padding:"12px 14px 2px",marginTop:-12,marginBottom:12,border:"1px solid rgba(56,189,248,.18)",borderTop:"none",borderRadius:"0 0 12px 12px",background:"rgba(56,189,248,.025)"}:undefined}>
 
       {/* Seletor de modo */}
       <div style={{marginBottom:12,position:"relative"}}>
@@ -1524,7 +1573,7 @@ function VentilacaoPanel({ leito, onChange }) {
           {!pf_calc&&(leito.vm_modo==="vm_psv"||leito.vm_modo==="vm_pcv"||leito.vm_modo==="vm_vcv")&&(
             <div style={{display:"flex",gap:10,marginBottom:10}}>
               <div style={{minWidth:120,flex:1}}>
-                <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ / P/F (mmHg)</div>
+                <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ (mmHg) — calcula P/F</div>
                 <input type="number" value={leito.vm_pf||""} onChange={e=>set("vm_pf",e.target.value)}
                   placeholder="Ex: 280"
                   style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
@@ -1541,6 +1590,19 @@ function VentilacaoPanel({ leito, onChange }) {
           </div>
         </>
       )}
+      {modoAtual&&<div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <div style={{minWidth:180,flex:2}}>
+          <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>NEBULIZAÇÃO — MEDICAÇÃO</div>
+          <input value={leito.nebMed||""} onChange={e=>set("nebMed",e.target.value)} placeholder="Ex: Salbutamol + ipratrópio"
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+        </div>
+        <div style={{minWidth:120,flex:1}}>
+          <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>FREQUÊNCIA</div>
+          <input value={leito.nebFreq||""} onChange={e=>set("nebFreq",e.target.value)} placeholder="Ex: 6/6h"
+            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+        </div>
+      </div>}
+      </div>}
     </div>
   );
 }
@@ -5143,7 +5205,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"outro",label:"+ outro"}]}
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]}>
         {/* ── Suporte Ventilatório ── */}
-        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange}/>}
+        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated/>}
         {!onLeitoChange&&leito.vm_modo&&(()=>{
           const vm2=VM_MODOS.find(m=>m.id===leito.vm_modo);
           return vm2?<div style={{padding:"6px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.1)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
