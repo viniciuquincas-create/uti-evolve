@@ -5162,7 +5162,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </ClinicalGroup>
         <ClinicalGroup label="MONITORIZAÇÃO · 24H" color="#f87171">
         <Row>
-          <Col><FL>24h — FC · PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} rows={2} fieldName="cv24h" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — FC · PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
         </Row>
         <Row>
         <Col><FL>Perfusão — TEC</FL>
@@ -5273,6 +5273,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         opcionais={[{key:"rmTRS",label:"TRS"},{key:"rmObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"}]}
         statusFields={[{label:"24h — HD/BH",value:campos.rm24h},{label:"Labs renais",value:campos.rmLabs}]}>
+        <ClinicalGroup label="FUNÇÃO RENAL E MONITORIZAÇÃO" color="#34d399">
         {/* Em uso de ATB? — somente leitura, refletindo o bloco Infeccioso (relevante p/ ajuste de dose renal) */}
         {(()=>{
           const atbsAtivos = (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome);
@@ -5292,8 +5293,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           );
         })()}
         <Row><Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} sugestao="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
-        {vis["rmTRS"]&&<Row><Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} sugestao="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row>}
-        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={2} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={1} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
+        </ClinicalGroup>
+        {vis["rmTRS"]&&<ClinicalGroup label="TERAPIA RENAL SUBSTITUTIVA" color="#34d399"><Row><Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} sugestao="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
         {vis["add_reme_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_reme_interconsulta")} defaultValue={campos["add_reme_interconsulta"]||""} sugestao="Nefrologia 29/04: avaliou TRS — manter CRRT" rows={1} fieldName="add_reme_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["rmObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} sugestao="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
@@ -5349,11 +5351,13 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         opcionais={[{key:"heProf",label:"Profilaxias"},{key:"heObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Temperatura",value:campos.heTemp},{label:"Labs hematológicos",value:campos.heLabs}]}>
+        <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#f59e0b">
         <Row>
           <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} sugestao="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
-          {vis["heProf"]&&<Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} sugestao="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1} fieldName="heProf" onBlurSave={salvar}/></Col>}
         </Row>
-        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={2} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={1} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
+        </ClinicalGroup>
+        {vis["heProf"]&&<ClinicalGroup label="PROFILAXIA E TRATAMENTO" color="#f59e0b"><Row><Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} sugestao="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1} fieldName="heProf" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
         {vis["add_he_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_he_interconsulta")} defaultValue={campos["add_he_interconsulta"]||""} sugestao="Hematologia 29/04: sem indicação de transfusão" rows={1} fieldName="add_he_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_he_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_he_exames")} defaultValue={campos["add_he_exames"]||""} sugestao="Mielograma solicitado" rows={1} fieldName="add_he_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["heObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} sugestao="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>}
@@ -5365,6 +5369,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Antibióticos/Culturas",value:(leito.antibioticos||[]).length>0?"1":campos.heCulturas}]}>
 
+        <ClinicalGroup label="ANTIMICROBIANOS E TRATAMENTO" color="#94a3b8">
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
                 {/* ── Antibioticoterapia ── */}
         {onLeitoChange?(<>
@@ -5406,6 +5411,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </>):(
           <Row><Col><FL>Antibióticos</FL><TA fieldRef={refs.heAtb} defaultValue={campos.heAtb} isAntigo={isAntigo("heAtb")} rows={3} fieldName="heAtb" onBlurSave={salvar}/></Col></Row>
         )}
+        </ClinicalGroup>
+        <ClinicalGroup label="MICROBIOLOGIA E VIGILÂNCIA" color="#94a3b8">
         <Row><Col>
           <FL>🧫 Culturas</FL>
           {(leito.culturas||[]).length>0 ? (
@@ -5422,6 +5429,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <FL>Obs. Culturas (manual)</FL>
           <TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} rows={2} fieldName="heCulturas" onBlurSave={salvar}/>
         </Col></Row>
+        </ClinicalGroup>
         {vis["add_in_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_in_interconsulta")} defaultValue={campos["add_in_interconsulta"]||""} sugestao="ID 29/04: avaliar troca ATB aguardando culturas" rows={1} fieldName="add_in_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_in_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_in_exames")} defaultValue={campos["add_in_exames"]||""} sugestao="Beta-D-glucana 29/04: pendente" rows={1} fieldName="add_in_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["inObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={ExtraRef("inObs")} defaultValue={campos["inObs"]||""} sugestao="Reavaliação com culturas em 48h" rows={1} fieldName="inObs" onBlurSave={salvar}/></Col></Row>}
