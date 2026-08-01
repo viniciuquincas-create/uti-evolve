@@ -850,7 +850,7 @@ function NutriBar({ label, recebeu, meta }) {
 }
 
 // ── DietaPanel ────────────────────────────────────────────────────────────────
-function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
+function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=false }) {
   const dieta = dados.dieta || {
     tipo:"enteral", catalogId:"", formula:"",
     vazao:"",
@@ -861,6 +861,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
   const updMeta = (field, val) => upd("meta", { ...(dieta.meta||{}), [field]: val });
 
   const [showCatalog, setShowCatalog] = useState(false);
+  const [showDetails, setShowDetails] = useState(!integrated);
 
   const peso     = parseFloat(dados.peso) || 0;
   const catalogo = getDietasCatalogo(config);
@@ -869,6 +870,11 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
   const metaAbs  = calcMetaAbsoluta(meta, peso);
   const volHoje  = parseFloat(diureseHojeVol) || 0;
   const nutriHoje = calcNutri(dietaSel, volHoje);
+  const kcalPct = metaAbs?.kcal && nutriHoje?.kcal ? Math.round(nutriHoje.kcal/metaAbs.kcal*100) : null;
+  const ptnPct = metaAbs?.ptn && nutriHoje?.ptn ? Math.round(nutriHoje.ptn/metaAbs.ptn*100) : null;
+  const adequacao = kcalPct!==null && ptnPct!==null ? Math.min(kcalPct,ptnPct) : (kcalPct ?? ptnPct);
+  const adequacaoCor = adequacao===null ? "#94a3b8" : adequacao>=80 ? "#34d399" : "#f87171";
+  const tipoLabel = {enteral:"Enteral",parenteral:"NPT",oral:"Via oral",mista:"Mista",jejum:"Jejum"}[dieta.tipo] || "Não definida";
 
   const TIPOS = [
     {k:"enteral",   label:"🥤 Enteral"},
@@ -883,7 +889,33 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
 
   return (
     <div>
-      <SecTitle>SUPORTE NUTRICIONAL</SecTitle>
+      {integrated ? (
+        <div style={{marginBottom:12,border:"1px solid rgba(251,146,60,0.28)",borderRadius:12,background:"linear-gradient(135deg,rgba(251,146,60,0.10),rgba(251,146,60,0.025))",overflow:"hidden"}}>
+          <div style={{padding:"12px 14px",display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{minWidth:190,flex:2}}>
+              <div style={{display:"flex",gap:7,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
+                <span style={{fontSize:9,fontFamily:mono,letterSpacing:1.5,color:"#fb923c",fontWeight:800}}>NUTRIÇÃO ATUAL</span>
+                <span style={{fontSize:10,padding:"2px 7px",borderRadius:10,color:dieta.tipo==="jejum"?"#fca5a5":"#fdba74",background:dieta.tipo==="jejum"?"rgba(248,113,113,.12)":"rgba(251,146,60,.12)",border:`1px solid ${dieta.tipo==="jejum"?"rgba(248,113,113,.3)":"rgba(251,146,60,.25)"}`,fontWeight:700}}>{tipoLabel}</span>
+              </div>
+              <div style={{fontSize:12,color:"#e2e8f0",fontWeight:650,lineHeight:1.35}}>{dietaSel?.comercial || dieta.formula || (dieta.tipo==="jejum"?"Dieta suspensa":"Fórmula não selecionada")}</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:5,fontSize:11,color:"#94a3b8",fontFamily:mono}}>
+                {dieta.vazao&&<span style={{color:"#fdba74",fontWeight:700}}>{dieta.vazao} mL/h</span>}
+                {volHoje>0&&<span>24h: {volHoje} mL</span>}
+                {nutriHoje&&<span>{nutriHoje.kcal} kcal · {nutriHoje.ptn} g ptn</span>}
+              </div>
+              {dieta.obs&&<div style={{marginTop:5,fontSize:10,color:"#94a3b8"}}>Tolerância: {dieta.obs}</div>}
+            </div>
+            <div style={{minWidth:170,flex:1,paddingLeft:12,borderLeft:"1px solid rgba(251,146,60,.16)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,fontFamily:mono,color:"#64748b",marginBottom:5}}><span>ADEQUAÇÃO 24H</span><strong style={{color:adequacaoCor}}>{adequacao!==null?`${adequacao}%`:"—"}</strong></div>
+              <div style={{height:6,background:"rgba(255,255,255,.07)",borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(adequacao||0,100)}%`,background:adequacaoCor,borderRadius:4,transition:"width .25s"}}/></div>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:5,fontSize:9,color:"#64748b",fontFamily:mono}}><span>KCAL {kcalPct!==null?`${kcalPct}%`:"—"}</span><span>PTN {ptnPct!==null?`${ptnPct}%`:"—"}</span></div>
+            </div>
+            <button onClick={()=>setShowDetails(v=>!v)} style={{padding:"7px 11px",borderRadius:8,border:"1px solid rgba(251,146,60,.3)",background:showDetails?"rgba(251,146,60,.14)":"rgba(251,146,60,.06)",color:"#fdba74",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{showDetails?"Fechar edição ↑":"Editar nutrição ↓"}</button>
+          </div>
+        </div>
+      ) : <SecTitle>SUPORTE NUTRICIONAL</SecTitle>}
+
+      {(!integrated || showDetails) && <div style={integrated?{padding:"12px 14px 2px",marginTop:-12,marginBottom:12,border:"1px solid rgba(251,146,60,.18)",borderTop:"none",borderRadius:"0 0 12px 12px",background:"rgba(251,146,60,.025)"}:undefined}>
 
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
         {TIPOS.map(t=>(
@@ -1073,6 +1105,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="" }) {
       )}
 
       <Field label="OBSERVAÇÕES" value={dieta.obs} onChange={v=>upd("obs",v)} placeholder="Tolerando, vômitos, resíduo gástrico, data de introdução…"/>
+      </div>}
     </div>
   );
 }
@@ -5180,7 +5213,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Via/Dieta",value:leito.dieta?.tipo},{label:"Última evacuação",value:campos.tgUltEvac}]}>
                 {/* ── Dieta ── */}
-        {onLeitoChange&&<DietaPanel dados={leito} config={config} onChange={onLeitoChange}
+        {onLeitoChange&&<DietaPanel dados={leito} config={config} onChange={onLeitoChange} integrated
           diureseHojeVol={(()=>{const v=tabelaHoje?.c24_diet_vol;return v?parseFloat(v):0;})()}/>}
         {!onLeitoChange&&leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.05)",borderRadius:7,marginBottom:8,fontSize:11,color:"#94a3b8"}}>
           🍽 {leito.dieta.tipo} {leito.dieta.formula} {leito.dieta.vazao&&`@ ${leito.dieta.vazao} mL/h`}
@@ -5206,14 +5239,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             </select>
           </Col>
         </Row>
-                {/* Dieta — resumo */}
-        {leito.dieta&&leito.dieta.tipo&&(
-          <div style={{padding:"6px 10px",background:"rgba(251,146,60,0.04)",border:"1px solid rgba(251,146,60,0.12)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
-            <span style={{color:"#fb923c",fontWeight:700}}>🍽 {leito.dieta.tipo==="enteral"?"Enteral":leito.dieta.tipo==="parenteral"?"NPT":leito.dieta.tipo==="oral"?"VO":"Jejum"}</span>
-            {leito.dieta.formula&&<span style={{marginLeft:10}}>{leito.dieta.formula}</span>}
-            {leito.dieta.vazao&&<span style={{marginLeft:10,color:"#fbbf24"}}>{leito.dieta.vazao} mL/h</span>}
-          </div>
-        )}
 <Row>
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
           <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} sugestao="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
