@@ -1437,7 +1437,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
                 <span style={{fontSize:10,padding:"2px 7px",borderRadius:10,color:"#7dd3fc",background:"rgba(56,189,248,.12)",border:"1px solid rgba(56,189,248,.25)",fontWeight:700}}>{modoAtual?.label||"Não definido"}</span>
               </div>
               <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap",fontSize:11,fontFamily:mono,color:"#cbd5e1"}}>
-                {suporteResumo.length?supporteResumo.map((item,i)=><span key={i} style={{color:i===0?"#7dd3fc":"#cbd5e1",fontWeight:i===0?700:500}}>{item}</span>):<span style={{color:"#64748b"}}>Sem parâmetros registrados</span>}
+                {suporteResumo.length?suporteResumo.map((item,i)=><span key={i} style={{color:i===0?"#7dd3fc":"#cbd5e1",fontWeight:i===0?700:500}}>{item}</span>):<span style={{color:"#64748b"}}>Sem parâmetros registrados</span>}
               </div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:6,fontSize:10,fontFamily:mono,color:"#94a3b8"}}>
                 {leito.vm_fr&&<span>FR {leito.vm_fr} irpm</span>}
