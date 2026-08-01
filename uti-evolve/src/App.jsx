@@ -4943,43 +4943,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
 
 
-  // Status agregado dos 7 blocos do sistema (mesmos campos usados no statusFields de cada SysB) — badge do topo + gate do botão "gerar evolução completa"
-  const BLOCOS_STATUS = [
-    {label:"Neurológico",       fields:[campos.nRASS, campos.nGlasgow, campos.nPupilas, campos.nEF, campos.nDor]},
-    {label:"Cardiovascular",    fields:[campos.cvHemo, campos.cvAusculta, campos.cvCardioscopia]},
-    {label:"Respiratório",      fields:[leito.vm_modo, campos.reEF]},
-    {label:"Renal/Metabólico",  fields:[campos.rm24h, campos.rmLabs]},
-    {label:"TGI",               fields:[leito.dieta?.tipo, campos.tgUltEvac]},
-    {label:"Hematológico",      fields:[campos.heTemp, campos.heLabs]},
-    {label:"Infeccioso",        fields:[(leito.antibioticos||[]).length>0?"1":campos.heCulturas]},
-  ];
-  const blocosCompletos = BLOCOS_STATUS.filter(b=>b.fields.every(f=>String(f||"").trim())).length;
-  const blocosTotal = BLOCOS_STATUS.length;
-
   return (
     <div>
       <div>
-      {/* ── Progresso dos blocos + gerar evolução completa (topo) ── */}
-      <div className="visit-toolbar" style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap",padding:"7px 9px",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,background:"rgba(6,16,12,.94)"}}>
-        <span style={{fontSize:11,color:"#7dd3fc",fontWeight:700}}>Visita multiprofissional</span>
-        <div style={{display:"flex",gap:4,overflowX:"auto",flex:1,minWidth:220}}>
-          {[['hda','HDA'],['n','Neuro'],['cv','Cardio'],['res','Resp'],['reme','Renal'],['tgi','TGI'],['he','Hemato'],['in','Infecto']].map(([id,label])=><button key={id} onClick={()=>document.getElementById(`sys-${id}`)?.scrollIntoView({behavior:"smooth",block:"start"})} style={{padding:"4px 8px",borderRadius:7,border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.035)",color:"#94a3b8",fontSize:10,cursor:"pointer",whiteSpace:"nowrap"}}>{label}</button>)}
-        </div>
-        <span style={{fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:20,
-          border:`1px solid ${blocosCompletos===blocosTotal?"rgba(52,211,153,0.4)":"rgba(251,191,36,0.4)"}`,
-          color:blocosCompletos===blocosTotal?"#34d399":"#fbbf24",
-          background:blocosCompletos===blocosTotal?"rgba(52,211,153,0.08)":"rgba(251,191,36,0.08)"}}
-          title={BLOCOS_STATUS.filter(b=>!b.fields.every(f=>String(f||"").trim())).map(b=>b.label).join(", ")||"Todos os blocos completos"}>
-          {blocosCompletos}/{blocosTotal}
-        </span>
-        <button onClick={copiarTudo} style={{padding:"7px 14px",borderRadius:8,fontWeight:700,fontSize:12,
-          background:copiado.tudo?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",
-          border:`1px solid ${copiado.tudo?"#38bdf8":"rgba(255,255,255,0.12)"}`,
-          color:copiado.tudo?"#38bdf8":"#e2e8f0",cursor:"pointer",fontFamily:"inherit"}}>
-          {copiado.tudo?"✅ Copiado!":"📋 Evolução completa"}
-        </button>
-      </div>
-
       {/* ── Cabeçalho clínico (pills) ── */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
         {idade!==null && <Pill label="IDADE" value={idade} unit="anos" color="#c084fc"/>}
@@ -6679,7 +6645,6 @@ export default function App() {
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
         .system-card{transition:border-color .18s,box-shadow .18s}
         .system-card:focus-within{border-color:rgba(56,189,248,.34)!important;box-shadow:0 0 0 1px rgba(56,189,248,.08)}
-        .visit-toolbar{position:sticky;top:0;z-index:12;backdrop-filter:blur(12px);box-shadow:0 8px 22px rgba(0,0,0,.18)}
         .mini-bomba-row{display:grid;grid-template-columns:minmax(120px,220px) 72px minmax(145px,220px) 18px;gap:6px;align-items:center;justify-content:start;max-width:560px}
         @media(min-width:701px){.patient-content-with-problems{padding-right:312px!important}.patient-navigation-with-problems{padding-right:296px!important}}
         @media(max-width:700px){.prob-floating{position:static!important;width:100%!important;margin-bottom:12px;filter:none!important}}
