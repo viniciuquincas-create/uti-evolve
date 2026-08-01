@@ -1813,7 +1813,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
   );
 }
 // ── PacientePanel ─────────────────────────────────────────────────────────────
-function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={} }) {
+function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={}, onDarAlta }) {
   const dias  = diasInternacao(dados.dataInternacao);
   const idadeAnos = idadeDoLeito(dados);
   const idade = idadeAnos;
@@ -1826,9 +1826,70 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   const diurese  = (volUrina && dados.peso)
     ? (volUrina / (24 * parseFloat(dados.peso))).toFixed(2) : null;
 
+  const [altaOpen, setAltaOpen] = useState(false);
+  const [altaForm, setAltaForm] = useState(()=>({
+    dataAlta: new Date().toISOString().split("T")[0],
+    desfecho: "Alta melhorada",
+    obsAlta: "",
+  }));
+  const DESFECHOS = ["Alta melhorada","Óbito","Transferência","Evasão"];
+
   return (
     <div>
       <SecTitle>DADOS DO PACIENTE</SecTitle>
+
+      {dados.paciente && onDarAlta && (
+        <div style={{marginBottom:14}}>
+          {!altaOpen ? (
+            <button onClick={()=>setAltaOpen(true)}
+              style={{padding:"7px 14px",borderRadius:8,border:"1px solid rgba(248,113,113,0.3)",background:"rgba(248,113,113,0.06)",color:"#f87171",cursor:"pointer",fontSize:12,fontWeight:600}}>
+              🏁 Dar alta deste leito
+            </button>
+          ) : (
+            <div style={{padding:"12px 14px",border:"1px solid rgba(248,113,113,0.3)",borderRadius:10,background:"rgba(248,113,113,0.04)"}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#f87171",marginBottom:10}}>🏁 Dar alta — {dados.paciente}</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+                <div style={{minWidth:150}}>
+                  <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DATA DA ALTA</div>
+                  <input type="date" value={altaForm.dataAlta} onChange={e=>setAltaForm(f=>({...f,dataAlta:e.target.value}))}
+                    style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+                </div>
+                <div style={{minWidth:200,flex:1}}>
+                  <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>DESFECHO</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {DESFECHOS.map(d=>(
+                      <button key={d} onClick={()=>setAltaForm(f=>({...f,desfecho:d}))}
+                        style={{padding:"5px 11px",borderRadius:20,border:`1px solid ${altaForm.desfecho===d?"#f87171":"rgba(255,255,255,0.1)"}`,background:altaForm.desfecho===d?"rgba(248,113,113,0.14)":"rgba(255,255,255,0.03)",color:altaForm.desfecho===d?"#f87171":"#64748b",cursor:"pointer",fontSize:11,fontWeight:altaForm.desfecho===d?700:400}}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:4}}>OBSERVAÇÃO (opcional)</div>
+                <input value={altaForm.obsAlta} onChange={e=>setAltaForm(f=>({...f,obsAlta:e.target.value}))}
+                  placeholder="Ex: alta para enfermaria, óbito às 14h por choque refratário..."
+                  style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12,boxSizing:"border-box"}}/>
+              </div>
+              <div style={{fontSize:10,color:"#94a3b8",marginBottom:12}}>
+                Isso arquiva todos os dados deste paciente (cadastro, evolução, tabela clínica, metas) na aba 📁 Arquivo e libera o leito para o próximo paciente. Nada é apagado.
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{onDarAlta(altaForm);setAltaOpen(false);}}
+                  style={{padding:"8px 16px",borderRadius:8,border:"1px solid rgba(248,113,113,0.5)",background:"rgba(248,113,113,0.15)",color:"#f87171",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  ✅ Confirmar alta
+                </button>
+                <button onClick={()=>setAltaOpen(false)}
+                  style={{padding:"8px 16px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#94a3b8",cursor:"pointer",fontSize:12}}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
         <Field label="NOME / ID"   value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuário" style={{flex:2,minWidth:200}}/>
         <Field label="DIAGNÓSTICO" value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="Diagnóstico principal" style={{flex:3,minWidth:200}}/>
@@ -6123,6 +6184,92 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
     </div>
   );
 }
+// ── ArquivoPanel — pacientes com alta, dados arquivados pra estudo posterior ──
+function ArquivoPanel({ pacientesArquivados=[] }) {
+  const T = useTheme();
+  const mono = "'DM Mono',monospace";
+  const [busca, setBusca] = useState("");
+
+  const filtrados = pacientesArquivados
+    .filter(p => !busca || (p.paciente||"").toLowerCase().includes(busca.toLowerCase()) || (p.diagnostico||"").toLowerCase().includes(busca.toLowerCase()))
+    .slice()
+    .sort((a,b)=>new Date(b.dataAlta||0)-new Date(a.dataAlta||0));
+
+  const baixar = (conteudo, nomeArquivo, mime) => {
+    const blob = new Blob([conteudo], {type:mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nomeArquivo;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportarCSV = () => {
+    const cols = ["leitoNome","paciente","diagnostico","idadeAnos","sexo","peso","altura","dataInternacao","dataAlta","diasUTI","desfecho","obsAlta"];
+    const header = ["Leito","Paciente","Diagnóstico","Idade","Sexo","Peso","Altura","Data Internação","Data Alta","Dias UTI","Desfecho","Observação"];
+    const esc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+    const linhas = [header.map(esc).join(",")];
+    filtrados.forEach(p=>{ linhas.push(cols.map(c=>esc(p[c])).join(",")); });
+    baixar(linhas.join("\n"), `uti_evolve_arquivo_${new Date().toISOString().split("T")[0]}.csv`, "text/csv;charset=utf-8");
+  };
+
+  const exportarJSON = () => {
+    baixar(JSON.stringify(filtrados, null, 2), `uti_evolve_arquivo_${new Date().toISOString().split("T")[0]}.json`, "application/json");
+  };
+
+  const DESFECHO_COR = { "Alta melhorada":"#34d399", "Óbito":"#f87171", "Transferência":"#38bdf8", "Evasão":"#fbbf24" };
+
+  return (
+    <div style={{padding:"20px 24px",overflowY:"auto"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+        <div style={{fontSize:16,fontWeight:700,color:T.text1}}>📁 Arquivo — {pacientesArquivados.length} paciente(s) com alta</div>
+        <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
+          <button onClick={exportarCSV} disabled={!filtrados.length}
+            style={{padding:"6px 12px",borderRadius:7,border:"1px solid rgba(52,211,153,0.3)",background:"rgba(52,211,153,0.08)",color:"#34d399",cursor:filtrados.length?"pointer":"not-allowed",fontSize:11,fontWeight:600,opacity:filtrados.length?1:0.5}}>
+            ⬇️ Exportar CSV
+          </button>
+          <button onClick={exportarJSON} disabled={!filtrados.length}
+            style={{padding:"6px 12px",borderRadius:7,border:"1px solid rgba(56,189,248,0.3)",background:"rgba(56,189,248,0.08)",color:"#38bdf8",cursor:filtrados.length?"pointer":"not-allowed",fontSize:11,fontWeight:600,opacity:filtrados.length?1:0.5}}>
+            ⬇️ Exportar JSON completo
+          </button>
+        </div>
+      </div>
+
+      <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por nome ou diagnóstico..."
+        style={{width:"100%",maxWidth:360,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:12,marginBottom:14,boxSizing:"border-box"}}/>
+
+      {filtrados.length===0 ? (
+        <div style={{fontSize:12,color:"#475569",textAlign:"center",padding:"40px 0"}}>
+          {pacientesArquivados.length===0 ? "Nenhum paciente arquivado ainda — use \"🏁 Dar alta\" na aba Paciente de um leito." : "Nenhum resultado pra essa busca."}
+        </div>
+      ) : (
+        <div style={{overflowX:"auto"}}>
+          <div style={{minWidth:760}}>
+            <div style={{display:"grid",gridTemplateColumns:"60px 1.4fr 1.6fr 1fr 1fr 70px 1fr",gap:8,fontSize:9,fontWeight:700,color:"#64748b",fontFamily:mono,letterSpacing:1,padding:"0 2px 6px"}}>
+              <div>LEITO</div><div>PACIENTE</div><div>DIAGNÓSTICO</div><div>INTERNAÇÃO</div><div>ALTA</div><div>DIAS</div><div>DESFECHO</div>
+            </div>
+            {filtrados.map(p=>{
+              const cor = DESFECHO_COR[p.desfecho] || "#94a3b8";
+              return (
+                <div key={p.arquivoId} title={p.obsAlta||""}
+                  style={{display:"grid",gridTemplateColumns:"60px 1.4fr 1.6fr 1fr 1fr 70px 1fr",gap:8,alignItems:"center",borderTop:`1px solid ${T.border}`,padding:"9px 2px",fontSize:11,color:"#cbd5e1"}}>
+                  <div style={{fontWeight:700,color:T.text1}}>{p.leitoNome}</div>
+                  <div>{p.paciente}{p.idadeAnos?<span style={{color:"#64748b"}}> · {p.idadeAnos}a</span>:""}</div>
+                  <div style={{color:"#94a3b8"}}>{p.diagnostico||"—"}</div>
+                  <div style={{fontFamily:mono,fontSize:10}}>{p.dataInternacao||"—"}</div>
+                  <div style={{fontFamily:mono,fontSize:10}}>{p.dataAlta||"—"}</div>
+                  <div style={{fontFamily:mono}}>{p.diasUTI??"—"}</div>
+                  <div><span style={{fontSize:10,fontWeight:700,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:6,padding:"2px 8px"}}>{p.desfecho||"—"}</span></div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── PlantaoPanel ──────────────────────────────────────────────────────────────
 function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config={} }) {
   const T = useTheme();
@@ -6337,6 +6484,7 @@ export default function App() {
   const [evolPorLeito, setEvolPorLeito] = useState({});
   const [tabelaData, setTabelaData] = useState({});
   const [metasPorLeito, setMetasPorLeito] = useState({});
+  const [pacientesArquivados, setPacientesArquivados] = useState([]);
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
@@ -6397,6 +6545,13 @@ export default function App() {
       if (md?.value) {
         const p = JSON.parse(md.value);
         if (p && typeof p === 'object') setMetasPorLeito(p);
+      }
+    } catch {}
+    try {
+      const { data: pa } = await supabase.from("config").select("value").eq("key","pacientes_arquivados").single();
+      if (pa?.value) {
+        const p = JSON.parse(pa.value);
+        if (Array.isArray(p)) setPacientesArquivados(p);
       }
     } catch {}
     // Libera saves apenas após load completo
@@ -6472,6 +6627,79 @@ export default function App() {
     metasTimer.current = setTimeout(async()=>{
       try { await supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(val)}); } catch {}
     }, 800);
+  };
+
+  const arquivoTimer = useRef(null);
+  const salvarArquivo = (val) => {
+    if (!isLoaded.current) return;
+    clearTimeout(arquivoTimer.current);
+    arquivoTimer.current = setTimeout(async()=>{
+      try { await supabase.from("config").upsert({key:"pacientes_arquivados",value:JSON.stringify(val)}); } catch {}
+    }, 800);
+  };
+
+  // Alta: arquiva o snapshot completo do leito (cadastro + evolução + tabela clínica + metas) e libera
+  // o leito (volta ao estado vago, pronto pro próximo paciente). Os dados arquivados ficam disponíveis
+  // na aba 📁 Arquivo, com exportação CSV/JSON pra estudo posterior — nada é apagado, só sai do leito ativo.
+  const darAlta = (leitoAlvo, { dataAlta, desfecho, obsAlta }) => {
+    const diasUTI = diasInternacao(leitoAlvo.dataInternacao);
+    const registro = {
+      arquivoId: Date.now()+"",
+      leitoOrigemId: leitoAlvo.id,
+      leitoNome: leitoAlvo.nome,
+      paciente: leitoAlvo.paciente,
+      diagnostico: leitoAlvo.diagnostico,
+      dataInternacao: leitoAlvo.dataInternacao,
+      dataAlta,
+      diasUTI,
+      desfecho,
+      obsAlta,
+      idadeAnos: idadeDoLeito(leitoAlvo),
+      sexo: leitoAlvo.sexo,
+      peso: leitoAlvo.peso,
+      altura: leitoAlvo.altura,
+      doencasPrevias: leitoAlvo.doencasPrevias,
+      procedimentos: leitoAlvo.procedimentos||[],
+      antibioticos: leitoAlvo.antibioticos||[],
+      culturas: leitoAlvo.culturas||[],
+      dispositivos: leitoAlvo.dispositivos||{},
+      dieta: leitoAlvo.dieta||null,
+      leitoCompleto: leitoAlvo,
+      evolucao: evolPorLeito[leitoAlvo.id]||{},
+      tabelaClinica: tabelaData[leitoAlvo.id]||{},
+      metas: metasPorLeito[leitoAlvo.id]||[],
+      arquivadoEm: new Date().toISOString(),
+    };
+
+    setPacientesArquivados(arq=>{
+      const novo = [...arq, registro];
+      salvarArquivo(novo);
+      return novo;
+    });
+
+    const leitoVago = { id:leitoAlvo.id, nome:leitoAlvo.nome, paciente:"", diagnostico:"", dataInternacao:"",
+      dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} };
+    setLeitos(ls=>{
+      const novo = ls.map(l=>l.id===leitoAlvo.id?leitoVago:l);
+      salvarLeitos(novo);
+      return novo;
+    });
+    setEvolPorLeito(ep=>{
+      const novo = {...ep}; delete novo[leitoAlvo.id];
+      salvarEvol(novo);
+      return novo;
+    });
+    setTabelaData(td=>{
+      const novo = {...td}; delete novo[leitoAlvo.id];
+      salvarTabela(novo);
+      return novo;
+    });
+    setMetasPorLeito(mp=>{
+      const novo = {...mp}; delete novo[leitoAlvo.id];
+      salvarMetas(novo);
+      return novo;
+    });
+    if (leitoAlvo.id===leitoSelId) { setEvolCampos(EVOLUCAO_VAZIA); setEvolVersion(v=>v+1); setDadosIA(null); }
   };
 
   const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
@@ -6610,6 +6838,10 @@ export default function App() {
                 ✅
                 {metasPendentes>0 && <span style={{position:"absolute",top:-4,right:-4,minWidth:16,height:16,borderRadius:8,background:"#f59e0b",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",lineHeight:1}}>{metasPendentes}</span>}
               </button>
+              <button onClick={()=>setViewGlobal(v=>v==="arquivo"?"leitos":"arquivo")} title="Arquivo — pacientes com alta"
+                style={{width:40,height:40,borderRadius:10,background:viewGlobal==="arquivo"?T.accentBg:"transparent",border:`1px solid ${viewGlobal==="arquivo"?T.accentBorder:T.border}`,color:viewGlobal==="arquivo"?T.accent:T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>
+                📁
+              </button>
               <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} title="Links & Protocolos"
                 style={{width:40,height:40,borderRadius:10,background:viewGlobal==="ferramentas"?T.accentBg:"transparent",border:`1px solid ${viewGlobal==="ferramentas"?T.accentBorder:T.border}`,color:viewGlobal==="ferramentas"?T.accent:T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>
                 📚
@@ -6672,7 +6904,10 @@ export default function App() {
               </div>
             </div>
           ))}
-          <div style={{marginTop:16,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
+          <div style={{marginTop:16,borderTop:`1px solid ${T.border}`,paddingTop:12,display:"flex",flexDirection:"column",gap:6}}>
+          <button onClick={()=>setViewGlobal(v=>v==="arquivo"?"leitos":"arquivo")} style={{width:"100%",padding:"9px 12px",background:viewGlobal==="arquivo"?T.accentBg:"none",border:`1px solid ${viewGlobal==="arquivo"?T.accentBorder:T.border}`,borderRadius:8,color:viewGlobal==="arquivo"?T.accent:T.text3,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
+              📁 Arquivo{pacientesArquivados.length>0?` (${pacientesArquivados.length})`:""}
+            </button>
           <button onClick={()=>setViewGlobal(v=>v==="ferramentas"?"leitos":"ferramentas")} style={{width:"100%",padding:"9px 12px",background:viewGlobal==="ferramentas"?T.accentBg:"none",border:`1px solid ${viewGlobal==="ferramentas"?T.accentBorder:T.border}`,borderRadius:8,color:viewGlobal==="ferramentas"?T.accent:T.text3,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"left",fontFamily:"inherit"}}>
               📚 Links & Protocolos
             </button>
@@ -6683,6 +6918,8 @@ export default function App() {
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
+          ) : viewGlobal==="arquivo" ? (
+            <div style={{flex:1,overflowY:"auto"}}><ArquivoPanel pacientesArquivados={pacientesArquivados}/></div>
           ) : viewGlobal==="visao_geral" ? (
             <div style={{flex:1,overflowY:"auto"}}>
               <VisaoGeralPanel leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config} evolCamposPorLeito={evolPorLeito}
@@ -6794,6 +7031,7 @@ ${linha}`:linha}));
               <div><PacientePanel
                 dados={leito} onChange={atualizar} config={config}
                 onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
+                onDarAlta={altaForm=>darAlta(leito, altaForm)}
                 diureseHoje={(()=>{
                   const tb = tabelaData[leitoSelId]||{};
                   const datas = Object.keys(tb).sort().reverse();
