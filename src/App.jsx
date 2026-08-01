@@ -4338,6 +4338,129 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
 }
 
 
+// ── SysB / Row / Col / FL — hoisted para escopo de módulo (fix: definir componentes dentro do render
+// do EvolucaoEditor fazia o React remontar todo o subtree a cada tecla digitada em campos
+// controlados como os da Ventilação, derrubando o foco do input) ──
+const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[]}) => {
+  const [open,setOpen]=useState(true);
+  const [showAdd,setShowAdd]=useState(false);
+  const [preview,setPreview]=useState(null); // null=fechado, string=texto editável
+  const [cp2,setCp2]=useState(false);
+  const vis = camposVisiveis || {};
+  const toggle = (key) => setCamposVisiveis && setCamposVisiveis(prev=>({...prev,[key]:!prev[key]}));
+  const adicionaveisNaoAtivos = adicionaveis.filter(a=>!vis[`add_${id}_${a.key}`]);
+  const statusTotal = statusFields.length;
+  const statusPreenchidos = statusFields.filter(f=>String(f.value||"").trim()).length;
+  const statusVazios = statusTotal - statusPreenchidos;
+  const borderColor = statusTotal===0
+    ? (open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)")
+    : (statusVazios===0 ? "rgba(52,211,153,0.35)" : "rgba(248,113,113,0.35)");
+
+  const abrirPreview = () => {
+    if(preview!==null){setPreview(null);return;}
+    setPreview(txtFn?txtFn():"— bloco vazio —");
+  };
+  const copiar = () => {
+    const txt = preview!==null ? preview : (txtFn?txtFn():"");
+    if(!txt||txt==="— bloco vazio —") return;
+    navigator.clipboard.writeText(txt).then(()=>{setCp2(true);setTimeout(()=>setCp2(false),2000);});
+  };
+
+  return (
+    <div style={{marginBottom:10,border:`1px solid ${borderColor}`,borderRadius:12,overflow:"hidden"}}>
+      <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
+        <button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+          <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
+          <span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
+          <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
+          {statusTotal>0 && (
+            <span style={{display:"flex",alignItems:"center",gap:5}} title={statusVazios===0?"Bloco completo":`${statusVazios} de ${statusTotal} campo(s) essencial(is) vazio(s)`}>
+              <span style={{width:7,height:7,borderRadius:"50%",background:statusVazios===0?"#34d399":"#f87171",flexShrink:0}}/>
+              <span style={{fontSize:10,fontFamily:mono,color:statusVazios===0?"#34d399":"#f87171"}}>
+                {statusVazios===0?"completo":`${statusVazios} de ${statusTotal} vazios`}
+              </span>
+            </span>
+          )}
+          <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
+        </button>
+        {open && (opcionais.length>0||adicionaveis.length>0) && (
+          <div style={{position:"relative"}}>
+            <button onClick={()=>setShowAdd(s=>!s)}
+              style={{margin:"4px 2px",padding:"3px 10px",borderRadius:6,
+                border:`1px solid ${showAdd?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.12)"}`,
+                background:showAdd?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",
+                color:showAdd?"#a78bfa":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
+              ⊕
+            </button>
+          </div>
+        )}
+        <button onClick={abrirPreview}
+          style={{margin:"4px 2px",padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+            background:preview!==null?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)",
+            border:`1px solid ${preview!==null?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
+            color:preview!==null?"#fbbf24":"#64748b",cursor:"pointer",fontFamily:"inherit"}}
+          title="Ver e editar o texto que será copiado">
+          {preview!==null?"✕ Texto":"👁 Texto"}
+        </button>
+        <button onClick={copiar}
+          style={{margin:"6px 8px 6px 2px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,
+            background:cp2?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.05)",
+            border:`1px solid ${cp2?"#34d399":"rgba(255,255,255,0.1)"}`,
+            color:cp2?"#34d399":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
+          {cp2?"✓ Copiado!":"📋 Copiar"}
+        </button>
+      </div>
+      {open && showAdd && (opcionais.length>0||adicionaveisNaoAtivos.length>0) && (
+        <div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",background:"rgba(167,139,250,0.04)",display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1}}>CAMPOS:</span>
+          {opcionais.map(o=>(
+            <button key={o.key} onClick={()=>{toggle(o.key);}}
+              style={{padding:"2px 9px",borderRadius:12,
+                border:`1px solid ${vis[o.key]?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
+                background:vis[o.key]?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.04)",
+                color:vis[o.key]?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11}}>
+              {vis[o.key]?"✓ ":""}{o.label}
+            </button>
+          ))}
+          {adicionaveisNaoAtivos.map(a=>(
+            <button key={a.key} onClick={()=>{toggle(`add_${id}_${a.key}`);setShowAdd(false);}}
+              style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(167,139,250,0.3)",background:"rgba(167,139,250,0.08)",color:"#a78bfa",cursor:"pointer",fontSize:11}}>
+              + {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {open&&<div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>{children}</div>}
+      {open && preview!==null && (
+        <div style={{borderTop:"2px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.03)",padding:"10px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:9,color:"#fbbf24",fontFamily:mono,letterSpacing:2}}>TEXTO — edite antes de copiar</span>
+            <button onClick={()=>setPreview(txtFn?txtFn():"")}
+              style={{fontSize:10,color:"#64748b",background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>
+              ↺ Regenerar
+            </button>
+          </div>
+          <textarea value={preview} onChange={e=>setPreview(e.target.value)}
+            rows={Math.max(3,preview.split("\n").length+1)}
+            style={{width:"100%",background:"rgba(0,0,0,0.25)",border:"1px solid rgba(251,191,36,0.2)",
+              borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,resize:"vertical",
+              fontFamily:"'DM Mono',monospace",lineHeight:1.65}}/>
+          <button onClick={copiar}
+            style={{marginTop:6,width:"100%",padding:"8px",borderRadius:7,fontWeight:700,fontSize:13,
+              background:cp2?"rgba(52,211,153,0.12)":"rgba(251,191,36,0.08)",
+              border:`1px solid ${cp2?"#34d399":"rgba(251,191,36,0.3)"}`,
+              color:cp2?"#34d399":"#fbbf24",cursor:"pointer",fontFamily:"inherit"}}>
+            {cp2?"✅ Copiado!":"📋 Copiar este texto"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Row/Col já existem no escopo de módulo (definidos mais acima, usados por SysBlock) — reaproveitados aqui, não redeclarados.
+const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
+
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[], onLeitoChange }) {
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
@@ -4531,126 +4654,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
   const colors={N:"#a78bfa",Cv:"#f87171",Res:"#38bdf8",ReMe:"#34d399",TGI:"#fb923c",He:"#f59e0b",In:"#94a3b8"};
 
-  const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[]}) => {
-    const [open,setOpen]=useState(true);
-    const [showAdd,setShowAdd]=useState(false);
-    const [preview,setPreview]=useState(null); // null=fechado, string=texto editável
-    const [cp2,setCp2]=useState(false);
-    const vis = camposVisiveis || {};
-    const toggle = (key) => setCamposVisiveis && setCamposVisiveis(prev=>({...prev,[key]:!prev[key]}));
-    const adicionaveisNaoAtivos = adicionaveis.filter(a=>!vis[`add_${id}_${a.key}`]);
-    const statusTotal = statusFields.length;
-    const statusPreenchidos = statusFields.filter(f=>String(f.value||"").trim()).length;
-    const statusVazios = statusTotal - statusPreenchidos;
-    const borderColor = statusTotal===0
-      ? (open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)")
-      : (statusVazios===0 ? "rgba(52,211,153,0.35)" : "rgba(248,113,113,0.35)");
-
-    const abrirPreview = () => {
-      if(preview!==null){setPreview(null);return;}
-      setPreview(txtFn?txtFn():"— bloco vazio —");
-    };
-    const copiar = () => {
-      const txt = preview!==null ? preview : (txtFn?txtFn():"");
-      if(!txt||txt==="— bloco vazio —") return;
-      navigator.clipboard.writeText(txt).then(()=>{setCp2(true);setTimeout(()=>setCp2(false),2000);});
-    };
-
-    return (
-      <div style={{marginBottom:10,border:`1px solid ${borderColor}`,borderRadius:12,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
-          <button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
-            <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
-            <span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
-            <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
-            {statusTotal>0 && (
-              <span style={{display:"flex",alignItems:"center",gap:5}} title={statusVazios===0?"Bloco completo":`${statusVazios} de ${statusTotal} campo(s) essencial(is) vazio(s)`}>
-                <span style={{width:7,height:7,borderRadius:"50%",background:statusVazios===0?"#34d399":"#f87171",flexShrink:0}}/>
-                <span style={{fontSize:10,fontFamily:mono,color:statusVazios===0?"#34d399":"#f87171"}}>
-                  {statusVazios===0?"completo":`${statusVazios} de ${statusTotal} vazios`}
-                </span>
-              </span>
-            )}
-            <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
-          </button>
-          {open && (opcionais.length>0||adicionaveis.length>0) && (
-            <div style={{position:"relative"}}>
-              <button onClick={()=>setShowAdd(s=>!s)}
-                style={{margin:"4px 2px",padding:"3px 10px",borderRadius:6,
-                  border:`1px solid ${showAdd?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.12)"}`,
-                  background:showAdd?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",
-                  color:showAdd?"#a78bfa":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
-                ⊕
-              </button>
-            </div>
-          )}
-          <button onClick={abrirPreview}
-            style={{margin:"4px 2px",padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
-              background:preview!==null?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)",
-              border:`1px solid ${preview!==null?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
-              color:preview!==null?"#fbbf24":"#64748b",cursor:"pointer",fontFamily:"inherit"}}
-            title="Ver e editar o texto que será copiado">
-            {preview!==null?"✕ Texto":"👁 Texto"}
-          </button>
-          <button onClick={copiar}
-            style={{margin:"6px 8px 6px 2px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,
-              background:cp2?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.05)",
-              border:`1px solid ${cp2?"#34d399":"rgba(255,255,255,0.1)"}`,
-              color:cp2?"#34d399":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
-            {cp2?"✓ Copiado!":"📋 Copiar"}
-          </button>
-        </div>
-        {open && showAdd && (opcionais.length>0||adicionaveisNaoAtivos.length>0) && (
-          <div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",background:"rgba(167,139,250,0.04)",display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1}}>CAMPOS:</span>
-            {opcionais.map(o=>(
-              <button key={o.key} onClick={()=>{toggle(o.key);}}
-                style={{padding:"2px 9px",borderRadius:12,
-                  border:`1px solid ${vis[o.key]?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
-                  background:vis[o.key]?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.04)",
-                  color:vis[o.key]?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11}}>
-                {vis[o.key]?"✓ ":""}{o.label}
-              </button>
-            ))}
-            {adicionaveisNaoAtivos.map(a=>(
-              <button key={a.key} onClick={()=>{toggle(`add_${id}_${a.key}`);setShowAdd(false);}}
-                style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(167,139,250,0.3)",background:"rgba(167,139,250,0.08)",color:"#a78bfa",cursor:"pointer",fontSize:11}}>
-                + {a.label}
-              </button>
-            ))}
-          </div>
-        )}
-        {open&&<div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>{children}</div>}
-        {open && preview!==null && (
-          <div style={{borderTop:"2px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.03)",padding:"10px 14px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-              <span style={{fontSize:9,color:"#fbbf24",fontFamily:mono,letterSpacing:2}}>TEXTO — edite antes de copiar</span>
-              <button onClick={()=>setPreview(txtFn?txtFn():"")}
-                style={{fontSize:10,color:"#64748b",background:"none",border:"1px solid rgba(255,255,255,0.08)",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>
-                ↺ Regenerar
-              </button>
-            </div>
-            <textarea value={preview} onChange={e=>setPreview(e.target.value)}
-              rows={Math.max(3,preview.split("\n").length+1)}
-              style={{width:"100%",background:"rgba(0,0,0,0.25)",border:"1px solid rgba(251,191,36,0.2)",
-                borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,resize:"vertical",
-                fontFamily:"'DM Mono',monospace",lineHeight:1.65}}/>
-            <button onClick={copiar}
-              style={{marginTop:6,width:"100%",padding:"8px",borderRadius:7,fontWeight:700,fontSize:13,
-                background:cp2?"rgba(52,211,153,0.12)":"rgba(251,191,36,0.08)",
-                border:`1px solid ${cp2?"#34d399":"rgba(251,191,36,0.3)"}`,
-                color:cp2?"#34d399":"#fbbf24",cursor:"pointer",fontFamily:"inherit"}}>
-              {cp2?"✅ Copiado!":"📋 Copiar este texto"}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const Row=({children})=><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>{children}</div>;
-  const Col=({children,flex=1,min=120})=><div style={{flex,minWidth:min}}>{children}</div>;
-  const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
 
   // Visibilidade dos campos opcionais/adicionáveis — persistida em campos._vis_
   const [camposVis, setCamposVisRaw] = useState(campos._vis_ || {});
