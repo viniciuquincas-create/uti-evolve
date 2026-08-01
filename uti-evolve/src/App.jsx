@@ -4465,7 +4465,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   };
 
   return (
-    <div id={`sys-${id}`} style={{scrollMarginTop:62,marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,.012)":"transparent"}}>
+    <div id={`sys-${id}`} className="system-card" style={{scrollMarginTop:62,marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,.012)":"transparent"}}>
       <div style={{display:"flex",alignItems:"center",background:open?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.015)"}}>
         <button onClick={handleOpen} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:reviewMode?"9px 12px":"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left",minWidth:0}}>
           <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
@@ -4560,6 +4560,12 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
 
 // Row/Col já existem no escopo de módulo (definidos mais acima, usados por SysBlock) — reaproveitados aqui, não redeclarados.
 const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
+const ClinicalGroup=({label,color="#64748b",children})=><section style={{marginBottom:10}}>
+  <div style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0 7px",fontSize:9,color,fontFamily:mono,letterSpacing:1.5,fontWeight:700}}>
+    <span>{label}</span><span style={{height:1,flex:1,background:`${color}25`}}/>
+  </div>
+  {children}
+</section>;
 
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[], onLeitoChange }) {
   const [copiado, setCopiado] = useState({});
@@ -5080,6 +5086,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         opcionais={[{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}
         statusFields={[{label:"RASS",value:campos.nRASS},{label:"Glasgow",value:campos.nGlasgow},{label:"Pupilas",value:campos.nPupilas},{label:"Motricidade",value:campos.nEF},{label:"Dor",value:campos.nDor}]}>
+        <ClinicalGroup label="AVALIAÇÃO" color="#a78bfa">
         <Row>
           <Col>
             <PickField label="RASS"
@@ -5101,6 +5108,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
               value={campos.nDor||""} onChange={v=>onCampoEdit("nDor",v)} rows={1} placeholder="BPS ou EVA..."/>
           </Col>
         </Row>
+        </ClinicalGroup>
+        <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
           <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
           <Col><FL>A — ANALGESIA</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} rows={2} fieldName="nAnalg" onBlurSave={salvar}/></Col>
@@ -5111,6 +5120,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           drogaKeys={["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"]}
           peso={leito.peso} vazoes={leito.drogasVazao||{}} config={config}
           onVazaoChange={(k,v)=>onLeitoChange&&onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>
+        </ClinicalGroup>
         {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} rows={2} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
         {vis["add_n_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_n_interconsulta")} defaultValue={campos["add_n_interconsulta"]} isAntigo={isAntigo("add_n_interconsulta")} rows={2} fieldName="add_n_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_n_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_n_exames")} defaultValue={campos["add_n_exames"]} isAntigo={isAntigo("add_n_exames")} rows={2} fieldName="add_n_exames" onBlurSave={salvar}/></Col></Row>}
@@ -5123,6 +5133,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"},{key:"cvObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}
         statusFields={[{label:"Hemodinâmica",value:campos.cvHemo},{label:"Ausculta",value:campos.cvAusculta},{label:"Cardioscopia",value:campos.cvCardioscopia}]}>
+        <ClinicalGroup label="AVALIAÇÃO" color="#f87171">
         <Row>
           <Col>
             <PickField label="Hemodinâmica"
@@ -5140,15 +5151,19 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} rows={2} fieldName="cvEF" onBlurSave={salvar}/>
           </Col>
         </Row>
+        </ClinicalGroup>
                 {/* ── DVA / Bombas Cardiovasculares ── */}
+        <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#f87171">
         {onLeitoChange&&<MiniBombas title="DVA / BOMBAS CARDIOVASCULARES"
           drogaKeys={["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato","amiodarona","furosemida"]}
           peso={leito.peso} vazoes={leito.drogasVazao||{}} config={config}
           onVazaoChange={(k,v)=>onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>}
+        {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
+        </ClinicalGroup>
+        <ClinicalGroup label="MONITORIZAÇÃO · 24H" color="#f87171">
         <Row>
           <Col><FL>24h — FC · PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} rows={2} fieldName="cv24h" onBlurSave={salvar}/></Col>
         </Row>
-        {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
         <Row>
         <Col><FL>Perfusão — TEC</FL>
           <input key={campos.cvTEC||""} defaultValue={campos.cvTEC||""}
@@ -5169,6 +5184,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             placeholder="% (responde > 13%)" onBlur={e=>salvar("cvDeltaPP",e.target.value)}
             style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
       </Row>}
+        </ClinicalGroup>
         {vis["cvTropo"]&&<Row><Col>
           <FL>🫀 Troponina</FL>
           {(()=>{
@@ -5214,6 +5230,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"outro",label:"+ outro"}]}
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]}>
         {/* ── Suporte Ventilatório ── */}
+        <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
         {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated/>}
         {!onLeitoChange&&leito.vm_modo&&(()=>{
           const vm2=VM_MODOS.find(m=>m.id===leito.vm_modo);
@@ -5225,6 +5242,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             {leito.nebMed&&<span style={{marginLeft:8,color:"#a3e635"}}>💨 {leito.nebMed} {leito.nebFreq}</span>}
           </div>:null;
         })()}
+        </ClinicalGroup>
+        <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#38bdf8">
         <Row>
           <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} sugestao="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
           <Col><FL>24h — FR / Sat (mín-máx)</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} sugestao="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
@@ -5242,6 +5261,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
               }).join("\n");
             } catch { return ""; }
           })()} isAntigo={isAntigo("reGaso")} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
+        </ClinicalGroup>
         {vis["rePocus"]&&<Row><Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} sugestao="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col></Row>}
         {vis["add_res_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_res_exames")} defaultValue={campos["add_res_exames"]||""} sugestao="Rx tórax 29/04: sem novidades" rows={1} fieldName="add_res_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["add_res_outro"]&&<Row><Col><FL>OUTRO</FL><TA fieldRef={ExtraRef("add_res_outro")} defaultValue={campos["add_res_outro"]||""} rows={1} fieldName="add_res_outro" onBlurSave={salvar}/></Col></Row>}
@@ -5284,11 +5304,14 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Via/Dieta",value:leito.dieta?.tipo},{label:"Última evacuação",value:campos.tgUltEvac}]}>
                 {/* ── Dieta ── */}
+        <ClinicalGroup label="NUTRIÇÃO E TERAPIA" color="#fb923c">
         {onLeitoChange&&<DietaPanel dados={leito} config={config} onChange={onLeitoChange} integrated
           diureseHojeVol={(()=>{const v=tabelaHoje?.c24_diet_vol;return v?parseFloat(v):0;})()}/>}
         {!onLeitoChange&&leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.05)",borderRadius:7,marginBottom:8,fontSize:11,color:"#94a3b8"}}>
           🍽 {leito.dieta.tipo} {leito.dieta.formula} {leito.dieta.vazao&&`@ ${leito.dieta.vazao} mL/h`}
         </div>}
+        </ClinicalGroup>
+        <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#fb923c">
         <Row>
           <Col><FL>Última evacuação</FL>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -5315,6 +5338,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} sugestao="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
         </Row>
         <Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} sugestao="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>
+        </ClinicalGroup>
         {vis["add_tgi_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_tgi_interconsulta")} defaultValue={campos["add_tgi_interconsulta"]||""} sugestao="Gastro 29/04: endoscopia não indicada no momento" rows={1} fieldName="add_tgi_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_tgi_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_tgi_exames")} defaultValue={campos["add_tgi_exames"]||""} sugestao="USG abdome 29/04: sem novidades" rows={1} fieldName="add_tgi_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["tgObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} sugestao="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>}
@@ -6274,7 +6298,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
                 background:filtroEquipePlantao===e.id?e.cor+"18":"transparent",
                 color:filtroEquipePlantao===e.id?e.cor:"#64748b",cursor:"pointer",fontSize:11,
                 fontWeight:filtroEquipePlantao===e.id?600:400}}>
-              {e.emoji} {e.label}{cnt>0?` (${cnt})`:""} 
+              {e.emoji} {e.label}{cnt>0?` (${cnt})`:""}
             </button>
           );
         })}
@@ -6645,6 +6669,8 @@ export default function App() {
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${T.accent}44;border-radius:4px}
         input[type=date]::-webkit-calendar-picker-indicator{filter:${theme==="light"?"none":"invert(0.5)"}} button:hover{opacity:0.88}
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
+        .system-card{transition:border-color .18s,box-shadow .18s}
+        .system-card:focus-within{border-color:rgba(56,189,248,.34)!important;box-shadow:0 0 0 1px rgba(56,189,248,.08)}
         .visit-toolbar{position:sticky;top:0;z-index:12;backdrop-filter:blur(12px);box-shadow:0 8px 22px rgba(0,0,0,.18)}
         .mini-bomba-row{display:grid;grid-template-columns:minmax(120px,220px) 72px minmax(145px,220px) 18px;gap:6px;align-items:center;justify-content:start;max-width:560px}
         @media(min-width:701px){.patient-content-with-problems{padding-right:312px!important}.patient-navigation-with-problems{padding-right:296px!important}}
