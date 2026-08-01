@@ -332,21 +332,21 @@ const DARK = {
 };
 
 const LIGHT = {
-  bgPage:           "#e8edf4",
+  bgPage:           "#eef2f6",
   bgCard:           "#ffffff",
-  bgCardHover:      "#f8fafc",
+  bgCardHover:      "#f1f5f9",
   bgSidebar:        "#ffffff",
   bgHeader:         "rgba(255,255,255,0.97)",
-  bgInput:          "#f8fafc",
+  bgInput:          "#ffffff",
   bgPicker:         "#ffffff",
   bgSel:            "rgba(2,132,199,0.07)",
   text1:            "#0f172a",
   text2:            "#334155",
   text3:            "#64748b",
-  text4:            "#94a3b8",
-  textDim:          "#cbd5e1",
-  border:           "rgba(0,0,0,0.1)",
-  borderStrong:     "rgba(0,0,0,0.18)",
+  text4:            "#64748b",
+  textDim:          "#94a3b8",
+  border:           "#cbd5e1",
+  borderStrong:     "#94a3b8",
   borderAccent:     "rgba(2,132,199,0.18)",
   accent:           "#0284c7",
   accentBg:         "rgba(2,132,199,0.08)",
@@ -2246,34 +2246,35 @@ function UploadAnalyzer({ onResult, onManualResult }) {
 const v = (s) => s?.trim() || "";
 
 function TA({ fieldRef, defaultValue, sugestao, placeholder, rows=2, isAntigo=false, fieldName, onBlurSave }) {
+  const T=useTheme();
   const [showSug, setShowSug] = useState(false);
   const cleanPlaceholder = placeholder && !sugestao ? placeholder : ""; // só usa placeholder se não tem sugestão separada
   return (
     <div style={{position:"relative"}}>
       <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={cleanPlaceholder||""} rows={rows}
         style={{width:"100%",
-          background: isAntigo ? "rgba(100,116,139,0.08)" : "rgba(255,255,255,0.03)",
-          border: isAntigo ? "1px solid rgba(100,116,139,0.25)" : "1px solid rgba(255,255,255,0.07)",
+          background: isAntigo ? T.bgTableGroup : T.bgInput,
+          border: `1px solid ${isAntigo?T.borderStrong:T.border}`,
           borderRadius:8, padding:"8px 32px 8px 10px",
-          color: isAntigo ? "#64748b" : "#cbd5e1",
+          color: isAntigo ? T.text3 : T.text1,
           fontSize:12, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box", lineHeight:1.5}}
         onFocus={e=>e.target.style.borderColor="rgba(56,189,248,0.4)"}
         onBlur={e=>{
-          e.target.style.borderColor = isAntigo ? "rgba(100,116,139,0.25)" : "rgba(255,255,255,0.07)";
+          e.target.style.borderColor = isAntigo ? T.borderStrong : T.border;
           if (onBlurSave && fieldName) onBlurSave(fieldName, e.target.value);
         }}/>
       {/* Stamp de sugestão */}
       {(sugestao||placeholder) && (
         <button onClick={()=>setShowSug(s=>!s)}
-          style={{position:"absolute",top:5,right:6,background:showSug?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${showSug?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:4,color:showSug?"#38bdf8":"#334155",fontSize:9,cursor:"pointer",padding:"1px 5px",fontFamily:mono,lineHeight:1.4}}
+          style={{position:"absolute",top:5,right:6,background:showSug?T.accentBg:T.bgCardHover,border:`1px solid ${showSug?T.accentBorder:T.border}`,borderRadius:4,color:showSug?T.accent:T.text4,fontSize:9,cursor:"pointer",padding:"1px 5px",fontFamily:mono,lineHeight:1.4}}
           title="Ver sugestão">
           💡
         </button>
       )}
       {showSug && (sugestao||placeholder) && (
-        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:20,background:"#102010",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,padding:"8px 10px",boxShadow:"0 6px 20px rgba(0,0,0,0.5)"}}>
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:20,background:T.bgPicker,border:`1px solid ${T.accentBorder}`,borderRadius:8,padding:"8px 10px",boxShadow:"0 6px 20px rgba(0,0,0,0.18)"}}>
           <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:1,marginBottom:4}}>SUGESTÃO</div>
-          <div style={{fontSize:11,color:"#94a3b8",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{sugestao||placeholder}</div>
+          <div style={{fontSize:11,color:T.text2,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{sugestao||placeholder}</div>
           <button onClick={()=>{
             if(fieldRef?.current) fieldRef.current.value = sugestao||placeholder;
             if(onBlurSave&&fieldName) onBlurSave(fieldName, sugestao||placeholder);
@@ -3873,6 +3874,7 @@ function aplicarIA(dadosIA) {
 // Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
 // visível nas 5 abas do paciente (Paciente · Beira-leito · Tabela Clínica · Importar Print · Metas) — não só no Beira-leito.
 function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
+  const T=useTheme();
   const [open, setOpen] = useState(true);
   const [openResolvidos, setOpenResolvidos] = useState(false);
   const [minimized, setMinimized] = useState(false);
@@ -3891,9 +3893,9 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
       <button onClick={()=>setMinimized(false)} title="Expandir problemas ativos / metas" className="prob-floating" style={{
         position:"fixed", right:20, top:100, zIndex:200,
         display:"flex", alignItems:"center", gap:6,
-        background:"rgba(15,23,42,0.98)", border:"1px solid rgba(248,113,113,0.35)",
+        background:T.bgCard, border:"1px solid rgba(239,68,68,0.45)",
         borderRadius:20, padding:"8px 14px", cursor:"pointer",
-        filter:"drop-shadow(0 4px 24px rgba(0,0,0,0.5))",
+        filter:T.colorScheme==="light"?"drop-shadow(0 5px 16px rgba(15,23,42,0.18))":"drop-shadow(0 4px 24px rgba(0,0,0,0.5))",
       }}>
         <span style={{fontSize:14}}>🔴</span>
         {pendentes>0 && <span style={{fontSize:11,fontFamily:mono2,fontWeight:700,color:"#f87171"}}>{pendentes}</span>}
@@ -3905,19 +3907,19 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
     <div style={{
       position:"fixed", right:20, top:100, zIndex:200,
       width:260, maxHeight:"80vh", display:"flex", flexDirection:"column",
-      filter:"drop-shadow(0 4px 24px rgba(0,0,0,0.5))",
+      filter:T.colorScheme==="light"?"drop-shadow(0 5px 16px rgba(15,23,42,0.18))":"drop-shadow(0 4px 24px rgba(0,0,0,0.5))",
       borderRadius:12, overflow:"hidden",
     }} className="prob-floating">
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",
-        background:"rgba(15,23,42,0.98)",border:"1px solid rgba(248,113,113,0.3)",
+        background:T.bgCardHover,border:"1px solid rgba(239,68,68,0.40)",
         borderBottom:"none",borderRadius:"12px 12px 0 0",cursor:"pointer"}}>
         <span onClick={()=>setOpen(o=>!o)} style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1,cursor:"pointer"}}>🔴 PROBLEMAS ATIVOS</span>
-        <button onClick={()=>setMinimized(true)} title="Minimizar" style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:12,padding:"0 2px"}}>—</button>
-        <span onClick={()=>setOpen(o=>!o)} style={{color:"#475569",fontSize:11,cursor:"pointer"}}>{open?"▲":"▼"}</span>
+        <button onClick={()=>setMinimized(true)} title="Minimizar" style={{background:"none",border:"none",color:T.text3,cursor:"pointer",fontSize:12,padding:"0 2px"}}>—</button>
+        <span onClick={()=>setOpen(o=>!o)} style={{color:T.text3,fontSize:11,cursor:"pointer"}}>{open?"▲":"▼"}</span>
       </div>
       {open && (
-        <div style={{background:"rgba(10,15,30,0.97)",border:"1px solid rgba(248,113,113,0.25)",
+        <div style={{background:T.bgCard,border:"1px solid rgba(239,68,68,0.32)",
           borderRadius:"0 0 12px 12px",padding:"10px 12px",overflowY:"auto",flex:1}}>
           <TA fieldRef={refs.current.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
             sugestao={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"}
@@ -3950,7 +3952,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
                   style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                   {m.feito?"☑":"☐"}
                 </button>
-                <span style={{fontSize:10,color:m.feito?"#475569":"#94a3b8",flex:1,
+                <span style={{fontSize:10,color:m.feito?T.text4:T.text2,flex:1,
                   textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
                 <button onClick={()=>onMetaChange&&onMetaChange(metas.filter((_,j)=>j!==i))}
                   title="Excluir meta"
@@ -3981,6 +3983,7 @@ const _PF_OPEN = {};
 
 
 function PickField({ label, options=[], value="", onChange, rows=2, placeholder="" }) {
+  const T=useTheme();
   const _pfKey = label || options.join('|');
   const [open, setOpen] = useState(() => !!_PF_OPEN[_pfKey]);
   const taRef = React.useRef(null);
@@ -4004,24 +4007,24 @@ function PickField({ label, options=[], value="", onChange, rows=2, placeholder=
   const hasVal = value && value.trim().length > 0;
 
   return (
-    <div style={{marginBottom:6,border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,overflow:"hidden"}}>
+    <div style={{marginBottom:6,border:`1px solid ${T.border}`,borderRadius:8,overflow:"hidden",background:T.bgInput}}>
       <div onClick={toggleOpen} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
-        cursor:"pointer",background:"rgba(255,255,255,0.02)",userSelect:"none"}}>
-        <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,flex:1}}>{label}</span>
-        {hasVal&&!open&&<span style={{fontSize:10,color:"#38bdf8",fontFamily:mono,maxWidth:200,
+        cursor:"pointer",background:T.bgCardHover,userSelect:"none"}}>
+        <span style={{fontSize:10,color:T.text3,fontFamily:mono,letterSpacing:1,flex:1}}>{label}</span>
+        {hasVal&&!open&&<span style={{fontSize:10,color:T.accent,fontFamily:mono,maxWidth:200,
           overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{value}</span>}
-        <span style={{fontSize:10,color:"#334155"}}>{open?"▲":"▼"}</span>
+        <span style={{fontSize:10,color:T.text4}}>{open?"▲":"▼"}</span>
       </div>
       {open&&(
-        <div style={{padding:"8px 10px",background:"rgba(0,0,0,0.15)"}}>
+        <div style={{padding:"8px 10px",background:T.bgTableGroup}}>
           <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
             {options.map(opt=>{
               const sel = value.includes(opt);
               return (
                 <button key={opt} onMouseDown={e=>{e.preventDefault();applyChip(opt,sel);}}
-                  style={{padding:"2px 8px",borderRadius:12,border:`1px solid ${sel?"rgba(56,189,248,0.5)":"rgba(255,255,255,0.1)"}`,
-                    background:sel?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.03)",
-                    color:sel?"#38bdf8":"#64748b",cursor:"pointer",fontSize:10,fontFamily:mono}}>
+                  style={{padding:"2px 8px",borderRadius:12,border:`1px solid ${sel?T.accentBorder:T.border}`,
+                    background:sel?T.accentBg:T.bgCard,
+                    color:sel?T.accent:T.text3,cursor:"pointer",fontSize:10,fontFamily:mono}}>
                   {opt}
                 </button>
               );
@@ -4033,8 +4036,8 @@ function PickField({ label, options=[], value="", onChange, rows=2, placeholder=
             onBlur={e=>onChange(e.target.value)}
             rows={rows}
             placeholder={placeholder||"Digite livremente ou selecione acima..."}
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
-              borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,resize:"vertical",
+            style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,
+              borderRadius:6,padding:"6px 8px",color:T.text1,fontSize:12,resize:"vertical",
               fontFamily:mono}}/>
         </div>
       )}
@@ -4381,13 +4384,13 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
   const [mostrarChips, setMostrarChips] = useState(false);
 
   return (
-    <div style={{marginTop:4,padding:"8px 10px",background:"rgba(255,255,255,0.02)",
-      border:"1px solid rgba(255,255,255,0.06)",borderRadius:8}}>
+    <div style={{marginTop:4,padding:"8px 10px",background:T.bgTableGroup,
+      border:`1px solid ${T.border}`,borderRadius:8}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:comVazao.length?6:0}}>
-        <span style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:2,flex:1}}>{title}</span>
+        <span style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:2,flex:1}}>{title}</span>
         <button onClick={()=>setMostrarChips(s=>!s)}
           style={{fontSize:10,padding:"2px 7px",borderRadius:5,cursor:"pointer",
-            background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#475569"}}>
+            background:T.bgInput,border:`1px solid ${T.border}`,color:T.text3}}>
           {mostrarChips?"▲ fechar":"+ droga"}
         </button>
       </div>
@@ -4400,16 +4403,16 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
         const acima=res&&conf?.max&&parseFloat(res.dose)>conf.max;
         return (
           <div key={k} className="mini-bomba-row" style={{marginBottom:4}}>
-            <span style={{fontSize:12,color:"#cbd5e1",fontFamily:mono,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{conf?.label||k}</span>
+            <span style={{fontSize:12,color:T.text1,fontFamily:mono,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{conf?.label||k}</span>
             <input type="number" value={mlh} placeholder="mL/h"
               onChange={e=>{onVazaoChange&&onVazaoChange(k,e.target.value);}}
-              style={{width:68,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
-                borderRadius:6,padding:"4px 7px",color:"#e2e8f0",fontSize:12,textAlign:"center",fontFamily:mono}}/>
-            <span style={{fontSize:10,fontFamily:mono,color:acima?"#f87171":"#38bdf8",minWidth:0,whiteSpace:"nowrap"}}>
+              style={{width:68,background:T.bgInput,border:`1px solid ${T.border}`,
+                borderRadius:6,padding:"4px 7px",color:T.text1,fontSize:12,textAlign:"center",fontFamily:mono}}/>
+            <span style={{fontSize:10,fontFamily:mono,color:acima?"#dc2626":T.accent,minWidth:0,whiteSpace:"nowrap"}}>
               {res?`≈ ${fmtDose(res.dose)} ${res.label}`:""}
             </span>
             <button onClick={()=>{onVazaoChange&&onVazaoChange(k,"");}}
-              style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:12,padding:0}}>✕</button>
+              style={{background:"none",border:"none",color:T.text4,cursor:"pointer",fontSize:12,padding:0}}>✕</button>
           </div>
         );
       })}
@@ -4421,8 +4424,8 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
             const conf=getConf(k);
             return (
               <button key={k} onMouseDown={e=>{e.preventDefault();onVazaoChange&&onVazaoChange(k,"1");setMostrarChips(false);}}
-                style={{padding:"2px 8px",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",
-                  background:"rgba(255,255,255,0.03)",color:"#94a3b8",cursor:"pointer",fontSize:10,fontFamily:mono}}>
+                style={{padding:"2px 8px",borderRadius:10,border:`1px solid ${T.border}`,
+                  background:T.bgInput,color:T.text2,cursor:"pointer",fontSize:10,fontFamily:mono}}>
                 + {conf?.label||k}
               </button>
             );
@@ -4430,7 +4433,7 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
         </div>
       )}
       {comVazao.length===0&&!mostrarChips&&(
-        <div style={{fontSize:10,color:"#1e293b",fontFamily:mono}}>nenhuma droga em bomba</div>
+        <div style={{fontSize:10,color:T.textDim,fontFamily:mono}}>nenhuma droga em bomba</div>
       )}
     </div>
   );
@@ -4441,6 +4444,7 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
 // do EvolucaoEditor fazia o React remontar todo o subtree a cada tecla digitada em campos
 // controlados como os da Ventilação, derrubando o foco do input) ──
 const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[], controlledOpen, onRequestOpen, reviewMode=false}) => {
+  const T=useTheme();
   const [localOpen,setLocalOpen]=useState(true);
   const open = controlledOpen===undefined ? localOpen : controlledOpen;
   const [showAdd,setShowAdd]=useState(false);
@@ -4453,8 +4457,8 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   const statusPreenchidos = statusFields.filter(f=>String(f.value||"").trim()).length;
   const statusVazios = statusTotal - statusPreenchidos;
   const borderColor = statusTotal===0
-    ? (open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)")
-    : (open ? (statusVazios===0 ? "rgba(52,211,153,0.28)" : "rgba(248,113,113,0.25)") : "rgba(255,255,255,0.06)");
+    ? T.border
+    : (open ? (statusVazios===0 ? "rgba(16,185,129,0.48)" : "rgba(239,68,68,0.42)") : T.border);
   const resumo = reviewMode && txtFn ? String(txtFn()||"").replace(/^[-*]\s*/gm,"").split("\n").filter(Boolean).slice(0,3).join(" · ") : "";
   const handleOpen = () => onRequestOpen ? onRequestOpen(id) : setLocalOpen(o=>!o);
 
@@ -4469,12 +4473,12 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   };
 
   return (
-    <div id={`sys-${id}`} className="system-card" style={{scrollMarginTop:62,marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,.012)":"transparent"}}>
-      <div style={{display:"flex",alignItems:"center",background:open?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.015)"}}>
+    <div id={`sys-${id}`} className="system-card" style={{scrollMarginTop:62,marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?T.bgCard:"transparent",boxShadow:open?T.shadowCard:"none"}}>
+      <div style={{display:"flex",alignItems:"center",background:open?T.bgCardHover:T.bgCard}}>
         <button onClick={handleOpen} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:reviewMode?"9px 12px":"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left",minWidth:0}}>
           <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
           {!reviewMode&&<span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>}
-          <span style={{fontSize:12,color:reviewMode?"#cbd5e1":"#94a3b8",fontWeight:reviewMode?650:500,minWidth:reviewMode?125:0}}>{label}</span>
+          <span style={{fontSize:12,color:reviewMode?T.text1:T.text2,fontWeight:reviewMode?650:500,minWidth:reviewMode?125:0}}>{label}</span>
           {statusTotal>0 && (
             <span style={{display:"flex",alignItems:"center",gap:5}} title={statusVazios===0?"Bloco completo":`${statusVazios} de ${statusTotal} campo(s) essencial(is) vazio(s)`}>
               <span style={{width:7,height:7,borderRadius:"50%",background:statusVazios===0?"#34d399":"#f87171",flexShrink:0}}/>
@@ -4484,14 +4488,14 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
             </span>
           )}
           {reviewMode&&<span style={{marginLeft:8,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:resumo?"#94a3b8":"#334155"}}>{resumo||"Sem dados registrados"}</span>}
-          <span style={{marginLeft:"auto",color:reviewMode?"#38bdf8":"#475569",fontSize:11}}>{reviewMode?"Editar ›":open?"▲":"▼"}</span>
+          <span style={{marginLeft:"auto",color:reviewMode?T.accent:T.text4,fontSize:11}}>{reviewMode?"Editar ›":open?"▲":"▼"}</span>
         </button>
         {open && (opcionais.length>0||adicionaveis.length>0) && (
           <div style={{position:"relative"}}>
             <button onClick={()=>setShowAdd(s=>!s)}
               style={{margin:"4px 2px",padding:"3px 10px",borderRadius:6,
-                border:`1px solid ${showAdd?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.12)"}`,
-                background:showAdd?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",
+                border:`1px solid ${showAdd?"rgba(124,58,237,0.5)":T.borderStrong}`,
+                background:showAdd?"rgba(124,58,237,0.10)":T.bgInput,
                 color:showAdd?"#a78bfa":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
               ⊕
             </button>
@@ -4499,18 +4503,18 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
         )}
         {open&&<button onClick={abrirPreview}
           style={{margin:"4px 2px",padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
-            background:preview!==null?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)",
-            border:`1px solid ${preview!==null?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
-            color:preview!==null?"#fbbf24":"#64748b",cursor:"pointer",fontFamily:"inherit"}}
+            background:preview!==null?"rgba(251,191,36,0.15)":T.bgInput,
+            border:`1px solid ${preview!==null?"rgba(217,119,6,0.55)":T.border}`,
+            color:preview!==null?"#d97706":T.text3,cursor:"pointer",fontFamily:"inherit"}}
           title="Ver e editar o texto que será copiado">
           {preview!==null?"✕":"👁"}
         </button>}
         {open&&<button onClick={copiar}
           title="Copiar texto deste sistema"
           style={{margin:"6px 8px 6px 2px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,
-            background:cp2?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.05)",
-            border:`1px solid ${cp2?"#34d399":"rgba(255,255,255,0.1)"}`,
-            color:cp2?"#34d399":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
+            background:cp2?"rgba(16,185,129,0.15)":T.bgInput,
+            border:`1px solid ${cp2?"#10b981":T.border}`,
+            color:cp2?"#059669":T.text2,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
           {cp2?"✓":"📋"}
         </button>}
       </div>
@@ -4534,7 +4538,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
           ))}
         </div>
       )}
-      {open&&<div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>{children}</div>}
+      {open&&<div style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`}}>{children}</div>}
       {open && preview!==null && (
         <div style={{borderTop:"2px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.03)",padding:"10px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -4563,13 +4567,13 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
 };
 
 // Row/Col já existem no escopo de módulo (definidos mais acima, usados por SysBlock) — reaproveitados aqui, não redeclarados.
-const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;
-const ClinicalGroup=({label,color="#64748b",children})=><section style={{marginBottom:10}}>
-  <div style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0 7px",fontSize:9,color,fontFamily:mono,letterSpacing:1.5,fontWeight:700}}>
-    <span>{label}</span><span style={{height:1,flex:1,background:`${color}25`}}/>
+const FL=({children})=>{const T=useTheme();return <div style={{fontSize:10,color:T.text3,fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;};
+const ClinicalGroup=({label,color="#64748b",children})=>{const T=useTheme();return <section style={{marginBottom:10}}>
+  <div style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0 7px",fontSize:9,color:T.colorScheme==="light"?T.text2:color,fontFamily:mono,letterSpacing:1.5,fontWeight:700}}>
+    <span>{label}</span><span style={{height:1,flex:1,background:T.colorScheme==="light"?T.border:`${color}25`}}/>
   </div>
   {children}
-</section>;
+</section>;};
 
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[], onLeitoChange }) {
   const [copiado, setCopiado] = useState({});
@@ -6717,7 +6721,7 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={T}>
-    <div style={{minHeight:"100vh",background:T.bgPage,fontFamily:"'Sora','DM Sans',sans-serif",color:T.text1,display:"flex",flexDirection:"column"}}>
+    <div className={theme==="light"?"theme-light":"theme-dark"} style={{minHeight:"100vh",background:T.bgPage,fontFamily:"'Sora','DM Sans',sans-serif",color:T.text1,display:"flex",flexDirection:"column"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
         *{box-sizing:border-box} textarea,input{outline:none;color-scheme:${T.colorScheme}}
@@ -6727,6 +6731,12 @@ export default function App() {
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
         .system-card{transition:border-color .18s,box-shadow .18s}
         .system-card:focus-within{border-color:rgba(56,189,248,.34)!important;box-shadow:0 0 0 1px rgba(56,189,248,.08)}
+        .theme-light .system-card{box-shadow:0 2px 7px rgba(15,23,42,.07)!important}
+        .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]),.theme-light textarea,.theme-light select{background:#fff!important;border-color:#cbd5e1!important;color:#0f172a!important}
+        .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.theme-light textarea:focus,.theme-light select:focus{border-color:#0284c7!important;box-shadow:0 0 0 2px rgba(2,132,199,.10)}
+        .theme-light .mini-bomba-row>span:first-child{color:#334155!important}
+        .theme-light .mini-bomba-row>span:nth-of-type(2){color:#0369a1!important}
+        .theme-light option{background:#fff;color:#0f172a}
         .mini-bomba-row{display:grid;grid-template-columns:minmax(120px,220px) 72px minmax(145px,220px) 18px;gap:6px;align-items:center;justify-content:start;max-width:560px}
         @media(min-width:701px){.patient-content-with-problems{padding-right:312px!important}.patient-navigation-with-problems{padding-right:296px!important}}
         @media(max-width:700px){.prob-floating{position:static!important;width:100%!important;margin-bottom:12px;filter:none!important}}
