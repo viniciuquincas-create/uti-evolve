@@ -4436,8 +4436,9 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
 // ── SysB / Row / Col / FL — hoisted para escopo de módulo (fix: definir componentes dentro do render
 // do EvolucaoEditor fazia o React remontar todo o subtree a cada tecla digitada em campos
 // controlados como os da Ventilação, derrubando o foco do input) ──
-const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[]}) => {
-  const [open,setOpen]=useState(true);
+const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[], controlledOpen, onRequestOpen, reviewMode=false}) => {
+  const [localOpen,setLocalOpen]=useState(true);
+  const open = controlledOpen===undefined ? localOpen : controlledOpen;
   const [showAdd,setShowAdd]=useState(false);
   const [preview,setPreview]=useState(null); // null=fechado, string=texto editável
   const [cp2,setCp2]=useState(false);
@@ -4449,7 +4450,9 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   const statusVazios = statusTotal - statusPreenchidos;
   const borderColor = statusTotal===0
     ? (open?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.05)")
-    : (statusVazios===0 ? "rgba(52,211,153,0.35)" : "rgba(248,113,113,0.35)");
+    : (open ? (statusVazios===0 ? "rgba(52,211,153,0.28)" : "rgba(248,113,113,0.25)") : "rgba(255,255,255,0.06)");
+  const resumo = reviewMode && txtFn ? String(txtFn()||"").replace(/^[-*]\s*/gm,"").split("\n").filter(Boolean).slice(0,3).join(" · ") : "";
+  const handleOpen = () => onRequestOpen ? onRequestOpen(id) : setLocalOpen(o=>!o);
 
   const abrirPreview = () => {
     if(preview!==null){setPreview(null);return;}
@@ -4462,21 +4465,22 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   };
 
   return (
-    <div style={{marginBottom:10,border:`1px solid ${borderColor}`,borderRadius:12,overflow:"hidden"}}>
-      <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.03)"}}>
-        <button onClick={()=>setOpen(o=>!o)} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+    <div style={{marginBottom:reviewMode?6:10,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,.012)":"transparent"}}>
+      <div style={{display:"flex",alignItems:"center",background:open?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.015)"}}>
+        <button onClick={handleOpen} style={{flex:1,display:"flex",alignItems:"center",gap:8,padding:reviewMode?"9px 12px":"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left",minWidth:0}}>
           <div style={{width:3,height:16,background:color,borderRadius:2,flexShrink:0}}/>
-          <span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>
-          <span style={{fontSize:12,color:"#475569",fontWeight:400}}>{label}</span>
+          {!reviewMode&&<span style={{fontSize:12,fontWeight:700,color,fontFamily:mono,letterSpacing:1.5}}>{sigla}</span>}
+          <span style={{fontSize:12,color:reviewMode?"#cbd5e1":"#475569",fontWeight:reviewMode?650:400,minWidth:reviewMode?125:0}}>{label}</span>
           {statusTotal>0 && (
             <span style={{display:"flex",alignItems:"center",gap:5}} title={statusVazios===0?"Bloco completo":`${statusVazios} de ${statusTotal} campo(s) essencial(is) vazio(s)`}>
               <span style={{width:7,height:7,borderRadius:"50%",background:statusVazios===0?"#34d399":"#f87171",flexShrink:0}}/>
-              <span style={{fontSize:10,fontFamily:mono,color:statusVazios===0?"#34d399":"#f87171"}}>
+              {!reviewMode&&<span style={{fontSize:10,fontFamily:mono,color:statusVazios===0?"#34d399":"#f87171"}}>
                 {statusVazios===0?"completo":`${statusVazios} de ${statusTotal} vazios`}
-              </span>
+              </span>}
             </span>
           )}
-          <span style={{marginLeft:"auto",color:"#475569",fontSize:11}}>{open?"▲":"▼"}</span>
+          {reviewMode&&<span style={{marginLeft:8,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:resumo?"#94a3b8":"#334155"}}>{resumo||"Sem dados registrados"}</span>}
+          <span style={{marginLeft:"auto",color:reviewMode?"#38bdf8":"#475569",fontSize:11}}>{reviewMode?"Editar ›":open?"▲":"▼"}</span>
         </button>
         {open && (opcionais.length>0||adicionaveis.length>0) && (
           <div style={{position:"relative"}}>
@@ -4489,21 +4493,21 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
             </button>
           </div>
         )}
-        <button onClick={abrirPreview}
+        {open&&<button onClick={abrirPreview}
           style={{margin:"4px 2px",padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
             background:preview!==null?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)",
             border:`1px solid ${preview!==null?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
             color:preview!==null?"#fbbf24":"#64748b",cursor:"pointer",fontFamily:"inherit"}}
           title="Ver e editar o texto que será copiado">
           {preview!==null?"✕ Texto":"👁 Texto"}
-        </button>
-        <button onClick={copiar}
+        </button>}
+        {open&&<button onClick={copiar}
           style={{margin:"6px 8px 6px 2px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,
             background:cp2?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.05)",
             border:`1px solid ${cp2?"#34d399":"rgba(255,255,255,0.1)"}`,
             color:cp2?"#34d399":"#94a3b8",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>
           {cp2?"✓ Copiado!":"📋 Copiar"}
-        </button>
+        </button>}
       </div>
       {open && showAdd && (opcionais.length>0||adicionaveisNaoAtivos.length>0) && (
         <div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",background:"rgba(167,139,250,0.04)",display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
@@ -4558,6 +4562,13 @@ const FL=({children})=><div style={{fontSize:10,color:"#64748b",fontFamily:mono,
 
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[], onLeitoChange }) {
   const [copiado, setCopiado] = useState({});
+  const [bedsideMode,setBedsideMode] = useState("review");
+  const [activeSystem,setActiveSystem] = useState("n");
+  const focusProps = id => ({
+    controlledOpen: bedsideMode==="edit" && activeSystem===id,
+    reviewMode: bedsideMode==="review",
+    onRequestOpen: ()=>{setActiveSystem(prev=>bedsideMode==="review"?id:(prev===id?null:id));setBedsideMode("edit");},
+  });
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
     const dataEdicao = campos._datas?.[fieldName];
@@ -4949,8 +4960,13 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     <div>
       <div>
       {/* ── Progresso dos blocos + gerar evolução completa (topo) ── */}
-      <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap",padding:"5px",border:"1px solid rgba(255,255,255,.06)",borderRadius:10,background:"rgba(255,255,255,.015)"}}>
+        <div style={{display:"flex",padding:2,borderRadius:8,background:"rgba(255,255,255,.035)"}}>
+          {[{id:"review",label:"Revisar"},{id:"edit",label:"Editar"}].map(m=><button key={m.id} onClick={()=>{setBedsideMode(m.id);if(m.id==="edit"&&!activeSystem)setActiveSystem("n");}} style={{padding:"6px 12px",borderRadius:6,border:"none",background:bedsideMode===m.id?"rgba(56,189,248,.16)":"transparent",color:bedsideMode===m.id?"#7dd3fc":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{m.label}</button>)}
+        </div>
+        <span style={{fontSize:10,color:"#475569"}}>{bedsideMode==="review"?"Resumo clínico sem campos de edição":"Um sistema aberto por vez"}</span>
         <span style={{fontSize:11,fontFamily:mono,padding:"5px 10px",borderRadius:20,
+          marginLeft:"auto",
           border:`1px solid ${blocosCompletos===blocosTotal?"rgba(52,211,153,0.4)":"rgba(251,191,36,0.4)"}`,
           color:blocosCompletos===blocosTotal?"#34d399":"#fbbf24",
           background:blocosCompletos===blocosTotal?"rgba(52,211,153,0.08)":"rgba(251,191,36,0.08)"}}
@@ -4985,7 +5001,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </div>
 
       {/* ── Legenda + limpar ── */}
-      <div style={{display:"flex",gap:16,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+      {bedsideMode==="edit"&&<div style={{display:"flex",gap:16,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#64748b"}}>
           <div style={{width:12,height:12,borderRadius:3,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.15)"}}/>
           Editado hoje
@@ -5001,10 +5017,11 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         }} style={{marginLeft:"auto",padding:"4px 10px",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",fontSize:11,cursor:"pointer"}}>
           🗑 Limpar evolução
         </button>
-      </div>
+      </div>}
 
       {/* ── HDA ── */}
       <SysB id="hda" sigla="== HDA:" label="História da Doença Atual" color={"#c084fc"} txtFn={()=>get("hda")}
+        {...focusProps("hda")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]} adicionaveis={[]}>
         <Row><Col><FL>HISTÓRIA — resumo clínico para passagem de caso</FL>
@@ -5067,6 +5084,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </Collapsible>
 
       <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtNFull}
+        {...focusProps("n")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}
@@ -5110,6 +5128,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCvFull}
+        {...focusProps("cv")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"},{key:"cvObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}
@@ -5200,6 +5219,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
+        {...focusProps("res")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rePocus",label:"POCUS Pulmonar"},{key:"reLUS",label:"LUS"},{key:"reObs",label:"Obs"}]}
         adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"outro",label:"+ outro"}]}
@@ -5240,6 +5260,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={"#34d399"} txtFn={txtReMeFull}
+        {...focusProps("reme")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rmTRS",label:"TRS"},{key:"rmObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"}]}
@@ -5270,6 +5291,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={"#fb923c"} txtFn={txtTGIFull}
+        {...focusProps("tgi")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"tgPocus",label:"POCUS Abdominal"},{key:"tgObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
@@ -5312,6 +5334,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="he" sigla="== He:" label="Hematológico" color={"#f59e0b"} txtFn={txtHeFull}
+        {...focusProps("he")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"heProf",label:"Profilaxias"},{key:"heObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
@@ -5327,6 +5350,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="in" sigla="== In:" label="Infeccioso" color={"#94a3b8"} txtFn={txtInFull}
+        {...focusProps("in")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
@@ -5400,7 +5424,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         position:"sticky", top:16,
         width:260, flexShrink:0,
         alignSelf:"flex-start",
-        display:"flex", flexDirection:"column", gap:10,
+        display:bedsideMode==="edit"?"flex":"none", flexDirection:"column", gap:10,
       }} className="prob-sticky-col">
         {/* Problemas Ativos */}
         <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"10px 12px"}}>
@@ -7094,7 +7118,7 @@ ${linha}`:linha}));
                   <div>Cadastre o paciente primeiro na aba <strong style={{color:"#38bdf8"}}>Paciente & Cálculos</strong></div>
                 </div>
               ) : (
-                <div style={{maxWidth:700}}>
+                <div style={{maxWidth:900}}>
                   {dadosIA&&<div style={{background:"rgba(56,189,248,0.07)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#86efac"}}>✅ Dados da IA aplicados — revise e edite abaixo</div>}
                   <EvolucaoEditor leito={leito} campos={evolCampos} key={`${leito.id}-${evolVersion}`}
                     onLeitoChange={atualizar}
