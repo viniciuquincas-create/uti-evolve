@@ -4538,7 +4538,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
           ))}
         </div>
       )}
-      {open&&<div style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`}}>{children}</div>}
+      {open&&<div className="system-card-body" style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`}}>{children}</div>}
       {open && preview!==null && (
         <div style={{borderTop:"2px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.03)",padding:"10px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -4568,7 +4568,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
 
 // Row/Col já existem no escopo de módulo (definidos mais acima, usados por SysBlock) — reaproveitados aqui, não redeclarados.
 const FL=({children})=>{const T=useTheme();return <div style={{fontSize:10,color:T.text3,fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;};
-const ClinicalGroup=({label,color="#64748b",children})=>{const T=useTheme();return <section style={{marginBottom:10}}>
+const ClinicalGroup=({label,color="#64748b",children})=>{const T=useTheme();return <section className="clinical-group" style={{marginBottom:10}}>
   <div style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0 7px",fontSize:9,color:T.colorScheme==="light"?T.text2:color,fontFamily:mono,letterSpacing:1.5,fontWeight:700}}>
     <span>{label}</span><span style={{height:1,flex:1,background:T.colorScheme==="light"?T.border:`${color}25`}}/>
   </div>
@@ -6731,7 +6731,18 @@ export default function App() {
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
         .system-card{transition:border-color .18s,box-shadow .18s}
         .system-card:focus-within{border-color:rgba(56,189,248,.34)!important;box-shadow:0 0 0 1px rgba(56,189,248,.08)}
-        .theme-light .system-card{box-shadow:0 2px 7px rgba(15,23,42,.07)!important}
+        .theme-light .app-header{border-bottom-color:#cbd5e1!important;box-shadow:0 1px 8px rgba(15,23,42,.08)}
+        .theme-light .app-sidebar{background:#f8fafc!important;border-right-color:#cbd5e1!important}
+        .theme-light .patient-tabs{background:#e8eef5!important;padding:7px 8px 0 18px!important;gap:4px;border-bottom-color:#cbd5e1!important}
+        .theme-light .patient-tabs.patient-navigation-with-problems{padding-right:296px!important}
+        .theme-light .uti-tab-btn{padding:9px 14px!important;border:1px solid transparent!important;border-bottom:0!important;border-radius:9px 9px 0 0!important;color:#475569!important}
+        .theme-light .uti-tab-btn:hover{background:rgba(255,255,255,.65)!important;color:#0f172a!important}
+        .theme-light .uti-tab-btn[data-active="true"]{background:#fff!important;color:#0369a1!important;border-color:#cbd5e1!important;box-shadow:0 -1px 5px rgba(15,23,42,.05)}
+        .theme-light .system-card{border-color:#b8c5d3!important;border-radius:14px!important;box-shadow:0 3px 10px rgba(15,23,42,.08)!important;background:#fff!important}
+        .theme-light .system-card>div:first-child{background:#edf3f8!important;min-height:44px}
+        .theme-light .system-card-body{background:#fff;padding:16px!important}
+        .theme-light .clinical-group{background:#f8fafc;border:1px solid #dbe3ec;border-radius:10px;padding:10px 12px;margin-bottom:12px!important}
+        .theme-light .clinical-group:last-child{margin-bottom:0!important}
         .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]),.theme-light textarea,.theme-light select{background:#fff!important;border-color:#cbd5e1!important;color:#0f172a!important}
         .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.theme-light textarea:focus,.theme-light select:focus{border-color:#0284c7!important;box-shadow:0 0 0 2px rgba(2,132,199,.10)}
         .theme-light .mini-bomba-row>span:first-child{color:#334155!important}
@@ -6748,7 +6759,7 @@ export default function App() {
         }
       `}</style>
 
-      <div style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:`1px solid ${T.borderAccent}`,background:T.bgHeader,position:"sticky",top:0,zIndex:100,backdropFilter:"blur(12px)"}}>
+      <div className="app-header" style={{padding:"0 24px",height:56,display:"flex",alignItems:"center",borderBottom:`1px solid ${T.borderAccent}`,background:T.bgHeader,position:"sticky",top:0,zIndex:100,backdropFilter:"blur(12px)"}}>
         <button onClick={()=>{
           if (isMobile) { setShowSidebar(s=>!s); }
           else { setSidebarCollapsed(c=>{ const next=!c; localStorage.setItem("uti_sidebar_collapsed", next?"1":"0"); return next; }); }
@@ -6777,7 +6788,7 @@ export default function App() {
       </div>
 
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
-        {(!isMobile || showSidebar) && <div style={{width:railMode?64:228,borderRight:`1px solid ${T.borderAccent}`,padding:railMode?"20px 8px":"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0,transition:"width 0.18s ease"}}>
+        {(!isMobile || showSidebar) && <div className="app-sidebar" style={{width:railMode?64:228,borderRight:`1px solid ${T.borderAccent}`,padding:railMode?"20px 8px":"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0,transition:"width 0.18s ease"}}>
           {railMode ? (
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
               {leitos.map(l=>{
@@ -6929,9 +6940,9 @@ export default function App() {
             </div>
           )}
 
-          <div className={leito.paciente?"patient-navigation-with-problems":""} style={{display:"flex",borderBottom:`1px solid ${T.border}`,paddingLeft:16,overflowX:"auto",flexShrink:0,background:T.bgCard}}>
+          <div className={`patient-tabs ${leito.paciente?"patient-navigation-with-problems":""}`} style={{display:"flex",borderBottom:`1px solid ${T.border}`,paddingLeft:16,overflowX:"auto",flexShrink:0,background:T.bgCard}}>
             {ABAS.map(a=>(
-              <button key={a.id} onClick={()=>setAba(a.id)} className="uti-tab-btn" style={{padding:"14px 16px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:500,color:aba===a.id?T.accent:T.text3,borderBottom:aba===a.id?`2px solid ${T.accent}`:"2px solid transparent",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+              <button key={a.id} data-active={aba===a.id?"true":"false"} onClick={()=>setAba(a.id)} className="uti-tab-btn" style={{padding:"14px 16px",background:"none",border:"none",cursor:"pointer",fontSize:12,fontWeight:aba===a.id?700:500,color:aba===a.id?T.accent:T.text3,borderBottom:aba===a.id?`2px solid ${T.accent}`:"2px solid transparent",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                 {a.label}
               </button>
             ))}
