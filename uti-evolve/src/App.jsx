@@ -332,21 +332,21 @@ const DARK = {
 };
 
 const LIGHT = {
-  bgPage:           "#eef2f6",
-  bgCard:           "#ffffff",
-  bgCardHover:      "#f1f5f9",
-  bgSidebar:        "#ffffff",
-  bgHeader:         "rgba(255,255,255,0.97)",
+  bgPage:           "#d6dee8",
+  bgCard:           "#f8fafc",
+  bgCardHover:      "#e6edf4",
+  bgSidebar:        "#e1e7ee",
+  bgHeader:         "rgba(238,243,248,0.98)",
   bgInput:          "#ffffff",
   bgPicker:         "#ffffff",
   bgSel:            "rgba(2,132,199,0.07)",
   text1:            "#0f172a",
   text2:            "#334155",
   text3:            "#64748b",
-  text4:            "#64748b",
-  textDim:          "#94a3b8",
-  border:           "#cbd5e1",
-  borderStrong:     "#94a3b8",
+  text4:            "#475569",
+  textDim:          "#64748b",
+  border:           "#9eacbd",
+  borderStrong:     "#718096",
   borderAccent:     "rgba(2,132,199,0.18)",
   accent:           "#0284c7",
   accentBg:         "rgba(2,132,199,0.08)",
@@ -6731,19 +6731,19 @@ export default function App() {
         .uti-tab-btn{transition:color 0.15s,border-color 0.15s}
         .system-card{transition:border-color .18s,box-shadow .18s}
         .system-card:focus-within{border-color:rgba(56,189,248,.34)!important;box-shadow:0 0 0 1px rgba(56,189,248,.08)}
-        .theme-light .app-header{border-bottom-color:#cbd5e1!important;box-shadow:0 1px 8px rgba(15,23,42,.08)}
-        .theme-light .app-sidebar{background:#f8fafc!important;border-right-color:#cbd5e1!important}
-        .theme-light .patient-tabs{background:#e8eef5!important;padding:7px 8px 0 18px!important;gap:4px;border-bottom-color:#cbd5e1!important}
+        .theme-light .app-header{border-bottom-color:#94a3b8!important;box-shadow:0 2px 10px rgba(15,23,42,.14)}
+        .theme-light .app-sidebar{background:#e1e7ee!important;border-right-color:#94a3b8!important}
+        .theme-light .patient-tabs{background:#c7d2df!important;padding:7px 8px 0 18px!important;gap:4px;border-bottom-color:#94a3b8!important}
         .theme-light .patient-tabs.patient-navigation-with-problems{padding-right:296px!important}
         .theme-light .uti-tab-btn{padding:9px 14px!important;border:1px solid transparent!important;border-bottom:0!important;border-radius:9px 9px 0 0!important;color:#475569!important}
-        .theme-light .uti-tab-btn:hover{background:rgba(255,255,255,.65)!important;color:#0f172a!important}
-        .theme-light .uti-tab-btn[data-active="true"]{background:#fff!important;color:#0369a1!important;border-color:#cbd5e1!important;box-shadow:0 -1px 5px rgba(15,23,42,.05)}
-        .theme-light .system-card{border-color:#b8c5d3!important;border-radius:14px!important;box-shadow:0 3px 10px rgba(15,23,42,.08)!important;background:#fff!important}
-        .theme-light .system-card>div:first-child{background:#edf3f8!important;min-height:44px}
-        .theme-light .system-card-body{background:#fff;padding:16px!important}
-        .theme-light .clinical-group{background:#f8fafc;border:1px solid #dbe3ec;border-radius:10px;padding:10px 12px;margin-bottom:12px!important}
+        .theme-light .uti-tab-btn:hover{background:rgba(248,250,252,.75)!important;color:#0f172a!important}
+        .theme-light .uti-tab-btn[data-active="true"]{background:#f8fafc!important;color:#075985!important;border-color:#94a3b8!important;box-shadow:0 -2px 7px rgba(15,23,42,.10)}
+        .theme-light .system-card{border-color:#8493a5!important;border-radius:14px!important;box-shadow:0 4px 12px rgba(15,23,42,.13)!important;background:#f8fafc!important}
+        .theme-light .system-card>div:first-child{background:#dbe5ee!important;min-height:44px;border-bottom:1px solid #aebccb}
+        .theme-light .system-card-body{background:#f8fafc;padding:16px!important}
+        .theme-light .clinical-group{background:#e7edf4;border:1px solid #b8c5d3;border-radius:10px;padding:10px 12px;margin-bottom:12px!important}
         .theme-light .clinical-group:last-child{margin-bottom:0!important}
-        .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]),.theme-light textarea,.theme-light select{background:#fff!important;border-color:#cbd5e1!important;color:#0f172a!important}
+        .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]),.theme-light textarea,.theme-light select{background:#fff!important;border-color:#94a3b8!important;color:#0f172a!important}
         .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.theme-light textarea:focus,.theme-light select:focus{border-color:#0284c7!important;box-shadow:0 0 0 2px rgba(2,132,199,.10)}
         .theme-light .mini-bomba-row>span:first-child{color:#334155!important}
         .theme-light .mini-bomba-row>span:nth-of-type(2){color:#0369a1!important}
