@@ -1340,7 +1340,7 @@ const VM_CAMPOS = {
                { key:"vm_p01",  label:"P0.1 (cmH₂O)", type:"number",placeholder:"" },
                { key:"vm_pocc", label:"Pocc (cmH₂O)", type:"number",placeholder:"" },
                { key:"vm_pmusc",label:"Pmusc (cmH₂O)",type:"number",placeholder:"" }],
-  vm_pcv:     [{ key:"vm_pins", label:"Pins (cmH₂O)", type:"number",placeholder:"" },
+  vm_pcv:     [{ key:"vm_pins", label:"ΔPins acima da PEEP (cmH₂O)", type:"number",placeholder:"" },
                { key:"vm_peep", label:"PEEP (cmH₂O)", type:"number",placeholder:"5-20" },
                { key:"vm_fio2", label:"FiO₂ (%)",     type:"number",placeholder:"21-100" },
                { key:"vm_fr",   label:"FR prog. (irpm)",type:"number",placeholder:"" },
@@ -1358,6 +1358,26 @@ const VM_CAMPOS = {
                { key:"vm_tlow", label:"Tlow (s)",        type:"number",placeholder:"" },
                { key:"vm_fio2", label:"FiO₂ (%)",       type:"number",placeholder:"21-100" }],
 };
+
+function calcMechanicalPower(leito) {
+  const modo=leito.vm_modo;
+  const vtMl=parseFloat(leito.vm_vt);
+  const rr=parseFloat(leito.vm_fr);
+  const peep=parseFloat(leito.vm_peep);
+  if(!["vm_vcv","vm_pcv"].includes(modo)||![vtMl,rr,peep].every(Number.isFinite)||vtMl<=0||rr<=0||peep<0)return null;
+  const vtL=vtMl/1000;
+  if(modo==="vm_vcv"){
+    const pplat=parseFloat(leito.vm_pplat),ppico=parseFloat(leito.vm_ppico);
+    if(![pplat,ppico].every(Number.isFinite)||pplat<peep||ppico<pplat)return null;
+    const driving=pplat-peep;
+    const valor=0.098*vtL*rr*(peep+(0.5*driving)+(ppico-pplat));
+    return {valor,formula:"Gattinoni — VCV",driving};
+  }
+  const deltaPinsp=parseFloat(leito.vm_pins);
+  if(!Number.isFinite(deltaPinsp)||deltaPinsp<0)return null;
+  const valor=0.098*vtL*rr*(peep+deltaPinsp);
+  return {valor,formula:"Becher — PCV",driving:deltaPinsp};
+}
 
 function gerarTextoVM(leito) {
   const modo = leito.vm_modo;
@@ -1383,6 +1403,8 @@ function gerarTextoVM(leito) {
     const csr = parseFloat(leito.vm_vt)/(parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep));
     if (!isNaN(csr)&&isFinite(csr)) partes.push(`Csr: ${Math.round(csr)} mL/cmH₂O`);
   }
+  const mp=calcMechanicalPower(leito);
+  if(mp) partes.push(`Mechanical Power: ${mp.valor.toFixed(1)} J/min (${mp.formula})`);
   return `${label}: ${partes.join(" / ")}`;
 }
 
@@ -1413,6 +1435,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
   const csr   = (vt && pplat && peep && pplat>peep) ? Math.round(vt/(pplat-peep)) : null;
   const ppeak_est = leito.vm_ppico ? parseFloat(leito.vm_ppico) : null;
   const pf_calc = (po2>0&&fio2>0) ? Math.round(po2/(fio2/100)) : null;
+  const mechanicalPower=calcMechanicalPower(leito);
   const suporteResumo = (()=>{
     const itens=[];
     if (["cn","ms","mnr"].includes(leito.vm_modo)&&leito.vm_o2) itens.push(`O₂ ${leito.vm_o2} L/min`);
@@ -1420,10 +1443,11 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
     if (leito.vm_modo==="cnaf") { if(leito.vm_flow)itens.push(`Fluxo ${leito.vm_flow} L/min`); if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); }
     if (leito.vm_modo==="vni") { if(leito.vm_ipap)itens.push(`IPAP ${leito.vm_ipap}`); if(leito.vm_epap)itens.push(`EPAP ${leito.vm_epap}`); if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); }
     if (leito.vm_modo==="vm_psv"&&leito.vm_ps) itens.push(`PS ${leito.vm_ps}`);
-    if (leito.vm_modo==="vm_pcv"&&leito.vm_pins) itens.push(`Pins ${leito.vm_pins}`);
+    if (leito.vm_modo==="vm_pcv"&&leito.vm_pins) itens.push(`ΔPins ${leito.vm_pins}`);
     if (leito.vm_modo==="vm_vcv"&&leito.vm_vt) itens.push(`VC ${leito.vm_vt} mL`);
     if (["vm_psv","vm_pcv","vm_vcv"].includes(leito.vm_modo)) { if(leito.vm_peep)itens.push(`PEEP ${leito.vm_peep}`); if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); }
     if (leito.vm_modo==="vm_aprv") { if(leito.vm_phigh)itens.push(`Phigh ${leito.vm_phigh}`); if(leito.vm_plow)itens.push(`Plow ${leito.vm_plow}`); if(leito.vm_fio2)itens.push(`FiO₂ ${leito.vm_fio2}%`); }
+    if(mechanicalPower)itens.push(`MP ${mechanicalPower.valor.toFixed(1)} J/min`);
     return itens;
   })();
   const sat = parseFloat(leito.vm_sato2||0)||null;
@@ -1570,6 +1594,22 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
               {pf_calc!==null&&<div style={{padding:"5px 12px",borderRadius:8,background:pf_calc<150?"rgba(248,113,113,0.1)":pf_calc<200?"rgba(251,191,36,0.1)":"rgba(52,211,153,0.08)",border:"1px solid rgba(255,255,255,0.1)",fontSize:12,color:pf_calc<150?"#f87171":pf_calc<200?"#fbbf24":"#34d399"}}>
                 P/F: <strong>{pf_calc}</strong> {pf_calc<150?"SDRA grave":pf_calc<200?"SDRA moderada":pf_calc<300?"SDRA leve":"OK"}
               </div>}
+            </div>
+          )}
+
+          {(["vm_vcv","vm_pcv"].includes(leito.vm_modo))&&(
+            <div style={{marginBottom:10,padding:"9px 12px",borderRadius:9,background:T.accentBg,border:`1px solid ${T.accentBorder}`,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <div style={{minWidth:170}}>
+                <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.2,marginBottom:3}}>MECHANICAL POWER</div>
+                {mechanicalPower?<div style={{fontSize:17,fontWeight:800,color:T.accent}}>{mechanicalPower.valor.toFixed(1).replace(".",",")} <span style={{fontSize:11,fontWeight:600}}>J/min</span></div>:<div style={{fontSize:11,color:T.text3}}>Preencha os parâmetros necessários.</div>}
+              </div>
+              <div style={{fontSize:10,color:T.text2,fontFamily:mono,lineHeight:1.55,flex:1,minWidth:250}}>
+                {leito.vm_modo==="vm_vcv"?(
+                  <>Gattinoni (VCV): 0,098 × VT(L) × FR × [PEEP + 0,5 × ΔP + (Ppico − Pplatô)]<br/>Necessários: VT, FR, PEEP, Pplatô e Ppico.</>
+                ):(
+                  <>Becher (PCV): 0,098 × VT(L) × FR × (PEEP + ΔPins)<br/>Necessários: VT medido, FR, PEEP e ΔPins acima da PEEP.</>
+                )}
+              </div>
             </div>
           )}
 
