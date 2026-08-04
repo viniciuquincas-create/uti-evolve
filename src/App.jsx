@@ -861,7 +861,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
     tipo:"enteral", catalogId:"", formula:"",
     vazao:"",
     meta:{ modo:"kg", kcalKg:"25", ptnKg:"1.5", kcalTotal:"", ptnTotal:"" },
-    obs:""
+    obs:"", moduloProteina:{ativo:false,gramas:""}
   };
   const upd     = (field, val) => onChange({ ...dados, dieta: { ...dieta, [field]: val } });
   const updMeta = (field, val) => upd("meta", { ...(dieta.meta||{}), [field]: val });
@@ -875,7 +875,10 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
   const meta     = dieta.meta || { modo:"kg" };
   const metaAbs  = calcMetaAbsoluta(meta, peso);
   const volHoje  = parseFloat(diureseHojeVol) || 0;
-  const nutriHoje = calcNutri(dietaSel, volHoje);
+  const moduloProteina = dieta.moduloProteina || {ativo:false,gramas:""};
+  const moduloPtn = moduloProteina.ativo ? (parseFloat(moduloProteina.gramas)||0) : 0;
+  const somarModulo = n => n ? {...n,ptn:Math.round((n.ptn+moduloPtn)*10)/10} : (moduloPtn?{kcal:0,ptn:moduloPtn}:null);
+  const nutriHoje = somarModulo(calcNutri(dietaSel, volHoje));
   const kcalPct = metaAbs?.kcal && nutriHoje?.kcal ? Math.round(nutriHoje.kcal/metaAbs.kcal*100) : null;
   const ptnPct = metaAbs?.ptn && nutriHoje?.ptn ? Math.round(nutriHoje.ptn/metaAbs.ptn*100) : null;
   const adequacao = kcalPct!==null && ptnPct!==null ? Math.min(kcalPct,ptnPct) : (kcalPct ?? ptnPct);
@@ -907,7 +910,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
               <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:5,fontSize:11,color:"#94a3b8",fontFamily:mono}}>
                 {dieta.vazao&&<span style={{color:"#fdba74",fontWeight:700}}>{dieta.vazao} mL/h</span>}
                 {volHoje>0&&<span>24h: {volHoje} mL</span>}
-                {nutriHoje&&<span>{nutriHoje.kcal} kcal · {nutriHoje.ptn} g ptn</span>}
+                {nutriHoje&&<span>{nutriHoje.kcal} kcal · {nutriHoje.ptn} g ptn{moduloPtn?` (inclui módulo +${moduloPtn} g)`:""}</span>}
               </div>
               {dieta.obs&&<div style={{marginTop:5,fontSize:10,color:"#94a3b8"}}>Tolerância: {dieta.obs}</div>}
             </div>
@@ -997,7 +1000,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
             <div style={{fontSize:10,color:"#475569",marginTop:4}}>ℹ️ O volume real que entrou é registrado nos <strong style={{color:"#38bdf8"}}>Controles 24h</strong> → Vol. Dieta.</div>
             {dietaSel && dieta.vazao && peso>0 && (()=>{
               const volProj = parseFloat(dieta.vazao)*24;
-              const nutriProj = calcNutri(dietaSel, volProj);
+              const nutriProj = somarModulo(calcNutri(dietaSel, volProj));
               if (!nutriProj) return null;
               return (
                 <div style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -1010,6 +1013,19 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
                 </div>
               );
             })()}
+          </div>
+
+          {/* Módulo proteico */}
+          <div style={{padding:"10px 12px",marginBottom:14,border:"1px solid rgba(251,146,60,.2)",borderRadius:9,background:"rgba(251,146,60,.04)"}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,color:"#fdba74",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              <input type="checkbox" checked={!!moduloProteina.ativo} onChange={e=>upd("moduloProteina",{...moduloProteina,ativo:e.target.checked})}/>
+              Adicionar módulo de proteína
+            </label>
+            {moduloProteina.ativo&&<div style={{display:"flex",gap:8,alignItems:"center",marginTop:9,maxWidth:280}}>
+              <input type="number" min="0" step="1" value={moduloProteina.gramas||""} onChange={e=>upd("moduloProteina",{...moduloProteina,gramas:e.target.value})} placeholder="Ex.: 30"
+                style={{width:110,background:"rgba(255,255,255,.04)",border:"1px solid rgba(251,146,60,.3)",borderRadius:7,padding:"7px 9px",color:"#e2e8f0",fontSize:13}}/>
+              <span style={{fontSize:11,color:"#94a3b8"}}>g de proteína/dia</span>
+            </div>}
           </div>
 
           {/* Metas nutricionais */}
@@ -2073,6 +2089,9 @@ const CTRL_MAP_TEXT = {
   // Balanço
   "bh":"c24_bh","balanco":"c24_bh","balanço":"c24_bh","balancohidrico":"c24_bh",
   "bhac":"c24_bh_ac","bhacum":"c24_bh_ac","balancoac":"c24_bh_ac","acumulado":"c24_bh_ac",
+  // Monitorização neurológica
+  "pic":"c24_pic","pressaointracraniana":"c24_pic",
+  "dve":"c24_dve","liquordve":"c24_dve","liquordrenado":"c24_dve","debitodve":"c24_dve",
 };
 
 function parsearControlesTexto(txt) {
@@ -2228,6 +2247,8 @@ function UploadAnalyzer({ onResult, onManualResult }) {
                   {key:"c24_dextro", label:"Glic cap  (mín / máx)"},
                   {key:"c24_diur",   label:"Diurese mL  (total)"},
                   {key:"c24_bh",     label:"BH mL  (total)"},
+                  {key:"c24_pic",    label:"PIC mmHg  (mín / máx)"},
+                  {key:"c24_dve",    label:"Líquor DVE mL  (total)"},
                   {key:"c24_dreno1", label:"Dreno 1 mL  (total)"},
                   {key:"c24_dreno2", label:"Dreno 2 mL  (total)"},
                   {key:"c24_dreno3", label:"Dreno 3 mL  (total)"},
@@ -2867,7 +2888,7 @@ const GRUPOS_CONTROLES = [
   { grupo:"🧠 Neurológico", params:[
     {key:"c24_pic",   label:"PIC (mín/máx)",          unit:"mmHg"},
     {key:"c24_ppc",   label:"PPC (mín/máx)",          unit:"mmHg"},
-    {key:"c24_dve",   label:"DVE débito",              unit:"mL"},
+    {key:"c24_dve",   label:"Líquor drenado pela DVE (total)", unit:"mL"},
   ], opcional:true},
   { grupo:"📥 Ganhos", params:[
     {key:"c24_diet_vol",     label:"Vol. Dieta recebida", unit:"mL"},
@@ -2903,7 +2924,7 @@ const ABREV = {
   c24_temp:"T", c24_fc:"FC", c24_fr:"FR", c24_sat:"Sat", c24_pam:"PAM", c24_pas:"PA",
   c24_dextro:"Dextro",
   c24_diur:"Diurese", c24_bh:"BH 24h", c24_bh_ac:"BH Acum", c24_propofol_vol:"Propofol",
-  c24_hd:"HD/CRRT", c24_pad:"PAD",
+  c24_hd:"HD/CRRT", c24_pad:"PAD", c24_pic:"PIC", c24_ppc:"PPC", c24_dve:"DVE líquor",
 };
 
 // Formata valor: plaquetas e leucócitos em k quando >= 100
@@ -3224,8 +3245,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     if (rmGasoExtra.length) rmStr = [rmStr, ...rmGasoExtra].filter(Boolean).join("\n");
     const tgGasoExtra = gasoExtraLines("glic","Glicemia","mg/dL");
     if (tgGasoExtra.length) tgStr = [tgStr, ...tgGasoExtra].filter(Boolean).join("\n");
-    const heGasoExtra = [...gasoExtraLines("lact","Lactato","mmol/L"), ...gasoExtraLines("hb","Hb","g/dL")];
+    const heGasoExtra = gasoExtraLines("hb","Hb","g/dL");
     if (heGasoExtra.length) heStr = [heStr, ...heGasoExtra].filter(Boolean).join("\n");
+    const lactTabela = pegar(["lact"]).replace(/^Lactato\s*/i,"");
+    const lactGaso = gasoEntries.filter(g=>g.lact).map(g=>`${g.horario?`[${g.horario}] `:""}${g.lact}`).join(" / ");
 
     // Controles → campos certos em cada sistema
     const tempStr  = pegarCtrl(["c24_temp"]);           // He: Infeccioso/Temperatura
@@ -3233,13 +3256,18 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const reCtrl   = pegarCtrl(["c24_fr","c24_sat"]);   // Res: 24h
     const bhStr    = pegarCtrl(["c24_diur","c24_bh"]);  // ReMe: 24h
     const dextroStr= pegarCtrl(["c24_dextro"]);          // TGI: 24h
+    const picStr   = pegarCtrl(["c24_pic"]);             // Neuro: PIC
+    const dveStr   = pegarCtrl(["c24_dve"]);             // Neuro: líquor drenado
 
     // Aplica labs
     if (heStr)  campos.heLabs = heStr;
     if (rmStr)  campos.rmLabs = rmStr;
     if (cvStr)  campos.cvPerf = cvStr;
+    if (lactGaso || lactTabela) campos.cvLact = lactGaso || lactTabela;
     if (resStr) campos.reGaso = resStr;
     if (tgStr)  campos.tgLabs = tgStr;
+    if (picStr) campos.nPIC = picStr;
+    if (dveStr) campos.nDVE = dveStr;
 
     // Exames extras categorizados
     const extraCats = data.__extraCats__ || {};
@@ -3291,21 +3319,6 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       const vt4 = parseFloat(leito.vm_vt||0);
       const vtInfo = (pp4 && vt4) ? ` · VC ${vt4}mL = ${(vt4/parseFloat(pp4)).toFixed(1)}mL/kg PP` : "";
       campos.reVM = vmTexto + vtInfo;
-    }
-
-    // Culturas → heCulturas auto-populated
-    const culturasLeito = leito.culturas||[];
-    if(culturasLeito.length>0){
-      const cTexto = culturasLeito.map(c=>{
-        const tipo=(CULTURA_TIPOS.find(x=>x.id===c.tipo)||{lbl:c.tipo||""}).lbl;
-        const data=c.dataColeta?new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
-        const header=`${tipo}${c.material?" ("+c.material+")":""} ${data}`;
-        if(!c.germes||c.germes.length===0) return c.status==="aguardando" ? `${header}: aguardando resultado` : `${header}: sem germe identificado`;
-        const germesTxt=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;if(g.atbs)t+=` — sensível: ${g.atbs}`;return t;}).filter(Boolean).join("; ");
-        if(!germesTxt&&c.resultado) return `${header}: ${c.resultado}`;
-        return `${header}: ${germesTxt||"sem germe identificado"}`;
-      }).join("\n");
-      campos.heCulturas = cTexto;
     }
 
     // Antibioticoterapia → heAtb (campo "Antibióticos" na seção Infeccioso)
@@ -4483,7 +4496,7 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
 // ── SysB / Row / Col / FL — hoisted para escopo de módulo (fix: definir componentes dentro do render
 // do EvolucaoEditor fazia o React remontar todo o subtree a cada tecla digitada em campos
 // controlados como os da Ventilação, derrubando o foco do input) ──
-const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[], controlledOpen, onRequestOpen, reviewMode=false}) => {
+const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[], customFields=[], onAddCustomField, onUpdateCustomField, onRemoveCustomField, controlledOpen, onRequestOpen, reviewMode=false}) => {
   const T=useTheme();
   const [localOpen,setLocalOpen]=useState(true);
   const open = controlledOpen===undefined ? localOpen : controlledOpen;
@@ -4530,7 +4543,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
           {reviewMode&&<span style={{marginLeft:8,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:resumo?"#94a3b8":"#334155"}}>{resumo||"Sem dados registrados"}</span>}
           <span style={{marginLeft:"auto",color:reviewMode?T.accent:T.text4,fontSize:11}}>{reviewMode?"Editar ›":open?"▲":"▼"}</span>
         </button>
-        {open && (opcionais.length>0||adicionaveis.length>0) && (
+        {open && (
           <div style={{position:"relative"}}>
             <button onClick={()=>setShowAdd(s=>!s)}
               style={{margin:"4px 2px",padding:"3px 10px",borderRadius:6,
@@ -4558,7 +4571,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
           {cp2?"✓":"📋"}
         </button>}
       </div>
-      {open && showAdd && (opcionais.length>0||adicionaveisNaoAtivos.length>0) && (
+      {open && showAdd && (
         <div style={{padding:"8px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",background:"rgba(167,139,250,0.04)",display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
           <span style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1}}>CAMPOS:</span>
           {opcionais.map(o=>(
@@ -4576,9 +4589,18 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
               + {a.label}
             </button>
           ))}
+          <button onClick={()=>{onAddCustomField&&onAddCustomField(id);setShowAdd(false);}}
+            style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(52,211,153,.35)",background:"rgba(52,211,153,.08)",color:"#34d399",cursor:"pointer",fontSize:11}}>
+            + Campo com nome livre
+          </button>
         </div>
       )}
-      {open&&<div className="system-card-body" style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`}}>{children}</div>}
+      {open&&<div className="system-card-body" style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`}}>{children}
+        {customFields.map(f=><div key={f.id} style={{marginTop:10,padding:"9px 10px",border:`1px solid ${T.border}`,borderRadius:8,background:T.bgInput}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><FL>{f.label}</FL><button onClick={()=>onRemoveCustomField&&onRemoveCustomField(id,f.id)} title="Remover campo" style={{border:"none",background:"none",color:"#f87171",cursor:"pointer"}}>✕</button></div>
+          <textarea defaultValue={f.value||""} onBlur={e=>onUpdateCustomField&&onUpdateCustomField(id,f.id,e.target.value)} rows={2} style={{width:"100%",background:T.bgCard,border:`1px solid ${T.borderStrong}`,borderRadius:6,padding:"7px 9px",color:T.text1,fontFamily:"inherit",resize:"vertical"}}/>
+        </div>)}
+      </div>}
       {open && preview!==null && (
         <div style={{borderTop:"2px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.03)",padding:"10px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -4642,12 +4664,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   // Refs para cada campo
   const refs = {
     hda:useRef(),
-    nEF:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nObs:useRef(),
+    nEF:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nPIC:useRef(), nDVE:useRef(), nObs:useRef(),
     cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
     reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
     rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
     tgEF:useRef(), tg24h:useRef(), tgLabs:useRef(), tgObs:useRef(),
-    heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(), heCulturas:useRef(),
+    heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(),
     probAtivos:useRef(), probResolvidos:useRef(),
     impressao:useRef(),
   };
@@ -4697,6 +4719,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       const tl={enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
       let dl=`Dieta: ${tl}`;
       if(d.formula) dl+=` ${d.formula}`;
+      if(d.moduloProteina?.ativo&&d.moduloProteina?.gramas) dl+=` + módulo proteico ${d.moduloProteina.gramas}g/d`;
       if(d.volTotal24) dl+=` ${d.volTotal24}mL/24h`;
       if(d.kcalManual&&peso) dl+=` (${(parseFloat(d.kcalManual)/peso).toFixed(1)} kcal/kg/d`;
       else if(d.catalogId&&d.volTotal24){
@@ -4727,7 +4750,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const p=[];
     if(get("heMed")) p.push(get("heMed"));
     if(get("heAtb"))      p.push(get("heAtb"));
-    if(get("heCulturas")) p.push(`- Culturas: ${get("heCulturas")}`);
     return p.join("\n");
   };
 
@@ -4795,7 +4817,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
       return `${p.nome} (${po===0?"POI":`PO${po}`})`;
     }).join(" · ");
-    if(get("hda")) t+=`\n\n== HDA:\n${get("hda")}`;
+    const hdaTxt=[get("hda"),...customLines("hda")].filter(Boolean).join("\n");
+    if(hdaTxt) t+=`\n\n== HDA:\n${hdaTxt}`;
     t+="\n\n";
     const blocos=[["== N:",txtNFull],["== Cv:",txtCvFull],["== Res:",txtResFull],["== ReMe:",txtReMeFull],["== TGI:",txtTGIFull],["== He:",txtHeFull],["== In:",txtInFull]];
     blocos.forEach(([h,fn])=>{ const c=fn(); if(c) t+=`${h}\n${c}\n\n`; });
@@ -4826,6 +4849,17 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const getExtra = (key) => extraRefs.current[key]?.current?.value?.trim() || campos[key] || "";
   const get = k => refs[k]?.current?.value || campos[k] || "";
+  const customMap = campos._customFields || {};
+  const customLines = id => (customMap[id]||[]).filter(f=>f.label&&String(f.value||"").trim()).map(f=>`- ${f.label}: ${String(f.value).trim()}`);
+  const addCustomField = id => {
+    const label=window.prompt("Nome do novo campo deste sistema:");
+    if(!label||!label.trim()) return;
+    const item={id:`cf_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,label:label.trim(),value:""};
+    salvar("_customFields",{...customMap,[id]:[...(customMap[id]||[]),item]});
+  };
+  const updateCustomField = (id,fieldId,value) => salvar("_customFields",{...customMap,[id]:(customMap[id]||[]).map(f=>f.id===fieldId?{...f,value}:f)});
+  const removeCustomField = (id,fieldId) => salvar("_customFields",{...customMap,[id]:(customMap[id]||[]).filter(f=>f.id!==fieldId)});
+  const customProps = id => ({customFields:customMap[id]||[],onAddCustomField:addCustomField,onUpdateCustomField:updateCustomField,onRemoveCustomField:removeCustomField});
 
   // ── txt funções completas (incluem opcionais/adicionáveis) ──
   const txtNFull = () => {
@@ -4842,6 +4876,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(ef) p.push(`- EF: ${ef}`);
     if(get("nSeda"))  p.push(`- Sedação: ${get("nSeda")}`);
     if(get("nAnalg")) p.push(`- Analgesia: ${get("nAnalg")}`);
+    if(get("nPIC")) p.push(`- PIC 24h: ${get("nPIC")}`);
+    if(get("nDVE")) p.push(`- DVE — líquor drenado 24h: ${get("nDVE")}`);
     if(vis.nPsiq&&get("nPsiq")) p.push(`- Psicoativos: ${get("nPsiq")}`);
     {const NK=["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"];
     const vz=leito.drogasVazao||{};const fD=d=>{const n=parseFloat(d);if(isNaN(n))return d;return n<1?n.toFixed(3):n.toFixed(2);};
@@ -4854,6 +4890,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.add_n_exames&&getExtra("add_n_exames")) p.push(`- Exames: ${getExtra("add_n_exames")}`);
     if(vis.add_n_pocus&&getExtra("add_n_pocus")) p.push(`- POCUS: ${getExtra("add_n_pocus")}`);
     if(vis.nObs&&get("nObs")) p.push(`*${get("nObs")}`);
+    p.push(...customLines("n"));
     return p.join("\n");
   };
   const txtCvFull = () => {
@@ -4901,6 +4938,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.add_cv_swan&&getExtra("add_cv_swan")) p.push(`- Swan-Ganz: ${getExtra("add_cv_swan")}`);
     if(vis.add_cv_interconsulta&&getExtra("add_cv_interconsulta")) p.push(`- IC: ${getExtra("add_cv_interconsulta")}`);
     if(vis.cvObs&&get("cvObs")) p.push(`*${get("cvObs")}`);
+    p.push(...customLines("cv"));
     return p.join("\n");
   };
   const txtResFull = () => {
@@ -4923,6 +4961,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.rePocus&&get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
     if(vis.add_res_interconsulta&&getExtra("add_res_interconsulta")) p.push(`- IC: ${getExtra("add_res_interconsulta")}`);
     if(vis.reObs&&get("reObs")) p.push(`*${get("reObs")}`);
+    p.push(...customLines("res"));
     return p.join("\n");
   };
   const txtReMeFull = () => {
@@ -4932,6 +4971,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.rmTRS&&get("rmTRS")) p.push(`- TRS: ${get("rmTRS")}`);
     if(vis.add_reme_interconsulta&&getExtra("add_reme_interconsulta")) p.push(`- IC: ${getExtra("add_reme_interconsulta")}`);
     if(vis.rmObs&&get("rmObs")) p.push(`*${get("rmObs")}`);
+    p.push(...customLines("reme"));
     return p.join("\n");
   };
   const txtTGIFull = () => {
@@ -4942,6 +4982,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       let dl=`- Dieta: ${tl}`;
       if(d.formula) dl+=` ${d.formula}`;
       if(d.vazao) dl+=` @ ${d.vazao}mL/h`;
+      if(d.moduloProteina?.ativo&&d.moduloProteina?.gramas) dl+=` + módulo proteico ${d.moduloProteina.gramas}g/d`;
       p.push(dl);
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
     if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
@@ -4955,16 +4996,18 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.add_tgi_interconsulta&&getExtra("add_tgi_interconsulta")) p.push(`- IC: ${getExtra("add_tgi_interconsulta")}`);
     if(vis.add_tgi_exames&&getExtra("add_tgi_exames")) p.push(`- Exames: ${getExtra("add_tgi_exames")}`);
     if(vis.tgObs&&get("tgObs")) p.push(`*${get("tgObs")}`);
+    p.push(...customLines("tgi"));
     return p.join("\n");
   };
   const txtHeFull = () => {
     const p=[];
     if(get("heTemp")) p.push(`T ${get("heTemp")}`);
     if(get("heLabs")) p.push(`- Labs: ${get("heLabs")}`);
-    if(vis.heProf&&get("heProf")) p.push(`** ${get("heProf")}`);
+    if(get("heProf")) p.push(`- Profilaxia TEV: ${get("heProf")}`);
     if(vis.add_he_interconsulta&&getExtra("add_he_interconsulta")) p.push(`- IC: ${getExtra("add_he_interconsulta")}`);
     if(vis.add_he_exames&&getExtra("add_he_exames")) p.push(`- Exames: ${getExtra("add_he_exames")}`);
     if(vis.heObs&&get("heObs")) p.push(`*${get("heObs")}`);
+    p.push(...customLines("he"));
     return p.join("\n");
   };
   const txtInFull = () => {
@@ -4972,7 +5015,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.inProf&&get("heMed")) p.push(get("heMed"));
     if(get("heAtb"))      p.push(get("heAtb"));
     // Auto-build culturas text from leito.culturas
-    const cText = get("heCulturas") || (()=>{
+    const cText = (()=>{
       const cs = leito.culturas||[];
       if(!cs.length) return "";
       return cs.map(c=>{
@@ -4987,6 +5030,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.add_in_interconsulta&&getExtra("add_in_interconsulta")) p.push(`- IC: ${getExtra("add_in_interconsulta")}`);
     if(vis.add_in_exames&&getExtra("add_in_exames")) p.push(`- Exames: ${getExtra("add_in_exames")}`);
     if(vis.inObs&&getExtra("inObs")) p.push(`*${getExtra("inObs")}`);
+    p.push(...customLines("in"));
     return p.join("\n");
   };
 
@@ -5033,9 +5077,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </div>
 
       {/* ── HDA ── */}
-      <SysB id="hda" sigla="== HDA:" label="História da Doença Atual" color={"#c084fc"} txtFn={()=>get("hda")}
+      <SysB id="hda" sigla="== HDA:" label="História da Doença Atual" color={"#c084fc"} txtFn={()=>[get("hda"),...customLines("hda")].filter(Boolean).join("\n")}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[]} adicionaveis={[]}>
+        opcionais={[]} adicionaveis={[]} {...customProps("hda")}>
         <Row><Col><FL>HISTÓRIA — resumo clínico para passagem de caso</FL>
           <TA fieldRef={refs.hda} defaultValue={campos.hda} isAntigo={isAntigo("hda")}
             sugestao={`Paciente ${leito.paciente||"..."}, ${leito.sexo==="F"?"do sexo feminino":"do sexo masculino"}, ${leito.peso?leito.peso+"kg":"?kg"}, internado por ${leito.diagnostico||"..."}.${dias!==null?` D${dias} de UTI.`:""}`}
@@ -5099,7 +5143,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}
-        statusFields={[{label:"RASS",value:campos.nRASS},{label:"Glasgow",value:campos.nGlasgow},{label:"Pupilas",value:campos.nPupilas},{label:"Motricidade",value:campos.nEF},{label:"Dor",value:campos.nDor}]}>
+        statusFields={[{label:"RASS",value:campos.nRASS},{label:"Glasgow",value:campos.nGlasgow},{label:"Pupilas",value:campos.nPupilas},{label:"Motricidade",value:campos.nEF},{label:"Dor",value:campos.nDor}]} {...customProps("n")}>
         <ClinicalGroup label="AVALIAÇÃO" color="#a78bfa">
         <Row>
           <Col>
@@ -5122,6 +5166,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
               value={campos.nDor||""} onChange={v=>onCampoEdit("nDor",v)} rows={1} placeholder="BPS ou EVA..."/>
           </Col>
         </Row>
+        </ClinicalGroup>
+        <ClinicalGroup label="MONITORIZAÇÃO NEUROLÓGICA 24H" color="#a78bfa">
+          <Row>
+            <Col><FL>PIC — mín · máx</FL><TA fieldRef={refs.nPIC} defaultValue={campos.nPIC} rows={1} fieldName="nPIC" onBlurSave={salvar}/></Col>
+            <Col><FL>Líquor drenado pela DVE — total 24h</FL><TA fieldRef={refs.nDVE} defaultValue={campos.nDVE} rows={1} fieldName="nDVE" onBlurSave={salvar}/></Col>
+          </Row>
         </ClinicalGroup>
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
@@ -5146,7 +5196,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"},{key:"cvObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}
-        statusFields={[{label:"Hemodinâmica",value:campos.cvHemo},{label:"Ausculta",value:campos.cvAusculta},{label:"Cardioscopia",value:campos.cvCardioscopia}]}>
+        statusFields={[{label:"Hemodinâmica",value:campos.cvHemo},{label:"Ausculta",value:campos.cvAusculta},{label:"Cardioscopia",value:campos.cvCardioscopia}]} {...customProps("cv")}>
         <ClinicalGroup label="AVALIAÇÃO" color="#f87171">
         <Row>
           <Col>
@@ -5242,7 +5292,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rePocus",label:"POCUS Pulmonar"},{key:"reLUS",label:"LUS"},{key:"reObs",label:"Obs"}]}
         adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"outro",label:"+ outro"}]}
-        statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]}>
+        statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]} {...customProps("res")}>
         {/* ── Suporte Ventilatório ── */}
         <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
         {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated/>}
@@ -5286,7 +5336,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"rmTRS",label:"TRS"},{key:"rmObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"}]}
-        statusFields={[{label:"24h — HD/BH",value:campos.rm24h},{label:"Labs renais",value:campos.rmLabs}]}>
+        statusFields={[{label:"24h — HD/BH",value:campos.rm24h},{label:"Labs renais",value:campos.rmLabs}]} {...customProps("reme")}>
         <ClinicalGroup label="FUNÇÃO RENAL E MONITORIZAÇÃO" color="#34d399">
         {/* Em uso de ATB? — somente leitura, refletindo o bloco Infeccioso (relevante p/ ajuste de dose renal) */}
         {(()=>{
@@ -5318,7 +5368,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"tgPocus",label:"POCUS Abdominal"},{key:"tgObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
-        statusFields={[{label:"Via/Dieta",value:leito.dieta?.tipo},{label:"Última evacuação",value:campos.tgUltEvac}]}>
+        statusFields={[{label:"Via/Dieta",value:leito.dieta?.tipo},{label:"Última evacuação",value:campos.tgUltEvac}]} {...customProps("tgi")}>
                 {/* ── Dieta ── */}
         <ClinicalGroup label="NUTRIÇÃO E TERAPIA" color="#fb923c">
         {onLeitoChange&&<DietaPanel dados={leito} config={config} onChange={onLeitoChange} integrated
@@ -5362,16 +5412,16 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="he" sigla="== He:" label="Hematológico" color={"#f59e0b"} txtFn={txtHeFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"heProf",label:"Profilaxias"},{key:"heObs",label:"Obs"}]}
+        opcionais={[{key:"heObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
-        statusFields={[{label:"Temperatura",value:campos.heTemp},{label:"Labs hematológicos",value:campos.heLabs}]}>
+        statusFields={[{label:"Temperatura",value:campos.heTemp},{label:"Labs hematológicos",value:campos.heLabs},{label:"Profilaxia TEV",value:campos.heProf}]} {...customProps("he")}>
         <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#f59e0b">
         <Row>
           <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} sugestao="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
         </Row>
         <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={1} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
-        {vis["heProf"]&&<ClinicalGroup label="PROFILAXIA E TRATAMENTO" color="#f59e0b"><Row><Col><FL>** Profilaxias / TEV</FL><TA fieldRef={refs.heProf} defaultValue={campos.heProf} isAntigo={isAntigo("heProf")} sugestao="HNF 5kUI 12/12h / Bactrim + Ác fólico" rows={1} fieldName="heProf" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
+        <ClinicalGroup label="PROFILAXIA TEV" color="#f59e0b"><Row><Col><PickField label="Modalidade" options={["HNF","Enoxaparina 40mg","Enoxaparina 20mg"]} value={campos.heProf||""} onChange={v=>onCampoEdit("heProf",v)} rows={1} placeholder="Digite outra modalidade..."/></Col></Row></ClinicalGroup>
         {vis["add_he_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_he_interconsulta")} defaultValue={campos["add_he_interconsulta"]||""} sugestao="Hematologia 29/04: sem indicação de transfusão" rows={1} fieldName="add_he_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_he_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_he_exames")} defaultValue={campos["add_he_exames"]||""} sugestao="Mielograma solicitado" rows={1} fieldName="add_he_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["heObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} sugestao="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>}
@@ -5381,7 +5431,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
-        statusFields={[{label:"Antibióticos/Culturas",value:(leito.antibioticos||[]).length>0?"1":campos.heCulturas}]}>
+        statusFields={[{label:"Antibióticos/Culturas",value:((leito.antibioticos||[]).length>0||(leito.culturas||[]).length>0)?"1":""}]} {...customProps("in")}>
 
         <ClinicalGroup label="ANTIMICROBIANOS E TRATAMENTO" color="#94a3b8">
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
@@ -5440,8 +5490,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
               })}
             </div>
           ) : <div style={{fontSize:10,color:"#334155",marginBottom:4}}>Nenhuma cultura. Adicione na aba 🧫 Culturas.</div>}
-          <FL>Obs. Culturas (manual)</FL>
-          <TA fieldRef={refs.heCulturas} defaultValue={campos.heCulturas} isAntigo={isAntigo("heCulturas")} rows={2} fieldName="heCulturas" onBlurSave={salvar}/>
         </Col></Row>
         </ClinicalGroup>
         {vis["add_in_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_in_interconsulta")} defaultValue={campos["add_in_interconsulta"]||""} sugestao="ID 29/04: avaliar troca ATB aguardando culturas" rows={1} fieldName="add_in_interconsulta" onBlurSave={salvar}/></Col></Row>}
@@ -5949,7 +5997,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
     "RESPIRATÓRIO":      [{k:"reVM",l:"VM"},{k:"reEF",l:"EF Resp"},{k:"re24h",l:"24h Resp"},{k:"reGaso",l:"Gasometria"},{k:"rePocus",l:"POCUS"},{k:"reObs",l:"Obs"}],
     "RENAL / METABÓLICO":[{k:"rm24h",l:"24h Renal"},{k:"rmLabs",l:"Labs"},{k:"rmTRS",l:"TRS"},{k:"rmObs",l:"Obs"}],
     "HEMATOLÓGICO":      [{k:"heLabs",l:"Labs Hema"},{k:"heTemp",l:"Temperatura"},{k:"heMed",l:"Medicações"},{k:"heObs",l:"Obs"}],
-    "INFECCIOSO":        [{k:"heAtb",l:"Antibióticos"},{k:"heCulturas",l:"Culturas"},{k:"heProf",l:"Profilaxia"}],
+    "INFECCIOSO":        [{k:"heAtb",l:"Antibióticos"},{k:"heProf",l:"Profilaxia"}],
     "TGI":               [{k:"tgEF",l:"EF TGI"},{k:"tg24h",l:"24h TGI"},{k:"tgLabs",l:"Labs TGI"},{k:"tgObs",l:"Obs"}],
   };
   const [vgpPicker, setVgpPicker] = useState(null); // {leitoId, sysKey}
