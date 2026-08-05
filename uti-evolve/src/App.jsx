@@ -6718,6 +6718,38 @@ function ArquivoPacientesPanel({arquivos=[]}) {
     </div>})}
   </div>;
 }
+
+function HistoricoDiarioPanel({internacao,onClose}){
+  const T=useTheme();
+  const days=internacao?.days||{},datas=Object.keys(days).sort();
+  const [dataSel,setDataSel]=useState(datas[datas.length-1]||"");
+  const idx=datas.indexOf(dataSel),anterior=idx>0?days[datas[idx-1]]:null,atual=days[dataSel];
+  const fmt=v=>v===undefined||v===null||v===""?"—":typeof v==="object"?JSON.stringify(v):String(v);
+  const linhas=()=>{
+    if(!atual)return[];
+    const a=anterior||{},b=atual;
+    const fontes=[
+      ["Ventilação",a.bedside||{},b.bedside||{},k=>k.startsWith("vm_")],
+      ["Drogas",a.bedside?.drogasVazao||{},b.bedside?.drogasVazao||{},()=>true],
+      ["Dieta",a.bedside?.dieta||{},b.bedside?.dieta||{},()=>true],
+      ["Controles e exames",a.clinicalTable||{},b.clinicalTable||{},k=>!k.startsWith("_")],
+      ["Evolução",a.evolution||{},b.evolution||{},k=>k!=="_datas"],
+    ];
+    return fontes.flatMap(([grupo,av,bv,filtro])=>Array.from(new Set([...Object.keys(av),...Object.keys(bv)])).filter(filtro).filter(k=>fmt(av[k])!==fmt(bv[k])).map(k=>({grupo,campo:k,antes:fmt(av[k]),depois:fmt(bv[k])})));
+  };
+  const mudancas=linhas(),grupos=[...new Set(mudancas.map(x=>x.grupo))];
+  return <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:12000,background:"rgba(2,8,5,.76)",display:"flex",justifyContent:"flex-end"}}>
+    <aside onClick={e=>e.stopPropagation()} style={{width:"min(720px,96vw)",height:"100%",background:T.bgPage,borderLeft:`1px solid ${T.border}`,boxShadow:"-20px 0 60px rgba(0,0,0,.35)",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"18px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10}}><div><b style={{fontSize:16,color:T.text1}}>Histórico diário</b><div style={{fontSize:11,color:T.text3,marginTop:2}}>{internacao?.patientName} · {datas.length} registro(s) preservado(s)</div></div><button onClick={onClose} style={{marginLeft:"auto",border:0,background:"transparent",color:T.text3,fontSize:18,cursor:"pointer"}}>✕</button></div>
+      <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:7,overflowX:"auto"}}>{datas.map((d,i)=><button key={d} onClick={()=>setDataSel(d)} style={{padding:"7px 10px",borderRadius:7,border:`1px solid ${dataSel===d?T.accentBorder:T.border}`,background:dataSel===d?T.accentBg:T.bgCard,color:dataSel===d?T.accent:T.text2,cursor:"pointer",whiteSpace:"nowrap",fontSize:11}}>{new Date(d+"T00:00:00").toLocaleDateString("pt-BR")}{i===datas.length-1?" · atual":""}</button>)}</div>
+      <div style={{padding:"16px 20px",overflowY:"auto",flex:1}}>
+        <div style={{fontSize:12,color:T.text2,marginBottom:14}}>{anterior?<>Comparação com <b>{new Date(datas[idx-1]+"T00:00:00").toLocaleDateString("pt-BR")}</b> · {mudancas.length} alteração(ões)</>:<>Primeiro registro desta internação.</>}</div>
+        {!anterior?<pre style={{whiteSpace:"pre-wrap",fontSize:11,color:T.text2,background:T.bgCard,padding:14,borderRadius:9,border:`1px solid ${T.border}`}}>{JSON.stringify(atual,null,2)}</pre>:mudancas.length===0?<div style={{padding:24,textAlign:"center",color:T.text3}}>Nenhuma modificação registrada entre os dois dias.</div>:grupos.map(g=><div key={g} style={{marginBottom:16}}><div style={{fontSize:10,fontFamily:mono,letterSpacing:1.3,color:T.accent,marginBottom:6}}>{g.toUpperCase()}</div>{mudancas.filter(x=>x.grupo===g).map(x=><div key={`${g}-${x.campo}`} style={{display:"grid",gridTemplateColumns:"130px 1fr 22px 1fr",gap:8,alignItems:"start",padding:"8px 10px",borderBottom:`1px solid ${T.border}`,fontSize:11}}><b style={{color:T.text2,overflowWrap:"anywhere"}}>{x.campo}</b><span style={{color:T.text3,overflowWrap:"anywhere"}}>{x.antes}</span><span style={{color:T.accent}}>→</span><span style={{color:T.text1,overflowWrap:"anywhere",fontWeight:600}}>{x.depois}</span></div>)}</div>)}
+      </div>
+      <div style={{padding:"10px 20px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.text3}}>Visualização somente leitura. Correções auditáveis serão adicionadas na próxima etapa.</div>
+    </aside>
+  </div>;
+}
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [authed,     setAuthed]     = useState(false);
@@ -6733,6 +6765,7 @@ export default function App() {
   const [metasPorLeito, setMetasPorLeito] = useState({});
   const [pacientesArquivados,setPacientesArquivados]=useState([]);
   const [historicoDiario,setHistoricoDiario]=useState({});
+  const [historicoAberto,setHistoricoAberto]=useState(false);
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
@@ -7256,7 +7289,7 @@ export default function App() {
                 <div style={{fontSize:16,fontWeight:700,color:T.text1}}>{leito.paciente}</div>
                 {idadeAnos!==null&&<span style={{fontSize:12,fontFamily:mono,color:"#c084fc",fontWeight:600}}>{idadeAnos}a</span>}
                 {(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort();let acum=0,algum=false;datas.forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});const prev=parseFloat(leito.bhPrevio||0)||0;const tot=acum+prev;if(!algum&&!prev)return null;const cor=tot>0?"#f87171":tot<0?"#34d399":"#94a3b8";const sig=tot>=0?"+":"";return(<span style={{fontSize:11,fontFamily:mono,color:cor,fontWeight:700,padding:"2px 8px",borderRadius:10,background:`${cor}15`,border:`1px solid ${cor}30`}}>BH {sig}{Math.round(tot).toLocaleString("pt-BR")} mL</span>);})()}
-                <span title={diasHistorico.length?`Registros preservados: ${diasHistorico.map(d=>new Date(d+'T00:00:00').toLocaleDateString('pt-BR')).join(', ')}`:'O primeiro registro diário será criado automaticamente'} style={{fontSize:10,fontFamily:mono,color:T.accent,padding:"2px 8px",borderRadius:10,background:T.accentBg,border:`1px solid ${T.accentBorder}`}}>◷ {diasHistorico.length||1} dia{(diasHistorico.length||1)!==1?'s':''} registrado{(diasHistorico.length||1)!==1?'s':''}</span>
+                <button onClick={()=>setHistoricoAberto(true)} title="Abrir histórico e comparar dias" style={{fontSize:10,fontFamily:mono,color:T.accent,padding:"2px 8px",borderRadius:10,background:T.accentBg,border:`1px solid ${T.accentBorder}`,cursor:"pointer"}}>◷ {diasHistorico.length||1} dia{(diasHistorico.length||1)!==1?'s':''} registrado{(diasHistorico.length||1)!==1?'s':''}</button>
                 <button onClick={darAltaPaciente} title="Arquivar todos os dados e liberar o leito" style={{marginLeft:"auto",padding:"5px 10px",borderRadius:7,border:"1px solid rgba(251,191,36,.35)",background:"rgba(251,191,36,.08)",color:"#fbbf24",fontSize:11,fontWeight:700,cursor:"pointer"}}>Dar alta</button>
               </div>
               <div style={{fontSize:12,color:T.text3,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:2}}>
@@ -7586,6 +7619,7 @@ ${linha}`:linha}));
         </>)}
         </div>
       </div>
+      {historicoAberto&&leito?.admissionId&&<HistoricoDiarioPanel internacao={historicoDiario[leito.admissionId]||{patientName:leito.paciente,days:{}}} onClose={()=>setHistoricoAberto(false)}/>}
     </div>
     </ThemeCtx.Provider>
   );
