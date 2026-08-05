@@ -7461,7 +7461,7 @@ ${linha}`:linha}));
                     return novo;
                   });
                 }}
-                onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
+                onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); }}
               />
             ) : aba==="upload" ? (
               <div style={{maxWidth:600}}>
