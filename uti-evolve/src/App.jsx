@@ -3930,11 +3930,21 @@ const META_PRIORIDADES = {
   verde:{label:"Sem pressa",cor:"#22c55e",ordem:2},
 };
 const metaPrioridade = m => META_PRIORIDADES[m?.prioridade] || META_PRIORIDADES.amarelo;
-const proximaPrioridade = atual => ({vermelho:"amarelo",amarelo:"verde",verde:"vermelho"}[atual||"amarelo"]);
 const ordenarMetas = metas => [...(metas||[])].sort((a,b)=>{
   const manual = Number.isFinite(a?.ordem)||Number.isFinite(b?.ordem);
   return manual ? ((a?.ordem??9999)-(b?.ordem??9999)) : (metaPrioridade(a).ordem-metaPrioridade(b).ordem);
 });
+const alterarPrioridadeSemMover = (metas,id,prioridade) => ordenarMetas(metas).map((m,i)=>({...m,ordem:i,...(m.id===id?{prioridade}:{})}));
+function MetaPriorityDot({meta,metas,onChange}) {
+  const [open,setOpen]=useState(false);
+  const atual=metaPrioridade(meta);
+  return <span style={{position:"relative",display:"inline-flex",flexShrink:0}}>
+    <button onClick={e=>{e.stopPropagation();setOpen(v=>!v);}} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setOpen(true);}} title={`Prioridade: ${atual.label}. Clique para escolher.`} style={{width:10,height:10,borderRadius:"50%",border:"1px solid rgba(255,255,255,.35)",background:atual.cor,cursor:"pointer",padding:0,marginTop:3}}/>
+    {open&&<div onMouseLeave={()=>setOpen(false)} style={{position:"absolute",top:16,left:0,zIndex:500,display:"flex",gap:5,padding:6,borderRadius:9,background:"#111827",border:"1px solid rgba(255,255,255,.18)",boxShadow:"0 8px 24px rgba(0,0,0,.45)"}}>
+      {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={e=>{e.stopPropagation();onChange(alterarPrioridadeSemMover(metas,meta.id,k));setOpen(false);}} title={p.label} style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${(meta.prioridade||"amarelo")===k?"#fff":"transparent"}`,background:p.cor,cursor:"pointer",padding:0}}/>)}
+    </div>}
+  </span>;
+}
 const editarTextoMeta = (metas,meta,onChange) => {
   const texto=window.prompt("Editar meta:",meta.texto||String(meta||""));
   if(texto!==null&&texto.trim()) onChange(metas.map(m=>m.id===meta.id?{...m,texto:texto.trim()}:m));
@@ -4017,7 +4027,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
             <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS</div>
             {ordenarMetas(metas).map((m,i)=>(
               <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
-                <button onClick={()=>onMetaChange&&onMetaChange(metas.map(x=>x.id===m.id?{...x,prioridade:proximaPrioridade(x.prioridade),ordem:undefined}:x))} title="Alterar prioridade" style={{width:9,height:9,borderRadius:"50%",border:"none",background:metaPrioridade(m).cor,cursor:"pointer",padding:0,marginTop:3,flexShrink:0}}/>
+                <MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/>
                 <button onClick={()=>onMetaChange&&onMetaChange(metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x))}
                   style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                   {m.feito?"☑":"☐"}
@@ -5058,11 +5068,14 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <div>
       {/* ── Cabeçalho clínico (pills) ── */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"flex-start",marginBottom:12}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"stretch"}}>
         {idade!==null && <Pill label="IDADE" value={idade} unit="anos" color="#c084fc"/>}
           {dias!==null&&<Pill label="D UTI" value={`D${dias}`} unit="" color="#a78bfa"/>}
         {leito.peso&&<Pill label="PESO" value={leito.peso} unit="kg" color="#f59e0b"/>}
         {pp&&<Pill label="PP" value={pp} unit="kg" color="#fb923c"/>}
         {vc6&&<Pill label="VC 6×" value={vc6} unit="mL" color="#34d399"/>}
+        </div>
+        <div style={{display:"grid",gridAutoFlow:"column",gridTemplateRows:"repeat(2,max-content)",gridAutoColumns:"max-content",gap:6,alignContent:"start",maxWidth:"100%",overflowX:"auto",paddingBottom:2}}>
         {(leito.procedimentos||[]).map(p=>{
           const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
           const cor=po<=0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
@@ -5073,6 +5086,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           const al=dd>a.alertaDias;
           return <span key={i} style={{padding:"4px 10px",borderRadius:20,fontSize:11,fontFamily:mono,color:al?"#f87171":"#64748b",background:al?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.04)",border:`1px solid ${al?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`}}>{a.icone} D{dd}{al?" ⚠️":""}</span>;
         })}
+        </div>
       </div>
 
       {/* ── Legenda + limpar ── */}
@@ -5723,12 +5737,15 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
 
       {/* Copiar filtrados */}
       {metas.length>0&&(
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
         <button onClick={copiarParaTASY}
-          style={{width:"100%",marginBottom:10,padding:"7px",borderRadius:8,
+          style={{flex:1,padding:"7px",borderRadius:8,
             background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",
             color:"#64748b",cursor:"pointer",fontSize:11}}>
           📋 Copiar {filtroEquipe?equipeLabel(filtroEquipe):"todas"} para TASY
         </button>
+        <button onClick={()=>onChange(ordenarMetas(metas.map(m=>({...m,ordem:undefined}))).map((m,i)=>({...m,ordem:i})))} style={{padding:"7px 10px",borderRadius:8,background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.25)",color:"#f59e0b",cursor:"pointer",fontSize:11}}>↕ Ordenar por prioridade</button>
+        </div>
       )}
 
       {metasFiltradas.length===0 && <div style={{textAlign:"center",padding:24,color:"#334155",fontSize:13}}>
@@ -5758,7 +5775,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
             </div>
             <div style={{fontSize:13,color:"#cbd5e1",marginBottom:6}}>{m.texto||m}</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,prioridade:k,ordem:undefined}:x))} title={p.label} style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${(m.prioridade||"amarelo")===k?"#fff":"transparent"}`,background:p.cor,cursor:"pointer",opacity:(m.prioridade||"amarelo")===k?1:.35}}/>)}
+              {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={()=>onChange(alterarPrioridadeSemMover(metas,m.id,k))} title={p.label} style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${(m.prioridade||"amarelo")===k?"#fff":"transparent"}`,background:p.cor,cursor:"pointer",opacity:(m.prioridade||"amarelo")===k?1:.35}}/>)}
               {["pendente","andamento","cumprido"].map(st=>(
                 <button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,status:st,feito:st==="cumprido"}:x))}
                   style={{padding:"2px 10px",borderRadius:20,
@@ -6240,7 +6257,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                       {metasL.length===0 && <div style={{fontSize:10,color:"#475569"}}>Sem metas cadastradas</div>}
                       {ordenarMetas(metasL).map((m,i)=>(
                         <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
-                          <button onClick={()=>onMetaChange&&onMetaChange(l.id,metasL.map(x=>x.id===m.id?{...x,prioridade:proximaPrioridade(x.prioridade),ordem:undefined}:x))} title="Alterar prioridade" style={{width:9,height:9,borderRadius:"50%",border:"none",background:metaPrioridade(m).cor,cursor:"pointer",padding:0,marginTop:3}}/>
+                          <MetaPriorityDot meta={m} metas={metasL} onChange={novas=>onMetaChange&&onMetaChange(l.id,novas)}/>
                           <button onClick={()=>onMetaChange&&onMetaChange(l.id, metasL.map(x=>x.id===m.id?{...x,feito:!x.feito}:x))}
                             style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                             {m.feito?"☑":"☐"}
@@ -6441,7 +6458,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
                 ))}
                 {metas.length>0 ? ordenarMetas(metas).map((m,i)=>(
                   <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
-                    <button onClick={()=>onMetaChange(l.id,metas.map(x=>x.id===m.id?{...x,prioridade:proximaPrioridade(x.prioridade),ordem:undefined}:x))} title="Alterar prioridade" style={{width:9,height:9,borderRadius:"50%",border:"none",background:metaPrioridade(m).cor,cursor:"pointer",padding:0,marginTop:3}}/>
+                    <MetaPriorityDot meta={m} metas={metas} onChange={novas=>onMetaChange(l.id,novas)}/>
                     <button onClick={()=>{
                       const novas=metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x);
                       onMetaChange(l.id,novas);
