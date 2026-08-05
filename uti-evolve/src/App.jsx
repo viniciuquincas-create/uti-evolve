@@ -3244,18 +3244,21 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   // O modo manual é uma exceção deliberada e exige o botão "Lançar na evolução".
   const [autoApply, setAutoApply] = useState(true);
   const autoRef = useRef(autoApply);
+  const autoApplyTimer = useRef(null);
   useEffect(()=>{ autoRef.current = autoApply; }, [autoApply]);
   const prevDataHash = useRef(JSON.stringify({d:data[hoje]||{},v:leito.drogasVazao||{}}));
   useEffect(()=>{
     if (!autoRef.current) return;
     const hash = JSON.stringify({d: data[hoje]||{}, v: leito.drogasVazao||{}});
     if (prevDataHash.current !== hash) {
-      gerarEvolucao();
+      clearTimeout(autoApplyTimer.current);
+      autoApplyTimer.current=setTimeout(()=>gerarEvolucao(false),350);
     }
     prevDataHash.current = hash;
-  });
+    return()=>clearTimeout(autoApplyTimer.current);
+  },[data,leito.drogasVazao,autoApply]);
 
-  const gerarEvolucao = () => {
+  const gerarEvolucao = (navegarDepois = false) => {
     const datasHoje = datas.filter(d => isHoje(d)).sort();
     const chaveHoje = datasHoje[datasHoje.length - 1] || hoje;
     const idxHoje = datas.indexOf(chaveHoje);
@@ -3414,7 +3417,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     }).join("\n");
     if (atbTexto) campos.heAtb = atbTexto;
 
-    onAplicarEvolucao(campos);
+    onAplicarEvolucao(campos,{navegar:navegarDepois});
   };
 
   const thStyle = (ativo) => ({
@@ -3446,7 +3449,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
               color:autoApply?"#34d399":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600,marginRight:4}}>
             {autoApply?"⚡ Automático":"○ Manual"}
           </button>
-          {!autoApply&&<button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0ea5e9,#0284c7)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+          {!autoApply&&<button onClick={()=>gerarEvolucao(true)} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0ea5e9,#0284c7)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
             📝 Lançar na evolução
           </button>}
         </div>
@@ -7461,7 +7464,7 @@ ${linha}`:linha}));
                     return novo;
                   });
                 }}
-                onAplicarEvolucao={(campos)=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); setAba("evolucao"); }}
+                onAplicarEvolucao={(campos,opcoes={})=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); if(opcoes.navegar)setAba("evolucao"); }}
               />
             ) : aba==="upload" ? (
               <div style={{maxWidth:600}}>
