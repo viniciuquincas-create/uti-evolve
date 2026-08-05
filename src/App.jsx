@@ -3272,8 +3272,11 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const reCtrl   = pegarCtrl(["c24_fr","c24_sat"]);   // Res: 24h
     const bhStr    = pegarCtrl(["c24_diur","c24_bh"]);  // ReMe: 24h
     const dextroStr= pegarCtrl(["c24_dextro"]);          // TGI: 24h
-    const picStr   = pegarCtrl(["c24_pic"]);             // Neuro: PIC
-    const dveStr   = pegarCtrl(["c24_dve"]);             // Neuro: líquor drenado
+    const neuroCtrl24h = [
+      getVal(chaveHoje,"c24_pic") ? `PIC ${getVal(chaveHoje,"c24_pic")} mmHg` : "",
+      getVal(chaveHoje,"c24_dve") ? `DVE ${getVal(chaveHoje,"c24_dve")} mL` : "",
+      getVal(chaveHoje,"c24_ppc") ? `PPC ${getVal(chaveHoje,"c24_ppc")} mmHg` : "",
+    ].filter(Boolean).join(" / ");
 
     // Aplica labs
     if (heStr)  campos.heLabs = heStr;
@@ -3282,8 +3285,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     if (lactGaso || lactTabela) campos.cvLact = lactGaso || lactTabela;
     if (resStr) campos.reGaso = resStr;
     if (tgStr)  campos.tgLabs = tgStr;
-    if (picStr) campos.nPIC = picStr;
-    if (dveStr) campos.nDVE = dveStr;
+    if (neuroCtrl24h) campos.n24h = neuroCtrl24h;
 
     // Exames extras categorizados
     const extraCats = data.__extraCats__ || {};
@@ -3407,7 +3409,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
             onChange={novas=>{if(onLeitoChange)onLeitoChange({...leito,culturas:novas});}}/>
         </div>
       )}
-      {tabela==="controles" && (          <button onClick={()=>atualizar({...leito,ctrlGrupoNeurologico:!leito.ctrlGrupoNeurologico})}
+      {tabela==="controles" && (          <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,ctrlGrupoNeurologico:!leito.ctrlGrupoNeurologico})}
             style={{padding:"4px 10px",background:leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",
               border:`1px solid ${leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.08)"}`,
               borderRadius:6,color:leito.ctrlGrupoNeurologico?"#c084fc":"#475569",cursor:"pointer",fontSize:11}}>
@@ -3911,7 +3913,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 const EVOLUCAO_VAZIA = {
   hda:"",
-  nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nEFExtra:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
+  nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nEFExtra:"", n24h:"", nSeda:"", nAnalg:"", nPsiq:"", nObs:"",
   cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvTEC:"", cvLact:"", cvDeltaCO2:"", cvDeltaPP:"", cvTropo:"", cvObs:"",
   reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
@@ -4717,7 +4719,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   // Refs para cada campo
   const refs = {
     hda:useRef(),
-    nEF:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nPIC:useRef(), nDVE:useRef(), nObs:useRef(),
+    nEF:useRef(), n24h:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nObs:useRef(),
     cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
     reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
     rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
@@ -4731,6 +4733,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const txtN = () => {
     const p=[];
     if(get("nEF"))    p.push(`- EF: ${get("nEF")}`);
+    if(get("n24h"))   p.push(`- Controles 24h: ${get("n24h")}`);
     if(get("nSeda"))  p.push(`- P: ${get("nSeda")}`);
     if(get("nAnalg")) p.push(`- A: ${get("nAnalg")}`);
     if(get("nPsiq"))  p.push(`- Psiq: ${get("nPsiq")}`);
@@ -4931,8 +4934,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(ef) p.push(`- EF: ${ef}`);
     if(get("nSeda"))  p.push(`- Sedação: ${get("nSeda")}`);
     if(get("nAnalg")) p.push(`- Analgesia: ${get("nAnalg")}`);
-    if(get("nPIC")) p.push(`- PIC 24h: ${get("nPIC")}`);
-    if(get("nDVE")) p.push(`- DVE — líquor drenado 24h: ${get("nDVE")}`);
+    if(get("n24h")) p.push(`- Controles 24h: ${get("n24h")}`);
     if(vis.nPsiq&&get("nPsiq")) p.push(`- Psicoativos: ${get("nPsiq")}`);
     {const NK=["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"];
     const vz=leito.drogasVazao||{};const fD=d=>{const n=parseFloat(d);if(isNaN(n))return d;return n<1?n.toFixed(3):n.toFixed(2);};
@@ -5202,7 +5204,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtNFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
+        opcionais={[{key:"n24h",label:"Controles 24h"},{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}
         statusFields={[{label:"RASS",value:campos.nRASS},{label:"Glasgow",value:campos.nGlasgow},{label:"Pupilas",value:campos.nPupilas},{label:"Motricidade",value:campos.nEF},{label:"Dor",value:campos.nDor}]} {...customProps("n")}>
         <ClinicalGroup label="AVALIAÇÃO" color="#a78bfa">
@@ -5228,6 +5230,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           </Col>
         </Row>
         </ClinicalGroup>
+        {(vis["n24h"]||campos.n24h)&&<ClinicalGroup label="CONTROLES DE 24H" color="#a78bfa"><Row><Col><TA fieldRef={refs.n24h} defaultValue={campos.n24h} isAntigo={isAntigo("n24h")} sugestao="PIC 8-15 mmHg / DVE 120 mL / PPC 56-89 mmHg" rows={1} fieldName="n24h" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
           <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
