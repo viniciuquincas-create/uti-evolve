@@ -3924,6 +3924,22 @@ function aplicarIA(dadosIA) {
 
 
 // ── ProbFloating — painel flutuante de Problemas Ativos ──────────────────────
+const META_PRIORIDADES = {
+  vermelho:{label:"Urgente",cor:"#ef4444",ordem:0},
+  amarelo:{label:"Pode esperar",cor:"#f59e0b",ordem:1},
+  verde:{label:"Sem pressa",cor:"#22c55e",ordem:2},
+};
+const metaPrioridade = m => META_PRIORIDADES[m?.prioridade] || META_PRIORIDADES.amarelo;
+const proximaPrioridade = atual => ({vermelho:"amarelo",amarelo:"verde",verde:"vermelho"}[atual||"amarelo"]);
+const ordenarMetas = metas => [...(metas||[])].sort((a,b)=>{
+  const manual = Number.isFinite(a?.ordem)||Number.isFinite(b?.ordem);
+  return manual ? ((a?.ordem??9999)-(b?.ordem??9999)) : (metaPrioridade(a).ordem-metaPrioridade(b).ordem);
+});
+const editarTextoMeta = (metas,meta,onChange) => {
+  const texto=window.prompt("Editar meta:",meta.texto||String(meta||""));
+  if(texto!==null&&texto.trim()) onChange(metas.map(m=>m.id===meta.id?{...m,texto:texto.trim()}:m));
+};
+
 // Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
 // visível nas 5 abas do paciente (Paciente · Beira-leito · Tabela Clínica · Importar Print · Metas) — não só no Beira-leito.
 function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
@@ -3999,15 +4015,17 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
           {/* ── Metas / Pendências ── */}
           <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
             <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS</div>
-            {metas.map((m,i)=>(
+            {ordenarMetas(metas).map((m,i)=>(
               <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
-                <button onClick={()=>onMetaChange&&onMetaChange(metas.map((x,j)=>j===i?{...x,feito:!x.feito}:x))}
+                <button onClick={()=>onMetaChange&&onMetaChange(metas.map(x=>x.id===m.id?{...x,prioridade:proximaPrioridade(x.prioridade),ordem:undefined}:x))} title="Alterar prioridade" style={{width:9,height:9,borderRadius:"50%",border:"none",background:metaPrioridade(m).cor,cursor:"pointer",padding:0,marginTop:3,flexShrink:0}}/>
+                <button onClick={()=>onMetaChange&&onMetaChange(metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x))}
                   style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                   {m.feito?"☑":"☐"}
                 </button>
-                <span style={{fontSize:10,color:m.feito?T.text4:T.text2,flex:1,
+                <span title={metaPrioridade(m).label} style={{fontSize:10,color:m.feito?T.text4:T.text2,flex:1,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,
                   textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
-                <button onClick={()=>onMetaChange&&onMetaChange(metas.filter((_,j)=>j!==i))}
+                <button onClick={()=>onMetaChange&&editarTextoMeta(metas,m,onMetaChange)} title="Editar meta" style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#38bdf8"}}>✎</button>
+                <button onClick={()=>onMetaChange&&onMetaChange(metas.filter(x=>x.id!==m.id))}
                   title="Excluir meta"
                   style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#475569",flexShrink:0}}>
                   ✕
@@ -4016,7 +4034,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
             ))}
             <button onClick={()=>{
               const txt=window.prompt("Nova meta:");
-              if(txt&&onMetaChange) onMetaChange([...metas,{id:Date.now()+"",texto:txt.trim(),feito:false}]);
+              if(txt&&onMetaChange) onMetaChange([...metas,{id:Date.now()+"",texto:txt.trim(),feito:false,prioridade:"amarelo"}]);
             }} style={{marginTop:4,width:"100%",padding:"3px 0",background:"rgba(56,189,248,0.06)",
               border:"1px solid rgba(56,189,248,0.15)",borderRadius:5,color:"#38bdf8",cursor:"pointer",fontSize:10}}>
               + meta
@@ -4740,7 +4758,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtHe = () => {
     const p=[];
-    if(get("heTemp"))  p.push(`T ${get("heTemp")}`);
     if(get("heLabs"))  p.push(`- Labs: ${get("heLabs")}`);
     if(get("heProf"))  p.push(`** ${get("heProf")}`);
     if(get("heObs"))   p.push(`*${get("heObs")}`);
@@ -4748,6 +4765,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtIn = () => {
     const p=[];
+    if(get("heTemp")) p.push(`- Temperatura: ${get("heTemp")}`);
     if(get("heMed")) p.push(get("heMed"));
     if(get("heAtb"))      p.push(get("heAtb"));
     return p.join("\n");
@@ -5001,7 +5019,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtHeFull = () => {
     const p=[];
-    if(get("heTemp")) p.push(`T ${get("heTemp")}`);
     if(get("heLabs")) p.push(`- Labs: ${get("heLabs")}`);
     if(get("heProf")) p.push(`- Profilaxia TEV: ${get("heProf")}`);
     if(vis.add_he_interconsulta&&getExtra("add_he_interconsulta")) p.push(`- IC: ${getExtra("add_he_interconsulta")}`);
@@ -5012,6 +5029,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtInFull = () => {
     const p=[];
+    if(get("heTemp")) p.push(`- Temperatura: ${get("heTemp")}`);
     if(vis.inProf&&get("heMed")) p.push(get("heMed"));
     if(get("heAtb"))      p.push(get("heAtb"));
     // Auto-build culturas text from leito.culturas
@@ -5039,7 +5057,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     <div>
       <div>
       {/* ── Cabeçalho clínico (pills) ── */}
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"flex-start",marginBottom:12}}>
         {idade!==null && <Pill label="IDADE" value={idade} unit="anos" color="#c084fc"/>}
           {dias!==null&&<Pill label="D UTI" value={`D${dias}`} unit="" color="#a78bfa"/>}
         {leito.peso&&<Pill label="PESO" value={leito.peso} unit="kg" color="#f59e0b"/>}
@@ -5166,12 +5184,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
               value={campos.nDor||""} onChange={v=>onCampoEdit("nDor",v)} rows={1} placeholder="BPS ou EVA..."/>
           </Col>
         </Row>
-        </ClinicalGroup>
-        <ClinicalGroup label="MONITORIZAÇÃO NEUROLÓGICA 24H" color="#a78bfa">
-          <Row>
-            <Col><FL>PIC — mín · máx</FL><TA fieldRef={refs.nPIC} defaultValue={campos.nPIC} rows={1} fieldName="nPIC" onBlurSave={salvar}/></Col>
-            <Col><FL>Líquor drenado pela DVE — total 24h</FL><TA fieldRef={refs.nDVE} defaultValue={campos.nDVE} rows={1} fieldName="nDVE" onBlurSave={salvar}/></Col>
-          </Row>
         </ClinicalGroup>
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
@@ -5414,14 +5426,11 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"heObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
-        statusFields={[{label:"Temperatura",value:campos.heTemp},{label:"Labs hematológicos",value:campos.heLabs},{label:"Profilaxia TEV",value:campos.heProf}]} {...customProps("he")}>
+        statusFields={[{label:"Labs hematológicos",value:campos.heLabs},{label:"Profilaxia TEV",value:campos.heProf}]} {...customProps("he")}>
         <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#f59e0b">
-        <Row>
-          <Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} sugestao="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col>
-        </Row>
         <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={1} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
-        <ClinicalGroup label="PROFILAXIA TEV" color="#f59e0b"><Row><Col><PickField label="Modalidade" options={["HNF","Enoxaparina 40mg","Enoxaparina 20mg"]} value={campos.heProf||""} onChange={v=>onCampoEdit("heProf",v)} rows={1} placeholder="Digite outra modalidade..."/></Col></Row></ClinicalGroup>
+        <ClinicalGroup label="PROFILAXIA TEV" color="#f59e0b"><Row><Col><PickField label="Modalidade" options={["Sem profilaxia TEV","HNF","Enoxaparina 40mg","Enoxaparina 20mg"]} value={campos.heProf||""} onChange={v=>onCampoEdit("heProf",v)} rows={1} placeholder="Digite outra modalidade..."/></Col></Row></ClinicalGroup>
         {vis["add_he_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_he_interconsulta")} defaultValue={campos["add_he_interconsulta"]||""} sugestao="Hematologia 29/04: sem indicação de transfusão" rows={1} fieldName="add_he_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_he_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_he_exames")} defaultValue={campos["add_he_exames"]||""} sugestao="Mielograma solicitado" rows={1} fieldName="add_he_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["heObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} sugestao="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>}
@@ -5431,9 +5440,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
-        statusFields={[{label:"Antibióticos/Culturas",value:((leito.antibioticos||[]).length>0||(leito.culturas||[]).length>0)?"1":""}]} {...customProps("in")}>
+        statusFields={[{label:"Temperatura",value:campos.heTemp},{label:"Antibióticos/Culturas",value:((leito.antibioticos||[]).length>0||(leito.culturas||[]).length>0)?"1":""}]} {...customProps("in")}>
 
         <ClinicalGroup label="ANTIMICROBIANOS E TRATAMENTO" color="#94a3b8">
+        <Row><Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} sugestao="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col></Row>
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
                 {/* ── Antibioticoterapia ── */}
         {onLeitoChange?(<>
@@ -5615,17 +5625,27 @@ const equipeEmoji = (id) => (EQUIPES.find(e=>e.id===id)||{emoji:"📋"}).emoji;
 function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
   const [nova, setNova] = useState("");
   const [novaEquipe, setNovaEquipe] = useState("");
+  const [novaPrioridade, setNovaPrioridade] = useState("amarelo");
+  const [dragMeta, setDragMeta] = useState(null);
   const [show, setShow] = useState(false);
   const [filtroEquipe, setFiltroEquipe] = useState(""); // "" = todas
 
   const add = (t) => {
     if (!t.trim()) return;
-    onChange([...metas, { id: Date.now(), texto: t.trim(), feito: false, status:"pendente", equipe: novaEquipe }]);
+    onChange([...metas, { id: Date.now(), texto: t.trim(), feito: false, status:"pendente", equipe: novaEquipe, prioridade:novaPrioridade }]);
     setNova(""); setNovaEquipe(""); setShow(false);
   };
   const s = { total:metas.length, ok:metas.filter(m=>m.feito||m.status==="cumprido").length, pend:metas.filter(m=>!m.feito&&m.status!=="cumprido").length };
 
-  const metasFiltradas = filtroEquipe ? metas.filter(m=>m.equipe===filtroEquipe) : metas;
+  const metasFiltradas = ordenarMetas(filtroEquipe ? metas.filter(m=>m.equipe===filtroEquipe) : metas);
+  const moverMeta = alvo => {
+    if(!dragMeta||dragMeta===alvo.id) return;
+    const ordenadas=ordenarMetas(metas);
+    const origem=ordenadas.findIndex(m=>m.id===dragMeta), destino=ordenadas.findIndex(m=>m.id===alvo.id);
+    if(origem<0||destino<0) return;
+    const [movida]=ordenadas.splice(origem,1); ordenadas.splice(destino,0,movida);
+    onChange(ordenadas.map((m,i)=>({...m,ordem:i})));
+  };
 
   const copiarParaTASY = () => {
     const linhas = metasFiltradas.map(m => {
@@ -5673,6 +5693,9 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
 
       {/* Nova meta */}
       <div style={{marginBottom:8}}>
+        <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}>
+          {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={()=>setNovaPrioridade(k)} style={{padding:"3px 9px",borderRadius:12,border:`1px solid ${novaPrioridade===k?p.cor:"rgba(255,255,255,.1)"}`,background:novaPrioridade===k?`${p.cor}20`:"transparent",color:novaPrioridade===k?p.cor:"#64748b",fontSize:10,cursor:"pointer"}}>● {p.label}</button>)}
+        </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
           {EQUIPES.map(e=>(
             <button key={e.id} onClick={()=>setNovaEquipe(novaEquipe===e.id?"":e.id)}
@@ -5713,9 +5736,10 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
       </div>}
 
       {metasFiltradas.map(m=>(
-        <div key={m.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",
+        <div key={m.id} draggable onDragStart={()=>setDragMeta(m.id)} onDragOver={e=>e.preventDefault()} onDrop={()=>moverMeta(m)} onDragEnd={()=>setDragMeta(null)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",
           background:"rgba(255,255,255,0.02)",borderRadius:10,marginBottom:6,
-          border:`1px solid ${m.equipe?equipeCor(m.equipe)+"20":"rgba(255,255,255,0.06)"}`}}>
+          border:`1px solid ${metaPrioridade(m).cor}55`,cursor:"grab"}}>
+          <span title="Arraste para reordenar" style={{color:"#64748b",fontSize:14}}>⠿</span>
           <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
               {m.equipe&&(
@@ -5734,6 +5758,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
             </div>
             <div style={{fontSize:13,color:"#cbd5e1",marginBottom:6}}>{m.texto||m}</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,prioridade:k,ordem:undefined}:x))} title={p.label} style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${(m.prioridade||"amarelo")===k?"#fff":"transparent"}`,background:p.cor,cursor:"pointer",opacity:(m.prioridade||"amarelo")===k?1:.35}}/>)}
               {["pendente","andamento","cumprido"].map(st=>(
                 <button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,status:st,feito:st==="cumprido"}:x))}
                   style={{padding:"2px 10px",borderRadius:20,
@@ -5745,6 +5770,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
               ))}
             </div>
           </div>
+          <button onClick={()=>editarTextoMeta(metas,m,onChange)} title="Editar meta" style={{background:"none",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:14,padding:"2px 4px"}}>✎</button>
           <button onClick={()=>onChange(metas.filter(x=>x.id!==m.id))}
             style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:14,padding:"2px 4px"}}>
             ✕
@@ -5996,8 +6022,8 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
     "CARDIOVASCULAR":    [{k:"cvEF",l:"EF CV"},{k:"cv24h",l:"24h CV"},{k:"cvDVA",l:"Vasoativas"},{k:"cvMed",l:"Medicações"},{k:"cvPerf",l:"Perfusão"},{k:"cvObs",l:"Obs"}],
     "RESPIRATÓRIO":      [{k:"reVM",l:"VM"},{k:"reEF",l:"EF Resp"},{k:"re24h",l:"24h Resp"},{k:"reGaso",l:"Gasometria"},{k:"rePocus",l:"POCUS"},{k:"reObs",l:"Obs"}],
     "RENAL / METABÓLICO":[{k:"rm24h",l:"24h Renal"},{k:"rmLabs",l:"Labs"},{k:"rmTRS",l:"TRS"},{k:"rmObs",l:"Obs"}],
-    "HEMATOLÓGICO":      [{k:"heLabs",l:"Labs Hema"},{k:"heTemp",l:"Temperatura"},{k:"heMed",l:"Medicações"},{k:"heObs",l:"Obs"}],
-    "INFECCIOSO":        [{k:"heAtb",l:"Antibióticos"},{k:"heProf",l:"Profilaxia"}],
+    "HEMATOLÓGICO":      [{k:"heLabs",l:"Labs Hema"},{k:"heMed",l:"Medicações"},{k:"heProf",l:"Profilaxia TEV"},{k:"heObs",l:"Obs"}],
+    "INFECCIOSO":        [{k:"heTemp",l:"Temperatura"},{k:"heAtb",l:"Antibióticos"}],
     "TGI":               [{k:"tgEF",l:"EF TGI"},{k:"tg24h",l:"24h TGI"},{k:"tgLabs",l:"Labs TGI"},{k:"tgObs",l:"Obs"}],
   };
   const [vgpPicker, setVgpPicker] = useState(null); // {leitoId, sysKey}
@@ -6142,23 +6168,24 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
 
         const resumoHema = (l, h) => {
           const l1 = [h.hb?`Hb ${h.hb}`:null, h.plaq?`Plq ${(parseFloat(h.plaq)/1000).toFixed(0)}k`:null].filter(Boolean).join(" · ") || null;
-          const l2 = h.c24_temp ? `Temp ${h.c24_temp}°C` : null;
-          const lines = [l1,l2].filter(Boolean);
+          const lines = [l1].filter(Boolean);
           if (!lines.length) return null;
-          const temp = parseFloat(h.c24_temp), hb = parseFloat(h.hb), plq = parseFloat(h.plaq);
-          const cor = (temp>=38||hb<8||plq<50000) ? "#f87171" : "#34d399";
+          const hb = parseFloat(h.hb), plq = parseFloat(h.plaq);
+          const cor = (hb<8||plq<50000) ? "#f87171" : "#34d399";
           return {lines, cor};
         };
 
-        const resumoInfec = (l, atbAtivos, alerts) => {
-          if (!atbAtivos.length) return null;
+        const resumoInfec = (l, h, atbAtivos, alerts) => {
+          if (!atbAtivos.length&&!h.c24_temp) return null;
           const lines = atbAtivos.slice(0,1).map(a=>{
             const dd = diasAtb24h(a.dataInicio, a.horaInicio);
             return `${a.nome} ${lblDiaAtb(dd)||""}`.trim();
           });
+          if(h.c24_temp) lines.unshift(`Temp ${h.c24_temp}°C`);
           const ajuste = alerts.find(a=>a.tipo==="atb-ajuste");
           if (ajuste) lines.push(`⚠ ajustar (ClCr ${ajuste.clcr})`);
-          const cor = ajuste ? "#f87171" : "#34d399";
+          const temp=parseFloat(h.c24_temp);
+          const cor = (ajuste||temp>=38) ? "#f87171" : "#34d399";
           return {lines, cor};
         };
 
@@ -6184,7 +6211,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                 resumoResp(l, h, vm),
                 resumoRenal(l, h),
                 resumoHema(l, h),
-                resumoInfec(l, atbAtivos, alerts),
+                resumoInfec(l, h, atbAtivos, alerts),
               ];
 
               return (
@@ -6211,13 +6238,15 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                   {metasAbertas[l.id] && (
                     <div style={{margin:"0 2px 8px",padding:"8px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8}}>
                       {metasL.length===0 && <div style={{fontSize:10,color:"#475569"}}>Sem metas cadastradas</div>}
-                      {metasL.map((m,i)=>(
+                      {ordenarMetas(metasL).map((m,i)=>(
                         <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
-                          <button onClick={()=>onMetaChange&&onMetaChange(l.id, metasL.map((x,j)=>j===i?{...x,feito:!x.feito}:x))}
+                          <button onClick={()=>onMetaChange&&onMetaChange(l.id,metasL.map(x=>x.id===m.id?{...x,prioridade:proximaPrioridade(x.prioridade),ordem:undefined}:x))} title="Alterar prioridade" style={{width:9,height:9,borderRadius:"50%",border:"none",background:metaPrioridade(m).cor,cursor:"pointer",padding:0,marginTop:3}}/>
+                          <button onClick={()=>onMetaChange&&onMetaChange(l.id, metasL.map(x=>x.id===m.id?{...x,feito:!x.feito}:x))}
                             style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                             {m.feito?"☑":"☐"}
                           </button>
-                          <span style={{fontSize:10,color:m.feito?"#475569":"#cbd5e1",textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
+                          <span style={{fontSize:10,color:m.feito?"#475569":"#cbd5e1",borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,textDecoration:m.feito?"line-through":"none",lineHeight:1.4,flex:1}}>{m.texto||m}</span>
+                          <button onClick={()=>editarTextoMeta(metasL,m,novas=>onMetaChange(l.id,novas))} title="Editar" style={{background:"none",border:"none",color:"#38bdf8",cursor:"pointer",padding:0}}>✎</button>
                         </div>
                       ))}
                     </div>
@@ -6403,25 +6432,27 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
                 {sugestoes.map((s,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
                     <span style={{fontSize:10,color:"#fbbf24",flex:1,lineHeight:1.4}}>⚡ {s}</span>
-                    <button onClick={()=>onMetaChange(l.id,[...metas,{id:Date.now()+"",texto:`⚡ ${s}`,feito:false}])}
+                    <button onClick={()=>onMetaChange(l.id,[...metas,{id:Date.now()+"",texto:`⚡ ${s}`,feito:false,prioridade:"amarelo"}])}
                       title="Adicionar como meta"
                       style={{background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:5,cursor:"pointer",fontSize:9,padding:"1px 6px",color:"#fbbf24",flexShrink:0}}>
                       + adicionar
                     </button>
                   </div>
                 ))}
-                {metas.length>0 ? metas.map((m,i)=>(
+                {metas.length>0 ? ordenarMetas(metas).map((m,i)=>(
                   <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
+                    <button onClick={()=>onMetaChange(l.id,metas.map(x=>x.id===m.id?{...x,prioridade:proximaPrioridade(x.prioridade),ordem:undefined}:x))} title="Alterar prioridade" style={{width:9,height:9,borderRadius:"50%",border:"none",background:metaPrioridade(m).cor,cursor:"pointer",padding:0,marginTop:3}}/>
                     <button onClick={()=>{
-                      const novas=metas.map((x,j)=>j===i?{...x,feito:!x.feito}:x);
+                      const novas=metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x);
                       onMetaChange(l.id,novas);
                     }} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,padding:0,
                       color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                       {m.feito?"☑":"☐"}
                     </button>
-                    <span style={{fontSize:11,color:m.feito?"#475569":"#cbd5e1",flex:1,
+                    <span style={{fontSize:11,color:m.feito?"#475569":"#cbd5e1",flex:1,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,
                       textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
-                    <button onClick={()=>onMetaChange(l.id, metas.filter((_,j)=>j!==i))}
+                    <button onClick={()=>editarTextoMeta(metas,m,novas=>onMetaChange(l.id,novas))} title="Editar meta" style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#38bdf8"}}>✎</button>
+                    <button onClick={()=>onMetaChange(l.id, metas.filter(x=>x.id!==m.id))}
                       title="Excluir meta"
                       style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#475569",flexShrink:0}}>
                       ✕
@@ -6432,7 +6463,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
                 )}
                 <button onClick={()=>{
                   const txt=window.prompt("Nova meta:");
-                  if(txt&&txt.trim()) onMetaChange(l.id,[...metas,{id:Date.now()+"",texto:txt.trim(),feito:false}]);
+                  if(txt&&txt.trim()) onMetaChange(l.id,[...metas,{id:Date.now()+"",texto:txt.trim(),feito:false,prioridade:"amarelo"}]);
                 }} style={{marginTop:5,width:"100%",padding:"3px 0",background:"rgba(56,189,248,0.06)",
                   border:"1px solid rgba(56,189,248,0.15)",borderRadius:5,color:"#38bdf8",cursor:"pointer",fontSize:10}}>
                   + meta
