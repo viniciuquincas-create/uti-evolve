@@ -3409,13 +3409,6 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
             onChange={novas=>{if(onLeitoChange)onLeitoChange({...leito,culturas:novas});}}/>
         </div>
       )}
-      {tabela==="controles" && (          <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,ctrlGrupoNeurologico:!leito.ctrlGrupoNeurologico})}
-            style={{padding:"4px 10px",background:leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",
-              border:`1px solid ${leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.08)"}`,
-              borderRadius:6,color:leito.ctrlGrupoNeurologico?"#c084fc":"#475569",cursor:"pointer",fontSize:11}}>
-            🧠 Neurocrítico
-          </button>
-        )}
       </div>
 
       {showAddCol && (
@@ -3705,7 +3698,13 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
         ) : (
           <div>
             {/* Botão para adicionar dreno/SNG/evac opcional */}
-            <OptionalDrenosUI data={data} onChange={onChange} datas={datas} hoje={hoje} customCtrls={customCtrls} onCustomCtrlChange={onCustomCtrlChange}/>
+            <div style={{display:"flex",gap:6,alignItems:"flex-start",flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:260}}><OptionalDrenosUI data={data} onChange={onChange} datas={datas} hoje={hoje} customCtrls={customCtrls} onCustomCtrlChange={onCustomCtrlChange}/></div>
+              <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,ctrlGrupoNeurologico:!leito.ctrlGrupoNeurologico})}
+                style={{padding:"4px 10px",background:leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.12)":"rgba(255,255,255,0.03)",border:`1px solid ${leito.ctrlGrupoNeurologico?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:leito.ctrlGrupoNeurologico?"#c084fc":"#475569",cursor:"pointer",fontSize:11,whiteSpace:"nowrap"}}>
+                🧠 Neurocrítico
+              </button>
+            </div>
             <div style={{overflowX:"auto",borderRadius:10,border:`1px solid ${T.borderTable}`,marginTop:8}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
