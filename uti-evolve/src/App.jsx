@@ -6731,6 +6731,20 @@ function HistoricoDiarioPanel({internacao,onClose}){
   const gasos=(()=>{try{const v=atual?.clinicalTable?._gasos;return v?(typeof v==="string"?JSON.parse(v):v):[];}catch{return[];}})();
   const scoreSnapshot=atual?.clinicalTable?._scoreSnapshot;
   const bloco=(titulo,conteudo,cor=T.accent)=><div style={{marginBottom:14,border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,overflow:"hidden"}}><div style={{padding:"8px 11px",fontSize:10,fontFamily:mono,letterSpacing:1.2,color:cor,borderBottom:`1px solid ${T.border}`}}>{titulo}</div>{conteudo}</div>;
+  const tipoMudanca=(antes,depois)=>{
+    const vazio=v=>v==="—"||v===""||v==="{}"||v==="[]";
+    if(vazio(antes)&&!vazio(depois))return {label:"adicionado",cor:"#38bdf8"};
+    if(!vazio(antes)&&vazio(depois))return {label:"removido",cor:"#f59e0b"};
+    const a=parseFloat(String(antes).replace(",",".")),b=parseFloat(String(depois).replace(",","."));
+    if(Number.isFinite(a)&&Number.isFinite(b)&&a!==b)return {label:b>a?"aumentou":"reduziu",cor:b>a?"#c084fc":"#38bdf8"};
+    return {label:"alterado",cor:T.accent};
+  };
+  const exportarPacienteDia=()=>{
+    const linhas=datas.map(d=>{const x=days[d]||{},ct=x.clinicalTable||{},bs=x.bedside||{};return {admission_id:internacao.admissionId||"",patient_id:internacao.patientId||"",data:d,status:x.status||"",...Object.fromEntries(Object.entries(ct).filter(([k,v])=>!k.startsWith("_")&&typeof v!=="object")),vm_modo:bs.vm_modo||"",vm_fio2:bs.vm_fio2||"",vm_peep:bs.vm_peep||"",vm_sato2:bs.vm_sato2||"",...Object.fromEntries(Object.entries(bs.drogasVazao||{}).map(([k,v])=>[`dva_${k}`,v]))};});
+    const cols=[...new Set(linhas.flatMap(x=>Object.keys(x)))],esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    const csv=[cols.join(","),...linhas.map(l=>cols.map(c=>esc(l[c])).join(","))].join("\n");
+    const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})),a=document.createElement("a");a.href=url;a.download=`uti-evolve-paciente-dia-${internacao.admissionId||"internacao"}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);
+  };
   const linhas=()=>{
     if(!atual)return[];
     const a=anterior||{},b=atual;
@@ -6746,7 +6760,7 @@ function HistoricoDiarioPanel({internacao,onClose}){
   const mudancas=linhas(),grupos=[...new Set(mudancas.map(x=>x.grupo))];
   return <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:12000,background:"rgba(2,8,5,.76)",display:"flex",justifyContent:"flex-end"}}>
     <aside onClick={e=>e.stopPropagation()} style={{width:"min(720px,96vw)",height:"100%",background:T.bgPage,borderLeft:`1px solid ${T.border}`,boxShadow:"-20px 0 60px rgba(0,0,0,.35)",display:"flex",flexDirection:"column"}}>
-      <div style={{padding:"18px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10}}><div><b style={{fontSize:16,color:T.text1}}>Histórico diário</b><div style={{fontSize:11,color:T.text3,marginTop:2}}>{internacao?.patientName} · {datas.length} registro(s) preservado(s)</div></div><button onClick={onClose} style={{marginLeft:"auto",border:0,background:"transparent",color:T.text3,fontSize:18,cursor:"pointer"}}>✕</button></div>
+      <div style={{padding:"18px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10}}><div><b style={{fontSize:16,color:T.text1}}>Histórico diário</b><div style={{fontSize:11,color:T.text3,marginTop:2}}>{internacao?.patientName} · {datas.length} registro(s) preservado(s)</div></div><button onClick={exportarPacienteDia} disabled={!datas.length} title="Exportação anonimizada: uma linha por paciente/dia" style={{marginLeft:"auto",padding:"6px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.accent,cursor:datas.length?"pointer":"default",fontSize:10}}>Exportar CSV</button><button onClick={onClose} style={{border:0,background:"transparent",color:T.text3,fontSize:18,cursor:"pointer"}}>✕</button></div>
       <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:7,overflowX:"auto"}}>{datas.map((d,i)=><button key={d} onClick={()=>setDataSel(d)} title={days[d]?.status==="legacy-partial"?"Registro recuperado da Tabela Clínica; não contém o beira-leito completo daquele dia.":"Snapshot diário completo"} style={{padding:"7px 10px",borderRadius:7,border:`1px solid ${dataSel===d?T.accentBorder:T.border}`,background:dataSel===d?T.accentBg:T.bgCard,color:dataSel===d?T.accent:T.text2,cursor:"pointer",whiteSpace:"nowrap",fontSize:11}}>{new Date(d+"T00:00:00").toLocaleDateString("pt-BR")}{days[d]?.status==="legacy-partial"?" · parcial":i===datas.length-1?" · atual":""}</button>)}</div>
       <div style={{padding:"16px 20px",overflowY:"auto",flex:1}}>
         <div style={{fontSize:12,color:T.text2,marginBottom:14}}>{anterior?<>Comparação com <b>{new Date(datas[idx-1]+"T00:00:00").toLocaleDateString("pt-BR")}</b> · {mudancas.length} alteração(ões)</>:<>Primeiro registro desta internação.</>}</div>
@@ -6756,7 +6770,7 @@ function HistoricoDiarioPanel({internacao,onClose}){
           {gasos.length>0&&bloco("GASOMETRIAS",<div>{gasos.map((g,i)=><div key={g.id||i} style={{padding:"9px 11px",borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.text2}}><b style={{color:T.text1}}>{g.horario||`Amostra ${i+1}`}</b> · {["ph","pco2","po2","hco3","be","sato2","lact"].filter(k=>g[k]!==""&&g[k]!=null).map(k=>`${ABREV[k]||k} ${g[k]}`).join(" · ")}</div>)}</div>,"#38bdf8")}
           {scoreSnapshot&&bloco("ESCORES",<div style={{display:"flex",gap:10,padding:11,flexWrap:"wrap"}}>{scoreSnapshot.clif?.clifOF!=null&&<span style={{padding:"6px 9px",borderRadius:7,background:"rgba(251,146,60,.1)",color:"#fb923c"}}>CLIF-OF <b>{scoreSnapshot.clif.clifOF}</b></span>}{scoreSnapshot.clif?.clifC!=null&&<span style={{padding:"6px 9px",borderRadius:7,background:"rgba(251,146,60,.1)",color:"#fb923c"}}>CLIF-C <b>{scoreSnapshot.clif.clifC}</b></span>}{scoreSnapshot.sofa?.sofa!=null&&<span style={{padding:"6px 9px",borderRadius:7,background:"rgba(248,113,113,.1)",color:"#f87171"}}>SOFA <b>{scoreSnapshot.sofa.sofa}</b></span>}</div>,"#fb923c")}
           {!valoresClinicos.length&&!gasos.length&&<div style={{padding:24,textAlign:"center",color:T.text3}}>Este registro ainda não possui dados clínicos estruturados.</div>}
-        </>:mudancas.length===0?<div style={{padding:24,textAlign:"center",color:T.text3}}>Nenhuma modificação registrada entre os dois dias.</div>:grupos.map(g=><div key={g} style={{marginBottom:16}}><div style={{fontSize:10,fontFamily:mono,letterSpacing:1.3,color:T.accent,marginBottom:6}}>{g.toUpperCase()}</div>{mudancas.filter(x=>x.grupo===g).map(x=><div key={`${g}-${x.campo}`} style={{display:"grid",gridTemplateColumns:"150px 1fr 22px 1fr",gap:8,alignItems:"start",padding:"8px 10px",borderBottom:`1px solid ${T.border}`,fontSize:11}}><b style={{color:T.text2,overflowWrap:"anywhere"}}>{x.campo}</b><span style={{color:T.text3,overflowWrap:"anywhere"}}>{x.antes}</span><span style={{color:T.accent}}>→</span><span style={{color:T.text1,overflowWrap:"anywhere",fontWeight:600}}>{x.depois}</span></div>)}</div>)}
+        </>:mudancas.length===0?<div style={{padding:24,textAlign:"center",color:T.text3}}>Nenhuma modificação registrada entre os dois dias.</div>:grupos.map(g=><div key={g} style={{marginBottom:16}}><div style={{fontSize:10,fontFamily:mono,letterSpacing:1.3,color:T.accent,marginBottom:6}}>{g.toUpperCase()}</div>{mudancas.filter(x=>x.grupo===g).map(x=>{const tipo=tipoMudanca(x.antes,x.depois);return <div key={`${g}-${x.campo}`} style={{display:"grid",gridTemplateColumns:"150px minmax(90px,1fr) 22px minmax(90px,1fr) 72px",gap:8,alignItems:"start",padding:"8px 10px",borderBottom:`1px solid ${T.border}`,fontSize:11}}><b style={{color:T.text2,overflowWrap:"anywhere"}}>{x.campo}</b><span style={{color:T.text3,overflowWrap:"anywhere"}}>{x.antes}</span><span style={{color:T.accent}}>→</span><span style={{color:T.text1,overflowWrap:"anywhere",fontWeight:600}}>{x.depois}</span><span style={{fontSize:9,color:tipo.cor,border:`1px solid ${tipo.cor}55`,background:`${tipo.cor}12`,borderRadius:8,padding:"2px 5px",textAlign:"center"}}>{tipo.label}</span></div>})}</div>)}
       </div>
       <div style={{padding:"10px 20px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.text3}}>Visualização somente leitura. Correções auditáveis serão adicionadas na próxima etapa.</div>
     </aside>
@@ -6778,6 +6792,7 @@ export default function App() {
   const [pacientesArquivados,setPacientesArquivados]=useState([]);
   const [historicoDiario,setHistoricoDiario]=useState({});
   const [historicoAberto,setHistoricoAberto]=useState(false);
+  const [dataLoaded,setDataLoaded]=useState(false);
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
@@ -6795,6 +6810,8 @@ export default function App() {
   const configTimer = useRef(null);
   const metasTimer  = useRef(null);
   const historicoTimer = useRef(null);
+  const historicoRef = useRef({});
+  useEffect(()=>{historicoRef.current=historicoDiario;},[historicoDiario]);
 
   // ── LOAD ─────────────────────────────────────────────────────────────────────
   const loadData = async () => {
@@ -6852,7 +6869,8 @@ export default function App() {
       const {data:hd}=await supabase.from("config").select("value").eq("key","historico_diario").single();
       if(hd?.value){const p=JSON.parse(hd.value);if(p&&typeof p==="object")setHistoricoDiario(p);}
     } catch {}
-    // Libera saves apenas após load completo
+    // Libera saves e dispara a criação do snapshot de hoje após o load completo.
+    setDataLoaded(true);
     setTimeout(() => { isLoaded.current = true; }, 300);
   };
 
@@ -6954,22 +6972,22 @@ export default function App() {
   // paciente/internação. O registro de hoje é atualizado enquanto dias anteriores
   // permanecem preservados em historico_diario.
   useEffect(()=>{
-    if(!isLoaded.current)return;
+    if(!dataLoaded)return;
     const faltam=leitos.some(l=>l.paciente&&(!l.patientId||!l.admissionId));
     if(!faltam)return;
     const agora=new Date().toISOString();
     const normalizados=leitos.map(l=>!l.paciente?l:{...l,patientId:l.patientId||(globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${l.id}`),admissionId:l.admissionId||(globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${l.id}`),admissionStartedAt:l.admissionStartedAt||agora});
     setLeitos(normalizados);salvarLeitos(normalizados);
-  },[leitos]);
+  },[leitos,dataLoaded]);
 
   useEffect(()=>{
-    if(!isLoaded.current)return;
+    if(!dataLoaded)return;
     clearTimeout(historicoTimer.current);
     historicoTimer.current=setTimeout(async()=>{
       const hoje=new Date().toISOString().slice(0,10),agora=new Date().toISOString();
       const ativos=leitos.filter(l=>l.paciente&&l.admissionId);
       if(!ativos.length)return;
-      const novo={...historicoDiario};
+      const novo={...historicoRef.current};
       ativos.forEach(l=>{
         const adm=novo[l.admissionId]||{admissionId:l.admissionId,patientId:l.patientId,startedAt:l.admissionStartedAt||agora,bedId:l.id,days:{}};
         adm.patientId=l.patientId;adm.bedId=l.id;adm.patientName=l.paciente;adm.days={...(adm.days||{}),[hoje]:{
@@ -6985,12 +7003,13 @@ export default function App() {
       try{await supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novo)});}catch(e){console.warn("Falha ao salvar histórico diário",e);}
     },1200);
     return()=>clearTimeout(historicoTimer.current);
-  },[leitos,evolPorLeito,tabelaData,metasPorLeito]);
+  },[leitos,evolPorLeito,tabelaData,metasPorLeito,dataLoaded]);
 
   // Recupera a linha do tempo já existente na Tabela Clínica. Como as versões
   // antigas não guardavam snapshots completos, esses dias entram identificados
   // como parciais, preservando controles, exames, gasometrias e escores datados.
   useEffect(()=>{
+    if(!dataLoaded)return;
     let mudou=false;const novo={...historicoDiario};
     leitos.filter(l=>l.paciente&&l.admissionId).forEach(l=>{
       const adm={...(novo[l.admissionId]||{admissionId:l.admissionId,patientId:l.patientId,patientName:l.paciente,startedAt:l.admissionStartedAt,bedId:l.id,days:{}}),days:{...(novo[l.admissionId]?.days||{})}};
@@ -7004,7 +7023,7 @@ export default function App() {
     if(!mudou)return;
     setHistoricoDiario(novo);
     supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novo)}).then(({error})=>{if(error)console.warn("Falha ao recuperar histórico da tabela",error);});
-  },[leitos,tabelaData,historicoDiario]);
+  },[leitos,tabelaData,historicoDiario,dataLoaded]);
 
   const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
   const atualizar = (d) => {
