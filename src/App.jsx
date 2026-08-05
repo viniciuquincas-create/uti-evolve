@@ -2956,6 +2956,20 @@ const fmtVal = (key, raw) => {
   return n % 1 === 0 ? String(Math.round(n)) : raw.replace(',','.');
 };
 
+// MELD-Na clássico (UNOS 2016): usa BT, INR, creatinina e sódio.
+// Limites: BT/INR/Cr >=1; Cr <=4; Na 125–137; MELD e MELD-Na 6–40.
+function calcMeldNa({bilirrubina,inr,creatinina,sodio}) {
+  let b=parseFloat(String(bilirrubina||"").replace(",","."));
+  let i=parseFloat(String(inr||"").replace(",","."));
+  let c=parseFloat(String(creatinina||"").replace(",","."));
+  let na=parseFloat(String(sodio||"").replace(",","."));
+  if([b,i,c,na].some(v=>!Number.isFinite(v))) return null;
+  b=Math.max(1,b); i=Math.max(1,i); c=Math.min(4,Math.max(1,c)); na=Math.min(137,Math.max(125,na));
+  const meldBase=Math.min(40,Math.max(6,Math.round(3.78*Math.log(b)+11.2*Math.log(i)+9.57*Math.log(c)+6.43)));
+  const meldNa=Math.min(40,Math.max(6,Math.round(meldBase+1.32*(137-na)-0.033*meldBase*(137-na))));
+  return {meldNa,meldBase,na};
+}
+
 // ── Faixas de referência por exame — NÃO existiam no código (trabalho novo, REDESIGN_README §4).
 // Usadas só para decidir a COR DA FONTE do valor (âmbar = alteração leve, vermelho+negrito = importante
 // ou tendência de piora rápida) — nunca para tingir o fundo da célula. Faixas aproximadas de adulto/UTI,
@@ -3460,6 +3474,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
               {lbl}
             </button>
           ))}
+          <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,labACLF:!leito.labACLF})} title="Adicionar cálculo automático do MELD-Na à tabela"
+            style={{marginLeft:"auto",padding:"4px 10px",borderRadius:6,border:`1px solid ${leito.labACLF?"rgba(251,146,60,.45)":"rgba(255,255,255,.08)"}`,background:leito.labACLF?"rgba(251,146,60,.12)":"transparent",color:leito.labACLF?"#fb923c":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
+            {leito.labACLF?"✓ ":"+ "}ACLF · MELD-Na
+          </button>
         </div>
       )}
       {tabela==="labs" && subTabLabs==="gasos" && (
@@ -3507,6 +3525,14 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
               </tr>
             </thead>
             <tbody>
+              {leito.labACLF&&<>
+                <tr><td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#fb923c",background:"rgba(251,146,60,.07)",fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>🟠 ACLF — ESCORE HEPÁTICO</td></tr>
+                <tr>
+                  <td style={{...tdBase,padding:"5px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>MELD-Na</td>
+                  <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>pontos</td>
+                  {datas.map(d=>{const sc=calcMeldNa({bilirrubina:getVal(d,"bttot"),inr:getVal(d,"rni"),creatinina:getVal(d,"cr"),sodio:getVal(d,"na")});return <td key={d} style={{...tdBase,background:isHoje(d)?"rgba(251,146,60,.05)":undefined}}><div title={sc?`MELD ${sc.meldBase} · Na corrigido ${sc.na}`:"Requer BT, INR, creatinina e sódio"} style={{fontSize:13,fontFamily:mono,fontWeight:700,color:sc?(sc.meldNa>=30?"#f87171":sc.meldNa>=20?"#fbbf24":"#34d399"):T.text4}}>{sc?.meldNa??"—"}</div></td>;})}
+                </tr>
+              </>}
               {GRUPOS_LAB.map(({grupo,params})=>(
                 <React.Fragment key={grupo}>
                   <tr>
