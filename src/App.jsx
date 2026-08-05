@@ -3934,14 +3934,16 @@ const ordenarMetas = metas => [...(metas||[])].sort((a,b)=>{
   const manual = Number.isFinite(a?.ordem)||Number.isFinite(b?.ordem);
   return manual ? ((a?.ordem??9999)-(b?.ordem??9999)) : (metaPrioridade(a).ordem-metaPrioridade(b).ordem);
 });
-const alterarPrioridadeSemMover = (metas,id,prioridade) => ordenarMetas(metas).map((m,i)=>({...m,ordem:i,...(m.id===id?{prioridade}:{})}));
+const alterarPrioridadeEReordenar = (metas,id,prioridade) => ordenarMetas(
+  (metas||[]).map(m=>({...m,ordem:undefined,...(m.id===id?{prioridade}:{})}))
+);
 function MetaPriorityDot({meta,metas,onChange}) {
   const [open,setOpen]=useState(false);
   const atual=metaPrioridade(meta);
   return <span style={{position:"relative",display:"inline-flex",flexShrink:0}}>
     <button onClick={e=>{e.stopPropagation();setOpen(v=>!v);}} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setOpen(true);}} title={`Prioridade: ${atual.label}. Clique para escolher.`} style={{width:10,height:10,borderRadius:"50%",border:"1px solid rgba(255,255,255,.35)",background:atual.cor,cursor:"pointer",padding:0,marginTop:3}}/>
     {open&&<div onMouseLeave={()=>setOpen(false)} style={{position:"absolute",top:16,left:0,zIndex:500,display:"flex",gap:5,padding:6,borderRadius:9,background:"#111827",border:"1px solid rgba(255,255,255,.18)",boxShadow:"0 8px 24px rgba(0,0,0,.45)"}}>
-      {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={e=>{e.stopPropagation();onChange(alterarPrioridadeSemMover(metas,meta.id,k));setOpen(false);}} title={p.label} style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${(meta.prioridade||"amarelo")===k?"#fff":"transparent"}`,background:p.cor,cursor:"pointer",padding:0}}/>)}
+      {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={e=>{e.stopPropagation();onChange(alterarPrioridadeEReordenar(metas,meta.id,k));setOpen(false);}} title={p.label} style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${(meta.prioridade||"amarelo")===k?"#fff":"transparent"}`,background:p.cor,cursor:"pointer",padding:0}}/>)}
     </div>}
   </span>;
 }
@@ -5775,7 +5777,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
             </div>
             <div style={{fontSize:13,color:"#cbd5e1",marginBottom:6}}>{m.texto||m}</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={()=>onChange(alterarPrioridadeSemMover(metas,m.id,k))} title={p.label} style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${(m.prioridade||"amarelo")===k?"#fff":"transparent"}`,background:p.cor,cursor:"pointer",opacity:(m.prioridade||"amarelo")===k?1:.35}}/>)}
+              {Object.entries(META_PRIORIDADES).map(([k,p])=><button key={k} onClick={()=>onChange(alterarPrioridadeEReordenar(metas,m.id,k))} title={p.label} style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${(m.prioridade||"amarelo")===k?"#fff":"transparent"}`,background:p.cor,cursor:"pointer",opacity:(m.prioridade||"amarelo")===k?1:.35}}/>)}
               {["pendente","andamento","cumprido"].map(st=>(
                 <button key={st} onClick={()=>onChange(metas.map(x=>x.id===m.id?{...x,status:st,feito:st==="cumprido"}:x))}
                   style={{padding:"2px 10px",borderRadius:20,
