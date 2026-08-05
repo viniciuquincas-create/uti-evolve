@@ -2970,6 +2970,39 @@ function calcMeldNa({bilirrubina,inr,creatinina,sodio}) {
   return {meldNa,meldBase,na};
 }
 
+const numScore = v => { const n=parseFloat(String(v??"").replace(",",".")); return Number.isFinite(n)?n:null; };
+function calcClifScores(v, idade) {
+  const bt=numScore(v.bilirrubina), cr=numScore(v.creatinina), inr=numScore(v.inr), leuco=numScore(v.leucocitos);
+  const resp=numScore(v.pf)??numScore(v.sf), usaPF=numScore(v.pf)!==null;
+  const faltam=[];
+  if(bt===null)faltam.push("bilirrubina"); if(cr===null&&!v.rrt)faltam.push("creatinina/diálise");
+  if(inr===null)faltam.push("INR"); if(!v.encefalopatia)faltam.push("encefalopatia");
+  if(!v.circulacao)faltam.push("circulação"); if(resp===null)faltam.push("PaO₂/FiO₂ ou SpO₂/FiO₂");
+  if(faltam.length)return {faltam};
+  const liver=bt<6?1:bt<12?2:3;
+  const kidney=v.rrt?3:cr<2?1:cr<3.5?2:3;
+  const brain=v.encefalopatia==="0"?1:v.encefalopatia==="1-2"?2:3;
+  const coag=inr<2?1:inr<2.5?2:3;
+  const circulation=v.circulacao==="normal"?1:v.circulacao==="pam_baixa"?2:3;
+  const respiratory=usaPF?(resp>300?1:resp>200?2:3):(resp>357?1:resp>214?2:3);
+  const clifOF=liver+kidney+brain+coag+circulation+respiratory;
+  const age=numScore(idade);
+  const clifC=age!==null&&leuco>0?Math.round(10*(0.33*clifOF+0.04*age+0.63*Math.log(leuco)-2)*10)/10:null;
+  return {clifOF,clifC,faltam:clifC===null?["idade/leucócitos"]:[], componentes:{liver,kidney,brain,coag,circulation,respiratory}};
+}
+function calcSofa(v) {
+  const pf=numScore(v.pf), plaq=numScore(v.plaquetas), bt=numScore(v.bilirrubina), gcs=numScore(v.gcs), cr=numScore(v.creatinina), diur=numScore(v.diurese);
+  const faltam=[]; if(pf===null)faltam.push("PaO₂/FiO₂"); if(plaq===null)faltam.push("plaquetas"); if(bt===null)faltam.push("bilirrubina"); if(gcs===null)faltam.push("Glasgow"); if(!v.circulacaoSofa)faltam.push("circulação/DVA"); if(cr===null&&diur===null)faltam.push("creatinina/diurese");
+  if(faltam.length)return {faltam};
+  const resp=pf<100&&v.suporteResp?4:pf<200&&v.suporteResp?3:pf<300?2:pf<400?1:0;
+  const coag=plaq<20?4:plaq<50?3:plaq<100?2:plaq<150?1:0;
+  const liver=bt>=12?4:bt>=6?3:bt>=2?2:bt>=1.2?1:0;
+  const cardio=({normal:0,pam_baixa:1,dva_baixa:2,dva_media:3,dva_alta:4})[v.circulacaoSofa]??0;
+  const neuro=gcs<6?4:gcs<10?3:gcs<13?2:gcs<15?1:0;
+  const renal=(diur!==null&&diur<200)||cr>=5?4:(diur!==null&&diur<500)||cr>=3.5?3:cr>=2?2:cr>=1.2?1:0;
+  return {sofa:resp+coag+liver+cardio+neuro+renal,faltam:[],componentes:{resp,coag,liver,cardio,neuro,renal}};
+}
+
 // ── Faixas de referência por exame — NÃO existiam no código (trabalho novo, REDESIGN_README §4).
 // Usadas só para decidir a COR DA FONTE do valor (âmbar = alteração leve, vermelho+negrito = importante
 // ou tendência de piora rápida) — nunca para tingir o fundo da célula. Faixas aproximadas de adulto/UTI,
@@ -3116,7 +3149,7 @@ function OptionalDrenosUI({ data, onChange, datas, hoje, customCtrls=[], onCusto
 }
 
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
-function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange, config={} }) {
+function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange, evolCampos={}, config={} }) {
   const customCtrls = leito.customCtrls || [];
   const onCustomCtrlChange = (ctrls) => { if(onLeitoChange) onLeitoChange({...leito, customCtrls:ctrls}); };
   const T = useTheme();
@@ -3127,6 +3160,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   const [novoExame, setNovoExame] = useState("");
   const [tabela, setTabela] = useState("labs");
   const [subTabLabs, setSubTabLabs] = useState("labs"); // "labs" | "controles"
+  const [scoreEditor, setScoreEditor] = useState(null);
 
   // Mostra colunas com dados OU marcadas como visíveis, mais hoje sempre
   // Aceita tanto "2026-04-23" quanto "2026-04-23T05:15"
@@ -3162,6 +3196,24 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   };
   const setVal = (date, key, val) =>
     onChange({ ...data, [date]: { ...(data[date]||{}), [key]: val } });
+
+  const gasosData = date => { try { const v=data[date]?._gasos; return v?(typeof v==="string"?JSON.parse(v):v):[]; } catch{return [];} };
+  const scoreInputs = date => {
+    const row=data[date]||{}, salvo=row._scoreInputs||{};
+    const gasos=gasosData(date), g=gasos[gasos.length-1]||{};
+    const fio2=numScore(date===hoje?leito.vm_fio2:salvo.fio2);
+    const po2=numScore(g.po2), sat=numScore(g.sato2)??numScore(row.c24_sat);
+    const nora=date===hoje?calcDoseFromMLH("noradrenalina",leito.drogasVazao?.noradrenalina,leito.peso,undefined,undefined,config)?.dose:null;
+    const autoCirc=nora?(numScore(nora)>0.1?"dva_alta":"dva_media"):(date===hoje&&Object.values(leito.drogasVazao||{}).some(Boolean)?"dva_baixa":numScore(row.c24_pam)!==null&&numScore(row.c24_pam)<70?"pam_baixa":"normal");
+    return {bilirrubina:row.bttot||"",creatinina:row.cr||"",inr:row.rni||"",leucocitos:row.leuco||"",plaquetas:row.plaq||"",diurese:row.c24_diur||"",
+      pf:po2!==null&&fio2?String(Math.round(po2/(fio2/100))):"",sf:sat!==null&&fio2?String(Math.round(sat/(fio2/100))):"",fio2:fio2??"",
+      gcs:date===hoje?(evolCampos.nGlasgow||""):"",suporteResp:date===hoje&&!!leito.vm_modo,circulacao:autoCirc,circulacaoSofa:autoCirc,
+      ...salvo};
+  };
+  const salvarScoreInputs = (date, values) => {
+    const snapshot={clif:calcClifScores(values,idadeDoLeito(leito)),sofa:calcSofa(values),idade:idadeDoLeito(leito),capturadoEm:new Date().toISOString()};
+    onChange({...data,[date]:{...(data[date]||{}),_scoreInputs:values,_scoreSnapshot:snapshot,_scoreUpdatedAt:snapshot.capturadoEm}});
+  };
 
   const adicionarColuna = () => {
     if (!novaData) return;
@@ -3474,9 +3526,13 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
               {lbl}
             </button>
           ))}
-          <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,labACLF:!leito.labACLF})} title="Adicionar cálculo automático do MELD-Na à tabela"
+          <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,labACLF:!leito.labACLF})} title="Adicionar MELD-Na e CLIF à tabela"
             style={{marginLeft:"auto",padding:"4px 10px",borderRadius:6,border:`1px solid ${leito.labACLF?"rgba(251,146,60,.45)":"rgba(255,255,255,.08)"}`,background:leito.labACLF?"rgba(251,146,60,.12)":"transparent",color:leito.labACLF?"#fb923c":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
             {leito.labACLF?"✓ ":"+ "}ACLF · MELD-Na
+          </button>
+          <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,labSOFA:!leito.labSOFA})} title="Acompanhar SOFA por data"
+            style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${leito.labSOFA?"rgba(248,113,113,.45)":"rgba(255,255,255,.08)"}`,background:leito.labSOFA?"rgba(248,113,113,.12)":"transparent",color:leito.labSOFA?"#f87171":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
+            {leito.labSOFA?"✓ ":"+ "}Sepse · SOFA
           </button>
         </div>
       )}
@@ -3531,6 +3587,17 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                   <td style={{...tdBase,padding:"5px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>MELD-Na</td>
                   <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>pontos</td>
                   {datas.map(d=>{const sc=calcMeldNa({bilirrubina:getVal(d,"bttot"),inr:getVal(d,"rni"),creatinina:getVal(d,"cr"),sodio:getVal(d,"na")});return <td key={d} style={{...tdBase,background:isHoje(d)?"rgba(251,146,60,.05)":undefined}}><div title={sc?`MELD ${sc.meldBase} · Na corrigido ${sc.na}`:"Requer BT, INR, creatinina e sódio"} style={{fontSize:13,fontFamily:mono,fontWeight:700,color:sc?(sc.meldNa>=30?"#f87171":sc.meldNa>=20?"#fbbf24":"#34d399"):T.text4}}>{sc?.meldNa??"—"}</div></td>;})}
+                </tr>
+                {[['CLIF-OF','clifOF'],['CLIF-C ACLF','clifC']].map(([label,key])=><tr key={key}>
+                  <td style={{...tdBase,padding:"5px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>{label}</td>
+                  <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>pontos</td>
+                  {datas.map(d=>{const sc=calcClifScores(scoreInputs(d),idadeDoLeito(leito));const faltam=sc.faltam||[];return <td key={d} style={tdBase}><button onClick={()=>setScoreEditor({date:d,type:'clif',values:scoreInputs(d)})} title={faltam.length?`Completar: ${faltam.join(', ')}`:JSON.stringify(sc.componentes)} style={{border:0,background:"transparent",cursor:"pointer",fontFamily:mono,fontWeight:700,color:faltam.length?"#fbbf24":"#fb923c"}}>{faltam.length?`completar ${faltam.length}`:sc[key]}</button></td>})}
+                </tr>)}
+              </>}
+              {leito.labSOFA&&<>
+                <tr><td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#f87171",background:"rgba(248,113,113,.07)",fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>SEPSE — SOFA (PIOR VALOR EM 24H)</td></tr>
+                <tr><td style={{...tdBase,padding:"5px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>SOFA</td><td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>pontos</td>
+                  {datas.map(d=>{const sc=calcSofa(scoreInputs(d)),faltam=sc.faltam||[];return <td key={d} style={tdBase}><button onClick={()=>setScoreEditor({date:d,type:'sofa',values:scoreInputs(d)})} title={faltam.length?`Completar: ${faltam.join(', ')}`:JSON.stringify(sc.componentes)} style={{border:0,background:"transparent",cursor:"pointer",fontFamily:mono,fontWeight:700,color:faltam.length?"#fbbf24":"#f87171"}}>{faltam.length?`completar ${faltam.length}`:sc.sofa}</button></td>})}
                 </tr>
               </>}
               {GRUPOS_LAB.map(({grupo,params})=>(
@@ -3930,6 +3997,22 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
           </div>
         )
       )}
+      {scoreEditor&&(()=>{
+        const v=scoreEditor.values||{};
+        const camposBase=[['bilirrubina','Bilirrubina','mg/dL'],['creatinina','Creatinina','mg/dL'],['plaquetas','Plaquetas','mil/mm³'],['leucocitos','Leucócitos','mil/mm³'],['inr','INR',''],['diurese','Diurese 24h','mL'],['pf','PaO₂/FiO₂',''],['sf','SpO₂/FiO₂',''],['gcs','Glasgow','']];
+        return <div onClick={()=>setScoreEditor(null)} style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(2,8,5,.72)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:'min(720px,96vw)',maxHeight:'88vh',overflowY:'auto',background:T.bgCard,border:`1px solid ${scoreEditor.type==='sofa'?'rgba(248,113,113,.45)':'rgba(251,146,60,.45)'}`,borderRadius:14,padding:18,boxShadow:'0 24px 80px rgba(0,0,0,.55)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}><b style={{color:T.text1}}>Completar variáveis · {scoreEditor.type==='sofa'?'SOFA':'CLIF'} · {fmtData(scoreEditor.date).replace('\n',' ')}</b><button onClick={()=>setScoreEditor(null)} style={{background:'none',border:0,color:T.text3,cursor:'pointer'}}>✕</button></div>
+            <div style={{fontSize:11,color:T.text3,marginBottom:14}}>Dados já existentes foram preenchidos automaticamente. Revise o pior valor das últimas 24h; os dados ficam salvos com esta data para análise longitudinal.</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:9}}>
+              {camposBase.filter(([k])=>scoreEditor.type==='sofa'?!['leucocitos','inr','sf'].includes(k):!['plaquetas','diurese','gcs'].includes(k)).map(([k,l,u])=><label key={k} style={{fontSize:10,color:T.text3,fontFamily:mono}}>{l}{u?` (${u})`:''}<input value={v[k]||''} onChange={e=>setScoreEditor({...scoreEditor,values:{...v,[k]:e.target.value}})} style={{display:'block',width:'100%',marginTop:4,padding:'8px 9px',borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>)}
+              {scoreEditor.type==='clif'&&<><label style={{fontSize:10,color:T.text3,fontFamily:mono}}>ENCEFALOPATIA (WEST HAVEN)<select value={v.encefalopatia||''} onChange={e=>setScoreEditor({...scoreEditor,values:{...v,encefalopatia:e.target.value}})} style={{display:'block',width:'100%',marginTop:4,padding:8,borderRadius:7,background:T.bgInput,color:T.text1}}><option value="">Selecionar…</option><option value="0">Grau 0</option><option value="1-2">Graus I–II</option><option value="3-4">Graus III–IV</option></select></label><label style={{fontSize:10,color:T.text3,fontFamily:mono}}>CIRCULAÇÃO<select value={v.circulacao||''} onChange={e=>setScoreEditor({...scoreEditor,values:{...v,circulacao:e.target.value}})} style={{display:'block',width:'100%',marginTop:4,padding:8,borderRadius:7,background:T.bgInput,color:T.text1}}><option value="">Selecionar…</option><option value="normal">PAM ≥70</option><option value="pam_baixa">PAM &lt;70</option><option value="dva_media">Vasopressor</option></select></label><label style={{fontSize:11,color:T.text2,display:'flex',gap:7,alignItems:'center'}}><input type="checkbox" checked={!!v.rrt} onChange={e=>setScoreEditor({...scoreEditor,values:{...v,rrt:e.target.checked}})}/> Terapia renal substitutiva</label></>}
+              {scoreEditor.type==='sofa'&&<><label style={{fontSize:10,color:T.text3,fontFamily:mono}}>CIRCULAÇÃO / DVA<select value={v.circulacaoSofa||''} onChange={e=>setScoreEditor({...scoreEditor,values:{...v,circulacaoSofa:e.target.value}})} style={{display:'block',width:'100%',marginTop:4,padding:8,borderRadius:7,background:T.bgInput,color:T.text1}}><option value="">Selecionar…</option><option value="normal">PAM ≥70, sem DVA</option><option value="pam_baixa">PAM &lt;70</option><option value="dva_baixa">Dopamina ≤5 ou dobutamina</option><option value="dva_media">Nora/adrenalina ≤0,1 ou dopamina &gt;5</option><option value="dva_alta">Nora/adrenalina &gt;0,1 ou dopamina &gt;15</option></select></label><label style={{fontSize:11,color:T.text2,display:'flex',gap:7,alignItems:'center'}}><input type="checkbox" checked={!!v.suporteResp} onChange={e=>setScoreEditor({...scoreEditor,values:{...v,suporteResp:e.target.checked}})}/> Em suporte ventilatório</label></>}
+            </div>
+            <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:16}}><button onClick={()=>setScoreEditor(null)} style={{padding:'8px 12px',borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',color:T.text2}}>Cancelar</button><button onClick={()=>{salvarScoreInputs(scoreEditor.date,v);setScoreEditor(null)}} style={{padding:'8px 14px',borderRadius:7,border:0,background:scoreEditor.type==='sofa'?'#ef4444':'#f97316',color:'#fff',fontWeight:700,cursor:'pointer'}}>Salvar variáveis</button></div>
+          </div>
+        </div>;
+      })()}
     </div>
   );
 }
@@ -7225,6 +7308,7 @@ ${linha}`:linha}));
             ) : aba==="tabela" ? (
               <TabelaClinica
                 leito={leito}
+                evolCampos={evolCampos}
                 config={config}
                 onLeitoChange={novoLeito=>atualizar(novoLeito)}
                 data={tabelaData[leitoSelId] || {}}
