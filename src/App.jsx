@@ -3160,14 +3160,16 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   // Compara datas ignorando hora para determinar "hoje"
   const isHoje = (ds) => ds === hoje || ds.startsWith(hoje + "T");
 
-  const [autoApply, setAutoApply] = useState(false);
+  // Padrão: qualquer alteração em Laboratório ou Controles 24h atualiza a evolução.
+  // O modo manual é uma exceção deliberada e exige o botão "Lançar na evolução".
+  const [autoApply, setAutoApply] = useState(true);
   const autoRef = useRef(autoApply);
   useEffect(()=>{ autoRef.current = autoApply; }, [autoApply]);
-  const prevDataHash = useRef(null);
+  const prevDataHash = useRef(JSON.stringify({d:data[hoje]||{},v:leito.drogasVazao||{}}));
   useEffect(()=>{
     if (!autoRef.current) return;
     const hash = JSON.stringify({d: data[hoje]||{}, v: leito.drogasVazao||{}});
-    if (prevDataHash.current !== null && prevDataHash.current !== hash) {
+    if (prevDataHash.current !== hash) {
       gerarEvolucao();
     }
     prevDataHash.current = hash;
@@ -3347,7 +3349,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <div>
           <div style={{fontSize:15,fontWeight:700,color:T.text1}}>Tabela Clínica</div>
-          <div style={{fontSize:12,color:T.text3}}>Registre valores diários · depois aplique na evolução</div>
+          <div style={{fontSize:12,color:T.text3}}>{autoApply?"Modo automático: alterações em exames e controles atualizam a evolução":"Modo manual: revise os valores e clique em Lançar na evolução"}</div>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={()=>setShowAddCol(v=>!v)} style={{padding:"8px 14px",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,color:T.text2,fontWeight:600,fontSize:12,cursor:"pointer"}}>
@@ -3360,11 +3362,11 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
             style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${autoApply?"rgba(52,211,153,0.4)":"rgba(255,255,255,0.1)"}`,
               background:autoApply?"rgba(52,211,153,0.1)":"rgba(255,255,255,0.03)",
               color:autoApply?"#34d399":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600,marginRight:4}}>
-            {autoApply?"⚡ Auto":"○ Manual"}
+            {autoApply?"⚡ Automático":"○ Manual"}
           </button>
-          <button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0ea5e9,#0284c7)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
-            📝 Aplicar na evolução
-          </button>
+          {!autoApply&&<button onClick={gerarEvolucao} style={{padding:"8px 16px",background:"linear-gradient(135deg,#0ea5e9,#0284c7)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+            📝 Lançar na evolução
+          </button>}
         </div>
       </div>
 
