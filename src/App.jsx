@@ -6732,6 +6732,7 @@ export default function App() {
   const [tabelaData, setTabelaData] = useState({});
   const [metasPorLeito, setMetasPorLeito] = useState({});
   const [pacientesArquivados,setPacientesArquivados]=useState([]);
+  const [historicoDiario,setHistoricoDiario]=useState({});
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
@@ -6748,6 +6749,7 @@ export default function App() {
   const tabelaTimer = useRef(null);
   const configTimer = useRef(null);
   const metasTimer  = useRef(null);
+  const historicoTimer = useRef(null);
 
   // ── LOAD ─────────────────────────────────────────────────────────────────────
   const loadData = async () => {
@@ -6757,9 +6759,12 @@ export default function App() {
       if (ld?.value) {
         const p = JSON.parse(ld.value);
         if (Array.isArray(p) && p.length) {
-          setLeitos(p);
-          leitoAtualId = p[0].id;
-          setLeitoSelId(p[0].id);
+          const agora=new Date().toISOString();
+          const normalizados=p.map(l=>!l.paciente?l:{...l,patientId:l.patientId||(globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${l.id}`),admissionId:l.admissionId||(globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${l.id}`),admissionStartedAt:l.admissionStartedAt||agora});
+          setLeitos(normalizados);
+          leitoAtualId = normalizados[0].id;
+          setLeitoSelId(normalizados[0].id);
+          if(normalizados.some((l,i)=>l!==p[i]))await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(normalizados)});
         }
       }
     } catch {}
@@ -6797,6 +6802,10 @@ export default function App() {
     try {
       const {data:ad}=await supabase.from("config").select("value").eq("key","pacientes_arquivados").single();
       if(ad?.value){const p=JSON.parse(ad.value);if(Array.isArray(p))setPacientesArquivados(p);}
+    } catch {}
+    try {
+      const {data:hd}=await supabase.from("config").select("value").eq("key","historico_diario").single();
+      if(hd?.value){const p=JSON.parse(hd.value);if(p&&typeof p==="object")setHistoricoDiario(p);}
     } catch {}
     // Libera saves apenas após load completo
     setTimeout(() => { isLoaded.current = true; }, 300);
@@ -6896,10 +6905,53 @@ export default function App() {
     }, 800);
   };
 
+  // Compatibilidade longitudinal: cada paciente ativo recebe IDs permanentes de
+  // paciente/internação. O registro de hoje é atualizado enquanto dias anteriores
+  // permanecem preservados em historico_diario.
+  useEffect(()=>{
+    if(!isLoaded.current)return;
+    const faltam=leitos.some(l=>l.paciente&&(!l.patientId||!l.admissionId));
+    if(!faltam)return;
+    const agora=new Date().toISOString();
+    const normalizados=leitos.map(l=>!l.paciente?l:{...l,patientId:l.patientId||(globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${l.id}`),admissionId:l.admissionId||(globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${l.id}`),admissionStartedAt:l.admissionStartedAt||agora});
+    setLeitos(normalizados);salvarLeitos(normalizados);
+  },[leitos]);
+
+  useEffect(()=>{
+    if(!isLoaded.current)return;
+    clearTimeout(historicoTimer.current);
+    historicoTimer.current=setTimeout(async()=>{
+      const hoje=new Date().toISOString().slice(0,10),agora=new Date().toISOString();
+      const ativos=leitos.filter(l=>l.paciente&&l.admissionId);
+      if(!ativos.length)return;
+      const novo={...historicoDiario};
+      ativos.forEach(l=>{
+        const adm=novo[l.admissionId]||{admissionId:l.admissionId,patientId:l.patientId,startedAt:l.admissionStartedAt||agora,bedId:l.id,days:{}};
+        adm.patientId=l.patientId;adm.bedId=l.id;adm.patientName=l.paciente;adm.days={...(adm.days||{}),[hoje]:{
+          clinicalDate:hoje,recordedAt:agora,status:"draft",source:"uti-evolve",
+          patient:{id:l.patientId,nome:l.paciente,sexo:l.sexo,idade:idadeDoLeito(l),peso:l.peso,diagnostico:l.diagnostico},
+          bedside:JSON.parse(JSON.stringify(l)),
+          evolution:JSON.parse(JSON.stringify(evolPorLeito[l.id]||{})),
+          clinicalTable:JSON.parse(JSON.stringify((tabelaData[l.id]||{})[hoje]||{})),
+          goals:JSON.parse(JSON.stringify(metasPorLeito[l.id]||[])),
+        }};novo[l.admissionId]=adm;
+      });
+      setHistoricoDiario(novo);
+      try{await supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novo)});}catch(e){console.warn("Falha ao salvar histórico diário",e);}
+    },1200);
+    return()=>clearTimeout(historicoTimer.current);
+  },[leitos,evolPorLeito,tabelaData,metasPorLeito]);
+
   const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
   const atualizar = (d) => {
     setLeitos(ls=>{
-      const novo = ls.map(l=>l.id===leitoSelId?{...l,...d}:l);
+      const novo = ls.map(l=>{
+        if(l.id!==leitoSelId)return l;
+        const atualizado={...l,...d};
+        if(atualizado.paciente&&!atualizado.patientId)atualizado.patientId=globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}`;
+        if(atualizado.paciente&&!atualizado.admissionId){atualizado.admissionId=globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}`;atualizado.admissionStartedAt=new Date().toISOString();}
+        return atualizado;
+      });
       salvarLeitos(novo);
       return novo;
     });
@@ -6912,16 +6964,20 @@ export default function App() {
     const dataAlta=new Date().toISOString().slice(0,10);
     const registro={
       id:(globalThis.crypto?.randomUUID?.()||`alta-${Date.now()}`),dataAlta,destino,arquivadoEm:new Date().toISOString(),
+      patientId:leito.patientId||null,admissionId:leito.admissionId||null,
       leito:JSON.parse(JSON.stringify(leito)),
       tabelaClinica:JSON.parse(JSON.stringify(tabelaData[leitoSelId]||{})),
       evolucao:JSON.parse(JSON.stringify(evolCampos||evolPorLeito[leitoSelId]||{})),
       metas:JSON.parse(JSON.stringify(metasPorLeito[leitoSelId]||[])),
+      historicoDiario:JSON.parse(JSON.stringify(historicoDiario[leito.admissionId]?.days||{})),
     };
     const novoArquivo=[...pacientesArquivados,registro];
     const novosLeitos=leitos.map(l=>l.id===leitoSelId?leitoVazio(l):l);
     const novaTabela={...tabelaData};delete novaTabela[leitoSelId];
     const novaEvol={...evolPorLeito};delete novaEvol[leitoSelId];
     const novasMetas={...metasPorLeito};delete novasMetas[leitoSelId];
+    const novoHistorico={...historicoDiario};
+    if(leito.admissionId){novoHistorico[leito.admissionId]={...(novoHistorico[leito.admissionId]||{}),admissionId:leito.admissionId,patientId:leito.patientId,status:"discharged",dischargedAt:new Date().toISOString(),outcome:destino,days:{...(novoHistorico[leito.admissionId]?.days||{})}};}
     setSaving(true);
     try {
       const resultados=await Promise.all([
@@ -6930,10 +6986,11 @@ export default function App() {
         supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(novaTabela)}),
         supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(novaEvol)}),
         supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(novasMetas)}),
+        supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novoHistorico)}),
       ]);
       const falha=resultados.find(r=>r.error);
       if(falha) throw falha.error;
-      setPacientesArquivados(novoArquivo);setLeitos(novosLeitos);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);
+      setPacientesArquivados(novoArquivo);setLeitos(novosLeitos);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);
       setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(v=>v+1);setDadosIA(null);setAba("paciente");
       window.alert("Alta concluída. O prontuário foi preservado no Arquivo de pacientes.");
     } catch(e) {
@@ -6988,6 +7045,7 @@ export default function App() {
   const railMode   = !isMobile && sidebarCollapsed;
   const alertCount = leitos.filter(l=>l.paciente).reduce((acc,l)=>acc+contarAlertasLeito(l, tabelaData, config), 0);
   const metasPendentes = Object.values(metasPorLeito).flat().filter(m=>!m.feito&&m.status!=="cumprido").length;
+  const diasHistorico = leito?.admissionId?Object.keys(historicoDiario[leito.admissionId]?.days||{}).sort():[];
 
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
@@ -7198,6 +7256,7 @@ export default function App() {
                 <div style={{fontSize:16,fontWeight:700,color:T.text1}}>{leito.paciente}</div>
                 {idadeAnos!==null&&<span style={{fontSize:12,fontFamily:mono,color:"#c084fc",fontWeight:600}}>{idadeAnos}a</span>}
                 {(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort();let acum=0,algum=false;datas.forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});const prev=parseFloat(leito.bhPrevio||0)||0;const tot=acum+prev;if(!algum&&!prev)return null;const cor=tot>0?"#f87171":tot<0?"#34d399":"#94a3b8";const sig=tot>=0?"+":"";return(<span style={{fontSize:11,fontFamily:mono,color:cor,fontWeight:700,padding:"2px 8px",borderRadius:10,background:`${cor}15`,border:`1px solid ${cor}30`}}>BH {sig}{Math.round(tot).toLocaleString("pt-BR")} mL</span>);})()}
+                <span title={diasHistorico.length?`Registros preservados: ${diasHistorico.map(d=>new Date(d+'T00:00:00').toLocaleDateString('pt-BR')).join(', ')}`:'O primeiro registro diário será criado automaticamente'} style={{fontSize:10,fontFamily:mono,color:T.accent,padding:"2px 8px",borderRadius:10,background:T.accentBg,border:`1px solid ${T.accentBorder}`}}>◷ {diasHistorico.length||1} dia{(diasHistorico.length||1)!==1?'s':''} registrado{(diasHistorico.length||1)!==1?'s':''}</span>
                 <button onClick={darAltaPaciente} title="Arquivar todos os dados e liberar o leito" style={{marginLeft:"auto",padding:"5px 10px",borderRadius:7,border:"1px solid rgba(251,191,36,.35)",background:"rgba(251,191,36,.08)",color:"#fbbf24",fontSize:11,fontWeight:700,cursor:"pointer"}}>Dar alta</button>
               </div>
               <div style={{fontSize:12,color:T.text3,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:2}}>
