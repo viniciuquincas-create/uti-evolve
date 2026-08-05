@@ -868,6 +868,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
 
   const [showCatalog, setShowCatalog] = useState(false);
   const [showDetails, setShowDetails] = useState(!integrated);
+  const [showMetas, setShowMetas] = useState(!integrated);
 
   const peso     = parseFloat(dados.peso) || 0;
   const catalogo = getDietasCatalogo(config);
@@ -945,6 +946,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
         </div>
       ) : (
         <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:10,alignItems:"start"}}>
           {/* Fórmula */}
           <div style={{marginBottom:12}}>
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>FÓRMULA / DIETA</div>
@@ -1014,6 +1016,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
               );
             })()}
           </div>
+          </div>
 
           {/* Módulo proteico */}
           <div style={{padding:"10px 12px",marginBottom:14,border:"1px solid rgba(251,146,60,.2)",borderRadius:9,background:"rgba(251,146,60,.04)"}}>
@@ -1028,9 +1031,19 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
             </div>}
           </div>
 
+          {dieta.tipo==="parenteral"&&<div style={{padding:"10px 12px",marginBottom:14,border:"1px solid rgba(56,189,248,.22)",borderRadius:9,background:"rgba(56,189,248,.04)"}}>
+            <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1,marginBottom:7}}>SUPLEMENTAÇÃO ASSOCIADA À NPT</div>
+            <input value={dieta.suplementacaoNPT||""} onChange={e=>upd("suplementacaoNPT",e.target.value)} placeholder="Ex.: Vitamina K 10 mg/semana · Tiamina 100 mg/dia"
+              style={{width:"100%",background:"rgba(255,255,255,.04)",border:"1px solid rgba(56,189,248,.25)",borderRadius:7,padding:"7px 9px",color:"#e2e8f0",fontSize:12}}/>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
+              {["Vitamina K","Tiamina","Polivitamínico","Oligoelementos"].map(s=><button key={s} onClick={()=>{const atual=dieta.suplementacaoNPT||"";if(!atual.toLowerCase().includes(s.toLowerCase()))upd("suplementacaoNPT",[atual,s].filter(Boolean).join(" · "));}} style={{padding:"2px 8px",borderRadius:12,border:"1px solid rgba(56,189,248,.2)",background:"transparent",color:"#7dd3fc",fontSize:10,cursor:"pointer"}}>+ {s}</button>)}
+            </div>
+          </div>}
+
           {/* Metas nutricionais */}
           <div style={{padding:"12px 14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10,marginBottom:14}}>
-            <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1,marginBottom:10}}>🎯 METAS NUTRICIONAIS</div>
+            <button onClick={()=>setShowMetas(v=>!v)} style={{width:"100%",display:"flex",justifyContent:"space-between",background:"none",border:"none",padding:0,color:"#c4b5fd",cursor:"pointer",fontFamily:mono,fontSize:10,letterSpacing:1}}><span>🎯 METAS NUTRICIONAIS{metaAbs?` · ${metaAbs.kcal||"—"} kcal · ${metaAbs.ptn||"—"} g ptn/d`:""}</span><span>{showMetas?"▲":"▼"}</span></button>
+            {showMetas&&<div style={{marginTop:10}}>
             <div style={{display:"flex",gap:6,marginBottom:10}}>
               {[{k:"kg",label:"Por kg/dia"},{k:"total",label:"Total fixo/dia"}].map(m=>(
                 <button key={m.k} onClick={()=>updMeta("modo",m.k)}
@@ -1087,6 +1100,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
                 🎯 Meta: <strong>{metaAbs.kcal ? `${metaAbs.kcal} kcal` : "—"}</strong> · <strong>{metaAbs.ptn ? `${metaAbs.ptn} g ptn` : "—"}</strong> /dia
               </div>
             )}
+            </div>}
           </div>
 
           {/* Atingimento hoje */}
@@ -3901,7 +3915,7 @@ const EVOLUCAO_VAZIA = {
   cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvTEC:"", cvLact:"", cvDeltaCO2:"", cvDeltaPP:"", cvTropo:"", cvObs:"",
   reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
-  tgEF:"", tg24h:"", tgLabs:"", tgPocus:"", tgObs:"",
+  tgEF:"", tg24h:"", tgLaxativos:"", tgLabs:"", tgPocus:"", tgObs:"",
   heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
   probAtivos:"", probResolvidos:"",
   impressao:"",
@@ -4759,6 +4773,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       let dl=`Dieta: ${tl}`;
       if(d.formula) dl+=` ${d.formula}`;
       if(d.moduloProteina?.ativo&&d.moduloProteina?.gramas) dl+=` + módulo proteico ${d.moduloProteina.gramas}g/d`;
+      if(d.tipo==="parenteral"&&d.suplementacaoNPT) dl+=` · suplementação: ${d.suplementacaoNPT}`;
       if(d.volTotal24) dl+=` ${d.volTotal24}mL/24h`;
       if(d.kcalManual&&peso) dl+=` (${(parseFloat(d.kcalManual)/peso).toFixed(1)} kcal/kg/d`;
       else if(d.catalogId&&d.volTotal24){
@@ -4773,6 +4788,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const _lamg=get("tgLAMG")||leito.tgLAMG;
     if(_ultEvac){const d=Math.floor((new Date()-new Date(_ultEvac+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
     if(_lamg)   p.push(`- LAMG: ${_lamg}`);
+    if(get("tgLaxativos")) p.push(`- Laxativos: ${get("tgLaxativos")}`);
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(get("tgObs"))  p.push(`*${get("tgObs")}`);
     return p.join("\n");
@@ -5022,6 +5038,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(d.formula) dl+=` ${d.formula}`;
       if(d.vazao) dl+=` @ ${d.vazao}mL/h`;
       if(d.moduloProteina?.ativo&&d.moduloProteina?.gramas) dl+=` + módulo proteico ${d.moduloProteina.gramas}g/d`;
+      if(d.tipo==="parenteral"&&d.suplementacaoNPT) dl+=` · suplementação: ${d.suplementacaoNPT}`;
       p.push(dl);
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
     if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
@@ -5030,6 +5047,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const _lamg=get("tgLAMG")||leito.tgLAMG;
     if(_ultEvac){const dx=Math.floor((new Date()-new Date(_ultEvac+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${dx}d atrás`);}
     if(_lamg) p.push(`- LAMG: ${_lamg}`);
+    if(get("tgLaxativos")) p.push(`- Laxativos: ${get("tgLaxativos")}`);
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(vis.tgPocus&&get("tgPocus")) p.push(`- POCUS: ${get("tgPocus")}`);
     if(vis.add_tgi_interconsulta&&getExtra("add_tgi_interconsulta")) p.push(`- IC: ${getExtra("add_tgi_interconsulta")}`);
@@ -5425,6 +5443,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
               </span>}
             </div>
           </Col>
+          <Col><PickField label="Laxativos" options={["Sem laxativos","Lactulose","Macrogol","Bisacodil","Enema","Lactulose + Macrogol"]} value={campos.tgLaxativos||""} onChange={v=>onCampoEdit("tgLaxativos",v)} rows={1} placeholder="Digite o esquema..."/></Col>
           <Col><FL>Profilaxia LAMG</FL>
             <select value={campos.tgLAMG||""} onChange={e=>onCampoEdit("tgLAMG",e.target.value)}
               style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12,cursor:"pointer"}}>
