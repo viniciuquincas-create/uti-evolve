@@ -1207,6 +1207,8 @@ function DispCard({ label, icone, alertaDias, disp, onUpdate, onRemove }) {
 
 function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
   const [showPicker, setShowPicker] = useState(false);
+  const [nomeCustom, setNomeCustom] = useState("");
+  const [alertaCustom, setAlertaCustom] = useState("21");
 
   const getAlerta = (key) => {
     const map = {cvc:"cvc",dialise:"dialise",dreno:"dreno",tot:"tot",tqt:"tqt",svd:"svd",pai:"pai",sng:"sng"};
@@ -1246,12 +1248,23 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
   const updMultiplo = (key, id, field, val) =>
     onChange({ ...dispositivos, [key]: getMultiplos(key).map(d=>d.id===id?{...d,[field]:val}:d) });
 
+  // Personalizados: dispositivos.custom = [{id,nome,icone,alertaDias,data,site,obs}]
+  const custom = Array.isArray(dispositivos.custom) ? dispositivos.custom : [];
+  const inserirCustom = (nome=nomeCustom) => {
+    const nomeLimpo=String(nome||"").trim();if(!nomeLimpo)return;
+    const icone=/dve|ventric|pic/i.test(nomeLimpo)?"🧠":/pigtail|torax|tórax|pleur/i.test(nomeLimpo)?"🫁":"🔌";
+    onChange({...dispositivos,custom:[...custom,{...novoDisp(""),nome:nomeLimpo,icone,alertaDias:Math.max(1,parseInt(alertaCustom)||21)}]});
+    setNomeCustom("");setShowPicker(false);
+  };
+  const retirarCustom = id => onChange({...dispositivos,custom:custom.filter(d=>d.id!==id)});
+  const updCustom = (id,field,val) => onChange({...dispositivos,custom:custom.map(d=>d.id===id?{...d,[field]:val}:d)});
+
   // Quais singulares ainda não foram inseridos
   const singularesDisponiveis = DISP_SINGULAR.filter(d => !isSingularAtivo(d.key));
   // Múltiplos sempre disponíveis para adicionar mais
   const temAlgumAtivo =
     DISP_SINGULAR.some(d=>isSingularAtivo(d.key)) ||
-    DISP_MULTIPLO.some(d=>getMultiplos(d.key).length>0);
+    DISP_MULTIPLO.some(d=>getMultiplos(d.key).length>0) || custom.length>0;
 
   return (
     <div>
@@ -1266,6 +1279,7 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:8,marginBottom:8}}>
         {DISP_MULTIPLO.map(({key,label,icone})=>(Array.isArray(dispositivos[key])?dispositivos[key]:[]).map((disp,i)=>(<DispCard key={disp.id} label={(Array.isArray(dispositivos[key])&&dispositivos[key].length>1)?`${label} ${i+1}`:label} icone={icone} alertaDias={getAlerta(key)} disp={disp} onUpdate={(f,v)=>updMultiplo(key,disp.id,f,v)} onRemove={()=>retirarMultiplo(key,disp.id)}/>)))}
         {DISP_SINGULAR.map(({key,label,icone})=>{if(!isSingularAtivo(key))return null;return <DispCard key={key} label={label} icone={icone} alertaDias={getAlerta(key)} disp={dispositivos[key]} onUpdate={(f,v)=>updSingular(key,f,v)} onRemove={()=>retirarSingular(key)}/>;})}
+        {custom.map(d=><DispCard key={d.id} label={d.nome||"Dispositivo personalizado"} icone={d.icone||"🔌"} alertaDias={d.alertaDias||21} disp={d} onUpdate={(f,v)=>updCustom(d.id,f,v)} onRemove={()=>retirarCustom(d.id)}/>)}
       </div>
 
       {/* Botão + picker */}
@@ -1320,6 +1334,16 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
                 ))}
               </div>
             )}
+            <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",marginTop:4,padding:"10px 8px 4px"}}>
+              <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:2,marginBottom:7}}>OUTRO DISPOSITIVO</div>
+              <div style={{display:"grid",gridTemplateColumns:"minmax(150px,1fr) 90px auto",gap:6}}>
+                <input value={nomeCustom} onChange={e=>setNomeCustom(e.target.value)} onKeyDown={e=>e.key==="Enter"&&inserirCustom()} placeholder="Nome: DVE, Pigtail…" style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(56,189,248,.25)",borderRadius:7,padding:"8px 9px",color:"#e2e8f0",fontSize:12}}/>
+                <input type="number" min="1" value={alertaCustom} onChange={e=>setAlertaCustom(e.target.value)} title="Dias até sinalizar revisão" style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(56,189,248,.18)",borderRadius:7,padding:"8px",color:"#e2e8f0",fontSize:11}}/>
+                <button onClick={()=>inserirCustom()} disabled={!nomeCustom.trim()} style={{padding:"7px 11px",borderRadius:7,border:"1px solid rgba(56,189,248,.35)",background:"rgba(56,189,248,.1)",color:nomeCustom.trim()?"#38bdf8":"#475569",cursor:nomeCustom.trim()?"pointer":"default",fontWeight:700}}>Adicionar</button>
+              </div>
+              <div style={{display:"flex",gap:5,marginTop:7}}>{["DVE","Pigtail"].map(n=><button key={n} onClick={()=>inserirCustom(n)} style={{padding:"3px 8px",borderRadius:12,border:"1px solid rgba(56,189,248,.18)",background:"transparent",color:"#64748b",fontSize:10,cursor:"pointer"}}>+ {n}</button>)}</div>
+              <div style={{fontSize:9,color:"#475569",marginTop:6}}>O número define após quantos dias o sistema deve sinalizar revisão.</div>
+            </div>
           </div>
         )}
       </div>
@@ -1781,6 +1805,10 @@ function contarAlertasLeito(leito, tabelaData, config={}) {
     if (!inst?.ativo || !inst.data) return;
     const dd = Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
     if (dd > (config[ALERTA_CONFIG_KEY[d.key]] ?? d.alertaDias)) n++;
+  });
+  (Array.isArray((leito.dispositivos||{}).custom)?leito.dispositivos.custom:[]).forEach(inst=>{
+    if(!inst.data)return;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
+    if(dd>(inst.alertaDias||21))n++;
   });
   return n;
 }
@@ -4825,6 +4853,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     ...DISP_SINGULAR.filter(d=>disps[d.key]?.ativo).map(d=>({
       label:d.label, icone:d.icone, alertaDias:d.alertaDias, disp:disps[d.key]
     })),
+    ...(Array.isArray(disps.custom)?disps.custom:[]).map(d=>({label:d.nome||"Dispositivo personalizado",icone:d.icone||"🔌",alertaDias:d.alertaDias||21,disp:d})),
   ];
 
   // Refs para cada campo
@@ -6012,6 +6041,9 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
               if (!d[def.key]?.ativo||!d[def.key].data) return false;
               const dd=Math.floor((new Date()-new Date(d[def.key].data+"T00:00:00"))/86400000);
               return dd>def.alertaDias;
+            }) || (Array.isArray(d.custom)?d.custom:[]).some(inst=>{
+              if(!inst.data)return false;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
+              return dd>(inst.alertaDias||21);
             });
           return temAlerta ? <div style={{marginTop:5,fontSize:10,color:"#f87171",fontFamily:mono}}>⚠️ Dispositivo p/ revisão</div> : null;
         })()}
@@ -7355,6 +7387,7 @@ export default function App() {
                 {[
                   ...DISP_MULTIPLO.flatMap(def=>(Array.isArray((leito.dispositivos||{})[def.key])?(leito.dispositivos||{})[def.key]:[]).map((inst,i)=>({label:`${def.label.split(" ")[0]}${((leito.dispositivos||{})[def.key].length>1)?` ${i+1}`:""}`,alertaDias:def.alertaDias,data:inst.data}))),
                   ...DISP_SINGULAR.filter(def=>(leito.dispositivos||{})[def.key]?.ativo).map(def=>({label:def.label.split(" ")[0],alertaDias:def.alertaDias,data:(leito.dispositivos||{})[def.key].data})),
+                  ...(Array.isArray((leito.dispositivos||{}).custom)?(leito.dispositivos||{}).custom:[]).map(d=>({label:d.nome||"Outro",alertaDias:d.alertaDias||21,data:d.data})),
                 ].map((a,i)=>{
                   const po=Math.floor((new Date()-new Date(a.data+"T00:00:00"))/86400000);
                   const cor=po>a.alertaDias?"#f87171":"#38bdf8";
