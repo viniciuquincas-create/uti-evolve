@@ -1349,6 +1349,7 @@ const VM_MODOS = [
   { id:"vm_vcv",       label:"VM — VCV",  icone:"🔴"  },
   { id:"vm_aprv",      label:"VM — APRV",                         icone:"🔴"  },
 ];
+const VM_INVASIVA_MODOS=["vm_psv","vm_pcv","vm_vcv","vm_aprv"];
 
 const VM_CAMPOS = {
   ar_ambiente: [],
@@ -1422,8 +1423,15 @@ function gerarTextoVM(leito) {
     return `${c.label.replace(/ \(.*\)/,"")}: ${v}`;
   }).filter(Boolean);
   if (leito.vm_sato2) partes.push(`SatO2: ${leito.vm_sato2}%`);
-  const modosVMFull = ["vm_psv","vm_pcv","vm_vcv","vm_aprv"];
-  if (modosVMFull.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
+  if (VM_INVASIVA_MODOS.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
+  if(VM_INVASIVA_MODOS.includes(modo)){
+    const cuidados=[];
+    if(leito.vm_cuidado_cornea) cuidados.push("profilaxia de úlcera de córnea: dextrano");
+    if(leito.vm_higiene_oral) cuidados.push("higiene oral: clorexidina");
+    const sialo=[leito.vm_sialo_propantelina&&"propantelina",leito.vm_sialo_atropina&&"atropina",leito.vm_sialo_escopolamina&&"escopolamina"].filter(Boolean);
+    if(sialo.length) cuidados.push(`medidas para sialorreia: ${sialo.join(", ")}`);
+    if(cuidados.length) partes.push(`Cuidados VM: ${cuidados.join("; ")}`);
+  }
   if (leito.vm_obs) partes.push(leito.vm_obs);
   // Calculados
   if ((modo==="vm_pcv"||modo==="vm_vcv")&&leito.vm_pplat&&leito.vm_peep) {
@@ -1520,6 +1528,18 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
         </div>
       ) : <SecTitle>SUPORTE VENTILATÓRIO</SecTitle>}
 
+      {VM_INVASIVA_MODOS.includes(leito.vm_modo)&&<div style={{margin:"-2px 0 12px",padding:"8px 11px",border:`1px solid ${T.border}`,borderRadius:9,background:T.bgInput}}>
+        <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.2,fontWeight:700,marginBottom:6}}>CUIDADOS EM VENTILAÇÃO MECÂNICA</div>
+        <div style={{display:"flex",alignItems:"center",gap:"7px 16px",flexWrap:"wrap",fontSize:11,color:T.text2}}>
+          <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_cuidado_cornea} onChange={e=>set("vm_cuidado_cornea",e.target.checked)}/><span>Úlcera de córnea: <b>Dextrano</b></span></label>
+          <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_higiene_oral} onChange={e=>set("vm_higiene_oral",e.target.checked)}/><span>Higiene oral: <b>Clorexidina</b></span></label>
+          <span style={{color:T.text3,fontFamily:mono,fontSize:9}}>SIALORREIA:</span>
+          <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_sialo_propantelina} onChange={e=>set("vm_sialo_propantelina",e.target.checked)}/>Propantelina</label>
+          <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_sialo_atropina} onChange={e=>set("vm_sialo_atropina",e.target.checked)}/>Atropina</label>
+          <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_sialo_escopolamina} onChange={e=>set("vm_sialo_escopolamina",e.target.checked)}/>Escopolamina</label>
+        </div>
+      </div>}
+
       {(!integrated || showDetails) && <div style={integrated?{padding:"12px 14px 2px",marginTop:-12,marginBottom:12,border:"1px solid rgba(56,189,248,.18)",borderTop:"none",borderRadius:"0 0 12px 12px",background:"rgba(56,189,248,.025)"}:undefined}>
 
       {/* Seletor de modo */}
@@ -1572,7 +1592,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
               placeholder="90-100"
               style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
           </div>
-          {["vm_psv","vm_pcv","vm_vcv","vm_aprv"].includes(leito.vm_modo) && leito.dispositivos?.tqt?.ativo && (
+          {VM_INVASIVA_MODOS.includes(leito.vm_modo) && leito.dispositivos?.tqt?.ativo && (
             <div style={{minWidth:120,flex:1}}>
               <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>CUFF (TQT)</div>
               <input value={leito.vm_cuff||""} onChange={e=>set("vm_cuff",e.target.value)}
