@@ -4799,6 +4799,41 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   );
 };
 
+// Registros seriados com data/hora para monitorizações realizadas mais de uma vez ao dia.
+// O objeto inteiro fica no campo da evolução, preservando parâmetros padrão e personalizados.
+function SerialMeasurements({title,fieldKey,fields=[],value,onChange,color="#38bdf8",subjective=false}){
+  const T=useTheme();
+  const state=value&&typeof value==="object"&&!Array.isArray(value)?value:{entries:[],customParams:[]};
+  const entries=Array.isArray(state.entries)?state.entries:[],customParams=Array.isArray(state.customParams)?state.customParams:[];
+  const allFields=[...(subjective?[{key:"avaliacao",label:"Avaliação subjetiva",wide:true}]:[]),...fields,...customParams.map(p=>({key:p.key,label:p.label}))];
+  const emit=next=>onChange({...state,...next});
+  const add=()=>emit({entries:[...entries,{id:`sm_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,data:new Date().toISOString().slice(0,10),hora:new Date().toTimeString().slice(0,5),values:{}}]});
+  const upd=(id,key,val)=>emit({entries:entries.map(e=>e.id===id?{...e,[key]:val}:e)});
+  const updVal=(id,key,val)=>emit({entries:entries.map(e=>e.id===id?{...e,values:{...(e.values||{}),[key]:val}}:e)});
+  const remove=id=>emit({entries:entries.filter(e=>e.id!==id)});
+  const addParam=()=>{const label=window.prompt("Nome da nova variável:");if(!label?.trim())return;const key=`p_${Date.now().toString(36)}`;emit({customParams:[...customParams,{key,label:label.trim()}]});};
+  return <div style={{marginTop:9,border:`1px solid ${color}33`,borderRadius:9,background:`${color}08`,overflow:"hidden"}}>
+    <div style={{display:"flex",alignItems:"center",padding:"7px 9px",borderBottom:entries.length?`1px solid ${color}22`:0}}><span style={{fontSize:10,fontFamily:mono,letterSpacing:1.2,color,fontWeight:700}}>{title}</span><button onClick={addParam} style={{marginLeft:"auto",border:0,background:"transparent",color:T.text3,fontSize:10,cursor:"pointer"}}>+ variável</button><button onClick={add} style={{marginLeft:5,padding:"3px 8px",borderRadius:6,border:`1px solid ${color}55`,background:`${color}12`,color,cursor:"pointer",fontSize:10,fontWeight:700}}>+ medida</button></div>
+    {entries.map((e,i)=><div key={e.id} style={{padding:"8px 9px",borderTop:i?`1px solid ${T.border}`:0}}>
+      <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:6}}><input type="date" value={e.data||""} onChange={x=>upd(e.id,"data",x.target.value)} style={{width:125,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><input type="time" value={e.hora||""} onChange={x=>upd(e.id,"hora",x.target.value)} style={{width:82,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><span style={{fontSize:9,color:T.text4}}>#{i+1}</span><button onClick={()=>remove(e.id)} style={{marginLeft:"auto",border:0,background:"transparent",color:"#f87171",cursor:"pointer"}}>✕</button></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:5}}>{allFields.map(f=><label key={f.key} style={{fontSize:9,color:T.text3,gridColumn:f.wide?"1 / -1":undefined}}>{f.label}<input value={e.values?.[f.key]||""} onChange={x=>updVal(e.id,f.key,x.target.value)} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1,fontSize:10}}/></label>)}</div>
+    </div>)}
+    {!entries.length&&<div style={{padding:"7px 9px",fontSize:10,color:T.text4}}>Nenhuma medida registrada.</div>}
+  </div>;
+}
+
+const SERIAL_MONITOR_CONFIG={
+  nDTC:{title:"DTC — REGISTROS SERIADOS",color:"#a78bfa",fields:[{key:"bnoD",label:"Bainha do nervo óptico D"},{key:"bnoE",label:"Bainha do nervo óptico E"},{key:"acmIP",label:"ACM IP"},{key:"acmFVd",label:"ACM FVd"},{key:"lindegaard",label:"Lindegaard"}]},
+  cvPocusSerial:{title:"POCUS — REGISTROS SERIADOS",color:"#f87171",subjective:true,fields:[{key:"vci",label:"VCI"},{key:"vtiVE",label:"VTI VE"},{key:"vtiVD",label:"VTI VD"},{key:"ea",label:"E/A"},{key:"ee",label:"E/e'"}]},
+  cvPiccoSerial:{title:"PiCCO — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"pvc",label:"PVC"},{key:"ic",label:"IC"},{key:"gedi",label:"GEDI"},{key:"elwi",label:"ELWI"},{key:"pvpi",label:"PVPI"},{key:"svri",label:"SVRI"},{key:"vvs",label:"VVS"},{key:"tdci",label:"tdCI"},{key:"gef",label:"GEF"}]},
+  cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"pvc",label:"PVC"},{key:"paps",label:"PAPs"},{key:"papd",label:"PAPd"},{key:"papm",label:"PAPm"},{key:"pcp",label:"PCP"},{key:"dc",label:"DC"},{key:"ic",label:"IC"},{key:"svo2",label:"SvO₂"},{key:"rvs",label:"RVS"}]},
+  cvBiaSerial:{title:"BIA — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"assistencia",label:"Relação de assistência"},{key:"trigger",label:"Trigger"},{key:"augmentacao",label:"Augmentação"},{key:"pasAssistida",label:"PAS assistida"},{key:"pasNaoAssistida",label:"PAS não assistida"},{key:"diastolicaAumentada",label:"Diastólica aumentada"},{key:"pam",label:"PAM"}]},
+  reLusSerial:{title:"LUS — REGISTROS SERIADOS",color:"#38bdf8",fields:[{key:"htd",label:"HTD"},{key:"hte",label:"HTE"}]},
+  rmTrsSerial:{title:"TRS — SESSÕES",color:"#34d399",fields:[{key:"modalidade",label:"Modalidade"},{key:"uf",label:"UF"},{key:"duracao",label:"Tempo de duração"},{key:"intercorrencias",label:"Intercorrências"}]},
+  rmPocusSerial:{title:"POCUS RENAL — REGISTROS SERIADOS",color:"#34d399",subjective:true,fields:[{key:"vci",label:"VCI"},{key:"vexus",label:"VExUS / congestão"},{key:"rins",label:"Rins"},{key:"bexiga",label:"Bexiga"}]},
+  tgPocusSerial:{title:"POCUS ABDOMINAL — REGISTROS SERIADOS",color:"#fb923c",subjective:true,fields:[{key:"vesicula",label:"Vesícula"},{key:"viasBiliares",label:"Vias biliares"},{key:"alcas",label:"Alças"},{key:"liquidoLivre",label:"Líquido livre"}]},
+};
+
 // Row/Col já existem no escopo de módulo (definidos mais acima, usados por SysBlock) — reaproveitados aqui, não redeclarados.
 const FL=({children})=>{const T=useTheme();return <div style={{fontSize:10,color:T.text3,fontFamily:mono,letterSpacing:1,marginBottom:3}}>{children}</div>;};
 const ClinicalGroup=({label,color="#64748b",children})=>{const T=useTheme();return <section className="clinical-group" style={{marginBottom:10}}>
@@ -5035,6 +5070,19 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const updateCustomField = (id,fieldId,value) => salvar("_customFields",{...customMap,[id]:(customMap[id]||[]).map(f=>f.id===fieldId?{...f,value}:f)});
   const removeCustomField = (id,fieldId) => salvar("_customFields",{...customMap,[id]:(customMap[id]||[]).filter(f=>f.id!==fieldId)});
   const customProps = id => ({customFields:customMap[id]||[],onAddCustomField:addCustomField,onUpdateCustomField:updateCustomField,onRemoveCustomField:removeCustomField});
+  const serialLines=(fieldKey,label)=>{
+    const state=campos[fieldKey];
+    if(!state||!Array.isArray(state.entries)) return [];
+    const cfg=SERIAL_MONITOR_CONFIG[fieldKey]||{};
+    const labels=Object.fromEntries([...(cfg.subjective?[{key:"avaliacao",label:"Avaliação subjetiva"}]:[]),...(cfg.fields||[]),...((state.customParams||[]))].map(f=>[f.key,f.label]));
+    return state.entries.map(entry=>{
+      const date=entry.data?new Date(`${entry.data}T00:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
+      const when=[date,entry.hora].filter(Boolean).join(" ");
+      const values=Object.entries(entry.values||{}).filter(([,v])=>String(v??"").trim()).map(([key,v])=>`${labels[key]||key} ${String(v).trim()}`).join(" / ");
+      return values?`- ${label}${when?` [${when}]`:""}: ${values}`:null;
+    }).filter(Boolean);
+  };
+  const serialPanel=(fieldKey)=><SerialMeasurements fieldKey={fieldKey} {...SERIAL_MONITOR_CONFIG[fieldKey]} value={campos[fieldKey]} onChange={value=>onCampoEdit(fieldKey,value)}/>;
 
   // ── txt funções completas (incluem opcionais/adicionáveis) ──
   const txtNFull = () => {
@@ -5062,6 +5110,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     });if(nd.length)p.push(`- Sedação/Analgesia (bombas): ${nd.join(" · ")}`);}
     if(vis.add_n_interconsulta&&getExtra("add_n_interconsulta")) p.push(`- IC: ${getExtra("add_n_interconsulta")}`);
     if(vis.add_n_exames&&getExtra("add_n_exames")) p.push(`- Exames: ${getExtra("add_n_exames")}`);
+    p.push(...serialLines("nDTC","DTC"));
     if(vis.add_n_pocus&&getExtra("add_n_pocus")) p.push(`- POCUS: ${getExtra("add_n_pocus")}`);
     if(vis.nObs&&get("nObs")) p.push(`*${get("nObs")}`);
     p.push(...customLines("n"));
@@ -5107,9 +5156,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(get("cvTropo")) p.push(`- Obs. Troponina: ${get("cvTropo")}`);
     }
     if(vis.cvMed&&get("cvMed")) p.push(`- Medicações: ${get("cvMed")}`);
-    if(vis.add_cv_pocus&&getExtra("add_cv_pocus")) p.push(`- POCUS: ${getExtra("add_cv_pocus")}`);
-    if(vis.add_cv_picco&&getExtra("add_cv_picco")) p.push(`- PiCCO: ${getExtra("add_cv_picco")}`);
-    if(vis.add_cv_swan&&getExtra("add_cv_swan")) p.push(`- Swan-Ganz: ${getExtra("add_cv_swan")}`);
+    p.push(...serialLines("cvPocusSerial","POCUS"),...serialLines("cvPiccoSerial","PiCCO"),...serialLines("cvSwanSerial","Swan-Ganz"),...serialLines("cvBiaSerial","BIA"));
     if(vis.add_cv_interconsulta&&getExtra("add_cv_interconsulta")) p.push(`- IC: ${getExtra("add_cv_interconsulta")}`);
     if(vis.cvObs&&get("cvObs")) p.push(`*${get("cvObs")}`);
     p.push(...customLines("cv"));
@@ -5133,6 +5180,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     }
     if(vis.reLUS&&get("reLUS")) p.push(`- LUS: ${get("reLUS")}`);
     if(vis.rePocus&&get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
+    p.push(...serialLines("reLusSerial","LUS"));
+    if(vis.add_res_exames&&getExtra("add_res_exames")) p.push(`- Exames: ${getExtra("add_res_exames")}`);
     if(vis.add_res_interconsulta&&getExtra("add_res_interconsulta")) p.push(`- IC: ${getExtra("add_res_interconsulta")}`);
     if(vis.reObs&&get("reObs")) p.push(`*${get("reObs")}`);
     p.push(...customLines("res"));
@@ -5143,6 +5192,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("rm24h"))  p.push(`- 24h: ${get("rm24h")}`);
     if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
     if(vis.rmTRS&&get("rmTRS")) p.push(`- TRS: ${get("rmTRS")}`);
+    p.push(...serialLines("rmTrsSerial","TRS"),...serialLines("rmPocusSerial","POCUS renal"));
     if(vis.add_reme_interconsulta&&getExtra("add_reme_interconsulta")) p.push(`- IC: ${getExtra("add_reme_interconsulta")}`);
     if(vis.rmObs&&get("rmObs")) p.push(`*${get("rmObs")}`);
     p.push(...customLines("reme"));
@@ -5169,6 +5219,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("tgLaxativos")) p.push(`- Laxativos: ${get("tgLaxativos")}`);
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(vis.tgPocus&&get("tgPocus")) p.push(`- POCUS: ${get("tgPocus")}`);
+    p.push(...serialLines("tgPocusSerial","POCUS abdominal"));
     if(vis.add_tgi_interconsulta&&getExtra("add_tgi_interconsulta")) p.push(`- IC: ${getExtra("add_tgi_interconsulta")}`);
     if(vis.add_tgi_exames&&getExtra("add_tgi_exames")) p.push(`- Exames: ${getExtra("add_tgi_exames")}`);
     if(vis.tgObs&&get("tgObs")) p.push(`*${get("tgObs")}`);
@@ -5321,8 +5372,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtNFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"n24h",label:"Controles 24h"},{key:"nEFExtra",label:"EF — Detalhe adicional"},{key:"nPsiq",label:"Psicoativos"},{key:"nObs",label:"Obs"}]}
-        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}
+        opcionais={[{key:"n24h",label:"Controles 24h"},{key:"nEFExtra",label:"EF"},{key:"nPsiq",label:"Psicoativos"}]}
+        adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"dtc",label:"DTC"}]}
         statusFields={[{label:"RASS",value:campos.nRASS},{label:"Glasgow",value:campos.nGlasgow},{label:"Pupilas",value:campos.nPupilas},{label:"Motricidade",value:campos.nEF},{label:"Dor",value:campos.nDor}]} {...customProps("n")}>
         <ClinicalGroup label="AVALIAÇÃO" color="#a78bfa">
         <Row>
@@ -5363,14 +5414,15 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} rows={2} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
         {vis["add_n_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_n_interconsulta")} defaultValue={campos["add_n_interconsulta"]} isAntigo={isAntigo("add_n_interconsulta")} rows={2} fieldName="add_n_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_n_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_n_exames")} defaultValue={campos["add_n_exames"]} isAntigo={isAntigo("add_n_exames")} rows={2} fieldName="add_n_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_n_dtc"]&&serialPanel("nDTC")}
         {vis["add_n_pocus"]&&<Row><Col><FL>POCUS</FL><TA fieldRef={ExtraRef("add_n_pocus")} defaultValue={campos["add_n_pocus"]} isAntigo={isAntigo("add_n_pocus")} rows={2} fieldName="add_n_pocus" onBlurSave={salvar}/></Col></Row>}
         {vis["nObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} rows={2} fieldName="nObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
       <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCvFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"},{key:"cvObs",label:"Obs"}]}
-        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"}]}
+        opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"}]}
+        adicionaveis={[{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"},{key:"bia",label:"BIA"}]}
         statusFields={[{label:"Hemodinâmica",value:campos.cvHemo},{label:"Ausculta",value:campos.cvAusculta},{label:"Cardioscopia",value:campos.cvCardioscopia}]} {...customProps("cv")}>
         <ClinicalGroup label="AVALIAÇÃO" color="#f87171">
         <Row>
@@ -5457,16 +5509,17 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </Col></Row>}
         {vis["add_cv_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_cv_interconsulta")} defaultValue={campos["add_cv_interconsulta"]||""} sugestao="Cardiologia 29/04: Eco TT marcado" rows={1} fieldName="add_cv_interconsulta" onBlurSave={salvar}/></Col></Row>}
         {vis["add_cv_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_cv_exames")} defaultValue={campos["add_cv_exames"]||""} sugestao="ECG 29/04: RS, sem alterações" rows={1} fieldName="add_cv_exames" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_cv_pocus"]&&<Row><Col><FL>POCUS</FL><TA fieldRef={ExtraRef("add_cv_pocus")} defaultValue={campos["add_cv_pocus"]||""} sugestao="POCUS 29/04: FE ~50%, sem derrame" rows={1} fieldName="add_cv_pocus" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_cv_picco"]&&<Row><Col><FL>PiCCO</FL><TA fieldRef={ExtraRef("add_cv_picco")} defaultValue={campos["add_cv_picco"]||""} sugestao="IC 2,8 / GEDVI 720 / EVLWI 8" rows={1} fieldName="add_cv_picco" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_cv_swan"]&&<Row><Col><FL>SWAN-GANZ</FL><TA fieldRef={ExtraRef("add_cv_swan")} defaultValue={campos["add_cv_swan"]||""} sugestao="PCP 15 / DC 4,2 / RVS 1200" rows={1} fieldName="add_cv_swan" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_cv_pocus"]&&serialPanel("cvPocusSerial")}
+        {vis["add_cv_picco"]&&serialPanel("cvPiccoSerial")}
+        {vis["add_cv_swan"]&&serialPanel("cvSwanSerial")}
+        {vis["add_cv_bia"]&&serialPanel("cvBiaSerial")}
         {vis["cvObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} sugestao="Eco beira-leito amanhã" rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"rePocus",label:"POCUS Pulmonar"},{key:"reLUS",label:"LUS"},{key:"reObs",label:"Obs"}]}
-        adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"outro",label:"+ outro"}]}
+        opcionais={[]}
+        adicionaveis={[{key:"lus",label:"LUS"},{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]} {...customProps("res")}>
         {/* ── Suporte Ventilatório ── */}
         <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
@@ -5502,6 +5555,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           })()} isAntigo={isAntigo("reGaso")} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
         {vis["rePocus"]&&<Row><Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} sugestao="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_res_lus"]&&serialPanel("reLusSerial")}
         {vis["add_res_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_res_exames")} defaultValue={campos["add_res_exames"]||""} sugestao="Rx tórax 29/04: sem novidades" rows={1} fieldName="add_res_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["add_res_outro"]&&<Row><Col><FL>OUTRO</FL><TA fieldRef={ExtraRef("add_res_outro")} defaultValue={campos["add_res_outro"]||""} rows={1} fieldName="add_res_outro" onBlurSave={salvar}/></Col></Row>}
         {vis["reObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} sugestao="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>}
@@ -5509,8 +5563,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={"#34d399"} txtFn={txtReMeFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"rmTRS",label:"TRS"},{key:"rmObs",label:"Obs"}]}
-        adicionaveis={[{key:"interconsulta",label:"Interconsulta"}]}
+        opcionais={[]}
+        adicionaveis={[{key:"trs",label:"TRS"},{key:"pocus",label:"POCUS"}]}
         statusFields={[{label:"24h — HD/BH",value:campos.rm24h},{label:"Labs renais",value:campos.rmLabs}]} {...customProps("reme")}>
         <ClinicalGroup label="FUNÇÃO RENAL E MONITORIZAÇÃO" color="#34d399">
         {/* Em uso de ATB? — somente leitura, refletindo o bloco Infeccioso (relevante p/ ajuste de dose renal) */}
@@ -5534,15 +5588,16 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <Row><Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} sugestao="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
         <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={1} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
-        {vis["rmTRS"]&&<ClinicalGroup label="TERAPIA RENAL SUBSTITUTIVA" color="#34d399"><Row><Col><FL>TRS</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} sugestao="CRRT citrato 150ml/h" rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
-        {vis["add_reme_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_reme_interconsulta")} defaultValue={campos["add_reme_interconsulta"]||""} sugestao="Nefrologia 29/04: avaliou TRS — manter CRRT" rows={1} fieldName="add_reme_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["rmTRS"]&&<ClinicalGroup label="TERAPIA RENAL SUBSTITUTIVA" color="#34d399"><Row><Col><FL>TRS (registro anterior)</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
+        {vis["add_reme_trs"]&&serialPanel("rmTrsSerial")}
+        {vis["add_reme_pocus"]&&serialPanel("rmPocusSerial")}
         {vis["rmObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} sugestao="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
       <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={"#fb923c"} txtFn={txtTGIFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"tgLabs",label:"Labs hepáticos"},{key:"tgPocus",label:"POCUS Abdominal"},{key:"tgObs",label:"Obs"}]}
-        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
+        opcionais={[{key:"tgLabs",label:"Labs hepáticos"}]}
+        adicionaveis={[{key:"pocus",label:"POCUS"},{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Via/Dieta",value:leito.dieta?.tipo},{label:"Última evacuação",value:campos.tgUltEvac}]} {...customProps("tgi")}>
                 {/* ── Dieta ── */}
         <ClinicalGroup label="NUTRIÇÃO E TERAPIA" color="#fb923c">
@@ -5584,14 +5639,15 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </div>
         </ClinicalGroup>
         {vis["add_tgi_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_tgi_interconsulta")} defaultValue={campos["add_tgi_interconsulta"]||""} sugestao="Gastro 29/04: endoscopia não indicada no momento" rows={1} fieldName="add_tgi_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_tgi_pocus"]&&serialPanel("tgPocusSerial")}
         {vis["add_tgi_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_tgi_exames")} defaultValue={campos["add_tgi_exames"]||""} sugestao="USG abdome 29/04: sem novidades" rows={1} fieldName="add_tgi_exames" onBlurSave={salvar}/></Col></Row>}
         {vis["tgObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} sugestao="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
       <SysB id="he" sigla="== He:" label="Hematológico" color={"#f59e0b"} txtFn={txtHeFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"heObs",label:"Obs"}]}
-        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
+        opcionais={[]}
+        adicionaveis={[{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Labs hematológicos",value:campos.heLabs},{label:"Profilaxia TEV",value:campos.heProf}]} {...customProps("he")}>
         <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#f59e0b">
         <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={1} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
