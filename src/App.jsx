@@ -1285,7 +1285,7 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
       {/* Botão + picker */}
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowPicker(v=>!v)} style={{
-          display:"flex",alignItems:"center",gap:8,padding:"9px 16px",width:"100%",
+          display:"inline-flex",alignItems:"center",gap:6,padding:"7px 12px",
           background:showPicker?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
           border:`1px solid ${showPicker?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
           borderRadius:10,color:showPicker?"#38bdf8":"#64748b",
@@ -1296,53 +1296,30 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
         </button>
 
         {showPicker && (
-          <div style={{marginTop:8,padding:"8px",background:"#0c1a10",border:"1px solid rgba(56,189,248,0.2)",borderRadius:12,display:"flex",flexDirection:"column",gap:4}}>
+          <div style={{marginTop:7,padding:"10px",background:"#0c1a10",border:"1px solid rgba(56,189,248,0.2)",borderRadius:10}}>
             {/* Múltiplos sempre disponíveis */}
-            {DISP_MULTIPLO.map(({key,label,icone,siteDefault})=>(
-              <button key={key} onClick={()=>inserirMultiplo(key,siteDefault)} style={{
-                display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
-                background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",
-                borderRadius:8,cursor:"pointer",textAlign:"left",
-              }}
-                onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
-                onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
-                <span style={{fontSize:18}}>{icone}</span>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,color:"#cbd5e1"}}>{label}</div>
-                  <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,marginTop:1}}>pode adicionar múltiplos</div>
-                </div>
-              </button>
-            ))}
+            <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:1.5,margin:"0 2px 5px"}}>MÚLTIPLOS</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{DISP_MULTIPLO.map(({key,label,icone,siteDefault})=>(
+              <button key={key} onClick={()=>inserirMultiplo(key,siteDefault)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 9px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,cursor:"pointer",color:"#cbd5e1",fontSize:11,fontWeight:600}}><span>{icone}</span>{label}<span style={{color:"#38bdf8"}}>＋</span></button>
+            ))}</div>
             {/* Separador se houver os dois grupos */}
             {singularesDisponiveis.length>0 && (
-              <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",margin:"4px 0",paddingTop:4}}>
-                <div style={{fontSize:9,color:"#334155",fontFamily:mono,letterSpacing:2,paddingLeft:14,paddingBottom:4}}>DISPOSITIVO ÚNICO</div>
+              <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",margin:"8px 0 0",paddingTop:7}}>
+                <div style={{fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:1.5,margin:"0 2px 5px"}}>ÚNICOS</div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                 {singularesDisponiveis.map(({key,label,icone,siteDefault})=>(
-                  <button key={key} onClick={()=>inserirSingular(key,siteDefault)} style={{
-                    display:"flex",alignItems:"center",gap:10,padding:"10px 14px",width:"100%",
-                    background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",
-                    borderRadius:8,cursor:"pointer",textAlign:"left",marginBottom:4,
-                  }}
-                    onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
-                    onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
-                    <span style={{fontSize:18}}>{icone}</span>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:600,color:"#cbd5e1"}}>{label}</div>
-                      {siteDefault&&<div style={{fontSize:11,color:"#475569",marginTop:1}}>Sítio padrão: {siteDefault}</div>}
-                    </div>
-                  </button>
+                  <button key={key} onClick={()=>inserirSingular(key,siteDefault)} title={siteDefault?`Sítio padrão: ${siteDefault}`:""} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 9px",background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,cursor:"pointer",color:"#cbd5e1",fontSize:11,fontWeight:600}}><span>{icone}</span>{label}<span style={{color:"#38bdf8"}}>＋</span></button>
                 ))}
+                </div>
               </div>
             )}
-            <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",marginTop:4,padding:"10px 8px 4px"}}>
-              <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:2,marginBottom:7}}>OUTRO DISPOSITIVO</div>
-              <div style={{display:"grid",gridTemplateColumns:"minmax(150px,1fr) 90px auto",gap:6}}>
+            <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",marginTop:8,padding:"8px 2px 1px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"minmax(150px,1fr) 72px auto",gap:5}}>
                 <input value={nomeCustom} onChange={e=>setNomeCustom(e.target.value)} onKeyDown={e=>e.key==="Enter"&&inserirCustom()} placeholder="Nome: DVE, Pigtail…" style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(56,189,248,.25)",borderRadius:7,padding:"8px 9px",color:"#e2e8f0",fontSize:12}}/>
                 <input type="number" min="1" value={alertaCustom} onChange={e=>setAlertaCustom(e.target.value)} title="Dias até sinalizar revisão" style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(56,189,248,.18)",borderRadius:7,padding:"8px",color:"#e2e8f0",fontSize:11}}/>
                 <button onClick={()=>inserirCustom()} disabled={!nomeCustom.trim()} style={{padding:"7px 11px",borderRadius:7,border:"1px solid rgba(56,189,248,.35)",background:"rgba(56,189,248,.1)",color:nomeCustom.trim()?"#38bdf8":"#475569",cursor:nomeCustom.trim()?"pointer":"default",fontWeight:700}}>Adicionar</button>
               </div>
-              <div style={{display:"flex",gap:5,marginTop:7}}>{["DVE","Pigtail"].map(n=><button key={n} onClick={()=>inserirCustom(n)} style={{padding:"3px 8px",borderRadius:12,border:"1px solid rgba(56,189,248,.18)",background:"transparent",color:"#64748b",fontSize:10,cursor:"pointer"}}>+ {n}</button>)}</div>
-              <div style={{fontSize:9,color:"#475569",marginTop:6}}>O número define após quantos dias o sistema deve sinalizar revisão.</div>
+              <div style={{display:"flex",gap:5,marginTop:5,alignItems:"center"}}>{["DVE","Pigtail"].map(n=><button key={n} onClick={()=>inserirCustom(n)} style={{padding:"2px 7px",borderRadius:12,border:"1px solid rgba(56,189,248,.18)",background:"transparent",color:"#64748b",fontSize:9,cursor:"pointer"}}>+ {n}</button>)}<span style={{fontSize:9,color:"#334155"}}>dias para revisão</span></div>
             </div>
           </div>
         )}
