@@ -4676,7 +4676,6 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
   const [cp2,setCp2]=useState(false);
   const vis = camposVisiveis || {};
   const toggle = (key) => setCamposVisiveis && setCamposVisiveis(prev=>({...prev,[key]:!prev[key]}));
-  const adicionaveisNaoAtivos = adicionaveis.filter(a=>!vis[`add_${id}_${a.key}`]);
   const statusTotal = statusFields.length;
   const statusPreenchidos = statusFields.filter(f=>String(f.value||"").trim()).length;
   const statusVazios = statusTotal - statusPreenchidos;
@@ -4754,12 +4753,17 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
               {vis[o.key]?"✓ ":""}{o.label}
             </button>
           ))}
-          {adicionaveisNaoAtivos.map(a=>(
-            <button key={a.key} onClick={()=>{toggle(`add_${id}_${a.key}`);setShowAdd(false);}}
-              style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(167,139,250,0.3)",background:"rgba(167,139,250,0.08)",color:"#a78bfa",cursor:"pointer",fontSize:11}}>
-              + {a.label}
+          {adicionaveis.map(a=>{
+            const key=`add_${id}_${a.key}`,active=!!vis[key];
+            return <button key={a.key} onClick={()=>{toggle(key);setShowAdd(false);}}
+              title={active?"Remover este campo do bloco":"Adicionar este campo ao bloco"}
+              style={{padding:"2px 9px",borderRadius:12,
+                border:`1px solid ${active?"rgba(248,113,113,.45)":"rgba(167,139,250,0.3)"}`,
+                background:active?"rgba(248,113,113,.09)":"rgba(167,139,250,0.08)",
+                color:active?"#f87171":"#a78bfa",cursor:"pointer",fontSize:11}}>
+              {active?"✕ ":"+ "}{a.label}
             </button>
-          ))}
+          })}
           <button onClick={()=>{onAddCustomField&&onAddCustomField(id);setShowAdd(false);}}
             style={{padding:"2px 9px",borderRadius:12,border:"1px solid rgba(52,211,153,.35)",background:"rgba(52,211,153,.08)",color:"#34d399",cursor:"pointer",fontSize:11}}>
             + Campo com nome livre
