@@ -6874,7 +6874,7 @@ export default function App() {
   const [appReady,   setAppReady]   = useState(false);
   const [leitos,     setLeitos]     = useState(LEITOS_INICIAIS);
   const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
-  const [aba,        setAba]        = useState("paciente");
+  const [aba,        setAba]        = useState("evolucao");
   const [dadosIA,    setDadosIA]    = useState(null);
   const [evolCampos, setEvolCampos] = useState(EVOLUCAO_VAZIA);
   const [evolVersion, setEvolVersion] = useState(0);
@@ -6884,6 +6884,7 @@ export default function App() {
   const [pacientesArquivados,setPacientesArquivados]=useState([]);
   const [historicoDiario,setHistoricoDiario]=useState({});
   const [historicoAberto,setHistoricoAberto]=useState(false);
+  const [pacienteEditorAberto,setPacienteEditorAberto]=useState(false);
   const [dataLoaded,setDataLoaded]=useState(false);
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
@@ -7166,7 +7167,7 @@ export default function App() {
       const falha=resultados.find(r=>r.error);
       if(falha) throw falha.error;
       setPacientesArquivados(novoArquivo);setLeitos(novosLeitos);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);
-      setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(v=>v+1);setDadosIA(null);setAba("paciente");
+      setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(v=>v+1);setDadosIA(null);setAba("evolucao");
       window.alert("Alta concluída. O prontuário foi preservado no Arquivo de pacientes.");
     } catch(e) {
       console.error("Falha ao arquivar paciente",e);window.alert("Não foi possível arquivar. O leito não foi limpo; tente novamente.");
@@ -7206,7 +7207,6 @@ export default function App() {
   };
 
   const ABAS = [
-    {id:"paciente",      label:"👤 Paciente"},
     {id:"evolucao",      label:"🏥 Beira-leito"},
     {id:"tabela",        label:"📊 Tabela Clínica"},
     {id:"upload",        label:"📤 Importar Print"},
@@ -7307,7 +7307,7 @@ export default function App() {
                 const rotulo = (l.nome.match(/\d+/)||[])[0] || l.nome.slice(0,2).toUpperCase();
                 return (
                   <button key={l.id}
-                    onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setAba("paciente");setViewGlobal("leitos");}}
+                    onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setViewGlobal("leitos");}}
                     title={`${l.nome}${l.paciente?" — "+l.paciente:""}`}
                     style={{width:40,height:40,borderRadius:10,background:(l.id===leitoSelId&&viewGlobal==="leitos")?T.accentBg:T.bgCard,border:`1.5px solid ${(l.id===leitoSelId&&viewGlobal==="leitos")?T.accent:T.border}`,color:(l.id===leitoSelId&&viewGlobal==="leitos")?T.accent:T.text3,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:mono,flexShrink:0}}>
                     {rotulo}
@@ -7348,7 +7348,7 @@ export default function App() {
                   return novo;
                 });
                 setLeitoSelId(novoId);
-                setAba("paciente");
+                setAba("evolucao");setPacienteEditorAberto(true);
               }}
               title="Adicionar leito"
               style={{background:T.accentBg,border:`1px solid ${T.accentBorder}`,borderRadius:6,color:T.accent,cursor:"pointer",fontSize:14,padding:"2px 8px",fontWeight:700,lineHeight:1.4}}>+</button>
@@ -7386,7 +7386,7 @@ export default function App() {
               </div>
               <div style={{flex:1}}>
                 <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config}
-                  onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setAba("paciente");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
+                  onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
                   onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
                   onRemove={leitos.length>1?()=>{
                     if(l.paciente){window.alert("Este leito possui um paciente. Use “Dar alta” para preservar os dados antes de remover o leito.");return;}
@@ -7425,14 +7425,15 @@ export default function App() {
                 }}/>
             </div>
           ) : (<>
-          {leito.paciente && (
+          {(
             <div style={{padding:"13px 28px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                <div style={{fontSize:16,fontWeight:700,color:T.text1}}>{leito.paciente}</div>
+                <div style={{fontSize:16,fontWeight:700,color:leito.paciente?T.text1:T.text3}}>{leito.paciente||"Leito sem paciente cadastrado"}</div>
                 {idadeAnos!==null&&<span style={{fontSize:12,fontFamily:mono,color:"#c084fc",fontWeight:600}}>{idadeAnos}a</span>}
                 {(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort();let acum=0,algum=false;datas.forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});const prev=parseFloat(leito.bhPrevio||0)||0;const tot=acum+prev;if(!algum&&!prev)return null;const cor=tot>0?"#f87171":tot<0?"#34d399":"#94a3b8";const sig=tot>=0?"+":"";return(<span style={{fontSize:11,fontFamily:mono,color:cor,fontWeight:700,padding:"2px 8px",borderRadius:10,background:`${cor}15`,border:`1px solid ${cor}30`}}>BH {sig}{Math.round(tot).toLocaleString("pt-BR")} mL</span>);})()}
                 <button onClick={()=>setHistoricoAberto(true)} title="Abrir histórico e comparar dias" style={{fontSize:10,fontFamily:mono,color:T.accent,padding:"2px 8px",borderRadius:10,background:T.accentBg,border:`1px solid ${T.accentBorder}`,cursor:"pointer"}}>◷ {diasHistorico.length||1} dia{(diasHistorico.length||1)!==1?'s':''} registrado{(diasHistorico.length||1)!==1?'s':''}</button>
-                <button onClick={darAltaPaciente} title="Arquivar todos os dados e liberar o leito" style={{marginLeft:"auto",padding:"5px 10px",borderRadius:7,border:"1px solid rgba(251,191,36,.35)",background:"rgba(251,191,36,.08)",color:"#fbbf24",fontSize:11,fontWeight:700,cursor:"pointer"}}>Dar alta</button>
+                <button onClick={()=>setPacienteEditorAberto(true)} title="Editar cadastro, histórico e procedimentos" style={{marginLeft:"auto",padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>✎ {leito.paciente?"Editar paciente":"Cadastrar paciente"}</button>
+                {leito.paciente&&<button onClick={darAltaPaciente} title="Arquivar todos os dados e liberar o leito" style={{padding:"5px 10px",borderRadius:7,border:"1px solid rgba(251,191,36,.35)",background:"rgba(251,191,36,.08)",color:"#fbbf24",fontSize:11,fontWeight:700,cursor:"pointer"}}>Dar alta</button>}
               </div>
               <div style={{fontSize:12,color:T.text3,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:2}}>
                 <span>{leito.diagnostico}{dias!==null&&` · D${dias}`}{leito.peso&&` · ${leito.peso} kg`}{pp&&` · PP ${pp} kg`}</span>
@@ -7465,7 +7466,7 @@ export default function App() {
 
           <div className={leito.paciente&&ABAS.some(a=>a.id===aba)?"patient-content-with-problems":""} style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
-              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("paciente")}/>
+              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("evolucao")}/>
             ) : aba==="dadosclinicos_legacy" ? (
               <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
                 {/* Coluna esquerda: Ventilatório + Nutricional */}
@@ -7520,26 +7521,6 @@ ${linha}`:linha}));
                   </Collapsible>
                 </div>
               </div>
-            ) : aba==="paciente" ? (
-              <div><PacientePanel
-                dados={leito} onChange={atualizar} config={config}
-                onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
-                diureseHoje={(()=>{
-                  const tb = tabelaData[leitoSelId]||{};
-                  const datas = Object.keys(tb).sort().reverse();
-                  for (const d of datas) if (tb[d]?.c24_diur) return tb[d].c24_diur;
-                  return "";
-                })()}
-                tabelaHoje={(()=>{
-                  const tb = tabelaData[leitoSelId]||{};
-                  const datas = Object.keys(tb).sort().reverse();
-                  for (const d of datas) if (tb[d]?.c24_diet_vol) return tb[d];
-                  return tb[Object.keys(tb).sort().reverse()[0]]||{};
-                })()}
-                onLancarDroga={(linha, campo)=>{
-                  setEvolCamposComPersistencia(c=>({...c, [campo]: c[campo] ? `${c[campo]}\n${linha}` : linha}));
-                  setEvolVersion(v=>v+1);
-                }}/></div>
             ) : aba==="tabela" ? (
               <TabelaClinica
                 leito={leito}
@@ -7762,6 +7743,21 @@ ${linha}`:linha}));
         </>)}
         </div>
       </div>
+      {pacienteEditorAberto&&<div onMouseDown={e=>{if(e.target===e.currentTarget)setPacienteEditorAberto(false);}} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(2,6,23,.74)",backdropFilter:"blur(3px)",display:"flex",justifyContent:"center",alignItems:"flex-start",padding:"4vh 18px"}}>
+        <div style={{width:"min(1050px,96vw)",maxHeight:"92vh",display:"flex",flexDirection:"column",background:T.bgPage,border:`1px solid ${T.borderStrong}`,borderRadius:14,boxShadow:"0 24px 70px rgba(0,0,0,.45)",overflow:"hidden"}}>
+          <div style={{display:"flex",alignItems:"center",padding:"12px 16px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
+            <div><div style={{fontSize:14,fontWeight:750,color:T.text1}}>{leito.paciente?`Editar ${leito.paciente}`:"Cadastrar paciente"}</div><div style={{fontSize:10,color:T.text3,marginTop:2}}>Cadastro, histórico clínico e procedimentos do leito</div></div>
+            <button onClick={()=>setPacienteEditorAberto(false)} style={{marginLeft:"auto",border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,borderRadius:7,padding:"5px 10px",cursor:"pointer",fontWeight:700}}>✕ Fechar</button>
+          </div>
+          <div style={{overflowY:"auto",padding:"20px 22px"}}><PacientePanel
+            dados={leito} onChange={atualizar} config={config}
+            onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
+            diureseHoje={(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort().reverse();for(const d of datas)if(tb[d]?.c24_diur)return tb[d].c24_diur;return "";})()}
+            tabelaHoje={(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort().reverse();for(const d of datas)if(tb[d]?.c24_diet_vol)return tb[d];return tb[datas[0]]||{};})()}
+            onLancarDroga={(linha,campo)=>{setEvolCamposComPersistencia(c=>({...c,[campo]:c[campo]?`${c[campo]}\n${linha}`:linha}));setEvolVersion(v=>v+1);}}/>
+          </div>
+        </div>
+      </div>}
       {historicoAberto&&leito?.admissionId&&<HistoricoDiarioPanel internacao={historicoDiario[leito.admissionId]||{patientName:leito.paciente,days:{}}} onClose={()=>setHistoricoAberto(false)}/>}
     </div>
     </ThemeCtx.Provider>
