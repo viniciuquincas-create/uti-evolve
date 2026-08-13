@@ -6877,6 +6877,8 @@ export default function App() {
   const [authed,     setAuthed]     = useState(false);
   const [appReady,   setAppReady]   = useState(false);
   const [leitos,     setLeitos]     = useState(LEITOS_INICIAIS);
+  const [utis,setUtis]=useState([{id:"uti-principal",nome:"UTI Principal"}]);
+  const [utiAtivaId,setUtiAtivaId]=useState(()=>sessionStorage.getItem("uti_ativa_id")||"");
   const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
   const [aba,        setAba]        = useState("evolucao");
   const [dadosIA,    setDadosIA]    = useState(null);
@@ -6913,17 +6915,22 @@ export default function App() {
   // ── LOAD ─────────────────────────────────────────────────────────────────────
   const loadData = async () => {
     let leitoAtualId = LEITOS_INICIAIS[0].id;
+    let utiPadrao="uti-principal";
+    try{
+      const {data:ud}=await supabase.from("config").select("value").eq("key","utis_data").single();
+      if(ud?.value){const parsed=JSON.parse(ud.value);if(Array.isArray(parsed)&&parsed.length){setUtis(parsed);utiPadrao=parsed[0].id;}}
+    }catch{}
     try {
       const { data: ld } = await supabase.from("config").select("value").eq("key","leitos_data").single();
       if (ld?.value) {
         const p = JSON.parse(ld.value);
         if (Array.isArray(p) && p.length) {
           const agora=new Date().toISOString();
-          const normalizados=p.map(l=>!l.paciente?l:{...l,patientId:l.patientId||(globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${l.id}`),admissionId:l.admissionId||(globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${l.id}`),admissionStartedAt:l.admissionStartedAt||agora});
+          const normalizados=p.map(l=>({...l,utiId:l.utiId||utiPadrao,...(!l.paciente?{}:{patientId:l.patientId||(globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${l.id}`),admissionId:l.admissionId||(globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${l.id}`),admissionStartedAt:l.admissionStartedAt||agora})}));
           setLeitos(normalizados);
           leitoAtualId = normalizados[0].id;
           setLeitoSelId(normalizados[0].id);
-          if(normalizados.some((l,i)=>l!==p[i]))await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(normalizados)});
+          if(normalizados.some((l,i)=>JSON.stringify(l)!==JSON.stringify(p[i])))await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(normalizados)});
         }
       }
     } catch {}
@@ -7122,7 +7129,24 @@ export default function App() {
     supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novo)}).then(({error})=>{if(error)console.warn("Falha ao recuperar histórico da tabela",error);});
   },[leitos,tabelaData,historicoDiario,dataLoaded]);
 
-  const leito = leitos.find(l=>l.id===leitoSelId)||leitos[0];
+  const utiAtiva=utis.find(u=>u.id===utiAtivaId)||utis[0];
+  const leitosDaUti=leitos.filter(l=>(l.utiId||utis[0]?.id)===utiAtiva?.id);
+  const leito = leitos.find(l=>l.id===leitoSelId)||leitosDaUti[0]||leitos[0];
+  const selecionarUti=id=>{
+    const lista=leitos.filter(l=>(l.utiId||utis[0]?.id)===id);
+    setUtiAtivaId(id);sessionStorage.setItem("uti_ativa_id",id);
+    if(lista.length)setLeitoSelId(lista[0].id);
+    setAba("evolucao");setViewGlobal("leitos");setDadosIA(null);
+  };
+  const criarUti=async()=>{
+    const nome=window.prompt("Nome da nova UTI:","")?.trim();if(!nome)return;
+    const id=`uti-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+    const novas=[...utis,{id,nome}];setUtis(novas);
+    try{await supabase.from("config").upsert({key:"utis_data",value:JSON.stringify(novas)});}catch{}
+    const novoLeito={id:Date.now()+1,utiId:id,nome:"Leito 01",paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}};
+    const todos=[...leitos,novoLeito];setLeitos(todos);salvarLeitos(todos);
+    setUtiAtivaId(id);sessionStorage.setItem("uti_ativa_id",id);setLeitoSelId(novoLeito.id);setAba("evolucao");setViewGlobal("leitos");
+  };
   const atualizar = (d) => {
     setLeitos(ls=>{
       const novo = ls.map(l=>{
@@ -7145,6 +7169,7 @@ export default function App() {
     const registro={
       id:(globalThis.crypto?.randomUUID?.()||`alta-${Date.now()}`),dataAlta,destino,arquivadoEm:new Date().toISOString(),
       patientId:leito.patientId||null,admissionId:leito.admissionId||null,
+      utiId:leito.utiId||utiAtiva?.id,utiNome:utiAtiva?.nome||"UTI Principal",
       leito:JSON.parse(JSON.stringify(leito)),
       tabelaClinica:JSON.parse(JSON.stringify(tabelaData[leitoSelId]||{})),
       evolucao:JSON.parse(JSON.stringify(evolCampos||evolPorLeito[leitoSelId]||{})),
@@ -7222,11 +7247,11 @@ export default function App() {
   const pp   = pesoPredito(leito.altura, leito.sexo);
   const isMobile   = window.innerWidth <= 768;
   const railMode   = !isMobile && sidebarCollapsed;
-  const alertCount = leitos.filter(l=>l.paciente).reduce((acc,l)=>acc+contarAlertasLeito(l, tabelaData, config), 0);
-  const metasPendentes = Object.values(metasPorLeito).flat().filter(m=>!m.feito&&m.status!=="cumprido").length;
+  const alertCount = leitosDaUti.filter(l=>l.paciente).reduce((acc,l)=>acc+contarAlertasLeito(l, tabelaData, config), 0);
+  const metasPendentes = leitosDaUti.flatMap(l=>metasPorLeito[l.id]||[]).filter(m=>!m.feito&&m.status!=="cumprido").length;
   const diasHistorico = leito?.admissionId?Object.keys(historicoDiario[leito.admissionId]?.days||{}).sort():[];
   const numeroLeito=l=>{const n=String(l.nome||"").match(/\d+/);return n?parseInt(n[0],10):Number.MAX_SAFE_INTEGER;};
-  const leitosOrdenados=[...leitos].sort((a,b)=>Number(!!b.prioritario)-Number(!!a.prioritario)||numeroLeito(a)-numeroLeito(b)||String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR"));
+  const leitosOrdenados=[...leitosDaUti].sort((a,b)=>Number(!!b.prioritario)-Number(!!a.prioritario)||numeroLeito(a)-numeroLeito(b)||String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR"));
 
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
@@ -7289,6 +7314,7 @@ export default function App() {
             <div style={{fontSize:9,color:T.accent,fontFamily:mono,letterSpacing:2}}>ASSISTENTE DE EVOLUÇÃO</div>
           </div>
         </div>
+        <button onClick={()=>{sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} title="Trocar de unidade" style={{marginLeft:16,padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>🏥 {utiAtiva?.nome||"Selecionar UTI"} ▾</button>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":T.accent}}/>
@@ -7347,9 +7373,9 @@ export default function App() {
             <button
               onClick={()=>{
                 const novoId = Date.now();
-                const novoNum = leitos.length + 1;
+                const novoNum = leitosDaUti.length + 1;
                 setLeitos(ls=>{
-                  const novo = [...ls,{id:novoId,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+                  const novo = [...ls,{id:novoId,utiId:utiAtiva.id,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
                   salvarLeitos(novo);
                   return novo;
                 });
@@ -7385,9 +7411,9 @@ export default function App() {
                   onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
                   onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
                   onTogglePrioridade={()=>setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,prioritario:!x.prioritario}:x);salvarLeitos(novo);return novo;})}
-                  onRemove={leitos.length>1?()=>{
+                  onRemove={leitosDaUti.length>1?()=>{
                     if(l.paciente){window.alert("Este leito possui um paciente. Use “Dar alta” para preservar os dados antes de remover o leito.");return;}
-                    setLeitos(ls=>{const novo=ls.filter(x=>x.id!==l.id);salvarLeitos(novo);setLeitoSelId(novo[0].id);return novo;});
+                    setLeitos(ls=>{const novo=ls.filter(x=>x.id!==l.id);salvarLeitos(novo);const proximo=novo.find(x=>(x.utiId||utis[0]?.id)===utiAtiva.id);if(proximo)setLeitoSelId(proximo.id);return novo;});
                     setViewGlobal("leitos");
                   }:null}
                 />
@@ -7409,14 +7435,14 @@ export default function App() {
             <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><ArquivoPacientesPanel arquivos={pacientesArquivados}/></div>
           ) : viewGlobal==="visao_geral" ? (
             <div style={{flex:1,overflowY:"auto"}}>
-              <VisaoGeralPanel leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config} evolCamposPorLeito={evolPorLeito}
+              <VisaoGeralPanel leitos={leitosDaUti} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config} evolCamposPorLeito={evolPorLeito}
                 onLeitoChange={novoLeito=>{setLeitos(ls=>{const novo=ls.map(l=>l.id===novoLeito.id?novoLeito:l);salvarLeitos(novo);return novo;});}}
                 onMetaChange={(leitoId, novasMetas)=>{setMetasPorLeito(mp=>{const novo={...mp,[leitoId]:novasMetas};salvarMetas(novo);return novo;});}}/>
             </div>
           ) : viewGlobal==="plantao" ? (
             <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
               <PlantaoPanel
-                leitos={leitos} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config}
+                leitos={leitosDaUti} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config}
                 onMetaChange={(leitoId, novasMetas)=>{
                   setMetasPorLeito(mp=>{const novo={...mp,[leitoId]:novasMetas};salvarMetas(novo);return novo;});
                 }}/>
@@ -7740,6 +7766,14 @@ ${linha}`:linha}));
         </>)}
         </div>
       </div>
+      {!utiAtivaId&&authed&&<div style={{position:"fixed",inset:0,zIndex:3000,background:T.bgPage,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{width:"min(520px,96vw)",padding:24,border:`1px solid ${T.borderStrong}`,borderRadius:16,background:T.bgCard,boxShadow:T.shadowCard}}>
+          <div style={{fontSize:20,fontWeight:800,color:T.text1}}>Em qual UTI você está?</div>
+          <div style={{fontSize:12,color:T.text3,margin:"6px 0 18px"}}>Selecione uma unidade para visualizar somente os leitos correspondentes.</div>
+          <div style={{display:"grid",gap:8}}>{utis.map(u=><button key={u.id} onClick={()=>selecionarUti(u.id)} style={{padding:"13px 14px",textAlign:"left",borderRadius:10,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.text1,fontSize:13,fontWeight:700,cursor:"pointer"}}>🏥 {u.nome}<span style={{float:"right",color:T.text3,fontSize:11}}>{leitos.filter(l=>(l.utiId||utis[0]?.id)===u.id).length} leito(s) ›</span></button>)}</div>
+          <button onClick={criarUti} style={{width:"100%",marginTop:12,padding:"11px",borderRadius:10,border:"1px solid rgba(52,211,153,.35)",background:"rgba(52,211,153,.08)",color:"#34d399",fontSize:12,fontWeight:750,cursor:"pointer"}}>＋ Criar nova UTI</button>
+        </div>
+      </div>}
       {pacienteEditorAberto&&<div onMouseDown={e=>{if(e.target===e.currentTarget)setPacienteEditorAberto(false);}} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(2,6,23,.74)",backdropFilter:"blur(3px)",display:"flex",justifyContent:"center",alignItems:"flex-start",padding:"4vh 18px"}}>
         <div style={{width:"min(1050px,96vw)",maxHeight:"92vh",display:"flex",flexDirection:"column",background:T.bgPage,border:`1px solid ${T.borderStrong}`,borderRadius:14,boxShadow:"0 24px 70px rgba(0,0,0,.45)",overflow:"hidden"}}>
           <div style={{display:"flex",alignItems:"center",padding:"12px 16px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
