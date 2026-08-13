@@ -1424,13 +1424,14 @@ function gerarTextoVM(leito) {
   }).filter(Boolean);
   if (leito.vm_sato2) partes.push(`SatO2: ${leito.vm_sato2}%`);
   if (VM_INVASIVA_MODOS.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
+  let cuidadosLinha="";
   if(VM_INVASIVA_MODOS.includes(modo)){
     const cuidados=[];
     if(leito.vm_cuidado_cornea) cuidados.push("profilaxia de úlcera de córnea: dextrano");
     if(leito.vm_higiene_oral) cuidados.push("higiene oral: clorexidina");
     const sialo=[leito.vm_sialo_propantelina&&"propantelina",leito.vm_sialo_atropina&&"atropina",leito.vm_sialo_escopolamina&&"escopolamina"].filter(Boolean);
     if(sialo.length) cuidados.push(`medidas para sialorreia: ${sialo.join(", ")}`);
-    if(cuidados.length) partes.push(`Cuidados VM: ${cuidados.join("; ")}`);
+    if(cuidados.length) cuidadosLinha=`\n- Cuidados VM: ${cuidados.join("; ")}`;
   }
   if (leito.vm_obs) partes.push(leito.vm_obs);
   // Calculados
@@ -1444,7 +1445,7 @@ function gerarTextoVM(leito) {
   }
   const mp=calcMechanicalPower(leito);
   if(mp) partes.push(`Mechanical Power: ${mp.valor.toFixed(1)} J/min (${mp.formula})`);
-  return `${label}: ${partes.join(" / ")}`;
+  return `${label}: ${partes.join(" / ")}${cuidadosLinha}`;
 }
 
 function VentilacaoPanel({ leito, onChange, integrated=false }) {
@@ -1664,8 +1665,8 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
             </div>
           )}
 
-          {/* P/F manual se não calculado */}
-          {!pf_calc&&(leito.vm_modo==="vm_psv"||leito.vm_modo==="vm_pcv"||leito.vm_modo==="vm_vcv")&&(
+          {/* PaO₂ permanece editável mesmo após o cálculo da relação P/F. */}
+          {(leito.vm_modo==="vm_psv"||leito.vm_modo==="vm_pcv"||leito.vm_modo==="vm_vcv"||leito.vm_modo==="vm_aprv")&&(
             <div style={{display:"flex",gap:10,marginBottom:10}}>
               <div style={{minWidth:120,flex:1}}>
                 <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ (mmHg) — calcula P/F</div>
@@ -6032,7 +6033,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
 
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
-function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
+function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePrioridade }) {
   const T = useTheme();
   const dias = diasInternacao(leito.dataInternacao);
   const vago = !leito.paciente;
@@ -6061,6 +6062,9 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove }) {
           </span>
         )}
         <div style={{display:"flex",alignItems:"center",gap:4}}>
+          {!editingNome&&<button onClick={e=>{e.stopPropagation();onTogglePrioridade&&onTogglePrioridade();}}
+            title={leito.prioritario?"Remover dos leitos prioritários":"Fixar entre os leitos prioritários"}
+            style={{background:"none",border:"none",color:leito.prioritario?"#fbbf24":T.text4,cursor:"pointer",fontSize:15,padding:"0 2px",lineHeight:1}}>{leito.prioritario?"★":"☆"}</button>}
           {!editingNome && dias!==null && !vago && <span style={{fontSize:11,color:"#a78bfa",fontWeight:700}}>D{dias}</span>}
           {!editingNome && (
             <button onClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}
@@ -7221,6 +7225,8 @@ export default function App() {
   const alertCount = leitos.filter(l=>l.paciente).reduce((acc,l)=>acc+contarAlertasLeito(l, tabelaData, config), 0);
   const metasPendentes = Object.values(metasPorLeito).flat().filter(m=>!m.feito&&m.status!=="cumprido").length;
   const diasHistorico = leito?.admissionId?Object.keys(historicoDiario[leito.admissionId]?.days||{}).sort():[];
+  const numeroLeito=l=>{const n=String(l.nome||"").match(/\d+/);return n?parseInt(n[0],10):Number.MAX_SAFE_INTEGER;};
+  const leitosOrdenados=[...leitos].sort((a,b)=>Number(!!b.prioritario)-Number(!!a.prioritario)||numeroLeito(a)-numeroLeito(b)||String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR"));
 
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
@@ -7303,7 +7309,7 @@ export default function App() {
         {(!isMobile || showSidebar) && <div className="app-sidebar" style={{width:railMode?64:228,borderRight:`1px solid ${T.borderAccent}`,padding:railMode?"20px 8px":"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0,transition:"width 0.18s ease"}}>
           {railMode ? (
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-              {leitos.map(l=>{
+              {leitosOrdenados.map(l=>{
                 const rotulo = (l.nome.match(/\d+/)||[])[0] || l.nome.slice(0,2).toUpperCase();
                 return (
                   <button key={l.id}
@@ -7372,22 +7378,13 @@ export default function App() {
               🗄️ Arquivo
             </button>
           </div>
-          {leitos.map((l, idx)=>(
+          {leitosOrdenados.map(l=>(
             <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
-              <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center",paddingBottom:8}}>
-                <button onClick={()=>{
-                  if(idx===0) return;
-                  setLeitos(ls=>{const n=[...ls];[n[idx-1],n[idx]]=[n[idx],n[idx-1]];salvarLeitos(n);return n;});
-                }} style={{background:"none",border:"none",color:idx===0?"#1e293b":"#475569",cursor:idx===0?"default":"pointer",fontSize:10,padding:"1px 3px",lineHeight:1}}>▲</button>
-                <button onClick={()=>{
-                  if(idx===leitos.length-1) return;
-                  setLeitos(ls=>{const n=[...ls];[n[idx],n[idx+1]]=[n[idx+1],n[idx]];salvarLeitos(n);return n;});
-                }} style={{background:"none",border:"none",color:idx===leitos.length-1?"#1e293b":"#475569",cursor:idx===leitos.length-1?"default":"pointer",fontSize:10,padding:"1px 3px",lineHeight:1}}>▼</button>
-              </div>
               <div style={{flex:1}}>
                 <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config}
                   onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
                   onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
+                  onTogglePrioridade={()=>setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,prioritario:!x.prioritario}:x);salvarLeitos(novo);return novo;})}
                   onRemove={leitos.length>1?()=>{
                     if(l.paciente){window.alert("Este leito possui um paciente. Use “Dar alta” para preservar os dados antes de remover o leito.");return;}
                     setLeitos(ls=>{const novo=ls.filter(x=>x.id!==l.id);salvarLeitos(novo);setLeitoSelId(novo[0].id);return novo;});
