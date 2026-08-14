@@ -4826,7 +4826,19 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
 
 // Registros seriados com data/hora para monitorizações realizadas mais de uma vez ao dia.
 // O objeto inteiro fica no campo da evolução, preservando parâmetros padrão e personalizados.
-function SerialMeasurements({title,fieldKey,fields=[],value,onChange,color="#38bdf8",subjective=false}){
+function calcPocusCardiacOutput(values={},patient={}){
+  const diam=parseFloat(String(values.lvotDiam||"").replace(",","."));
+  const vti=parseFloat(String(values.vtiVE||"").replace(",","."));
+  const fc=parseFloat(String(values.fc||"").replace(",","."));
+  const peso=parseFloat(String(patient.peso||"").replace(",","."));
+  const altura=parseFloat(String(patient.altura||"").replace(",","."));
+  if(![diam,vti,fc].every(Number.isFinite)||diam<=0||vti<=0||fc<=0)return null;
+  const area=Math.PI*Math.pow(diam/2,2),vs=area*vti,dc=vs*fc/1000;
+  const sc=[peso,altura].every(Number.isFinite)&&peso>0&&altura>0?Math.sqrt((peso*altura)/3600):null;
+  return {area,vs,dc,sc,ic:sc?dc/sc:null};
+}
+
+function SerialMeasurements({title,fieldKey,fields=[],value,onChange,color="#38bdf8",subjective=false,calculator,patient}){
   const T=useTheme();
   const state=value&&typeof value==="object"&&!Array.isArray(value)?value:{entries:[],customParams:[]};
   const entries=Array.isArray(state.entries)?state.entries:[],customParams=Array.isArray(state.customParams)?state.customParams:[];
@@ -4842,6 +4854,7 @@ function SerialMeasurements({title,fieldKey,fields=[],value,onChange,color="#38b
     {entries.map((e,i)=><div key={e.id} style={{padding:"8px 9px",borderTop:i?`1px solid ${T.border}`:0}}>
       <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:6}}><input type="date" value={e.data||""} onChange={x=>upd(e.id,"data",x.target.value)} style={{width:125,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><input type="time" value={e.hora||""} onChange={x=>upd(e.id,"hora",x.target.value)} style={{width:82,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><span style={{fontSize:9,color:T.text4}}>#{i+1}</span><button onClick={()=>remove(e.id)} style={{marginLeft:"auto",border:0,background:"transparent",color:"#f87171",cursor:"pointer"}}>✕</button></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:5}}>{allFields.map(f=><label key={f.key} style={{fontSize:9,color:T.text3,gridColumn:f.wide?"1 / -1":undefined}}>{f.label}<input value={e.values?.[f.key]||""} onChange={x=>updVal(e.id,f.key,x.target.value)} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1,fontSize:10}}/></label>)}</div>
+      {calculator==="pocus-co"&&(()=>{const c=calcPocusCardiacOutput(e.values,patient);return <div style={{marginTop:7,padding:"7px 9px",borderRadius:7,border:`1px solid ${c?"rgba(52,211,153,.28)":T.border}`,background:c?"rgba(52,211,153,.07)":T.bgCard,fontSize:10,color:c?"#34d399":T.text4,fontFamily:mono}}>{c?<>VS <b>{c.vs.toFixed(0)} mL</b> · DC <b>{c.dc.toFixed(2)} L/min</b> · IC <b>{c.ic?`${c.ic.toFixed(2)} L/min/m²`:"— (informe peso e altura)"}</b><span style={{display:"block",marginTop:3,color:T.text3,fontSize:9}}>Área VSVE {c.area.toFixed(2)} cm²{c.sc?` · SC ${c.sc.toFixed(2)} m²`:""}</span></>:"Preencha diâmetro da VSVE, VTI VE e FC para calcular VS, débito e índice cardíaco."}</div>})()}
     </div>)}
     {!entries.length&&<div style={{padding:"7px 9px",fontSize:10,color:T.text4}}>Nenhuma medida registrada.</div>}
   </div>;
@@ -4849,7 +4862,7 @@ function SerialMeasurements({title,fieldKey,fields=[],value,onChange,color="#38b
 
 const SERIAL_MONITOR_CONFIG={
   nDTC:{title:"DTC — REGISTROS SERIADOS",color:"#a78bfa",fields:[{key:"bnoD",label:"Bainha do nervo óptico D"},{key:"bnoE",label:"Bainha do nervo óptico E"},{key:"acmIP",label:"ACM IP"},{key:"acmFVd",label:"ACM FVd"},{key:"lindegaard",label:"Lindegaard"}]},
-  cvPocusSerial:{title:"POCUS — REGISTROS SERIADOS",color:"#f87171",subjective:true,fields:[{key:"vci",label:"VCI"},{key:"vtiVE",label:"VTI VE"},{key:"vtiVD",label:"VTI VD"},{key:"ea",label:"E/A"},{key:"ee",label:"E/e'"}]},
+  cvPocusSerial:{title:"POCUS — REGISTROS SERIADOS",color:"#f87171",subjective:true,calculator:"pocus-co",fields:[{key:"vci",label:"VCI"},{key:"lvotDiam",label:"Diâmetro VSVE (cm)"},{key:"vtiVE",label:"VTI VE (cm)"},{key:"fc",label:"FC (bpm)"},{key:"vtiVD",label:"VTI VD"},{key:"ea",label:"E/A"},{key:"ee",label:"E/e'"}]},
   cvPiccoSerial:{title:"PiCCO — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"pvc",label:"PVC"},{key:"ic",label:"IC"},{key:"gedi",label:"GEDI"},{key:"elwi",label:"ELWI"},{key:"pvpi",label:"PVPI"},{key:"svri",label:"SVRI"},{key:"vvs",label:"VVS"},{key:"tdci",label:"tdCI"},{key:"gef",label:"GEF"}]},
   cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"pvc",label:"PVC"},{key:"paps",label:"PAPs"},{key:"papd",label:"PAPd"},{key:"papm",label:"PAPm"},{key:"pcp",label:"PCP"},{key:"dc",label:"DC"},{key:"ic",label:"IC"},{key:"svo2",label:"SvO₂"},{key:"rvs",label:"RVS"}]},
   cvBiaSerial:{title:"BIA — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"assistencia",label:"Relação de assistência"},{key:"trigger",label:"Trigger"},{key:"augmentacao",label:"Augmentação"},{key:"pasAssistida",label:"PAS assistida"},{key:"pasNaoAssistida",label:"PAS não assistida"},{key:"diastolicaAumentada",label:"Diastólica aumentada"},{key:"pam",label:"PAM"}]},
@@ -5103,11 +5116,13 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     return state.entries.map(entry=>{
       const date=entry.data?new Date(`${entry.data}T00:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
       const when=[date,entry.hora].filter(Boolean).join(" ");
-      const values=Object.entries(entry.values||{}).filter(([,v])=>String(v??"").trim()).map(([key,v])=>`${labels[key]||key} ${String(v).trim()}`).join(" / ");
+      const calc=fieldKey==="cvPocusSerial"?calcPocusCardiacOutput(entry.values,leito):null;
+      const calculated=calc?[`VS ${calc.vs.toFixed(0)} mL`,`DC ${calc.dc.toFixed(2)} L/min`,calc.ic?`IC ${calc.ic.toFixed(2)} L/min/m²`:null].filter(Boolean):[];
+      const values=[...Object.entries(entry.values||{}).filter(([,v])=>String(v??"").trim()).map(([key,v])=>`${labels[key]||key} ${String(v).trim()}`),...calculated].join(" / ");
       return values?`- ${label}${when?` [${when}]`:""}: ${values}`:null;
     }).filter(Boolean);
   };
-  const serialPanel=(fieldKey)=><SerialMeasurements fieldKey={fieldKey} {...SERIAL_MONITOR_CONFIG[fieldKey]} value={campos[fieldKey]} onChange={value=>onCampoEdit(fieldKey,value)}/>;
+  const serialPanel=(fieldKey)=><SerialMeasurements fieldKey={fieldKey} {...SERIAL_MONITOR_CONFIG[fieldKey]} patient={leito} value={campos[fieldKey]} onChange={value=>onCampoEdit(fieldKey,value)}/>;
 
   // ── txt funções completas (incluem opcionais/adicionáveis) ──
   const txtNFull = () => {
