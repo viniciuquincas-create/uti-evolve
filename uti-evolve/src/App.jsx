@@ -6590,7 +6590,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
   );
 }
 // ── PlantaoPanel ──────────────────────────────────────────────────────────────
-function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config={} }) {
+function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClearAll, config={} }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [filtro, setFiltro] = useState("todos");
@@ -6647,6 +6647,14 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, config=
             style={{padding:"4px 12px",borderRadius:7,border:"1px solid rgba(52,211,153,0.3)",
               background:"rgba(52,211,153,0.08)",color:"#34d399",cursor:"pointer",fontSize:11,fontWeight:600}}>
             🖨️ Imprimir
+          </button>
+          <button onClick={()=>{
+            const total=leitos.reduce((n,l)=>n+(metasPorLeito[l.id]||[]).length,0);
+            if(!total){window.alert("Não há metas para limpar nesta UTI.");return;}
+            if(window.confirm(`Limpar as ${total} meta(s) dos leitos desta UTI?\n\nO histórico dos dias anteriores será preservado.`))onClearAll&&onClearAll();
+          }}
+            style={{padding:"4px 12px",borderRadius:7,border:"1px solid rgba(248,113,113,.35)",background:"rgba(248,113,113,.08)",color:"#f87171",cursor:"pointer",fontSize:11,fontWeight:600}}>
+            🧹 Limpar metas
           </button>
         </div>
       </div>
@@ -7458,6 +7466,7 @@ export default function App() {
             <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
               <PlantaoPanel
                 leitos={leitosDaUti} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config}
+                onClearAll={()=>setMetasPorLeito(mp=>{const novo={...mp};leitosDaUti.forEach(l=>{novo[l.id]=[];});salvarMetas(novo);return novo;})}
                 onMetaChange={(leitoId, novasMetas)=>{
                   setMetasPorLeito(mp=>{const novo={...mp,[leitoId]:novasMetas};salvarMetas(novo);return novo;});
                 }}/>
