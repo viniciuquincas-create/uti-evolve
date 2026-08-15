@@ -4122,6 +4122,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
   const [openResolvidos, setOpenResolvidos] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [copiado, setCopiado] = useState({});
+  const [menuEquipe,setMenuEquipe]=useState(null);
   const mono2 = "'DM Mono',monospace";
   const refs = React.useRef({});
   if (!refs.current.probAtivos) refs.current.probAtivos = React.createRef();
@@ -4190,14 +4191,14 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
           <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
             <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS</div>
             {ordenarMetas(metas).map((m,i)=>(
-              <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
+              <div key={m.id||i} onContextMenu={e=>{e.preventDefault();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
                 <MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/>
                 <button onClick={()=>onMetaChange&&onMetaChange(metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x))}
                   style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                   {m.feito?"☑":"☐"}
                 </button>
                 <span title={metaPrioridade(m).label} style={{fontSize:10,color:m.feito?T.text4:T.text2,flex:1,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,
-                  textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
+                  textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}{m.equipe&&<small style={{display:"block",color:equipeCor(m.equipe),fontSize:8,marginTop:1}}>{equipeEmoji(m.equipe)} {equipeLabel(m.equipe)}</small>}</span>
                 <button onClick={()=>onMetaChange&&editarTextoMeta(metas,m,onMetaChange)} title="Editar meta" style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#38bdf8"}}>✎</button>
                 <button onClick={()=>onMetaChange&&onMetaChange(metas.filter(x=>x.id!==m.id))}
                   title="Excluir meta"
@@ -4214,6 +4215,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange }) {
               + meta
             </button>
           </div>
+          <MetaEquipeMenu menu={menuEquipe} onClose={()=>setMenuEquipe(null)} onSelect={equipe=>onMetaChange&&onMetaChange(metas.map(m=>m.id===menuEquipe?.metaId?{...m,equipe}:m))}/>
         </div>
       )}
     </div>
@@ -5883,6 +5885,18 @@ const equipeCor = (id) => (EQUIPES.find(e=>e.id===id)||{cor:"#64748b"}).cor;
 const equipeLabel = (id) => (EQUIPES.find(e=>e.id===id)||{label:"Geral"}).label;
 const equipeEmoji = (id) => (EQUIPES.find(e=>e.id===id)||{emoji:"📋"}).emoji;
 
+function MetaEquipeMenu({menu,onClose,onSelect}){
+  const T=useTheme();
+  useEffect(()=>{if(!menu)return;const close=()=>onClose();const esc=e=>e.key==="Escape"&&onClose();window.addEventListener("click",close);window.addEventListener("keydown",esc);return()=>{window.removeEventListener("click",close);window.removeEventListener("keydown",esc);};},[menu,onClose]);
+  if(!menu)return null;
+  const escolher=(e,id)=>{e.stopPropagation();onSelect(id);onClose();};
+  return <div onClick={e=>e.stopPropagation()} style={{position:"fixed",left:Math.min(menu.x,window.innerWidth-210),top:Math.min(menu.y,window.innerHeight-245),zIndex:4000,width:195,padding:6,border:`1px solid ${T.borderStrong}`,borderRadius:9,background:T.bgCard,boxShadow:"0 12px 32px rgba(0,0,0,.38)"}}>
+    <div style={{padding:"4px 7px 6px",fontSize:9,fontFamily:mono,letterSpacing:1.2,color:T.text3}}>DIRECIONAR META PARA</div>
+    <button onClick={e=>escolher(e,"")} style={{width:"100%",padding:"7px 8px",textAlign:"left",border:0,borderRadius:6,background:!menu.equipe?T.bgCardHover:"transparent",color:T.text2,cursor:"pointer",fontSize:11}}>📋 Sem equipe</button>
+    {EQUIPES.map(eq=><button key={eq.id} onClick={e=>escolher(e,eq.id)} style={{width:"100%",padding:"7px 8px",textAlign:"left",border:0,borderRadius:6,background:menu.equipe===eq.id?`${eq.cor}18`:"transparent",color:menu.equipe===eq.id?eq.cor:T.text2,cursor:"pointer",fontSize:11}}>{eq.emoji} {eq.label}{menu.equipe===eq.id?" ✓":""}</button>)}
+  </div>;
+}
+
 
 function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
   const [nova, setNova] = useState("");
@@ -6595,6 +6609,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
   const mono = "'DM Mono',monospace";
   const [filtro, setFiltro] = useState("todos");
   const [filtroEquipePlantao, setFiltroEquipePlantao] = useState("");
+  const [menuEquipe,setMenuEquipe]=useState(null);
 
   const getAutoAlerts = (leito) => {
     const alerts = [];
@@ -6719,7 +6734,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
                   </div>
                 ))}
                 {metas.length>0 ? ordenarMetas(metas).map((m,i)=>(
-                  <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
+                  <div key={m.id||i} onContextMenu={e=>{e.preventDefault();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,leitoId:l.id,equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
                     <MetaPriorityDot meta={m} metas={metas} onChange={novas=>onMetaChange(l.id,novas)}/>
                     <button onClick={()=>{
                       const novas=metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x);
@@ -6729,7 +6744,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
                       {m.feito?"☑":"☐"}
                     </button>
                     <span style={{fontSize:11,color:m.feito?"#475569":"#cbd5e1",flex:1,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,
-                      textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}</span>
+                      textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}{m.equipe&&<small style={{display:"block",color:equipeCor(m.equipe),fontSize:9,marginTop:1}}>{equipeEmoji(m.equipe)} {equipeLabel(m.equipe)}</small>}</span>
                     <button onClick={()=>editarTextoMeta(metas,m,novas=>onMetaChange(l.id,novas))} title="Editar meta" style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#38bdf8"}}>✎</button>
                     <button onClick={()=>onMetaChange(l.id, metas.filter(x=>x.id!==m.id))}
                       title="Excluir meta"
@@ -6752,6 +6767,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
           );
         })}
       </div>
+      <MetaEquipeMenu menu={menuEquipe} onClose={()=>setMenuEquipe(null)} onSelect={equipe=>{const leitoId=menuEquipe?.leitoId,metaId=menuEquipe?.metaId;if(!leitoId)return;onMetaChange(leitoId,(metasPorLeito[leitoId]||[]).map(m=>m.id===metaId?{...m,equipe}:m));}}/>
 
       {/* ── Folha imprimível — A4 paisagem, preto e branco, uma por leito, para check manual da enfermagem ── */}
       <style>{`
