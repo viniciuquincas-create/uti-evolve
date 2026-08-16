@@ -1339,7 +1339,6 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
 
   return (
     <div>
-      <SecTitle>DISPOSITIVOS INVASIVOS</SecTitle>
 
       {!temAlgumAtivo && !showPicker && (
         <div style={{padding:"14px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.07)",borderRadius:10,color:"#334155",fontSize:13,textAlign:"center",marginBottom:10}}>
