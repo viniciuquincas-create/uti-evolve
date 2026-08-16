@@ -1486,36 +1486,34 @@ function gerarTextoVM(leito) {
   if (!modo || modo === "ar_ambiente") return leito.vm_sato2 ? `Ar ambiente / SatO2 ${leito.vm_sato2}%` : "Ar ambiente";
   const m = VM_MODOS.find(x=>x.id===modo);
   const label = m ? m.label : modo;
-  const campos = VM_CAMPOS[modo] || [];
-  const partes = campos.map(c=>{
-    const v = leito[c.key];
-    if (!v) return null;
-    return `${c.label.replace(/ \(.*\)/,"")}: ${v}`;
-  }).filter(Boolean);
+  let partes=[];
+  if(modo==="vm_pcv"){
+    if(leito.vm_pins) partes.push(`Pins: ${leito.vm_pins}`);
+    if(leito.vm_peep) partes.push(`PEEP: ${leito.vm_peep}`);
+    if(leito.vm_fio2) partes.push(`FiO₂: ${leito.vm_fio2}%`);
+    if(leito.vm_fr) partes.push(`FR prog.: ${leito.vm_fr}`);
+    if(leito.vm_pplat) partes.push(`Pplatô: ${leito.vm_pplat}`);
+    if(leito.vm_pplat&&leito.vm_peep){const dp=parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep);if(Number.isFinite(dp))partes.push(`DP: ${Math.round(dp*10)/10} cmH₂O`);}
+    if(leito.vm_vt){const vt=parseFloat(leito.vm_vt),pp=parseFloat(pesoPredito(leito.altura,leito.sexo));partes.push(`VC: ${leito.vm_vt} mL${Number.isFinite(vt)&&Number.isFinite(pp)&&pp>0?` (${(vt/pp).toFixed(1).replace(".",",")} mL/kg PP)`:""}`);}
+    const mp=calcMechanicalPower(leito); if(mp) partes.push(`Mechanical Power: ${mp.valor.toFixed(1).replace(".",",")} J/min`);
+  } else {
+    const campos = VM_CAMPOS[modo] || [];
+    partes = campos.map(c=>{const v=leito[c.key];if(!v)return null;return `${c.label.replace(/ \(.*\)/,"")}: ${v}`;}).filter(Boolean);
+    if ((modo==="vm_vcv")&&leito.vm_pplat&&leito.vm_peep) {const dp=parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep);if(Number.isFinite(dp)) partes.push(`DP: ${Math.round(dp*10)/10} cmH₂O`);}
+    if (modo==="vm_vcv"&&leito.vm_vt&&leito.vm_pplat&&leito.vm_peep) {const csr=parseFloat(leito.vm_vt)/(parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep));if(Number.isFinite(csr)) partes.push(`Csr: ${Math.round(csr)} mL/cmH₂O`);}
+    const mp=calcMechanicalPower(leito); if(mp) partes.push(`Mechanical Power: ${mp.valor.toFixed(1).replace(".",",")} J/min`);
+  }
   if (leito.vm_sato2) partes.push(`SatO2: ${leito.vm_sato2}%`);
   if (VM_INVASIVA_MODOS.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
-  let cuidadosLinha="";
+  if (leito.vm_obs) partes.push(leito.vm_obs);
+  const cuidados=[];
   if(VM_INVASIVA_MODOS.includes(modo)){
-    const cuidados=[];
     if(leito.vm_cuidado_cornea) cuidados.push("profilaxia de úlcera de córnea: dextrano");
     if(leito.vm_higiene_oral) cuidados.push("higiene oral: clorexidina");
     const sialo=[leito.vm_sialo_propantelina&&"propantelina",leito.vm_sialo_atropina&&"atropina",leito.vm_sialo_escopolamina&&"escopolamina"].filter(Boolean);
     if(sialo.length) cuidados.push(`medidas para sialorreia: ${sialo.join(", ")}`);
-    if(cuidados.length) cuidadosLinha=`\n- Cuidados VM: ${cuidados.join("; ")}`;
   }
-  if (leito.vm_obs) partes.push(leito.vm_obs);
-  // Calculados
-  if ((modo==="vm_pcv"||modo==="vm_vcv")&&leito.vm_pplat&&leito.vm_peep) {
-    const dp = parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep);
-    if (!isNaN(dp)) partes.push(`DP: ${Math.round(dp*10)/10} cmH₂O`);
-  }
-  if (modo==="vm_vcv"&&leito.vm_vt&&leito.vm_pplat&&leito.vm_peep) {
-    const csr = parseFloat(leito.vm_vt)/(parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep));
-    if (!isNaN(csr)&&isFinite(csr)) partes.push(`Csr: ${Math.round(csr)} mL/cmH₂O`);
-  }
-  const mp=calcMechanicalPower(leito);
-  if(mp) partes.push(`Mechanical Power: ${mp.valor.toFixed(1)} J/min (${mp.formula})`);
-  return `${label}: ${partes.join(" / ")}${cuidadosLinha}`;
+  return `${label}: ${partes.join(" / ")}${cuidados.length?`\n- Cuidados VM: ${cuidados.join("; ")}`:""}`;
 }
 
 function VentilacaoPanel({ leito, onChange, integrated=false }) {
@@ -3498,10 +3496,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     // Ventilação mecânica → reVM (campo "Ventilação — Modo" na evolução)
     const vmTexto = gerarTextoVM(leito);
     if (vmTexto && vmTexto !== "Ar ambiente") {
-      const pp4 = pesoPredito(leito.altura, leito.sexo);
-      const vt4 = parseFloat(leito.vm_vt||0);
-      const vtInfo = (pp4 && vt4) ? ` · VC ${vt4}mL = ${(vt4/parseFloat(pp4)).toFixed(1)}mL/kg PP` : "";
-      campos.reVM = vmTexto + vtInfo;
+      campos.reVM = vmTexto;
     }
 
     // Antibioticoterapia → heAtb (campo "Antibióticos" na seção Infeccioso)
@@ -5285,7 +5280,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     // Usa diretamente o suporte atual do leito; reVM permanece como fallback para registros legados.
     const nebTxt = (leito.nebMed||leito.nebFreq) ? ` | Neb: ${[leito.nebMed,leito.nebFreq].filter(Boolean).join(" ")}` : "";
     const vmAtual=leito.vm_modo?gerarTextoVM(leito):get("reVM");
-    if(vmAtual) p.push(`- Ventilação: ${vmAtual}${nebTxt}`);
+    if(vmAtual){const [vmLinha,...vmExtras]=vmAtual.split("\n");p.push(`- Ventilação: ${vmLinha}${nebTxt}`,...vmExtras);}
     else if(nebTxt) p.push(`- Nebulização:${nebTxt}`);
     // EF: MV + RA + outros
     const ef_res = [get("reMV"), get("reRA"), get("reEF")].filter(Boolean).join(" / ");
