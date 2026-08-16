@@ -52,15 +52,19 @@ const SISTEMAS = [
   "Renal/Metabólico","Gastrointestinal","Hematológico/Infeccioso","Pele/Acessos",
 ];
 
+const RANKIN_OPCOES=[
+  {v:"0",l:"0 — Sem sintomas"},{v:"1",l:"1 — Sintomas sem incapacidade significativa"},{v:"2",l:"2 — Incapacidade leve; independente"},{v:"3",l:"3 — Incapacidade moderada; necessita alguma ajuda"},{v:"4",l:"4 — Incapacidade moderadamente grave"},{v:"5",l:"5 — Incapacidade grave"},{v:"6",l:"6 — Óbito"},
+];
+
 const LEITOS_INICIAIS = [
-  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
 ];
 
 const leitoVazio = (leito) => ({
-  id:leito.id,nome:leito.nome,paciente:"",diagnostico:"",dataInternacao:"",dataNascimento:"",idadeAnos:"",
+  id:leito.id,nome:leito.nome,paciente:"",diagnostico:"",dataInternacao:"",dataNascimento:"",idadeAnos:"",rankinAdmissao:"",
   peso:"",altura:"",sexo:"M",bhPrevio:"",procedimentos:[],dispositivos:{},antibioticos:[],culturas:[],
   drogasVazao:{},dieta:{},vm_modo:"",
 });
@@ -2133,6 +2137,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         </div>
         <Field label="PESO (kg)"   value={dados.peso}   onChange={v=>onChange({...dados,peso:v})}   type="number" placeholder="70"  suffix="kg" style={{minWidth:90}}/>
         <Field label="ALTURA (cm)" value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm" style={{minWidth:90}}/>
+        <div style={{minWidth:260,flex:2}}><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>RANKIN MODIFICADA — ADMISSÃO</div><select value={dados.rankinAdmissao??""} onChange={e=>onChange({...dados,rankinAdmissao:e.target.value})} style={{width:"100%",height:38,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"0 9px",color:"#e2e8f0",fontSize:11}}><option value="">— selecionar —</option>{RANKIN_OPCOES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>
       </div>
 
 
@@ -6933,9 +6938,9 @@ function ArquivoPacientesPanel({arquivos=[]}) {
   });
   const baixar=(nome,conteudo,tipo="application/json")=>{const blob=new Blob([conteudo],{type:tipo});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=nome;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);};
   const exportarCSV=()=>{
-    const cols=["codigo_paciente","leito","sexo","idade_anos","peso_kg","diagnostico","data_internacao","data_alta","destino","arquivado_em"];
+    const cols=["codigo_paciente","leito","sexo","idade_anos","peso_kg","diagnostico","data_internacao","rankin_admissao","data_alta","destino","rankin_alta","arquivado_em"];
     const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
-    const linhas=arquivos.map(a=>{const l=a.leito||{};return [a.id,l.nome,l.sexo,idadeDoLeito(l),l.peso,l.diagnostico,l.dataInternacao,a.dataAlta,a.destino,a.arquivadoEm].map(esc).join(",");});
+    const linhas=arquivos.map(a=>{const l=a.leito||{};return [a.id,l.nome,l.sexo,idadeDoLeito(l),l.peso,l.diagnostico,l.dataInternacao,l.rankinAdmissao,a.dataAlta,a.destino,a.rankinAlta,a.arquivadoEm].map(esc).join(",");});
     baixar(`uti-evolve-altas-${new Date().toISOString().slice(0,10)}.csv`,[cols.join(","),...linhas].join("\n"),"text/csv;charset=utf-8");
   };
   return <div style={{padding:"28px 32px",maxWidth:1180,margin:"0 auto",color:T.text1}}>
@@ -6953,7 +6958,7 @@ function ArquivoPacientesPanel({arquivos=[]}) {
         <span style={{fontSize:12,color:T.text2}}>{l.nome}</span><span style={{fontSize:12,color:T.text2}}>{a.dataAlta?new Date(a.dataAlta+"T00:00:00").toLocaleDateString("pt-BR"):"—"}</span><span style={{fontSize:12,color:T.text2}}>{a.destino||"Não informado"}</span><span>{abertoAgora?"▲":"▼"}</span>
       </button>
       {abertoAgora&&<div style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`,fontSize:12,color:T.text2}}>
-        <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:10}}><span>Internação: <b>{l.dataInternacao||"—"}</b></span><span>Sexo: <b>{l.sexo||"—"}</b></span><span>Idade: <b>{idadeDoLeito(l)??"—"}</b></span><span>Peso: <b>{l.peso?`${l.peso} kg`:"—"}</b></span><span>Dias de tabela: <b>{Object.keys(a.tabelaClinica||{}).filter(k=>!k.startsWith("_")).length}</b></span></div>
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:10}}><span>Internação: <b>{l.dataInternacao||"—"}</b></span><span>Sexo: <b>{l.sexo||"—"}</b></span><span>Idade: <b>{idadeDoLeito(l)??"—"}</b></span><span>Peso: <b>{l.peso?`${l.peso} kg`:"—"}</b></span><span>Rankin admissão: <b>{l.rankinAdmissao!==undefined&&l.rankinAdmissao!==""?l.rankinAdmissao:"—"}</b></span><span>Rankin alta: <b>{a.rankinAlta!==undefined&&a.rankinAlta!==""?a.rankinAlta:"—"}</b></span><span>Dias de tabela: <b>{Object.keys(a.tabelaClinica||{}).filter(k=>!k.startsWith("_")).length}</b></span></div>
         <button onClick={()=>baixar(`uti-evolve-${String(l.paciente||"paciente").replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-${a.dataAlta||"alta"}.json`,JSON.stringify(a,null,2))} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.accent,cursor:"pointer"}}>Baixar prontuário arquivado</button>
       </div>}
     </div>})}
@@ -7036,6 +7041,7 @@ export default function App() {
   const [historicoDiario,setHistoricoDiario]=useState({});
   const [historicoAberto,setHistoricoAberto]=useState(false);
   const [pacienteEditorAberto,setPacienteEditorAberto]=useState(false);
+  const [altaEditor,setAltaEditor]=useState(null);
   const [dataLoaded,setDataLoaded]=useState(false);
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
@@ -7288,7 +7294,7 @@ export default function App() {
     const id=`uti-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
     const novas=[...utis,{id,nome}];setUtis(novas);
     try{await supabase.from("config").upsert({key:"utis_data",value:JSON.stringify(novas)});}catch{}
-    const novoLeito={id:Date.now()+1,utiId:id,nome:"Leito 01",paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}};
+    const novoLeito={id:Date.now()+1,utiId:id,nome:"Leito 01",paciente:"",diagnostico:"",dataInternacao:"",rankinAdmissao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}};
     const todos=[...leitos,novoLeito];setLeitos(todos);salvarLeitos(todos);
     setUtiAtivaId(id);sessionStorage.setItem("uti_ativa_id",id);setLeitoSelId(novoLeito.id);setAba("evolucao");setViewGlobal("leitos");
   };
@@ -7306,13 +7312,21 @@ export default function App() {
     });
   };
 
-  const darAltaPaciente = async () => {
-    if(!leito?.paciente) return;
-    if(!window.confirm(`Dar alta para ${leito.paciente}?\n\nTodos os dados serão arquivados e o ${leito.nome} ficará livre para um novo paciente.`)) return;
-    const destino=window.prompt("Destino após a alta (ex.: enfermaria, domicílio, transferência, óbito):","")||"Não informado";
-    const dataAlta=new Date().toISOString().slice(0,10);
+  const darAltaPaciente = () => {
+    if(!leito?.paciente)return;
+    setAltaEditor({dataAlta:new Date().toISOString().slice(0,10),destino:"",destinoOutro:"",rankinAlta:""});
+  };
+  const confirmarAltaPaciente = async () => {
+    if(!leito?.paciente||!altaEditor)return;
+    if(!altaEditor.dataAlta){window.alert("Informe a data da alta.");return;}
+    if(!altaEditor.destino){window.alert("Selecione o destino da alta.");return;}
+    if(altaEditor.destino==="Outro"&&!altaEditor.destinoOutro.trim()){window.alert("Digite o outro destino.");return;}
+    if(altaEditor.rankinAlta===""){window.alert("Selecione a escala de Rankin modificada na alta.");return;}
+    const destino=altaEditor.destino==="Outro"?altaEditor.destinoOutro.trim():altaEditor.destino;
+    const dataAlta=altaEditor.dataAlta;
+    const rankinAlta=altaEditor.rankinAlta;
     const registro={
-      id:(globalThis.crypto?.randomUUID?.()||`alta-${Date.now()}`),dataAlta,destino,arquivadoEm:new Date().toISOString(),
+      id:(globalThis.crypto?.randomUUID?.()||`alta-${Date.now()}`),dataAlta,destino,rankinAlta,arquivadoEm:new Date().toISOString(),
       patientId:leito.patientId||null,admissionId:leito.admissionId||null,
       utiId:leito.utiId||utiAtiva?.id,utiNome:utiAtiva?.nome||"UTI Principal",
       leito:JSON.parse(JSON.stringify(leito)),
@@ -7327,7 +7341,7 @@ export default function App() {
     const novaEvol={...evolPorLeito};delete novaEvol[leitoSelId];
     const novasMetas={...metasPorLeito};delete novasMetas[leitoSelId];
     const novoHistorico={...historicoDiario};
-    if(leito.admissionId){novoHistorico[leito.admissionId]={...(novoHistorico[leito.admissionId]||{}),admissionId:leito.admissionId,patientId:leito.patientId,status:"discharged",dischargedAt:new Date().toISOString(),outcome:destino,days:{...(novoHistorico[leito.admissionId]?.days||{})}};}
+    if(leito.admissionId){novoHistorico[leito.admissionId]={...(novoHistorico[leito.admissionId]||{}),admissionId:leito.admissionId,patientId:leito.patientId,status:"discharged",dischargedAt:new Date().toISOString(),dischargeDate:dataAlta,outcome:destino,rankinAdmission:leito.rankinAdmissao||null,rankinDischarge:rankinAlta,days:{...(novoHistorico[leito.admissionId]?.days||{})}};}
     setSaving(true);
     try {
       const resultados=await Promise.all([
@@ -7340,7 +7354,7 @@ export default function App() {
       ]);
       const falha=resultados.find(r=>r.error);
       if(falha) throw falha.error;
-      setPacientesArquivados(novoArquivo);setLeitos(novosLeitos);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);
+      setPacientesArquivados(novoArquivo);setLeitos(novosLeitos);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);setAltaEditor(null);
       setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(v=>v+1);setDadosIA(null);setAba("evolucao");
       window.alert("Alta concluída. O prontuário foi preservado no Arquivo de pacientes.");
     } catch(e) {
@@ -7520,7 +7534,7 @@ export default function App() {
                 const novoId = Date.now();
                 const novoNum = leitosDaUti.length + 1;
                 setLeitos(ls=>{
-                  const novo = [...ls,{id:novoId,utiId:utiAtiva.id,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+                  const novo = [...ls,{id:novoId,utiId:utiAtiva.id,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",rankinAdmissao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
                   salvarLeitos(novo);
                   return novo;
                 });
@@ -7923,6 +7937,14 @@ ${linha}`:linha}));
           <button onClick={criarUti} style={{width:"100%",marginTop:12,padding:"11px",borderRadius:10,border:"1px solid rgba(52,211,153,.35)",background:"rgba(52,211,153,.08)",color:"#34d399",fontSize:12,fontWeight:750,cursor:"pointer"}}>＋ Criar nova UTI</button>
         </div>
       </div>}
+      {altaEditor&&<div onMouseDown={e=>{if(e.target===e.currentTarget)setAltaEditor(null);}} style={{position:"fixed",inset:0,zIndex:1800,background:"rgba(2,6,23,.78)",backdropFilter:"blur(3px)",display:"flex",alignItems:"center",justifyContent:"center",padding:18}}><div style={{width:"min(560px,96vw)",background:T.bgCard,border:`1px solid ${T.borderStrong}`,borderRadius:14,padding:20,boxShadow:"0 24px 70px rgba(0,0,0,.5)"}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:16}}><div><div style={{fontSize:16,fontWeight:800,color:T.text1}}>Dar alta · {leito.paciente}</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>O prontuário será arquivado e o {leito.nome} ficará disponível.</div></div><button onClick={()=>setAltaEditor(null)} style={{marginLeft:"auto",border:0,background:"transparent",color:T.text3,cursor:"pointer",fontSize:18}}>✕</button></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}><label style={{fontSize:10,color:T.text3,fontFamily:mono}}>DATA DA ALTA<input type="date" value={altaEditor.dataAlta} onChange={e=>setAltaEditor(x=>({...x,dataAlta:e.target.value}))} style={{display:"block",width:"100%",marginTop:5,padding:"9px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label><label style={{fontSize:10,color:T.text3,fontFamily:mono}}>DESTINO<select value={altaEditor.destino} onChange={e=>setAltaEditor(x=>({...x,destino:e.target.value,rankinAlta:e.target.value==="Óbito"?"6":x.rankinAlta}))} style={{display:"block",width:"100%",marginTop:5,padding:"9px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}><option value="">— selecionar —</option>{["Óbito","Enfermaria","Casa","Outro"].map(x=><option key={x}>{x}</option>)}</select></label></div>
+        {altaEditor.destino==="Outro"&&<label style={{display:"block",fontSize:10,color:T.text3,fontFamily:mono,marginTop:12}}>OUTRO DESTINO<input value={altaEditor.destinoOutro} onChange={e=>setAltaEditor(x=>({...x,destinoOutro:e.target.value}))} placeholder="Digite o destino..." style={{display:"block",width:"100%",marginTop:5,padding:"9px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>}
+        <label style={{display:"block",fontSize:10,color:T.text3,fontFamily:mono,marginTop:12}}>RANKIN MODIFICADA — ALTA<select value={altaEditor.rankinAlta} onChange={e=>setAltaEditor(x=>({...x,rankinAlta:e.target.value}))} style={{display:"block",width:"100%",marginTop:5,padding:"9px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}><option value="">— selecionar —</option>{RANKIN_OPCOES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></label>
+        {leito.rankinAdmissao!==undefined&&leito.rankinAdmissao!==""&&<div style={{marginTop:10,padding:"8px 10px",borderRadius:8,background:T.accentBg,border:`1px solid ${T.accentBorder}`,fontSize:11,color:T.text2}}>Rankin na admissão: <b style={{color:T.accent}}>{leito.rankinAdmissao}</b></div>}
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:18}}><button onClick={()=>setAltaEditor(null)} style={{padding:"8px 13px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",color:T.text2,cursor:"pointer"}}>Cancelar</button><button onClick={confirmarAltaPaciente} disabled={saving} style={{padding:"8px 14px",borderRadius:8,border:"1px solid rgba(251,191,36,.4)",background:"rgba(251,191,36,.12)",color:"#fbbf24",fontWeight:800,cursor:"pointer"}}>{saving?"Arquivando...":"Confirmar alta e arquivar"}</button></div>
+      </div></div>}
       {pacienteEditorAberto&&<div onMouseDown={e=>{if(e.target===e.currentTarget)setPacienteEditorAberto(false);}} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(2,6,23,.74)",backdropFilter:"blur(3px)",display:"flex",justifyContent:"center",alignItems:"flex-start",padding:"4vh 18px"}}>
         <div style={{width:"min(1050px,96vw)",maxHeight:"92vh",display:"flex",flexDirection:"column",background:T.bgPage,border:`1px solid ${T.borderStrong}`,borderRadius:14,boxShadow:"0 24px 70px rgba(0,0,0,.45)",overflow:"hidden"}}>
           <div style={{display:"flex",alignItems:"center",padding:"12px 16px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
