@@ -4198,6 +4198,8 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
   const isAntigo = (fieldName) => { const d = campos._datas?.[fieldName]; return d && d < hoje; };
   const salvar = onCampoEdit || (()=>{});
   const pendentes = metas.filter(m=>!m.feito&&m.status!=="cumprido").length;
+  const ultimaEvacuacao=campos.tgUltEvac||leito.tgUltEvac||"";
+  const diasSemEvacuar=ultimaEvacuacao?Math.floor((new Date(hoje+"T12:00:00")-new Date(ultimaEvacuacao+"T00:00:00"))/86400000):null;
 
   if (minimized) {
     return (
@@ -4258,6 +4260,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
           <div style={{marginTop:8,borderTop:"1px solid rgba(251,146,60,.18)",paddingTop:7}}>
             <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#fb923c",marginBottom:6}}>⚠ RISCOS DO PACIENTE</div>
             <RefeedingRiskBox dados={leito} tabelaDataLeito={tabelaDataLeito} onChange={onLeitoChange}/>
+            {diasSemEvacuar!==null&&diasSemEvacuar>2&&<div style={{marginTop:5,padding:"7px 8px",display:"flex",alignItems:"center",gap:7,borderRadius:7,border:"1px solid rgba(251,146,60,.38)",background:"rgba(251,146,60,.08)",color:"#fdba74",fontSize:10,lineHeight:1.35}}><span>⚠</span><span><b>Sem evacuação há {diasSemEvacuar} dias</b><small style={{display:"block",color:T.text3,marginTop:2}}>Última evacuação: {new Date(ultimaEvacuacao+"T00:00:00").toLocaleDateString("pt-BR")}</small></span></div>}
           </div>
           {/* ── Metas / Pendências ── */}
           <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
