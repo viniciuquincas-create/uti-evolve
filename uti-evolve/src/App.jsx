@@ -5019,7 +5019,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtRes = () => {
     const p=[];
-    if(get("reVM"))    p.push(`- Ventilação: ${get("reVM")}`);
+    const vmAtual=leito.vm_modo?gerarTextoVM(leito):get("reVM");
+    if(vmAtual) p.push(`- Ventilação: ${vmAtual}`);
     if(get("reEF"))    p.push(`- EF: ${get("reEF")}`);
     if(get("re24h"))   p.push(`- 24h: ${get("re24h")}`);
     if(get("reGaso"))  p.push(`Gaso: ${get("reGaso")}`);
@@ -5281,9 +5282,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtResFull = () => {
     const p=[];
-    // Ventilação: nebulização incluída
+    // Usa diretamente o suporte atual do leito; reVM permanece como fallback para registros legados.
     const nebTxt = (leito.nebMed||leito.nebFreq) ? ` | Neb: ${[leito.nebMed,leito.nebFreq].filter(Boolean).join(" ")}` : "";
-    if(get("reVM")) p.push(`- Ventilação: ${get("reVM")}${nebTxt}`);
+    const vmAtual=leito.vm_modo?gerarTextoVM(leito):get("reVM");
+    if(vmAtual) p.push(`- Ventilação: ${vmAtual}${nebTxt}`);
     else if(nebTxt) p.push(`- Nebulização:${nebTxt}`);
     // EF: MV + RA + outros
     const ef_res = [get("reMV"), get("reRA"), get("reEF")].filter(Boolean).join(" / ");
