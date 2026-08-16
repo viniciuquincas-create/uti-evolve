@@ -864,18 +864,25 @@ function avaliarRealimentacao(dados={}, tabelaDataLeito={}) {
   const perda=numClinico(manual.perdaPesoPct), dias=numClinico(manual.diasSemIngesta);
   const inicio=dieta.dataInicio||manual.dataInicio||"";
   const rows=Object.entries(tabelaDataLeito||{}).filter(([d,r])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&r).sort(([a],[b])=>a.localeCompare(b));
-  const pre=inicio ? [...rows].reverse().find(([d])=>d<=inicio)?.[1] : null;
+  const preEntry=inicio ? ([...rows].reverse().find(([d])=>d<inicio)||rows.find(([d])=>d===inicio)) : null;
+  const pre=preEntry?.[1]||null;
   const baixo=(key,lim)=>{ const v=numClinico(pre?.[key]); return v!==null&&v<lim; };
   const eletroPre=!!manual.eletrolitosBaixos||baixo("k",3.5)||baixo("p",2.5)||baixo("mg",1.7);
   const drogas=!!(manual.insulina||manual.quimioterapia||manual.antiacido||manual.diuretico);
   const maior=[imc!==null&&imc<16,perda!==null&&perda>15,dias!==null&&dias>10,eletroPre];
   const menor=[imc!==null&&imc<18.5,perda!==null&&perda>10,dias!==null&&dias>5,!!manual.alcool||drogas];
   const alto=maior.some(Boolean)||menor.filter(Boolean).length>=2;
-  let quedaMax=0, eletrólito="";
+  let quedaMax=0, eletrólito=""; const comparacoes=[];
   if(inicio){
     const base=pre||rows.find(([d])=>d>=inicio)?.[1];
+    const baseDate=preEntry?.[0]||rows.find(([d])=>d>=inicio)?.[0]||"";
     const fim=new Date(inicio+"T00:00:00"); fim.setDate(fim.getDate()+5); const fimS=fim.toISOString().slice(0,10);
-    for(const key of ["p","k","mg"]){ const b=numClinico(base?.[key]); if(!b)continue; for(const [dt,row] of rows.filter(([dt])=>dt>=inicio&&dt<=fimS)){const v=numClinico(row?.[key]);if(v!==null){const q=(b-v)/b*100;if(q>quedaMax){quedaMax=q;eletrólito=key.toUpperCase();}}} }
+    for(const key of ["p","k","mg"]){
+      const b=numClinico(base?.[key]); if(!b)continue;
+      let menor=null, menorData="";
+      for(const [dt,row] of rows.filter(([dt])=>dt>=inicio&&dt<=fimS)){const v=numClinico(row?.[key]);if(v!==null&&(menor===null||v<menor)){menor=v;menorData=dt;}}
+      if(menor!==null){const q=(b-menor)/b*100;comparacoes.push({key:key.toUpperCase(),base:b,baseDate,valor:menor,data:menorData,queda:q});if(q>quedaMax){quedaMax=q;eletrólito=key.toUpperCase();}}
+    }
   }
   const disfuncao=!!(manual.edema||manual.arritmia||manual.insufResp||manual.alteracaoNeuro);
   const suspeitaClinica=!!(inicio&&(disfuncao||manual.deficienciaTiamina));
@@ -883,7 +890,7 @@ function avaliarRealimentacao(dados={}, tabelaDataLeito={}) {
   const gravidade=quedaMax>30||!!(inicio&&manual.deficienciaTiamina)?"grave":quedaMax>=20?"moderada":quedaMax>=10?"leve":"";
   const faltantes=[]; if(imc===null)faltantes.push("IMC"); if(perda===null)faltantes.push("perda ponderal"); if(dias===null)faltantes.push("dias sem ingestão"); if(!inicio)faltantes.push("início da dieta");
   const criterios=[]; if(imc!==null&&imc<16)criterios.push(`IMC ${imc.toFixed(1)} (<16)`); else if(imc!==null&&imc<18.5)criterios.push(`IMC ${imc.toFixed(1)} (<18,5)`); if(perda!==null&&perda>10)criterios.push(`perda ${perda}%`); if(dias!==null&&dias>5)criterios.push(`${dias} dias sem ingestão`); if(eletroPre)criterios.push("K/P/Mg baixo pré-dieta"); if(manual.alcool)criterios.push("álcool"); if(drogas)criterios.push("medicações de risco");
-  return {alto,aspen,suspeitaClinica,gravidade,quedaMax,eletrólito,criterios,faltantes,imc,inicio,disfuncao};
+  return {alto,aspen,suspeitaClinica,gravidade,quedaMax,eletrólito,criterios,faltantes,imc,inicio,disfuncao,comparacoes};
 }
 
 // ── DietaPanel ────────────────────────────────────────────────────────────────
@@ -944,6 +951,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
               <div style={{fontSize:12,color:"#e2e8f0",fontWeight:650,lineHeight:1.35}}>{dietaSel?.comercial || dieta.formula || (dieta.tipo==="jejum"?"Dieta suspensa":"Fórmula não selecionada")}</div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:5,fontSize:11,color:"#94a3b8",fontFamily:mono}}>
                 {dieta.vazao&&<span style={{color:"#fdba74",fontWeight:700}}>{dieta.vazao} mL/h</span>}
+                {dieta.dataInicio&&<span>desde {new Date(dieta.dataInicio+"T00:00:00").toLocaleDateString("pt-BR")}</span>}
                 {volHoje>0&&<span>24h: {volHoje} mL</span>}
                 {nutriHoje&&<span>{nutriHoje.kcal} kcal · {nutriHoje.ptn} g ptn{moduloPtn?` (inclui módulo +${moduloPtn} g)`:""}</span>}
               </div>
@@ -965,7 +973,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
 
       {showRefeeding&&<div onClick={()=>setShowRefeeding(false)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div onClick={e=>e.stopPropagation()} style={{width:"min(760px,96vw)",maxHeight:"90vh",overflowY:"auto",background:"#0b1710",border:"1px solid rgba(251,146,60,.42)",borderRadius:14,padding:18,boxShadow:"0 24px 80px rgba(0,0,0,.55)"}}>
         <div style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:12}}><div><b style={{color:"#fdba74",fontSize:15}}>Risco de síndrome de realimentação</b><div style={{fontSize:10,color:"#64748b",marginTop:3}}>Triagem NICE + alerta de alterações após início calórico. Apoio à decisão; não substitui avaliação clínica.</div></div><button onClick={()=>setShowRefeeding(false)} style={{background:"none",border:0,color:"#94a3b8",cursor:"pointer",fontSize:18}}>✕</button></div>
-        <div style={{padding:10,borderRadius:9,background:refeeding.aspen?"rgba(248,113,113,.10)":refeeding.alto?"rgba(251,146,60,.09)":"rgba(56,189,248,.05)",color:refeeding.aspen?"#fca5a5":refeeding.alto?"#fdba74":"#7dd3fc",fontSize:12,marginBottom:14}}><b>{refeeding.aspen?`Alerta pós-dieta ASPEN: ${refeeding.gravidade||"possível"}`:refeeding.alto?"Alto risco pelos critérios NICE":refeeding.suspeitaClinica?"Alterações clínicas temporais exigem revisão":"Critérios automáticos ainda não definem alto risco"}</b>{refeeding.quedaMax>=10&&<div style={{marginTop:4}}>Maior queda em até 5 dias: {refeeding.eletrólito} {refeeding.quedaMax.toFixed(0)}%.</div>}{refeeding.faltantes.length>0&&<div style={{marginTop:4,color:"#94a3b8"}}>Falta documentar: {refeeding.faltantes.join(", ")}.</div>}</div>
+        <div style={{padding:10,borderRadius:9,background:refeeding.aspen?"rgba(248,113,113,.10)":refeeding.alto?"rgba(251,146,60,.09)":"rgba(56,189,248,.05)",color:refeeding.aspen?"#fca5a5":refeeding.alto?"#fdba74":"#7dd3fc",fontSize:12,marginBottom:14}}><b>{refeeding.aspen?`Alerta pós-dieta ASPEN: ${refeeding.gravidade||"possível"}`:refeeding.alto?"Alto risco pelos critérios NICE":refeeding.suspeitaClinica?"Alterações clínicas temporais exigem revisão":"Critérios automáticos ainda não definem alto risco"}</b>{refeeding.quedaMax>=10&&<div style={{marginTop:4}}>Maior queda em até 5 dias: {refeeding.eletrólito} {refeeding.quedaMax.toFixed(0)}%.</div>}{refeeding.comparacoes?.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:7}}>{refeeding.comparacoes.map(c=><span key={c.key} style={{padding:"3px 7px",borderRadius:6,background:"rgba(255,255,255,.05)",fontFamily:mono,fontSize:9}}>{c.key}: {c.base} → {c.valor} ({c.queda>0?"−":"+"}{Math.abs(c.queda).toFixed(0)}%)</span>)}</div>}{refeeding.faltantes.length>0&&<div style={{marginTop:4,color:"#94a3b8"}}>Falta documentar: {refeeding.faltantes.join(", ")}.</div>}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>
           {[['dataInicio','Início/reintrodução da dieta','date'],['perdaPesoPct','Perda involuntária em 3–6 meses (%)','number'],['diasSemIngesta','Dias com pouca ou nenhuma ingestão','number']].map(([k,l,t])=><label key={k} style={{fontSize:10,color:"#94a3b8"}}>{l}<input type={t} value={(k==='dataInicio'?dieta.dataInicio:dieta.refeeding?.[k])||""} onChange={e=>k==='dataInicio'?upd('dataInicio',e.target.value):updRefeeding(k,e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.04)",color:"#e2e8f0"}}/></label>)}
         </div>
@@ -1066,6 +1074,14 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
                 </div>
               );
             })()}
+          </div>
+
+          {/* Data de introdução/reintrodução da dieta */}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>INÍCIO / REINTRODUÇÃO DA DIETA</div>
+            <input type="date" value={dieta.dataInicio||""} onChange={e=>upd("dataInicio",e.target.value)}
+              style={{width:"100%",maxWidth:220,background:"rgba(255,255,255,.04)",border:"1px solid rgba(251,146,60,.24)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12}}/>
+            <div style={{fontSize:10,color:"#475569",marginTop:5,lineHeight:1.4}}>Usada para comparar K, P e Mg da tabela clínica antes da dieta com os valores dos cinco dias seguintes.</div>
           </div>
           </div>
 
