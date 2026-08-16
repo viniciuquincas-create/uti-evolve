@@ -1506,6 +1506,8 @@ function gerarTextoVM(leito) {
   if (leito.vm_sato2) partes.push(`SatO2: ${leito.vm_sato2}%`);
   if (VM_INVASIVA_MODOS.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
   if (leito.vm_obs) partes.push(leito.vm_obs);
+  const pao2=parseFloat(leito.vm_pf), fio2=parseFloat(leito.vm_fio2);
+  if(Number.isFinite(pao2)&&pao2>0&&Number.isFinite(fio2)&&fio2>0) partes.push(`→ P/F ${Math.round(pao2/(fio2/100))}`);
   const cuidados=[];
   if(VM_INVASIVA_MODOS.includes(modo)){
     if(leito.vm_cuidado_cornea) cuidados.push("profilaxia de úlcera de córnea: dextrano");
