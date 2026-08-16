@@ -855,8 +855,39 @@ function NutriBar({ label, recebeu, meta }) {
   );
 }
 
+// ── Risco de síndrome de realimentação ───────────────────────────────────────
+const numClinico = v => { const n=parseFloat(String(v??"").replace(",",".")); return Number.isFinite(n)?n:null; };
+function avaliarRealimentacao(dados={}, tabelaDataLeito={}) {
+  const dieta=dados.dieta||{}, manual=dieta.refeeding||{};
+  const peso=numClinico(dados.peso), altura=numClinico(dados.altura);
+  const imc=peso&&altura ? peso/((altura/100)**2) : null;
+  const perda=numClinico(manual.perdaPesoPct), dias=numClinico(manual.diasSemIngesta);
+  const inicio=dieta.dataInicio||manual.dataInicio||"";
+  const rows=Object.entries(tabelaDataLeito||{}).filter(([d,r])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&r).sort(([a],[b])=>a.localeCompare(b));
+  const pre=inicio ? [...rows].reverse().find(([d])=>d<=inicio)?.[1] : null;
+  const baixo=(key,lim)=>{ const v=numClinico(pre?.[key]); return v!==null&&v<lim; };
+  const eletroPre=!!manual.eletrolitosBaixos||baixo("k",3.5)||baixo("p",2.5)||baixo("mg",1.7);
+  const drogas=!!(manual.insulina||manual.quimioterapia||manual.antiacido||manual.diuretico);
+  const maior=[imc!==null&&imc<16,perda!==null&&perda>15,dias!==null&&dias>10,eletroPre];
+  const menor=[imc!==null&&imc<18.5,perda!==null&&perda>10,dias!==null&&dias>5,!!manual.alcool||drogas];
+  const alto=maior.some(Boolean)||menor.filter(Boolean).length>=2;
+  let quedaMax=0, eletrólito="";
+  if(inicio){
+    const base=pre||rows.find(([d])=>d>=inicio)?.[1];
+    const fim=new Date(inicio+"T00:00:00"); fim.setDate(fim.getDate()+5); const fimS=fim.toISOString().slice(0,10);
+    for(const key of ["p","k","mg"]){ const b=numClinico(base?.[key]); if(!b)continue; for(const [dt,row] of rows.filter(([dt])=>dt>=inicio&&dt<=fimS)){const v=numClinico(row?.[key]);if(v!==null){const q=(b-v)/b*100;if(q>quedaMax){quedaMax=q;eletrólito=key.toUpperCase();}}} }
+  }
+  const disfuncao=!!(manual.edema||manual.arritmia||manual.insufResp||manual.alteracaoNeuro);
+  const suspeitaClinica=!!(inicio&&(disfuncao||manual.deficienciaTiamina));
+  const aspen=quedaMax>=10||!!(inicio&&manual.deficienciaTiamina);
+  const gravidade=quedaMax>30||!!(inicio&&manual.deficienciaTiamina)?"grave":quedaMax>=20?"moderada":quedaMax>=10?"leve":"";
+  const faltantes=[]; if(imc===null)faltantes.push("IMC"); if(perda===null)faltantes.push("perda ponderal"); if(dias===null)faltantes.push("dias sem ingestão"); if(!inicio)faltantes.push("início da dieta");
+  const criterios=[]; if(imc!==null&&imc<16)criterios.push(`IMC ${imc.toFixed(1)} (<16)`); else if(imc!==null&&imc<18.5)criterios.push(`IMC ${imc.toFixed(1)} (<18,5)`); if(perda!==null&&perda>10)criterios.push(`perda ${perda}%`); if(dias!==null&&dias>5)criterios.push(`${dias} dias sem ingestão`); if(eletroPre)criterios.push("K/P/Mg baixo pré-dieta"); if(manual.alcool)criterios.push("álcool"); if(drogas)criterios.push("medicações de risco");
+  return {alto,aspen,suspeitaClinica,gravidade,quedaMax,eletrólito,criterios,faltantes,imc,inicio,disfuncao};
+}
+
 // ── DietaPanel ────────────────────────────────────────────────────────────────
-function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=false }) {
+function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataLeito={}, integrated=false }) {
   const dieta = dados.dieta || {
     tipo:"enteral", catalogId:"", formula:"",
     vazao:"",
@@ -869,6 +900,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
   const [showCatalog, setShowCatalog] = useState(false);
   const [showDetails, setShowDetails] = useState(!integrated);
   const [showMetas, setShowMetas] = useState(!integrated);
+  const [showRefeeding, setShowRefeeding] = useState(false);
 
   const peso     = parseFloat(dados.peso) || 0;
   const catalogo = getDietasCatalogo(config);
@@ -885,6 +917,8 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
   const adequacao = kcalPct!==null && ptnPct!==null ? Math.min(kcalPct,ptnPct) : (kcalPct ?? ptnPct);
   const adequacaoCor = adequacao===null ? "#94a3b8" : adequacao>=80 ? "#34d399" : "#f87171";
   const tipoLabel = {enteral:"Enteral",parenteral:"NPT",oral:"Via oral",mista:"Mista",jejum:"Jejum"}[dieta.tipo] || "Não definida";
+  const refeeding = avaliarRealimentacao(dados,tabelaDataLeito);
+  const updRefeeding = (field,val) => upd("refeeding",{...(dieta.refeeding||{}),[field]:val});
 
   const TIPOS = [
     {k:"enteral",   label:"🥤 Enteral"},
@@ -924,6 +958,23 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", integrated=
           </div>
         </div>
       ) : <SecTitle>SUPORTE NUTRICIONAL</SecTitle>}
+
+      <button onClick={()=>setShowRefeeding(true)} style={{width:"100%",margin:"0 0 12px",padding:"9px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,textAlign:"left",borderRadius:9,cursor:"pointer",border:`1px solid ${refeeding.aspen?"rgba(248,113,113,.55)":refeeding.alto?"rgba(251,146,60,.48)":"rgba(148,163,184,.18)"}`,background:refeeding.aspen?"rgba(248,113,113,.10)":refeeding.alto?"rgba(251,146,60,.09)":"rgba(148,163,184,.035)",color:refeeding.aspen?"#fca5a5":refeeding.alto?"#fdba74":"#94a3b8"}}>
+        <span><strong>{refeeding.aspen?`Possível síndrome de realimentação${refeeding.gravidade?` · ${refeeding.gravidade}`:""}`:refeeding.alto?"Alto risco de realimentação · NICE":refeeding.suspeitaClinica?"Sinais clínicos após início da dieta · revisar":"Risco de realimentação · avaliar"}</strong><span style={{display:"block",fontSize:10,marginTop:2,color:"#64748b"}}>{refeeding.criterios.length?refeeding.criterios.join(" · "):"Clique para completar os critérios NICE e a monitorização após dieta"}</span></span><span style={{fontSize:11,whiteSpace:"nowrap"}}>Revisar →</span>
+      </button>
+
+      {showRefeeding&&<div onClick={()=>setShowRefeeding(false)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div onClick={e=>e.stopPropagation()} style={{width:"min(760px,96vw)",maxHeight:"90vh",overflowY:"auto",background:"#0b1710",border:"1px solid rgba(251,146,60,.42)",borderRadius:14,padding:18,boxShadow:"0 24px 80px rgba(0,0,0,.55)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:12}}><div><b style={{color:"#fdba74",fontSize:15}}>Risco de síndrome de realimentação</b><div style={{fontSize:10,color:"#64748b",marginTop:3}}>Triagem NICE + alerta de alterações após início calórico. Apoio à decisão; não substitui avaliação clínica.</div></div><button onClick={()=>setShowRefeeding(false)} style={{background:"none",border:0,color:"#94a3b8",cursor:"pointer",fontSize:18}}>✕</button></div>
+        <div style={{padding:10,borderRadius:9,background:refeeding.aspen?"rgba(248,113,113,.10)":refeeding.alto?"rgba(251,146,60,.09)":"rgba(56,189,248,.05)",color:refeeding.aspen?"#fca5a5":refeeding.alto?"#fdba74":"#7dd3fc",fontSize:12,marginBottom:14}}><b>{refeeding.aspen?`Alerta pós-dieta ASPEN: ${refeeding.gravidade||"possível"}`:refeeding.alto?"Alto risco pelos critérios NICE":refeeding.suspeitaClinica?"Alterações clínicas temporais exigem revisão":"Critérios automáticos ainda não definem alto risco"}</b>{refeeding.quedaMax>=10&&<div style={{marginTop:4}}>Maior queda em até 5 dias: {refeeding.eletrólito} {refeeding.quedaMax.toFixed(0)}%.</div>}{refeeding.faltantes.length>0&&<div style={{marginTop:4,color:"#94a3b8"}}>Falta documentar: {refeeding.faltantes.join(", ")}.</div>}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>
+          {[['dataInicio','Início/reintrodução da dieta','date'],['perdaPesoPct','Perda involuntária em 3–6 meses (%)','number'],['diasSemIngesta','Dias com pouca ou nenhuma ingestão','number']].map(([k,l,t])=><label key={k} style={{fontSize:10,color:"#94a3b8"}}>{l}<input type={t} value={(k==='dataInicio'?dieta.dataInicio:dieta.refeeding?.[k])||""} onChange={e=>k==='dataInicio'?upd('dataInicio',e.target.value):updRefeeding(k,e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.04)",color:"#e2e8f0"}}/></label>)}
+        </div>
+        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,margin:"16px 0 8px"}}>CRITÉRIOS COMPLEMENTARES NICE</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:7}}>{[['eletrolitosBaixos','K, P ou Mg baixos antes da dieta'],['alcool','História de uso nocivo de álcool'],['insulina','Insulina'],['quimioterapia','Quimioterapia'],['antiacido','Antiácido'],['diuretico','Diurético']].map(([k,l])=><label key={k} style={{fontSize:11,color:"#cbd5e1",display:"flex",gap:7,alignItems:"center"}}><input type="checkbox" checked={!!dieta.refeeding?.[k]} onChange={e=>updRefeeding(k,e.target.checked)}/>{l}</label>)}</div>
+        <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,margin:"16px 0 8px"}}>ALTERAÇÕES CLÍNICAS APÓS DIETA (SUPORTE AO ALERTA)</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:7}}>{[['edema','Edema / sobrecarga volêmica'],['arritmia','Arritmia / instabilidade cardíaca'],['insufResp','Piora ou insuficiência respiratória'],['alteracaoNeuro','Alteração neurológica nova'],['deficienciaTiamina','Suspeita de deficiência de tiamina']].map(([k,l])=><label key={k} style={{fontSize:11,color:"#cbd5e1",display:"flex",gap:7,alignItems:"center"}}><input type="checkbox" checked={!!dieta.refeeding?.[k]} onChange={e=>updRefeeding(k,e.target.checked)}/>{l}</label>)}</div>
+        <div style={{marginTop:14,fontSize:10,lineHeight:1.5,color:"#64748b"}}>NICE: alto risco se ≥1 critério maior ou ≥2 critérios menores. ASPEN: queda de P/K/Mg em até 5 dias após reintrodução calórica (10–20% leve; 20–30% moderada; &gt;30% ou disfunção orgânica/tiamina grave). Confirme causas alternativas e conduta com a equipe assistente.</div>
+      </div></div>}
 
       {(!integrated || showDetails) && <div style={integrated?{padding:"12px 14px 2px",marginTop:-12,marginBottom:12,border:"1px solid rgba(251,146,60,.18)",borderTop:"none",borderRadius:"0 0 12px 12px",background:"rgba(251,146,60,.025)"}:undefined}>
 
@@ -5252,6 +5303,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(d.tipo==="parenteral"&&d.suplementacaoNPT) dl+=` · suplementação: ${d.suplementacaoNPT}`;
       p.push(dl);
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
+    const rf=avaliarRealimentacao(leito,tabelaDataLeito);
+    if(rf.aspen) p.push(`- Alerta de realimentação (ASPEN): possível ${rf.gravidade||"síndrome"}${rf.quedaMax>=10?` · queda ${rf.eletrólito} ${rf.quedaMax.toFixed(0)}% em até 5 dias`:""} — requer correlação clínica`);
+    else if(rf.alto) p.push(`- Risco de realimentação: alto risco pelos critérios NICE (${rf.criterios.join(", ")})`);
     if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h")) p.push(`- 24h: ${get("tg24h")}`);
     const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
@@ -5643,7 +5697,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         statusFields={[{label:"Via/Dieta",value:leito.dieta?.tipo},{label:"Última evacuação",value:campos.tgUltEvac}]} {...customProps("tgi")}>
                 {/* ── Dieta ── */}
         <ClinicalGroup label="NUTRIÇÃO E TERAPIA" color="#fb923c">
-        {onLeitoChange&&<DietaPanel dados={leito} config={config} onChange={onLeitoChange} integrated
+        {onLeitoChange&&<DietaPanel dados={leito} config={config} onChange={onLeitoChange} integrated tabelaDataLeito={tabelaDataLeito}
           diureseHojeVol={(()=>{const v=tabelaHoje?.c24_diet_vol;return v?parseFloat(v):0;})()}/>}
         {!onLeitoChange&&leito.dieta?.tipo&&<div style={{padding:"6px 10px",background:"rgba(251,146,60,0.05)",borderRadius:7,marginBottom:8,fontSize:11,color:"#94a3b8"}}>
           🍽 {leito.dieta.tipo} {leito.dieta.formula} {leito.dieta.vazao&&`@ ${leito.dieta.vazao} mL/h`}
