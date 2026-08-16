@@ -894,6 +894,26 @@ function avaliarRealimentacao(dados={}, tabelaDataLeito={}) {
   return {alto,aspen,suspeitaClinica,gravidade,quedaMax,eletrólito,criterios,faltantes,imc,inicio,disfuncao,comparacoes};
 }
 
+function avaliarRiscoLAMG(leito={}, tabelaDataLeito={}, campos={}) {
+  const rows=Object.entries(tabelaDataLeito||{}).filter(([d,r])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&r).sort(([a],[b])=>b.localeCompare(a));
+  const ultimo=(key)=>{for(const [,r] of rows){const v=numClinico(r?.[key]);if(v!==null)return v;}return null;};
+  const plaq=ultimo("plaq"), rni=ultimo("rni"), lact=ultimo("lact");
+  const coagulopatia=(plaq!==null&&plaq<50)||(rni!==null&&rni>1.5);
+  const dva=Object.entries(leito.drogasVazao||{}).some(([k,v])=>!k.startsWith("_")&&numClinico(v)>0);
+  const choque=dva||(lact!==null&&lact>=4);
+  const texto=[leito.diagnostico,leito.comorbidades,campos.hda,campos.probAtivos].filter(Boolean).join(" ").toLowerCase();
+  const hepatopatia=/cirrose|hepatopatia cr[oô]nica|hipertens[aã]o portal|encefalopatia hep[aá]tica|sangramento varicoso/.test(texto);
+  const custom=Array.isArray(leito.dispositivos?.custom)?leito.dispositivos.custom:[];
+  const neurocritico=custom.some(d=>/dve|ventric|pic/i.test(d.nome||""))||/\bpic\b|\bdve\b|neurocr[ií]tico|hemorragia subarac|\bhsa\b|trauma cran|\btce\b/.test(`${texto} ${campos.n24h||""}`.toLowerCase());
+  const criterios=[];
+  if(coagulopatia) criterios.push(plaq!==null&&plaq<50?`plaquetas ${plaq} mil/mm³`:`RNI ${rni}`);
+  if(choque) criterios.push(dva?"choque com DVA":`lactato ${lact} mmol/L`);
+  if(hepatopatia) criterios.push("hepatopatia crônica");
+  if(neurocritico) criterios.push("paciente neurocrítico");
+  const profilaxia=campos.tgLAMG||leito.tgLAMG||"";
+  return {risco:criterios.length>0,semProfilaxia:!String(profilaxia).trim(),criterios,profilaxia};
+}
+
 function RefeedingRiskBox({ dados={}, tabelaDataLeito={}, onChange }) {
   const T=useTheme();
   const [open,setOpen]=useState(false);
@@ -4200,6 +4220,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
   const pendentes = metas.filter(m=>!m.feito&&m.status!=="cumprido").length;
   const ultimaEvacuacao=campos.tgUltEvac||leito.tgUltEvac||"";
   const diasSemEvacuar=ultimaEvacuacao?Math.floor((new Date(hoje+"T12:00:00")-new Date(ultimaEvacuacao+"T00:00:00"))/86400000):null;
+  const riscoLAMG=avaliarRiscoLAMG(leito,tabelaDataLeito,campos);
 
   if (minimized) {
     return (
@@ -4261,6 +4282,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#fb923c",marginBottom:6}}>⚠ RISCOS DO PACIENTE</div>
             <RefeedingRiskBox dados={leito} tabelaDataLeito={tabelaDataLeito} onChange={onLeitoChange}/>
             {diasSemEvacuar!==null&&diasSemEvacuar>2&&<div style={{marginTop:5,padding:"7px 8px",display:"flex",alignItems:"center",gap:7,borderRadius:7,border:"1px solid rgba(251,146,60,.38)",background:"rgba(251,146,60,.08)",color:"#fdba74",fontSize:10,lineHeight:1.35}}><span>⚠</span><span><b>Sem evacuação há {diasSemEvacuar} dias</b><small style={{display:"block",color:T.text3,marginTop:2}}>Última evacuação: {new Date(ultimaEvacuacao+"T00:00:00").toLocaleDateString("pt-BR")}</small></span></div>}
+            {riscoLAMG.risco&&riscoLAMG.semProfilaxia&&<div style={{marginTop:5,padding:"7px 8px",display:"flex",alignItems:"flex-start",gap:7,borderRadius:7,border:"1px solid rgba(248,113,113,.42)",background:"rgba(248,113,113,.09)",color:"#fca5a5",fontSize:10,lineHeight:1.35}}><span>⚠</span><span><b>Avaliar profilaxia de lesão aguda da mucosa gástrica</b><small style={{display:"block",color:T.text3,marginTop:2}}>Sem profilaxia registrada · {riscoLAMG.criterios.join(" · ")}</small></span></div>}
           </div>
           {/* ── Metas / Pendências ── */}
           <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
