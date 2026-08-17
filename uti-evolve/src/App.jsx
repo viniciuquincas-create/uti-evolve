@@ -6973,8 +6973,18 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
 }
 
 
+class AnalysisErrorBoundary extends React.Component {
+  constructor(props){super(props);this.state={error:null};}
+  static getDerivedStateFromError(error){return {error};}
+  componentDidCatch(error,info){console.error("Falha no painel de análise",error,info);}
+  render(){if(this.state.error)return <div style={{margin:24,padding:18,border:"1px solid rgba(248,113,113,.4)",borderRadius:10,color:"#fca5a5",background:"rgba(248,113,113,.06)"}}><b>Não foi possível montar a análise.</b><div style={{fontSize:11,marginTop:6}}>Os dados clínicos continuam preservados. Detalhe técnico: {String(this.state.error?.message||this.state.error)}</div></div>;return this.props.children;}
+}
 function PesquisaPanel({historico={},arquivos=[],leitos=[],utis=[]}){
   const T=useTheme();
+  arquivos=Array.isArray(arquivos)?arquivos.filter(a=>a&&typeof a==="object"):[];
+  leitos=Array.isArray(leitos)?leitos.filter(l=>l&&typeof l==="object"):[];
+  utis=Array.isArray(utis)?utis.filter(u=>u&&typeof u==="object"):[];
+  historico=historico&&typeof historico==="object"&&!Array.isArray(historico)?historico:{};
   const [utiFiltro,setUtiFiltro]=useState("");
   const [inicio,setInicio]=useState("");
   const [fim,setFim]=useState("");
@@ -6983,7 +6993,8 @@ function PesquisaPanel({historico={},arquivos=[],leitos=[],utis=[]}){
   const ids=new Set([...Object.keys(historico||{}),...Object.keys(arqPorAdm)]);
   const internacoes=[...ids].map((id,idx)=>{
     const h=historico[id]||{},a=arqPorAdm[id],l=a?.leito||leitos.find(x=>x.admissionId===id)||{};
-    const days=h.days||a?.historicoDiario||{};
+    const rawDays=h.days||a?.historicoDiario||{};
+    const days=rawDays&&typeof rawDays==="object"&&!Array.isArray(rawDays)?rawDays:{};
     const datas=Object.keys(days).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
     const dataAdm=l.dataInternacao||h.startedAt?.slice(0,10)||datas[0]||"";
     const dataAlta=a?.dataAlta||h.dischargeDate||"";
@@ -6991,7 +7002,7 @@ function PesquisaPanel({historico={},arquivos=[],leitos=[],utis=[]}){
     const utiId=a?.utiId||l.utiId||days[datas[0]]?.bedside?.utiId||"";
     const utiNome=a?.utiNome||utis.find(u=>u.id===utiId)?.nome||"UTI não identificada";
     const codigo=`UTI-${String(idx+1).padStart(4,"0")}`;
-    const linhas=datas.map(data=>({data,...(days[data]||{})}));
+    const linhas=datas.map(data=>({data,...(days[data]&&typeof days[data]==="object"?days[data]:{})}));
     return {id,codigo,h,a,l,days,datas,linhas,dataAdm,dataAlta,situacao,utiId,utiNome,destino:a?.destino||h.outcome||"",rankinAdm:l.rankinAdmissao??h.rankinAdmission??"",rankinAlta:a?.rankinAlta??h.rankinDischarge??""};
   });
   const filtradas=internacoes.filter(i=>{
@@ -7696,7 +7707,7 @@ export default function App() {
           {viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : viewGlobal==="pesquisa" ? (
-            <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><PesquisaPanel historico={historicoDiario} arquivos={pacientesArquivados} leitos={leitos} utis={utis}/></div>
+            <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><AnalysisErrorBoundary><PesquisaPanel historico={historicoDiario} arquivos={pacientesArquivados} leitos={leitos} utis={utis}/></AnalysisErrorBoundary></div>
           ) : viewGlobal==="arquivo" ? (
             <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><ArquivoPacientesPanel arquivos={pacientesArquivados}/></div>
           ) : viewGlobal==="visao_geral" ? (
