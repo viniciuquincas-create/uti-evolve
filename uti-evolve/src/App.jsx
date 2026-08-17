@@ -839,6 +839,31 @@ function calcMetaAbsoluta(meta, peso) {
   return (m.kcal || m.ptn) ? m : null;
 }
 
+function diasAteInicioDieta(dataInternacao, dataInicio) {
+  if (!dataInternacao || !dataInicio) return null;
+  const inicio=new Date(`${dataInternacao}T00:00:00`), dieta=new Date(`${dataInicio}T00:00:00`);
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(dieta.getTime())) return null;
+  return Math.max(0,Math.round((dieta-inicio)/86400000));
+}
+
+function calcularNutriDia(leito={}, linha={}, config={}) {
+  const dieta=leito.dieta||{}, vol=parseFloat(linha.c24_diet_vol)||0;
+  const formula=getDietasCatalogo(config).find(d=>d.id===dieta.catalogId)||null;
+  const meta=calcMetaAbsoluta(dieta.meta,parseFloat(leito.peso)||0);
+  const calculada=calcNutri(formula,vol);
+  const modulo=dieta.moduloProteina?.ativo?(parseFloat(dieta.moduloProteina.gramas)||0):0;
+  const oferta=calculada?{...calculada,ptn:+(calculada.ptn+modulo).toFixed(1)}:(modulo?{kcal:0,ptn:modulo,cho:0,lip:0}:null);
+  return {
+    volumeMl:vol||null,metaKcal:meta?.kcal??null,metaProteinaG:meta?.ptn??null,
+    ofertaKcal:oferta?.kcal??null,ofertaProteinaG:oferta?.ptn??null,
+    adequacaoCaloricaPct:meta?.kcal&&oferta?.kcal?Math.round(oferta.kcal/meta.kcal*100):null,
+    adequacaoProteicaPct:meta?.ptn&&oferta?.ptn?Math.round(oferta.ptn/meta.ptn*100):null,
+    dataInicio:dieta.dataInicio||null,diasAteInicio:diasAteInicioDieta(leito.dataInternacao,dieta.dataInicio),
+    interrupcaoHoras:linha.c24_diet_pause||null,motivoInterrupcao:linha.c24_diet_pause_motivo||null,
+    formulaId:dieta.catalogId||null,formulaNome:formula?.nome||dieta.formula||null,
+  };
+}
+
 function NutriBar({ label, recebeu, meta }) {
   const pct = (meta && recebeu) ? Math.min(Math.round(recebeu / meta * 100), 150) : null;
   const ok  = pct !== null && pct >= 80;
@@ -970,6 +995,10 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
   const ptnPct = metaAbs?.ptn && nutriHoje?.ptn ? Math.round(nutriHoje.ptn/metaAbs.ptn*100) : null;
   const adequacao = kcalPct!==null && ptnPct!==null ? Math.min(kcalPct,ptnPct) : (kcalPct ?? ptnPct);
   const adequacaoCor = adequacao===null ? "#94a3b8" : adequacao>=80 ? "#34d399" : "#f87171";
+  const diasParaDieta = diasAteInicioDieta(dados.dataInternacao,dieta.dataInicio);
+  const datasNutri = Object.keys(tabelaDataLeito||{}).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
+  const linhaNutri = (tabelaDataLeito||{})[datasNutri[0]]||{};
+  const pausaHoras = linhaNutri.c24_diet_pause||"", pausaMotivo=linhaNutri.c24_diet_pause_motivo||"";
   const tipoLabel = {enteral:"Enteral",parenteral:"NPT",oral:"Via oral",mista:"Mista",jejum:"Jejum"}[dieta.tipo] || "Não definida";
 
   const TIPOS = [
@@ -996,11 +1025,12 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
               <div style={{fontSize:12,color:"#e2e8f0",fontWeight:650,lineHeight:1.35}}>{dietaSel?.comercial || dieta.formula || (dieta.tipo==="jejum"?"Dieta suspensa":"Fórmula não selecionada")}</div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:5,fontSize:11,color:"#94a3b8",fontFamily:mono}}>
                 {dieta.vazao&&<span style={{color:"#fdba74",fontWeight:700}}>{dieta.vazao} mL/h</span>}
-                {dieta.dataInicio&&<span>desde {new Date(dieta.dataInicio+"T00:00:00").toLocaleDateString("pt-BR")}</span>}
+                {dieta.dataInicio&&<span>desde {new Date(dieta.dataInicio+"T00:00:00").toLocaleDateString("pt-BR")}{diasParaDieta!==null?` · início D${diasParaDieta}`:""}</span>}
                 {volHoje>0&&<span>24h: {volHoje} mL</span>}
                 {nutriHoje&&<span>{nutriHoje.kcal} kcal · {nutriHoje.ptn} g ptn{moduloPtn?` (inclui módulo +${moduloPtn} g)`:""}</span>}
               </div>
               {dieta.obs&&<div style={{marginTop:5,fontSize:10,color:"#94a3b8"}}>Tolerância: {dieta.obs}</div>}
+              {(pausaHoras||pausaMotivo)&&<div style={{marginTop:5,fontSize:10,color:"#fbbf24"}}>Interrupção 24h: {pausaHoras?`${pausaHoras} h`:"tempo não informado"}{pausaMotivo?` · ${pausaMotivo}`:""}</div>}
             </div>
             <div style={{minWidth:170,flex:1,paddingLeft:12,borderLeft:"1px solid rgba(251,146,60,.16)"}}>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:10,fontFamily:mono,color:"#64748b",marginBottom:5}}><span>ADEQUAÇÃO 24H</span><strong style={{color:adequacaoCor}}>{adequacao!==null?`${adequacao}%`:"—"}</strong></div>
@@ -1109,7 +1139,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>INÍCIO / REINTRODUÇÃO DA DIETA</div>
             <input type="date" value={dieta.dataInicio||""} onChange={e=>upd("dataInicio",e.target.value)}
               style={{width:"100%",maxWidth:220,background:"rgba(255,255,255,.04)",border:"1px solid rgba(251,146,60,.24)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12}}/>
-            <div style={{fontSize:10,color:"#475569",marginTop:5,lineHeight:1.4}}>Usada para comparar K, P e Mg da tabela clínica antes da dieta com os valores dos cinco dias seguintes.</div>
+            <div style={{fontSize:10,color:"#475569",marginTop:5,lineHeight:1.4}}>Usada para comparar K, P e Mg da tabela clínica antes da dieta com os valores dos cinco dias seguintes.{diasParaDieta!==null&&<> <strong style={{color:"#fdba74"}}>Dieta iniciada após {diasParaDieta} dia(s) da admissão.</strong></>}</div>
           </div>
           </div>
 
@@ -3026,8 +3056,10 @@ const GRUPOS_CONTROLES = [
     {key:"c24_dve",   label:"Líquor drenado pela DVE (total)", unit:"mL"},
   ], opcional:true},
   { grupo:"📥 Ganhos", params:[
-    {key:"c24_diet_vol",     label:"Vol. Dieta recebida", unit:"mL"},
-    {key:"c24_propofol_vol", label:"Propofol (volume)",   unit:"mL", opcional:true},
+    {key:"c24_diet_vol",          label:"Vol. Dieta recebida",       unit:"mL"},
+    {key:"c24_diet_pause",        label:"Interrupção da dieta",         unit:"h", opcional:true},
+    {key:"c24_diet_pause_motivo", label:"Motivo da interrupção",        unit:"texto", opcional:true},
+    {key:"c24_propofol_vol",      label:"Propofol (volume)",            unit:"mL", opcional:true},
   ]},
   { grupo:"📤 Perdas", params:[
     {key:"c24_diur",  label:"Diurese",                unit:"mL"},
@@ -4016,7 +4048,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                         if (!dietaSel) return null;
                         const rows = [
                           { lbl:"↳ Kcal recebida", unit:"kcal", calc:(vol)=>(vol*dietaSel.kcalML).toFixed(0), meta:metaAbs?.kcal, cor:(v,m)=>m?(v/m>=0.8?"#34d399":"#f87171"):"#94a3b8" },
-                          { lbl:"↳ Ptn recebida",  unit:"g",    calc:(vol)=>(vol*dietaSel.ptnML ).toFixed(1), meta:metaAbs?.ptn,  cor:(v,m)=>m?(v/m>=0.8?"#34d399":"#f87171"):"#94a3b8" },
+                          { lbl:"↳ Ptn recebida",  unit:"g",    calc:(vol)=>(vol*dietaSel.ptnML+(leito.dieta?.moduloProteina?.ativo?(parseFloat(leito.dieta.moduloProteina.gramas)||0):0)).toFixed(1), meta:metaAbs?.ptn,  cor:(v,m)=>m?(v/m>=0.8?"#34d399":"#f87171"):"#94a3b8" },
                         ];
                         return rows.map(row=>(
                           <tr key={row.lbl} style={{opacity:0.8}}>
@@ -7251,6 +7283,7 @@ export default function App() {
           bedside:JSON.parse(JSON.stringify(l)),
           evolution:JSON.parse(JSON.stringify(evolPorLeito[l.id]||{})),
           clinicalTable:JSON.parse(JSON.stringify((tabelaData[l.id]||{})[hoje]||{})),
+          nutrition:calcularNutriDia(l,(tabelaData[l.id]||{})[hoje]||{},config),
           goals:JSON.parse(JSON.stringify(metasPorLeito[l.id]||[])),
         }};novo[l.admissionId]=adm;
       });
@@ -7258,7 +7291,7 @@ export default function App() {
       try{await supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novo)});}catch(e){console.warn("Falha ao salvar histórico diário",e);}
     },1200);
     return()=>clearTimeout(historicoTimer.current);
-  },[leitos,evolPorLeito,tabelaData,metasPorLeito,dataLoaded]);
+  },[leitos,evolPorLeito,tabelaData,metasPorLeito,config,dataLoaded]);
 
   // Recupera a linha do tempo já existente na Tabela Clínica. Como as versões
   // antigas não guardavam snapshots completos, esses dias entram identificados
