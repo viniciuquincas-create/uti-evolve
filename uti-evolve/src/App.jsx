@@ -6766,6 +6766,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
 // ── PlantaoPanel ──────────────────────────────────────────────────────────────
 function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClearAll, config={} }) {
   const T = useTheme();
+  const claro = T.colorScheme === "light";
   const mono = "'DM Mono',monospace";
   const [filtro, setFiltro] = useState("todos");
   const [filtroEquipePlantao, setFiltroEquipePlantao] = useState("");
@@ -6816,9 +6817,9 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
         <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
           {["todos","pendentes"].map(f=>(
             <button key={f} onClick={()=>setFiltro(f)}
-              style={{padding:"4px 10px",borderRadius:7,border:`1px solid ${filtro===f?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
-                background:filtro===f?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
-                color:filtro===f?"#38bdf8":"#64748b",cursor:"pointer",fontSize:11}}>
+              style={{padding:"4px 10px",borderRadius:7,border:`1px solid ${filtro===f?T.accentBorder:T.border}`,
+                background:filtro===f?T.accentBg:T.bgCard,
+                color:filtro===f?T.accent:T.text2,cursor:"pointer",fontSize:11,fontWeight:filtro===f?700:500}}>
               {f==="todos"?"Todos":"Só pendentes"}
             </button>
           ))}
@@ -6841,9 +6842,9 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
       {/* Filtro por equipe */}
       <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
         <button onClick={()=>setFiltroEquipePlantao("")}
-          style={{padding:"4px 12px",borderRadius:10,border:`1px solid ${!filtroEquipePlantao?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.08)"}`,
-            background:!filtroEquipePlantao?"rgba(255,255,255,0.1)":"transparent",
-            color:!filtroEquipePlantao?"#e2e8f0":"#64748b",cursor:"pointer",fontSize:11,fontWeight:!filtroEquipePlantao?600:400}}>
+          style={{padding:"4px 12px",borderRadius:10,border:`1px solid ${!filtroEquipePlantao?T.borderStrong:T.border}`,
+            background:!filtroEquipePlantao?T.bgCardHover:T.bgCard,
+            color:!filtroEquipePlantao?T.text1:T.text2,cursor:"pointer",fontSize:11,fontWeight:!filtroEquipePlantao?700:500}}>
           Todas equipes
         </button>
         {EQUIPES.map(e=>{
@@ -6851,10 +6852,10 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
           return (
             <button key={e.id} onClick={()=>setFiltroEquipePlantao(filtroEquipePlantao===e.id?"":e.id)}
               style={{padding:"4px 12px",borderRadius:10,
-                border:`1px solid ${filtroEquipePlantao===e.id?e.cor+"80":"rgba(255,255,255,0.08)"}`,
-                background:filtroEquipePlantao===e.id?e.cor+"18":"transparent",
-                color:filtroEquipePlantao===e.id?e.cor:"#64748b",cursor:"pointer",fontSize:11,
-                fontWeight:filtroEquipePlantao===e.id?600:400}}>
+                border:`1px solid ${filtroEquipePlantao===e.id?e.cor+"80":T.border}`,
+                background:filtroEquipePlantao===e.id?e.cor+"18":T.bgCard,
+                color:filtroEquipePlantao===e.id?e.cor:T.text2,cursor:"pointer",fontSize:11,
+                fontWeight:filtroEquipePlantao===e.id?700:500}}>
               {e.emoji} {e.label}{cnt>0?` (${cnt})`:""}
             </button>
           );
@@ -6875,8 +6876,8 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
           const dias = diasInternacao(l.dataInternacao);
 
           return (
-            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${pendentes.length>0||alerts.length>0?"rgba(248,113,113,0.25)":T.border}`,borderRadius:10,overflow:"hidden"}}>
-              <div style={{padding:"8px 12px",background:"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:8}}>
+            <div key={l.id} style={{background:T.bgCard,border:`1px solid ${pendentes.length>0||alerts.length>0?(claro?"#fca5a5":"rgba(248,113,113,0.25)"):T.border}`,borderRadius:10,overflow:"hidden",boxShadow:T.shadowCard}}>
+              <div style={{padding:"8px 12px",background:claro?"#eef2f7":"rgba(255,255,255,0.02)",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:8}}>
                 <span style={{fontWeight:700,color:T.text1,fontSize:12,flex:1}}>{l.paciente}</span>
                 {dias!==null&&<span style={{fontSize:9,fontFamily:mono,color:"#a78bfa",background:"rgba(167,139,250,0.1)",padding:"1px 5px",borderRadius:6}}>D{dias}</span>}
                 <span style={{fontSize:10,fontFamily:mono,color:pendentes.length>0?"#f87171":"#34d399"}}>
@@ -6904,26 +6905,26 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
                       const novas=metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x);
                       onMetaChange(l.id,novas);
                     }} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,padding:0,
-                      color:m.feito?"#34d399":"#334155",flexShrink:0}}>
+                      color:m.feito?"#059669":T.text2,flexShrink:0}}>
                       {m.feito?"☑":"☐"}
                     </button>
-                    <span style={{fontSize:11,color:m.feito?"#475569":"#cbd5e1",flex:1,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,
+                    <span style={{fontSize:11,color:m.feito?T.text3:T.text1,fontWeight:m.feito?400:claro?600:400,flex:1,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,
                       textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}{m.equipe&&<small style={{display:"block",color:equipeCor(m.equipe),fontSize:9,marginTop:1}}>{equipeEmoji(m.equipe)} {equipeLabel(m.equipe)}</small>}</span>
-                    <button onClick={()=>editarTextoMeta(metas,m,novas=>onMetaChange(l.id,novas))} title="Editar meta" style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#38bdf8"}}>✎</button>
+                    <button onClick={()=>editarTextoMeta(metas,m,novas=>onMetaChange(l.id,novas))} title="Editar meta" style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:T.accent}}>✎</button>
                     <button onClick={()=>onMetaChange(l.id, metas.filter(x=>x.id!==m.id))}
                       title="Excluir meta"
-                      style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#475569",flexShrink:0}}>
+                      style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:T.text3,flexShrink:0}}>
                       ✕
                     </button>
                   </div>
                 )) : alerts.length===0 && (
-                  <div style={{fontSize:10,color:"#334155"}}>Sem metas</div>
+                  <div style={{fontSize:10,color:T.text2}}>Sem metas</div>
                 )}
                 <button onClick={()=>{
                   const txt=window.prompt("Nova meta:");
                   if(txt&&txt.trim()) onMetaChange(l.id,[...metas,{id:Date.now()+"",texto:txt.trim(),feito:false,prioridade:"amarelo"}]);
-                }} style={{marginTop:5,width:"100%",padding:"3px 0",background:"rgba(56,189,248,0.06)",
-                  border:"1px solid rgba(56,189,248,0.15)",borderRadius:5,color:"#38bdf8",cursor:"pointer",fontSize:10}}>
+                }} style={{marginTop:5,width:"100%",padding:"3px 0",background:T.accentBg,
+                  border:`1px solid ${T.accentBorder}`,borderRadius:5,color:T.accent,cursor:"pointer",fontSize:10,fontWeight:600}}>
                   + meta
                 </button>
               </div>
