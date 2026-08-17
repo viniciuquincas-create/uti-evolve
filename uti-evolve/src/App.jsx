@@ -1294,43 +1294,46 @@ const diasDisp = (ds) => {
 };
 
 function DispCard({ label, icone, alertaDias, disp, onUpdate, onRemove }) {
+  const T = useTheme();
+  const claro = T.colorScheme === "light";
   const dias = diasDisp(disp.data);
   const alerta = dias !== null && dias > alertaDias;
   const [showObs, setShowObs] = useState(false);
   return (
-    <div style={{borderRadius:10,border:`1px solid ${alerta?"rgba(248,113,113,0.4)":"rgba(56,189,248,0.2)"}`,background:alerta?"rgba(248,113,113,0.04)":"rgba(56,189,248,0.03)",overflow:"hidden"}}>
+    <div style={{borderRadius:10,border:`1px solid ${alerta?(claro?"#f87171":"rgba(248,113,113,0.4)"):(claro?"#7dd3fc":"rgba(56,189,248,0.2)")}`,background:alerta?(claro?"#fff1f2":"rgba(248,113,113,0.04)"):(claro?"#f0f9ff":"rgba(56,189,248,0.03)"),overflow:"hidden",boxShadow:T.shadowCard}}>
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px"}}>
         <span style={{fontSize:14}}>{icone}</span>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12,fontWeight:600,color:"#e2e8f0"}}>{label}</div>
-          {disp.site&&<div style={{fontSize:10,color:"#64748b"}}>{disp.site}</div>}
+          <div style={{fontSize:12,fontWeight:700,color:T.text1}}>{label}</div>
+          {disp.site&&<div style={{fontSize:10,color:T.text2}}>{disp.site}</div>}
         </div>
         {dias!==null&&<div style={{textAlign:"center",padding:"3px 8px",borderRadius:6,minWidth:40,background:alerta?"rgba(248,113,113,0.12)":"rgba(56,189,248,0.1)",border:`1px solid ${alerta?"rgba(248,113,113,0.35)":"rgba(56,189,248,0.25)"}`}}>
           <div style={{fontSize:13,fontWeight:700,color:alerta?"#f87171":"#38bdf8",lineHeight:1}}>{dias===0?"D0":`D${dias}`}</div>
           {alerta&&<div style={{fontSize:8,color:"#f87171",fontFamily:mono}}>REVISAR</div>}
         </div>}
-        <button onClick={()=>setShowObs(s=>!s)} title="Obs" style={{background:"none",border:"none",color:showObs?"#38bdf8":"#475569",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>📝</button>
+        <button onClick={()=>setShowObs(s=>!s)} title="Obs" style={{background:"none",border:"none",color:showObs?T.accent:T.text3,cursor:"pointer",fontSize:13,padding:"2px 4px"}}>📝</button>
         <button onClick={onRemove} style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:10,padding:"3px 8px",fontWeight:600}}>✕</button>
       </div>
-      <div style={{padding:"0 12px 8px",borderTop:"1px solid rgba(255,255,255,0.04)",paddingTop:8,display:"flex",gap:8,flexWrap:"wrap"}}>
+      <div style={{padding:"0 12px 8px",borderTop:`1px solid ${T.border}`,paddingTop:8,display:"flex",gap:8,flexWrap:"wrap"}}>
         <div style={{minWidth:130,flex:1}}>
-          <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>DATA INSERÇÃO</div>
-          <input type="date" value={disp.data||""} onChange={e=>onUpdate("data",e.target.value)} style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:11}}/>
+          <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1,marginBottom:3}}>DATA INSERÇÃO</div>
+          <input type="date" value={disp.data||""} onChange={e=>onUpdate("data",e.target.value)} style={{width:"100%",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:6,padding:"5px 8px",color:T.text1,fontSize:11}}/>
         </div>
         <div style={{minWidth:140,flex:2}}>
-          <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>SÍTIO / LOCALIZAÇÃO</div>
-          <input value={disp.site||""} onChange={e=>onUpdate("site",e.target.value)} placeholder="Femoral E / Tórax D" style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:11}}/>
+          <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1,marginBottom:3}}>SÍTIO / LOCALIZAÇÃO</div>
+          <input value={disp.site||""} onChange={e=>onUpdate("site",e.target.value)} placeholder="Femoral E / Tórax D" style={{width:"100%",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:6,padding:"5px 8px",color:T.text1,fontSize:11}}/>
         </div>
       </div>
       {showObs&&<div style={{padding:"0 12px 8px"}}>
-        <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>OBSERVAÇÕES</div>
-        <input value={disp.obs||""} onChange={e=>onUpdate("obs",e.target.value)} placeholder="Curativo ok..." style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:11}}/>
+        <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1,marginBottom:3}}>OBSERVAÇÕES</div>
+        <input value={disp.obs||""} onChange={e=>onUpdate("obs",e.target.value)} placeholder="Curativo ok..." style={{width:"100%",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:6,padding:"5px 8px",color:T.text1,fontSize:11}}/>
       </div>}
     </div>
   );
 }
 
 function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
+  const T = useTheme();
   const [showPicker, setShowPicker] = useState(false);
   const [nomeCustom, setNomeCustom] = useState("");
   const [alertaCustom, setAlertaCustom] = useState("21");
@@ -1410,9 +1413,9 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowPicker(v=>!v)} style={{
           display:"inline-flex",alignItems:"center",gap:6,padding:"7px 12px",
-          background:showPicker?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
-          border:`1px solid ${showPicker?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,
-          borderRadius:10,color:showPicker?"#38bdf8":"#64748b",
+          background:showPicker?T.accentBg:T.bgCard,
+          border:`1px solid ${showPicker?T.accentBorder:T.borderStrong}`,
+          borderRadius:10,color:showPicker?T.accent:T.text2,
           cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.15s",
         }}>
           <span style={{fontSize:16}}>{showPicker?"✕":"+"}</span>
@@ -5522,17 +5525,17 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       {/* ── Contexto: Diagnóstico · Procedimentos · Dispositivos ── */}
       {(leito.diagnostico||(leito.procedimentos||[]).length>0||ativos.length>0) && (
-        <div style={{marginBottom:10,border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,overflow:"hidden"}}>
-          <div style={{background:"rgba(255,255,255,0.03)",padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{marginBottom:10,border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",background:T.bgCard,boxShadow:T.shadowCard}}>
+          <div style={{background:T.bgCardHover,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:3,height:16,background:"#94a3b8",borderRadius:2,flexShrink:0}}/>
-            <span style={{fontSize:12,fontWeight:700,color:"#94a3b8",fontFamily:mono,letterSpacing:1.5}}>== Ctx:</span>
-            <span style={{fontSize:12,color:"#475569",fontWeight:400}}>Diagnóstico · Procedimentos · Dispositivos</span>
+            <span style={{fontSize:12,fontWeight:700,color:T.text2,fontFamily:mono,letterSpacing:1.5}}>== Ctx:</span>
+            <span style={{fontSize:12,color:T.text2,fontWeight:500}}>Diagnóstico · Procedimentos · Dispositivos</span>
           </div>
-          <div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{padding:"12px 14px",borderTop:`1px solid ${T.border}`,display:"flex",flexDirection:"column",gap:8}}>
             {leito.diagnostico && (
               <div style={{display:"flex",alignItems:"baseline",gap:8}}>
                 <span style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,flexShrink:0}}>DIAGNÓSTICO</span>
-                <span style={{fontSize:13,color:"#e2e8f0",fontWeight:600}}>{leito.diagnostico}</span>
+                <span style={{fontSize:13,color:T.text1,fontWeight:600}}>{leito.diagnostico}</span>
               </div>
             )}
             {(leito.procedimentos||[]).length>0 && (
@@ -5541,7 +5544,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
                 <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                   {(leito.procedimentos||[]).map(p=>{
                     const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-                    const cor=po<=0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
+                    const cor=T.colorScheme==="light"?(po<=0?"#dc2626":po<=3?"#c2410c":po<=7?"#a16207":"#047857"):(po<=0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399");
                     return <span key={p.id} style={{fontSize:12,fontFamily:mono,fontWeight:700,color:cor,background:`${cor}18`,border:`1px solid ${cor}44`,borderRadius:6,padding:"2px 10px"}}>{p.nome} · {po===0?"POI":`PO${po}`}</span>;
                   })}
                 </div>
@@ -5554,7 +5557,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
                   {ativos.map((a,i)=>{
                     const dd=Math.floor((new Date()-new Date(a.disp.data+"T00:00:00"))/86400000);
                     const al=dd>a.alertaDias;
-                    return <span key={i} style={{fontSize:11,fontFamily:mono,color:al?"#f87171":"#94a3b8",background:al?"rgba(248,113,113,0.08)":"rgba(255,255,255,0.04)",border:`1px solid ${al?"rgba(248,113,113,0.25)":"rgba(255,255,255,0.08)"}`,borderRadius:6,padding:"2px 10px"}}>
+                    return <span key={i} style={{fontSize:11,fontFamily:mono,fontWeight:T.colorScheme==="light"?600:400,color:al?"#dc2626":T.text2,background:al?(T.colorScheme==="light"?"#fff1f2":"rgba(248,113,113,0.08)"):T.bgCardHover,border:`1px solid ${al?(T.colorScheme==="light"?"#fca5a5":"rgba(248,113,113,0.25)"):T.borderStrong}`,borderRadius:6,padding:"2px 10px"}}>
                       {a.icone} {a.label}{a.disp.site?` · ${a.disp.site}`:""} D{dd}{al?" ⚠️":""}
                     </span>;
                   })}
@@ -6407,6 +6410,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
   const [drawerAlerta, setDrawerAlerta] = useState(null); // {leito, texto, tipo, atbId}
   const [metasAbertas, setMetasAbertas] = useState({}); // {[leitoId]: bool}
   const T = useTheme();
+  const claro = T.colorScheme === "light";
   const mono = "'DM Mono',monospace";
 
   const NEURO_DRUGS  = ["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"];
@@ -6548,7 +6552,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
             <div style={{fontSize:10,fontFamily:mono,letterSpacing:1.5,color:"#f87171",marginBottom:6}}>ALERTAS (calculados — ClCr, D-day, metas)</div>
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               {todos.map((a,i)=>(
-                <div key={i} style={{fontSize:11,color:"#cbd5e1"}}>
+                <div key={i} style={{fontSize:11,color:T.text1,fontWeight:claro?600:400}}>
                   {a.leito.nome} · {a.texto} · <button onClick={()=>a.tipo==="meta-atrasada"?setMetasAbertas(s=>({...s,[a.leito.id]:true})):setDrawerAlerta(a)} style={{background:"none",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11,textDecoration:"underline",padding:0,fontFamily:"inherit"}}>{a.tipo==="meta-atrasada"?"ir às metas":"ir ao bloco"}</button>
                 </div>
               ))}
@@ -6636,7 +6640,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
 
         return (
           <div style={{minWidth:760,overflowX:"auto"}}>
-            <div style={{display:"grid",gridTemplateColumns:"64px repeat(6,1fr) 76px",gap:0,fontSize:9,fontWeight:700,color:"#64748b",fontFamily:mono,letterSpacing:1,padding:"0 2px 6px"}}>
+            <div style={{display:"grid",gridTemplateColumns:"64px repeat(6,1fr) 76px",gap:0,fontSize:9,fontWeight:800,color:T.text2,fontFamily:mono,letterSpacing:1,padding:"7px 8px",background:claro?"#eef2f7":"transparent",borderRadius:7}}>
               <div>LEITO</div>{SISTEMAS.map(s=><div key={s}>{s.toUpperCase()}</div>)}<div>METAS</div>
             </div>
             {leitos.filter(l=>l.paciente).map(l=>{
@@ -6661,22 +6665,22 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
 
               return (
                 <div key={l.id}>
-                  <div style={{display:"grid",gridTemplateColumns:"64px repeat(6,1fr) 76px",gap:8,alignItems:"start",borderTop:`1px solid ${T.border}`,padding:"9px 2px"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"64px repeat(6,1fr) 76px",gap:8,alignItems:"start",borderTop:`1px solid ${T.border}`,padding:"9px 8px",background:claro?"rgba(248,250,252,.62)":"transparent"}}>
                     <div>
                       <div style={{fontSize:13,fontWeight:700,color:T.text1}}>{numero}</div>
                       <div style={{fontSize:9,color:T.text3}}>{l.paciente}</div>
                     </div>
                     {cols.map((c,i)=>c ? (
-                      <div key={i} style={{fontSize:10,color:"#cbd5e1",lineHeight:1.5,borderLeft:`2px solid ${c.cor}`,paddingLeft:7}}>
+                      <div key={i} style={{fontSize:10,color:T.text1,fontWeight:claro?600:400,lineHeight:1.5,borderLeft:`3px solid ${c.cor}`,paddingLeft:7}}>
                         {c.lines.map((ln,j)=><div key={j}>{ln}</div>)}
                       </div>
                     ) : (
-                      <div key={i} style={{fontSize:10,color:"#334155",paddingLeft:7}}>— sem dado —</div>
+                      <div key={i} style={{fontSize:10,color:T.text2,paddingLeft:7}}>— sem dado —</div>
                     ))}
                     <button onClick={()=>setMetasAbertas(s=>({...s,[l.id]:!s[l.id]}))}
-                      style={{fontSize:10,fontFamily:mono,color:pend>0?"#38bdf8":"#475569",fontWeight:700,padding:"4px 6px",borderRadius:6,
-                        background:pend>0?"rgba(56,189,248,0.1)":"rgba(255,255,255,0.03)",
-                        border:`1px dashed ${pend>0?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,cursor:"pointer",textAlign:"center"}}>
+                      style={{fontSize:10,fontFamily:mono,color:pend>0?T.accent:T.text2,fontWeight:700,padding:"4px 6px",borderRadius:6,
+                        background:pend>0?T.accentBg:T.bgCard,
+                        border:`1px dashed ${pend>0?T.accentBorder:T.borderStrong}`,cursor:"pointer",textAlign:"center"}}>
                       🎯 {pend} {metasAbertas[l.id]?"▾":"▸"}
                     </button>
                   </div>
@@ -6690,7 +6694,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                             style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
                             {m.feito?"☑":"☐"}
                           </button>
-                          <span style={{fontSize:10,color:m.feito?"#475569":"#cbd5e1",borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,textDecoration:m.feito?"line-through":"none",lineHeight:1.4,flex:1}}>{m.texto||m}</span>
+                          <span style={{fontSize:10,color:m.feito?T.text3:T.text1,fontWeight:claro&&!m.feito?600:400,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,textDecoration:m.feito?"line-through":"none",lineHeight:1.4,flex:1}}>{m.texto||m}</span>
                           <button onClick={()=>editarTextoMeta(metasL,m,novas=>onMetaChange(l.id,novas))} title="Editar" style={{background:"none",border:"none",color:"#38bdf8",cursor:"pointer",padding:0}}>✎</button>
                         </div>
                       ))}
@@ -6699,7 +6703,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                 </div>
               );
             })}
-            <div style={{fontSize:9,color:"#475569",paddingTop:8,borderTop:`1px solid ${T.border}`,marginTop:4}}>
+            <div style={{fontSize:9,color:T.text3,paddingTop:8,borderTop:`1px solid ${T.border}`,marginTop:4}}>
               colunas só mostram dado quando o bloco tem algo lançado — "— sem dado —" não é um alerta. borda: verde ok · âmbar atenção · vermelho alerta calculado. coluna Metas abre a lista de metas do leito para edição direta.
             </div>
           </div>
