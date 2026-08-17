@@ -5042,6 +5042,7 @@ const ClinicalGroup=({label,color="#64748b",children})=>{const T=useTheme();retu
 </section>;};
 
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[], onLeitoChange }) {
+  const T = useTheme();
   const [copiado, setCopiado] = useState({});
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
