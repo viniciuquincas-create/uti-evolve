@@ -6972,6 +6972,63 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
   );
 }
 
+
+function PesquisaPanel({historico={},arquivos=[],leitos=[],utis=[]}){
+  const T=useTheme();
+  const [utiFiltro,setUtiFiltro]=useState("");
+  const [inicio,setInicio]=useState("");
+  const [fim,setFim]=useState("");
+  const [status,setStatus]=useState("todos");
+  const arqPorAdm=Object.fromEntries((arquivos||[]).map((a,i)=>[a.admissionId||`arquivo-${a.id||i}`,a]));
+  const ids=new Set([...Object.keys(historico||{}),...Object.keys(arqPorAdm)]);
+  const internacoes=[...ids].map((id,idx)=>{
+    const h=historico[id]||{},a=arqPorAdm[id],l=a?.leito||leitos.find(x=>x.admissionId===id)||{};
+    const days=h.days||a?.historicoDiario||{};
+    const datas=Object.keys(days).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    const dataAdm=l.dataInternacao||h.startedAt?.slice(0,10)||datas[0]||"";
+    const dataAlta=a?.dataAlta||h.dischargeDate||"";
+    const situacao=(a||h.status==="discharged")?"alta":"ativo";
+    const utiId=a?.utiId||l.utiId||days[datas[0]]?.bedside?.utiId||"";
+    const utiNome=a?.utiNome||utis.find(u=>u.id===utiId)?.nome||"UTI não identificada";
+    const codigo=`UTI-${String(idx+1).padStart(4,"0")}`;
+    const linhas=datas.map(data=>({data,...(days[data]||{})}));
+    return {id,codigo,h,a,l,days,datas,linhas,dataAdm,dataAlta,situacao,utiId,utiNome,destino:a?.destino||h.outcome||"",rankinAdm:l.rankinAdmissao??h.rankinAdmission??"",rankinAlta:a?.rankinAlta??h.rankinDischarge??""};
+  });
+  const filtradas=internacoes.filter(i=>{
+    if(utiFiltro&&i.utiId!==utiFiltro)return false;
+    if(status!=="todos"&&i.situacao!==status)return false;
+    const ds=i.datas.filter(d=>(!inicio||d>=inicio)&&(!fim||d<=fim));
+    return (!inicio&&!fim)||ds.length>0||(!i.datas.length&&(!inicio||i.dataAdm>=inicio)&&(!fim||i.dataAdm<=fim));
+  });
+  const dias=filtradas.flatMap(i=>i.linhas.filter(x=>(!inicio||x.data>=inicio)&&(!fim||x.data<=fim)).map(x=>({internacao:i,...x})));
+  const altas=filtradas.filter(i=>i.situacao==="alta"),obitos=altas.filter(i=>/óbito|obito/i.test(i.destino));
+  const mediana=arr=>{const x=arr.filter(Number.isFinite).sort((a,b)=>a-b);if(!x.length)return null;const m=Math.floor(x.length/2);return x.length%2?x[m]:(x[m-1]+x[m])/2;};
+  const los=altas.map(i=>i.dataAdm&&i.dataAlta?Math.max(0,Math.round((new Date(i.dataAlta+"T00:00:00")-new Date(i.dataAdm+"T00:00:00"))/86400000)):null).filter(Number.isFinite);
+  const vmDias=dias.filter(x=>VM_INVASIVA_MODOS.includes(x.bedside?.vm_modo)).length;
+  const kcalPct=dias.map(x=>Number(x.nutrition?.adequacaoCaloricaPct)).filter(Number.isFinite),ptnPct=dias.map(x=>Number(x.nutrition?.adequacaoProteicaPct)).filter(Number.isFinite);
+  const media=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length):null;
+  const card=(label,value,sub,cor=T.accent)=><div style={{padding:"14px 15px",border:`1px solid ${T.border}`,borderRadius:11,background:T.bgCard,minWidth:150}}><div style={{fontSize:9,fontFamily:mono,letterSpacing:1.2,color:T.text3}}>{label}</div><div style={{fontSize:24,fontWeight:800,color,marginTop:5}}>{value}</div>{sub&&<div style={{fontSize:9,color:T.text4,marginTop:2}}>{sub}</div>}</div>;
+  const baixarCSV=()=>{
+    const rows=dias.map(({internacao:i,data,clinicalTable:ct={},bedside:bs={},nutrition:n={},...dia})=>({
+      admission_code:i.codigo,admission_id:i.id,uti:i.utiNome,data,status:i.situacao,sexo:bs.sexo||i.l.sexo||"",idade:idadeDoLeito(bs)||idadeDoLeito(i.l)||"",peso:bs.peso||i.l.peso||"",diagnostico:bs.diagnostico||i.l.diagnostico||"",rankin_admissao:i.rankinAdm,rankin_alta:i.rankinAlta,destino:i.destino,
+      vm_modo:bs.vm_modo||"",vm_fio2:bs.vm_fio2||"",vm_peep:bs.vm_peep||"",vm_sato2:bs.vm_sato2||"",
+      meta_kcal:n.metaKcal??"",oferta_kcal:n.ofertaKcal??"",adequacao_kcal_pct:n.adequacaoCaloricaPct??"",meta_proteina_g:n.metaProteinaG??"",oferta_proteina_g:n.ofertaProteinaG??"",adequacao_proteina_pct:n.adequacaoProteicaPct??"",dias_ate_dieta:n.diasAteInicio??"",interrupcao_dieta_h:n.interrupcaoHoras??"",motivo_interrupcao:n.motivoInterrupcao??"",
+      ...Object.fromEntries(Object.entries(ct).filter(([k,v])=>!k.startsWith("_")&&typeof v!=="object")),...Object.fromEntries(Object.entries(bs.drogasVazao||{}).map(([k,v])=>[`dva_${k}`,v]))
+    }));
+    if(!rows.length){window.alert("Não há registros diários para exportar com estes filtros.");return;}
+    const cols=[...new Set(rows.flatMap(r=>Object.keys(r)))],esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    const csv=[cols.join(","),...rows.map(r=>cols.map(c=>esc(r[c])).join(","))].join("\n");
+    const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})),a=document.createElement("a");a.href=url;a.download=`uti-evolve-coorte-${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);
+  };
+  return <div style={{padding:"24px 28px",maxWidth:1500,margin:"0 auto",color:T.text1}}>
+    <div style={{display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",marginBottom:18}}><div><div style={{fontSize:20,fontWeight:800}}>Análise da coorte</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>Painel anonimizado · visão paciente-dia para pesquisa e melhoria da qualidade</div></div><button onClick={baixarCSV} style={{marginLeft:"auto",padding:"8px 12px",borderRadius:8,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontWeight:700,cursor:"pointer"}}>↓ Exportar paciente-dia</button></div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:14}}><label style={{fontSize:9,color:T.text3}}>UTI<select value={utiFiltro} onChange={e=>setUtiFiltro(e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}><option value="">Todas</option>{utis.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label><label style={{fontSize:9,color:T.text3}}>DATA INICIAL<input type="date" value={inicio} onChange={e=>setInicio(e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label><label style={{fontSize:9,color:T.text3}}>DATA FINAL<input type="date" value={fim} onChange={e=>setFim(e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label><label style={{fontSize:9,color:T.text3}}>SITUAÇÃO<select value={status} onChange={e=>setStatus(e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}><option value="todos">Todos</option><option value="ativo">Ativos</option><option value="alta">Altas</option></select></label></div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:16}}>{card("INTERNAÇÕES",filtradas.length,`${altas.length} concluída(s)`)}{card("PACIENTE-DIA",dias.length,"registros longitudinais","#38bdf8")}{card("MORTALIDADE",altas.length?`${Math.round(obitos.length/altas.length*100)}%`:"—",`${obitos.length}/${altas.length} altas`,"#f87171")}{card("PERMANÊNCIA MEDIANA",mediana(los)!==null?`${mediana(los)} d`:"—","alta hospitalar/UTI","#c084fc")}{card("DIAS EM VM",vmDias,`${dias.length?Math.round(vmDias/dias.length*100):0}% dos paciente-dia`,"#f59e0b")}{card("ADEQUAÇÃO NUTRICIONAL",media(kcalPct)!==null?`${media(kcalPct)}% / ${media(ptnPct)??"—"}%`:"—","kcal / proteína","#34d399")}</div>
+    <div style={{border:`1px solid ${T.border}`,borderRadius:11,background:T.bgCard,overflow:"hidden"}}><div style={{padding:"10px 12px",borderBottom:`1px solid ${T.border}`,fontSize:10,fontFamily:mono,color:T.text3,letterSpacing:1}}>INTERNAÇÕES ANONIMIZADAS</div><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:10,minWidth:900}}><thead><tr>{["Código","UTI","Situação","Admissão","Alta","Dias registrados","Dias VM","Adeq. kcal","Adeq. proteína","Rankin adm. → alta","Destino"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",color:T.text3,borderBottom:`1px solid ${T.border}`,fontWeight:600}}>{h}</th>)}</tr></thead><tbody>{filtradas.map(i=>{const ds=i.linhas.filter(x=>(!inicio||x.data>=inicio)&&(!fim||x.data<=fim)),vm=ds.filter(x=>VM_INVASIVA_MODOS.includes(x.bedside?.vm_modo)).length,k=ds.map(x=>Number(x.nutrition?.adequacaoCaloricaPct)).filter(Number.isFinite),p=ds.map(x=>Number(x.nutrition?.adequacaoProteicaPct)).filter(Number.isFinite);return <tr key={i.id}>{[i.codigo,i.utiNome,i.situacao,i.dataAdm||"—",i.dataAlta||"—",ds.length,vm,media(k)!==null?`${media(k)}%`:"—",media(p)!==null?`${media(p)}%`:"—",`${i.rankinAdm!==""?i.rankinAdm:"—"} → ${i.rankinAlta!==""?i.rankinAlta:"—"}`,i.destino||"—"].map((v,n)=><td key={n} style={{padding:"8px 10px",borderBottom:`1px solid ${T.border}`,color:n===0?T.accent:T.text2,whiteSpace:"nowrap"}}>{v}</td>)}</tr>})}</tbody></table></div>{!filtradas.length&&<div style={{padding:24,textAlign:"center",color:T.text3}}>Nenhuma internação encontrada com estes filtros.</div>}</div>
+    <div style={{marginTop:10,fontSize:9,color:T.text4,lineHeight:1.5}}>Os indicadores são descritivos e dependem da completude dos registros. A exportação não inclui nomes, mas ainda deve ser tratada como dado sensível e submetida à governança institucional e à LGPD.</div>
+  </div>;
+}
+
 function ArquivoPacientesPanel({arquivos=[]}) {
   const T=useTheme();
   const [busca,setBusca]=useState("");
@@ -7561,6 +7618,8 @@ export default function App() {
                 ✅
                 {metasPendentes>0 && <span style={{position:"absolute",top:-4,right:-4,minWidth:16,height:16,borderRadius:8,background:"#f59e0b",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",lineHeight:1}}>{metasPendentes}</span>}
               </button>
+              <button onClick={()=>setViewGlobal(v=>v==="pesquisa"?"leitos":"pesquisa")} title="Análise de dados"
+                style={{width:40,height:40,borderRadius:10,background:viewGlobal==="pesquisa"?"rgba(52,211,153,.12)":"transparent",border:`1px solid ${viewGlobal==="pesquisa"?"rgba(52,211,153,.35)":T.border}`,color:viewGlobal==="pesquisa"?"#34d399":T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>📊</button>
               <button onClick={()=>setViewGlobal(v=>v==="arquivo"?"leitos":"arquivo")} title="Pacientes arquivados"
                 style={{position:"relative",width:40,height:40,borderRadius:10,background:viewGlobal==="arquivo"?"rgba(251,191,36,0.12)":"transparent",border:`1px solid ${viewGlobal==="arquivo"?"rgba(251,191,36,0.35)":T.border}`,color:viewGlobal==="arquivo"?"#fbbf24":T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>
                 🗄️
@@ -7608,6 +7667,7 @@ export default function App() {
               🗄️ Arquivo
             </button>
           </div>
+          <button onClick={()=>setViewGlobal(v=>v==="pesquisa"?"leitos":"pesquisa")} style={{width:"100%",marginBottom:10,padding:"7px 8px",background:viewGlobal==="pesquisa"?"rgba(52,211,153,.12)":"rgba(255,255,255,.03)",border:`1px solid ${viewGlobal==="pesquisa"?"rgba(52,211,153,.35)":T.border}`,borderRadius:7,color:viewGlobal==="pesquisa"?"#34d399":T.text3,cursor:"pointer",fontSize:10,fontWeight:700}}>📊 Análise de dados</button>
           {leitosOrdenados.map(l=>(
             <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
               <div style={{flex:1}}>
@@ -7635,6 +7695,8 @@ export default function App() {
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
+          ) : viewGlobal==="pesquisa" ? (
+            <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><PesquisaPanel historico={historicoDiario} arquivos={pacientesArquivados} leitos={leitos} utis={utis}/></div>
           ) : viewGlobal==="arquivo" ? (
             <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><ArquivoPacientesPanel arquivos={pacientesArquivados}/></div>
           ) : viewGlobal==="visao_geral" ? (
