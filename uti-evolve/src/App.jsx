@@ -4962,20 +4962,30 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
 
 // Registros seriados com data/hora para monitorizações realizadas mais de uma vez ao dia.
 // O objeto inteiro fica no campo da evolução, preservando parâmetros padrão e personalizados.
+function numPocus(value){const n=parseFloat(String(value??"").replace(",","."));return Number.isFinite(n)?n:null;}
 function calcPocusCardiacOutput(values={},patient={}){
-  const diam=parseFloat(String(values.lvotDiam||"").replace(",","."));
-  const vti=parseFloat(String(values.vtiVE||"").replace(",","."));
-  const fc=parseFloat(String(values.fc||"").replace(",","."));
-  const peso=parseFloat(String(patient.peso||"").replace(",","."));
-  const altura=parseFloat(String(patient.altura||"").replace(",","."));
-  if(![diam,vti,fc].every(Number.isFinite)||diam<=0||vti<=0||fc<=0)return null;
+  const diam=numPocus(values.lvotDiam),vti=numPocus(values.vtiVE),fc=numPocus(values.fc);
+  const peso=numPocus(patient.peso),altura=numPocus(patient.altura);
+  if(![diam,vti,fc].every(n=>n!==null&&n>0))return null;
   const area=Math.PI*Math.pow(diam/2,2),vs=area*vti,dc=vs*fc/1000;
-  const sc=[peso,altura].every(Number.isFinite)&&peso>0&&altura>0?Math.sqrt((peso*altura)/3600):null;
+  const sc=[peso,altura].every(n=>n!==null&&n>0)?Math.sqrt((peso*altura)/3600):null;
   return {area,vs,dc,sc,ic:sc?dc/sc:null};
 }
+function calcPocusDerived(values={},patient={}){
+  const co=calcPocusCardiacOutput(values,patient),ee=numPocus(values.ee),tacc=numPocus(values.tacc),psap=numPocus(values.psap);
+  const vciMax=numPocus(values.vciMax),vciMin=numPocus(values.vciMin);
+  const invasiva=VM_INVASIVA_MODOS.includes(patient.vm_modo);
+  let vci=null;
+  if(vciMax!==null&&vciMin!==null&&vciMax>0&&vciMin>=0&&vciMax>=vciMin){
+    if(invasiva){vci={tipo:"distensibilidade",indice:vciMin>0?(vciMax-vciMin)/vciMin*100:null,pvc:null};}
+    else {const indice=(vciMax-vciMin)/vciMax*100;const pvc=vciMax<=2.1&&indice>50?3:vciMax>2.1&&indice<50?15:8;vci={tipo:"colapsabilidade",indice,pvc};}
+  }
+  return {co,pcwp:ee!==null?1.24*ee+1.9:null,papmTacc:tacc!==null?(tacc<120?90-0.62*tacc:79-0.45*tacc):null,papmPsap:psap!==null?psap*0.61+2:null,vci,invasiva};
+}
 
-function SerialMeasurements({title,fieldKey,fields=[],value,onChange,color="#38bdf8",subjective=false,calculator,patient}){
+function SerialMeasurements({title,fieldKey,fields=[],suggestedParams=[],value,onChange,color="#38bdf8",subjective=false,calculator,patient}){
   const T=useTheme();
+  const [showParamMenu,setShowParamMenu]=useState(false);
   const state=value&&typeof value==="object"&&!Array.isArray(value)?value:{entries:[],customParams:[]};
   const entries=Array.isArray(state.entries)?state.entries:[],customParams=Array.isArray(state.customParams)?state.customParams:[];
   const allFields=[...(subjective?[{key:"avaliacao",label:"Avaliação subjetiva",wide:true}]:[]),...fields,...customParams.map(p=>({key:p.key,label:p.label}))];
@@ -4984,13 +4994,15 @@ function SerialMeasurements({title,fieldKey,fields=[],value,onChange,color="#38b
   const upd=(id,key,val)=>emit({entries:entries.map(e=>e.id===id?{...e,[key]:val}:e)});
   const updVal=(id,key,val)=>emit({entries:entries.map(e=>e.id===id?{...e,values:{...(e.values||{}),[key]:val}}:e)});
   const remove=id=>emit({entries:entries.filter(e=>e.id!==id)});
-  const addParam=()=>{const label=window.prompt("Nome da nova variável:");if(!label?.trim())return;const key=`p_${Date.now().toString(36)}`;emit({customParams:[...customParams,{key,label:label.trim()}]});};
+  const addParam=()=>{const label=window.prompt("Nome da nova variável:");if(!label?.trim())return;const key=`p_${Date.now().toString(36)}`;emit({customParams:[...customParams,{key,label:label.trim()}]});setShowParamMenu(false);};
+  const addSuggested=p=>{if(fields.some(f=>f.key===p.key)||customParams.some(f=>f.key===p.key)){setShowParamMenu(false);return;}emit({customParams:[...customParams,p]});setShowParamMenu(false);};
   return <div style={{marginTop:9,border:`1px solid ${color}33`,borderRadius:9,background:`${color}08`,overflow:"hidden"}}>
-    <div style={{display:"flex",alignItems:"center",padding:"7px 9px",borderBottom:entries.length?`1px solid ${color}22`:0}}><span style={{fontSize:10,fontFamily:mono,letterSpacing:1.2,color,fontWeight:700}}>{title}</span><button onClick={addParam} style={{marginLeft:"auto",border:0,background:"transparent",color:T.text3,fontSize:10,cursor:"pointer"}}>+ variável</button><button onClick={add} style={{marginLeft:5,padding:"3px 8px",borderRadius:6,border:`1px solid ${color}55`,background:`${color}12`,color,cursor:"pointer",fontSize:10,fontWeight:700}}>+ medida</button></div>
+    <div style={{display:"flex",alignItems:"center",padding:"7px 9px",borderBottom:(entries.length||showParamMenu)?`1px solid ${color}22`:0}}><span style={{fontSize:10,fontFamily:mono,letterSpacing:1.2,color,fontWeight:700}}>{title}</span><button onClick={()=>setShowParamMenu(v=>!v)} style={{marginLeft:"auto",border:0,background:"transparent",color:showParamMenu?color:T.text3,fontSize:10,cursor:"pointer"}}>+ variável</button><button onClick={add} style={{marginLeft:5,padding:"3px 8px",borderRadius:6,border:`1px solid ${color}55`,background:`${color}12`,color,cursor:"pointer",fontSize:10,fontWeight:700}}>+ medida</button></div>
+    {showParamMenu&&<div style={{padding:"6px 9px",display:"flex",gap:5,flexWrap:"wrap",borderBottom:entries.length?`1px solid ${T.border}`:0}}>{suggestedParams.filter(p=>!fields.some(f=>f.key===p.key)&&!customParams.some(f=>f.key===p.key)).map(p=><button key={p.key} onClick={()=>addSuggested(p)} style={{padding:"3px 8px",borderRadius:12,border:`1px solid ${color}44`,background:`${color}10`,color,fontSize:9,cursor:"pointer"}}>+ {p.label}</button>)}<button onClick={addParam} style={{padding:"3px 8px",borderRadius:12,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,fontSize:9,cursor:"pointer"}}>+ Nome livre</button></div>}
     {entries.map((e,i)=><div key={e.id} style={{padding:"8px 9px",borderTop:i?`1px solid ${T.border}`:0}}>
       <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:6}}><input type="date" value={e.data||""} onChange={x=>upd(e.id,"data",x.target.value)} style={{width:125,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><input type="time" value={e.hora||""} onChange={x=>upd(e.id,"hora",x.target.value)} style={{width:82,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><span style={{fontSize:9,color:T.text4}}>#{i+1}</span><button onClick={()=>remove(e.id)} style={{marginLeft:"auto",border:0,background:"transparent",color:"#f87171",cursor:"pointer"}}>✕</button></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:5}}>{allFields.map(f=><label key={f.key} style={{fontSize:9,color:T.text3,gridColumn:f.wide?"1 / -1":undefined}}>{f.label}<input value={e.values?.[f.key]||""} onChange={x=>updVal(e.id,f.key,x.target.value)} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1,fontSize:10}}/></label>)}</div>
-      {calculator==="pocus-co"&&(()=>{const c=calcPocusCardiacOutput(e.values,patient);return <div style={{marginTop:7,padding:"7px 9px",borderRadius:7,border:`1px solid ${c?"rgba(52,211,153,.28)":T.border}`,background:c?"rgba(52,211,153,.07)":T.bgCard,fontSize:10,color:c?"#34d399":T.text4,fontFamily:mono}}>{c?<>VS <b>{c.vs.toFixed(0)} mL</b> · DC <b>{c.dc.toFixed(2)} L/min</b> · IC <b>{c.ic?`${c.ic.toFixed(2)} L/min/m²`:"— (informe peso e altura)"}</b><span style={{display:"block",marginTop:3,color:T.text3,fontSize:9}}>Área VSVE {c.area.toFixed(2)} cm²{c.sc?` · SC ${c.sc.toFixed(2)} m²`:""}</span></>:"Preencha diâmetro da VSVE, VTI VE e FC para calcular VS, débito e índice cardíaco."}</div>})()}
+      {calculator==="pocus-co"&&(()=>{const c=calcPocusDerived(e.values,patient),tem=!!(c.co||c.pcwp!==null||c.papmTacc!==null||c.papmPsap!==null||c.vci);return <div style={{marginTop:7,padding:"7px 9px",borderRadius:7,border:`1px solid ${tem?"rgba(52,211,153,.28)":T.border}`,background:tem?"rgba(52,211,153,.07)":T.bgCard,fontSize:10,color:tem?"#34d399":T.text4,fontFamily:mono}}>{tem?<>{c.co&&<div>VS <b>{c.co.vs.toFixed(0)} mL</b> · DC <b>{c.co.dc.toFixed(2)} L/min</b> · IC <b>{c.co.ic?`${c.co.ic.toFixed(2)} L/min/m²`:"— (informe peso e altura)"}</b></div>}{c.pcwp!==null&&<div>PCWP estimada <b>{c.pcwp.toFixed(1)} mmHg</b> <span style={{color:T.text3}}>(1,24 × E/e′ + 1,9)</span></div>}{c.papmTacc!==null&&<div>PAPm por TAcc <b>{c.papmTacc.toFixed(1)} mmHg</b></div>}{c.papmPsap!==null&&<div>PAPm por PSAP <b>{c.papmPsap.toFixed(1)} mmHg</b></div>}{c.vci&&<div>VCI — índice de {c.vci.tipo}: <b>{c.vci.indice!==null?`${c.vci.indice.toFixed(1)}%`:"—"}</b>{c.vci.pvc!==null?<> · PVC estimada <b>{c.vci.pvc} mmHg</b></>:<span style={{color:"#fbbf24"}}> · PVC não estimada por esta tabela durante VM invasiva</span>}</div>}{c.co&&<span style={{display:"block",marginTop:3,color:T.text3,fontSize:9}}>Área VSVE {c.co.area.toFixed(2)} cm²{c.co.sc?` · SC ${c.co.sc.toFixed(2)} m²`:""}</span>}</>:"Preencha os parâmetros para exibir os cálculos derivados."}</div>})()}
     </div>)}
     {!entries.length&&<div style={{padding:"7px 9px",fontSize:10,color:T.text4}}>Nenhuma medida registrada.</div>}
   </div>;
@@ -4998,7 +5010,7 @@ function SerialMeasurements({title,fieldKey,fields=[],value,onChange,color="#38b
 
 const SERIAL_MONITOR_CONFIG={
   nDTC:{title:"DTC — REGISTROS SERIADOS",color:"#a78bfa",fields:[{key:"bnoD",label:"Bainha do nervo óptico D"},{key:"bnoE",label:"Bainha do nervo óptico E"},{key:"acmIP",label:"ACM IP"},{key:"acmFVd",label:"ACM FVd"},{key:"lindegaard",label:"Lindegaard"}]},
-  cvPocusSerial:{title:"POCUS — REGISTROS SERIADOS",color:"#f87171",subjective:true,calculator:"pocus-co",fields:[{key:"vci",label:"VCI"},{key:"lvotDiam",label:"Diâmetro VSVE (cm)"},{key:"vtiVE",label:"VTI VE (cm)"},{key:"fc",label:"FC (bpm)"},{key:"vtiVD",label:"VTI VD"},{key:"ea",label:"E/A"},{key:"ee",label:"E/e'"}]},
+  cvPocusSerial:{title:"POCUS — REGISTROS SERIADOS",color:"#f87171",subjective:true,calculator:"pocus-co",fields:[{key:"vciMax",label:"VCI maior (cm)"},{key:"vciMin",label:"VCI menor (cm)"},{key:"lvotDiam",label:"Diâmetro VSVE (cm)"},{key:"vtiVE",label:"VTI VE (cm)"},{key:"fc",label:"FC (bpm)"},{key:"vtiVD",label:"VTI VD"},{key:"ea",label:"E/A"},{key:"ee",label:"E/e'"},{key:"psap",label:"PSAP (mmHg)"}],suggestedParams:[{key:"tacc",label:"TAcc (ms)"},{key:"fac",label:"FAC (%)"},{key:"tapse",label:"TAPSE (mm)"}]},
   cvPiccoSerial:{title:"PiCCO — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"pvc",label:"PVC"},{key:"ic",label:"IC"},{key:"gedi",label:"GEDI"},{key:"elwi",label:"ELWI"},{key:"pvpi",label:"PVPI"},{key:"svri",label:"SVRI"},{key:"vvs",label:"VVS"},{key:"tdci",label:"tdCI"},{key:"gef",label:"GEF"}]},
   cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"pvc",label:"PVC"},{key:"paps",label:"PAPs"},{key:"papd",label:"PAPd"},{key:"papm",label:"PAPm"},{key:"pcp",label:"PCP"},{key:"dc",label:"DC"},{key:"ic",label:"IC"},{key:"svo2",label:"SvO₂"},{key:"rvs",label:"RVS"}]},
   cvBiaSerial:{title:"BIA — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"assistencia",label:"Relação de assistência"},{key:"trigger",label:"Trigger"},{key:"augmentacao",label:"Augmentação"},{key:"pasAssistida",label:"PAS assistida"},{key:"pasNaoAssistida",label:"PAS não assistida"},{key:"diastolicaAumentada",label:"Diastólica aumentada"},{key:"pam",label:"PAM"}]},
@@ -5253,8 +5265,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     return state.entries.map(entry=>{
       const date=entry.data?new Date(`${entry.data}T00:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
       const when=[date,entry.hora].filter(Boolean).join(" ");
-      const calc=fieldKey==="cvPocusSerial"?calcPocusCardiacOutput(entry.values,leito):null;
-      const calculated=calc?[`VS ${calc.vs.toFixed(0)} mL`,`DC ${calc.dc.toFixed(2)} L/min`,calc.ic?`IC ${calc.ic.toFixed(2)} L/min/m²`:null].filter(Boolean):[];
+      const calc=fieldKey==="cvPocusSerial"?calcPocusDerived(entry.values,leito):null;
+      const calculated=calc?[calc.co?`VS ${calc.co.vs.toFixed(0)} mL`:null,calc.co?`DC ${calc.co.dc.toFixed(2)} L/min`:null,calc.co?.ic?`IC ${calc.co.ic.toFixed(2)} L/min/m²`:null,calc.pcwp!==null?`PCWP est. ${calc.pcwp.toFixed(1)} mmHg`:null,calc.papmTacc!==null?`PAPm(TAcc) ${calc.papmTacc.toFixed(1)} mmHg`:null,calc.papmPsap!==null?`PAPm(PSAP) ${calc.papmPsap.toFixed(1)} mmHg`:null,calc.vci&&calc.vci.indice!==null?`VCI ${calc.vci.tipo} ${calc.vci.indice.toFixed(1)}%`:null,calc.vci&&calc.vci.pvc!==null?`PVC est. ${calc.vci.pvc} mmHg`:null].filter(Boolean):[];
       const values=[...Object.entries(entry.values||{}).filter(([,v])=>String(v??"").trim()).map(([key,v])=>`${labels[key]||key} ${String(v).trim()}`),...calculated].join(" / ");
       return values?`- ${label}${when?` [${when}]`:""}: ${values}`:null;
     }).filter(Boolean);
