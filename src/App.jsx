@@ -2751,7 +2751,7 @@ const DISP_CONFIG_ITEMS = [
   { key:"alertaDreno",  label:"Dreno",                     icone:"🏥" },
 ];
 
-function ConfigPanel({ config, onChange, onVoltar }) {
+function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa }) {
   const upd = (key, val) => onChange({...config, [key]: parseInt(val)||0});
   const [showAddDieta, setShowAddDieta] = useState(false);
   const [novaDieta, setNovaDieta] = useState({ nome:"", tipo:"enteral", kcalML:"", ptnML:"", choML:"", lipML:"" });
@@ -2785,6 +2785,15 @@ function ConfigPanel({ config, onChange, onVoltar }) {
           <div style={{fontSize:12,color:"#64748b"}}>Dispositivos, drogas e catálogo de dietas</div>
         </div>
       </div>
+
+      <button onClick={onAbrirPesquisa} style={{width:"100%",display:"flex",alignItems:"center",gap:14,textAlign:"left",padding:"14px 16px",marginBottom:20,background:"rgba(52,211,153,.07)",border:"1px solid rgba(52,211,153,.25)",borderRadius:12,color:"#cbd5e1",cursor:"pointer"}}>
+        <span style={{fontSize:24}}>📊</span>
+        <span style={{flex:1}}>
+          <span style={{display:"block",fontSize:13,fontWeight:800,color:"#34d399"}}>Análise de dados</span>
+          <span style={{display:"block",fontSize:11,color:"#64748b",marginTop:3}}>Coorte anonimizada, indicadores e exportação paciente-dia</span>
+        </span>
+        <span style={{fontSize:18,color:"#34d399"}}>→</span>
+      </button>
 
       {/* Alertas de dispositivos */}
       <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
@@ -7018,7 +7027,7 @@ function PesquisaPanel({historico={},arquivos=[],leitos=[],utis=[]}){
   const vmDias=dias.filter(x=>VM_INVASIVA_MODOS.includes(x.bedside?.vm_modo)).length;
   const kcalPct=dias.map(x=>Number(x.nutrition?.adequacaoCaloricaPct)).filter(Number.isFinite),ptnPct=dias.map(x=>Number(x.nutrition?.adequacaoProteicaPct)).filter(Number.isFinite);
   const media=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length):null;
-  const card=(label,value,sub,cor=T.accent)=><div style={{padding:"14px 15px",border:`1px solid ${T.border}`,borderRadius:11,background:T.bgCard,minWidth:150}}><div style={{fontSize:9,fontFamily:mono,letterSpacing:1.2,color:T.text3}}>{label}</div><div style={{fontSize:24,fontWeight:800,color,marginTop:5}}>{value}</div>{sub&&<div style={{fontSize:9,color:T.text4,marginTop:2}}>{sub}</div>}</div>;
+  const card=(label,value,sub,cor=T.accent)=><div style={{padding:"14px 15px",border:`1px solid ${T.border}`,borderRadius:11,background:T.bgCard,minWidth:150}}><div style={{fontSize:9,fontFamily:mono,letterSpacing:1.2,color:T.text3}}>{label}</div><div style={{fontSize:24,fontWeight:800,color:cor,marginTop:5}}>{value}</div>{sub&&<div style={{fontSize:9,color:T.text4,marginTop:2}}>{sub}</div>}</div>;
   const baixarCSV=()=>{
     const rows=dias.map(({internacao:i,data,clinicalTable:ct={},bedside:bs={},nutrition:n={},...dia})=>({
       admission_code:i.codigo,admission_id:i.id,uti:i.utiNome,data,status:i.situacao,sexo:bs.sexo||i.l.sexo||"",idade:idadeDoLeito(bs)||idadeDoLeito(i.l)||"",peso:bs.peso||i.l.peso||"",diagnostico:bs.diagnostico||i.l.diagnostico||"",rankin_admissao:i.rankinAdm,rankin_alta:i.rankinAlta,destino:i.destino,
@@ -7629,8 +7638,6 @@ export default function App() {
                 ✅
                 {metasPendentes>0 && <span style={{position:"absolute",top:-4,right:-4,minWidth:16,height:16,borderRadius:8,background:"#f59e0b",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",lineHeight:1}}>{metasPendentes}</span>}
               </button>
-              <button onClick={()=>setViewGlobal(v=>v==="pesquisa"?"leitos":"pesquisa")} title="Análise de dados"
-                style={{width:40,height:40,borderRadius:10,background:viewGlobal==="pesquisa"?"rgba(52,211,153,.12)":"transparent",border:`1px solid ${viewGlobal==="pesquisa"?"rgba(52,211,153,.35)":T.border}`,color:viewGlobal==="pesquisa"?"#34d399":T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>📊</button>
               <button onClick={()=>setViewGlobal(v=>v==="arquivo"?"leitos":"arquivo")} title="Pacientes arquivados"
                 style={{position:"relative",width:40,height:40,borderRadius:10,background:viewGlobal==="arquivo"?"rgba(251,191,36,0.12)":"transparent",border:`1px solid ${viewGlobal==="arquivo"?"rgba(251,191,36,0.35)":T.border}`,color:viewGlobal==="arquivo"?"#fbbf24":T.text3,cursor:"pointer",fontSize:16,flexShrink:0}}>
                 🗄️
@@ -7678,7 +7685,6 @@ export default function App() {
               🗄️ Arquivo
             </button>
           </div>
-          <button onClick={()=>setViewGlobal(v=>v==="pesquisa"?"leitos":"pesquisa")} style={{width:"100%",marginBottom:10,padding:"7px 8px",background:viewGlobal==="pesquisa"?"rgba(52,211,153,.12)":"rgba(255,255,255,.03)",border:`1px solid ${viewGlobal==="pesquisa"?"rgba(52,211,153,.35)":T.border}`,borderRadius:7,color:viewGlobal==="pesquisa"?"#34d399":T.text3,cursor:"pointer",fontSize:10,fontWeight:700}}>📊 Análise de dados</button>
           {leitosOrdenados.map(l=>(
             <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
               <div style={{flex:1}}>
@@ -7767,7 +7773,7 @@ export default function App() {
 
           <div className={leito.paciente&&ABAS.some(a=>a.id===aba)?"patient-content-with-problems":""} style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
-              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("evolucao")}/>
+              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("evolucao")} onAbrirPesquisa={()=>setViewGlobal("pesquisa")}/>
             ) : aba==="dadosclinicos_legacy" ? (
               <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
                 {/* Coluna esquerda: Ventilatório + Nutricional */}
