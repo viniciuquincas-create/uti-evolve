@@ -2739,7 +2739,7 @@ const DISP_CONFIG_ITEMS = [
   { key:"alertaDreno",  label:"Dreno",                     icone:"🏥" },
 ];
 
-function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa }) {
+function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, onSyncSbari, sbariSyncing=false }) {
   const upd = (key, val) => onChange({...config, [key]: parseInt(val)||0});
   const [showAddDieta, setShowAddDieta] = useState(false);
   const [novaDieta, setNovaDieta] = useState({ nome:"", tipo:"enteral", kcalML:"", ptnML:"", choML:"", lipML:"" });
@@ -2782,6 +2782,15 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa }) {
         </span>
         <span style={{fontSize:18,color:"#34d399"}}>→</span>
       </button>
+
+      <div style={{padding:"14px 16px",marginBottom:20,background:"rgba(56,189,248,.06)",border:"1px solid rgba(56,189,248,.23)",borderRadius:12}}>
+        <div style={{fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5,fontWeight:700}}>SBARI — {utiAtiva?.nome||"UTI"}</div>
+        <div style={{fontSize:11,color:"#64748b",margin:"4px 0 10px"}}>O link é específico desta UTI. A sincronização preserva integralmente pacientes que continuam no documento.</div>
+        <div style={{display:"flex",gap:8,alignItems:"stretch",flexWrap:"wrap"}}>
+          <input value={config.sbariLinks?.[utiAtiva?.id]||""} onChange={e=>onChange({...config,sbariLinks:{...(config.sbariLinks||{}),[utiAtiva?.id]:e.target.value}})} placeholder="https://docs.google.com/document/d/…" style={{flex:1,minWidth:260,background:"rgba(255,255,255,.05)",border:"1px solid rgba(56,189,248,.25)",borderRadius:7,padding:"8px 10px",color:"#e2e8f0",fontSize:11}}/>
+          <button disabled={sbariSyncing||!config.sbariLinks?.[utiAtiva?.id]} onClick={()=>onSyncSbari?.()} style={{padding:"8px 13px",borderRadius:7,border:"1px solid rgba(56,189,248,.35)",background:"rgba(56,189,248,.12)",color:"#38bdf8",fontWeight:800,cursor:sbariSyncing?"wait":"pointer"}}>{sbariSyncing?"Atualizando…":"↻ Atualizar leitos"}</button>
+        </div>
+      </div>
 
       {/* Alertas de dispositivos */}
       <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
@@ -4247,6 +4256,20 @@ const EVOLUCAO_VAZIA = {
   impressao:"",
   _datas:{},
 };
+
+const normalizarNomeSbari = valor => String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g," ").trim().toLowerCase();
+const dataSbariParaIso = valor => {
+  const m=String(valor||"").match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);if(!m)return "";
+  let ano=m[3]?Number(m[3]):new Date().getFullYear();if(ano<100)ano+=2000;
+  return `${ano}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
+};
+const evolucaoInicialSbari = p => ({...EVOLUCAO_VAZIA,
+  hda:[p.situacao,p.background].filter(Boolean).join("\n"),
+  nEF:p.assessment?.N||"",cvEF:p.assessment?.CV||"",reEF:p.assessment?.R||"",
+  tgEF:p.assessment?.TGI||"",rm24h:p.assessment?.["R/M"]||"",heLabs:p.assessment?.["H/I"]||"",
+  heAtb:[p.antibioticos,p.antibioticosPrevios&&`Prévios: ${p.antibioticosPrevios}`].filter(Boolean).join("\n"),
+  probAtivos:p.recomendacoes||"",impressao:p.instrucoes||"",
+});
 
 function aplicarIA(dadosIA) {
   if (!dadosIA?.sistemas) return {};
@@ -7323,6 +7346,7 @@ export default function App() {
   const [historicoAberto,setHistoricoAberto]=useState(false);
   const [pacienteEditorAberto,setPacienteEditorAberto]=useState(false);
   const [altaEditor,setAltaEditor]=useState(null);
+  const [sbariSyncing,setSbariSyncing]=useState(false);
   const [dataLoaded,setDataLoaded]=useState(false);
   const [config, setConfig] = useState({
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
@@ -7580,6 +7604,53 @@ export default function App() {
     const todos=[...leitos,novoLeito];setLeitos(todos);salvarLeitos(todos);
     setUtiAtivaId(id);sessionStorage.setItem("uti_ativa_id",id);setLeitoSelId(novoLeito.id);setAba("evolucao");setViewGlobal("leitos");
   };
+  const sincronizarSbari=async()=>{
+    const url=config.sbariLinks?.[utiAtiva?.id];
+    if(!url){window.alert("Cadastre o link do SBARI desta UTI em Configurações.");return;}
+    setSbariSyncing(true);
+    try{
+      const resposta=await fetch("/api/sbari",{method:"POST",headers:{"content-type":"application/json","x-uti-session":sessionStorage.getItem(SESSION_KEY)||""},body:JSON.stringify({url})});
+      const payload=await resposta.json().catch(()=>({}));
+      if(!resposta.ok)throw new Error(payload.error||"Não foi possível ler o SBARI.");
+      const recebidos=payload.pacientes||[];
+      const atuais=leitos.filter(l=>(l.utiId||utis[0]?.id)===utiAtiva.id);
+      const ocupados=atuais.filter(l=>l.paciente);
+      const porPaciente=new Map(ocupados.map(l=>[normalizarNomeSbari(l.paciente),l]));
+      const preservados=recebidos.filter(p=>porPaciente.has(normalizarNomeSbari(p.paciente)));
+      const novos=recebidos.filter(p=>!porPaciente.has(normalizarNomeSbari(p.paciente)));
+      const nomesRecebidos=new Set(recebidos.map(p=>normalizarNomeSbari(p.paciente)));
+      const removidos=ocupados.filter(l=>!nomesRecebidos.has(normalizarNomeSbari(l.paciente)));
+      const resumo=`Atualização do SBARI — ${utiAtiva.nome}\n\n${preservados.length} paciente(s) mantido(s), sem alterar dados clínicos\n${novos.length} paciente(s) novo(s)\n${removidos.length} paciente(s) ausente(s), que será(ão) arquivado(s) com alta pendente\n\nContinuar?`;
+      if(!window.confirm(resumo))return;
+      const agora=new Date().toISOString();
+      const vagas=atuais.filter(l=>!l.paciente);
+      const usados=new Set();
+      const leitosSbari=recebidos.map((p,indice)=>{
+        const existente=porPaciente.get(normalizarNomeSbari(p.paciente));
+        if(existente){usados.add(String(existente.id));return {...existente,nome:p.leito,utiId:utiAtiva.id};}
+        const vaga=vagas.find(v=>!usados.has(String(v.id))&&normalizarNomeSbari(v.nome)===normalizarNomeSbari(p.leito))||vagas.find(v=>!usados.has(String(v.id)));
+        const id=vaga?.id||`sbari-${Date.now()}-${indice}`;usados.add(String(id));
+        return {...leitoVazio({id,nome:p.leito}),id,nome:p.leito,utiId:utiAtiva.id,paciente:p.paciente,idadeAnos:p.idadeAnos||"",dataInternacao:dataSbariParaIso(p.admUti),diagnostico:p.situacao||"",equipe:p.equipe||"",patientId:globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${indice}`,admissionId:globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${indice}`,admissionStartedAt:agora,fonteCadastro:"sbari"};
+      });
+      const nomesLeitos=new Set(leitosSbari.map(l=>normalizarNomeSbari(l.nome)));
+      const vagasRestantes=vagas.filter(v=>!usados.has(String(v.id))&&!nomesLeitos.has(normalizarNomeSbari(v.nome)));
+      const foraDaUti=leitos.filter(l=>(l.utiId||utis[0]?.id)!==utiAtiva.id);
+      const novosLeitos=[...foraDaUti,...leitosSbari,...vagasRestantes];
+      const registrosArquivo=removidos.map(l=>({id:globalThis.crypto?.randomUUID?.()||`sbari-alta-${Date.now()}-${l.id}`,dataAlta:"",destino:"",rankinAlta:"",status:"pendente_complementacao",motivoArquivo:`Ausente no SBARI ${payload.source?.name||"da UTI"}`,arquivadoEm:agora,patientId:l.patientId||null,admissionId:l.admissionId||null,utiId:utiAtiva.id,utiNome:utiAtiva.nome,leito:JSON.parse(JSON.stringify(l)),tabelaClinica:JSON.parse(JSON.stringify(tabelaData[l.id]||{})),evolucao:JSON.parse(JSON.stringify(evolPorLeito[l.id]||{})),metas:JSON.parse(JSON.stringify(metasPorLeito[l.id]||[])),historicoDiario:JSON.parse(JSON.stringify(historicoDiario[l.admissionId]?.days||{}))}));
+      const novoArquivo=[...pacientesArquivados,...registrosArquivo];
+      const novaTabela={...tabelaData},novaEvol={...evolPorLeito},novasMetas={...metasPorLeito},novoHistorico={...historicoDiario};
+      removidos.forEach(l=>{delete novaTabela[l.id];delete novaEvol[l.id];delete novasMetas[l.id];if(l.admissionId)novoHistorico[l.admissionId]={...(novoHistorico[l.admissionId]||{}),status:"archived-pending-discharge",archivedAt:agora,days:{...(novoHistorico[l.admissionId]?.days||{})}};});
+      leitosSbari.filter(l=>l.fonteCadastro==="sbari").forEach(l=>{const p=recebidos.find(x=>normalizarNomeSbari(x.paciente)===normalizarNomeSbari(l.paciente));novaEvol[l.id]=evolucaoInicialSbari(p);});
+      const resultados=await Promise.all([
+        ["leitos_data",novosLeitos],["pacientes_arquivados",novoArquivo],["tabela_data",novaTabela],["evolucao_data",novaEvol],["metas_data",novasMetas],["historico_diario",novoHistorico]
+      ].map(([key,value])=>supabase.from("config").upsert({key,value:JSON.stringify(value)})));
+      const falha=resultados.find(r=>r.error);if(falha)throw falha.error;
+      setLeitos(novosLeitos);setPacientesArquivados(novoArquivo);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);
+      if(leitosSbari.length)setLeitoSelId(leitosSbari[0].id);
+      window.alert(`SBARI atualizado: ${preservados.length} preservado(s), ${novos.length} novo(s) e ${removidos.length} arquivado(s).`);
+    }catch(e){console.error("Falha ao sincronizar SBARI",e);window.alert(e?.message||"Falha ao atualizar leitos pelo SBARI.");}
+    finally{setSbariSyncing(false);}
+  };
   const atualizar = (d) => {
     setLeitos(ls=>{
       const novo = ls.map(l=>{
@@ -7756,6 +7827,7 @@ export default function App() {
           </div>
         </div>
         <button onClick={()=>{sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} title="Trocar de unidade" style={{marginLeft:16,padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>🏥 {utiAtiva?.nome||"Selecionar UTI"} ▾</button>
+        {config.sbariLinks?.[utiAtiva?.id]&&<button onClick={sincronizarSbari} disabled={sbariSyncing} title="Atualizar ocupação pelo SBARI desta UTI" style={{marginLeft:8,padding:"5px 9px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:"transparent",color:T.accent,fontSize:10,fontWeight:800,cursor:sbariSyncing?"wait":"pointer",whiteSpace:"nowrap"}}>{sbariSyncing?"Atualizando…":"↻ SBARI"}</button>}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":T.accent}}/>
@@ -7935,7 +8007,7 @@ export default function App() {
 
           <div className={leito.paciente&&ABAS.some(a=>a.id===aba)?"patient-content-with-problems":""} style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
-              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("evolucao")} onAbrirPesquisa={()=>setViewGlobal("pesquisa")}/>
+              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("evolucao")} onAbrirPesquisa={()=>setViewGlobal("pesquisa")} utiAtiva={utiAtiva} onSyncSbari={sincronizarSbari} sbariSyncing={sbariSyncing}/>
             ) : aba==="dadosclinicos_legacy" ? (
               <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
                 {/* Coluna esquerda: Ventilatório + Nutricional */}
