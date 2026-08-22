@@ -2476,15 +2476,13 @@ const v = (s) => s?.trim() || "";
 
 function TA({ fieldRef, defaultValue, sugestao, placeholder, rows=2, isAntigo=false, fieldName, onBlurSave }) {
   const T=useTheme();
-  const [showSug, setShowSug] = useState(false);
-  const cleanPlaceholder = placeholder && !sugestao ? placeholder : ""; // só usa placeholder se não tem sugestão separada
   return (
     <div style={{position:"relative"}}>
-      <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={cleanPlaceholder||""} rows={rows}
+      <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={placeholder||""} rows={rows}
         style={{width:"100%",
           background: isAntigo ? T.bgTableGroup : T.bgInput,
           border: `1px solid ${isAntigo?T.borderStrong:T.border}`,
-          borderRadius:8, padding:"8px 32px 8px 10px",
+          borderRadius:8, padding:"8px 10px",
           color: isAntigo ? T.text3 : T.text1,
           fontSize:12, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box", lineHeight:1.5}}
         onFocus={e=>e.target.style.borderColor="rgba(56,189,248,0.4)"}
@@ -2492,28 +2490,6 @@ function TA({ fieldRef, defaultValue, sugestao, placeholder, rows=2, isAntigo=fa
           e.target.style.borderColor = isAntigo ? T.borderStrong : T.border;
           if (onBlurSave && fieldName) onBlurSave(fieldName, e.target.value);
         }}/>
-      {/* Stamp de sugestão */}
-      {(sugestao||placeholder) && (
-        <button onClick={()=>setShowSug(s=>!s)}
-          style={{position:"absolute",top:5,right:6,background:showSug?T.accentBg:T.bgCardHover,border:`1px solid ${showSug?T.accentBorder:T.border}`,borderRadius:4,color:showSug?T.accent:T.text4,fontSize:9,cursor:"pointer",padding:"1px 5px",fontFamily:mono,lineHeight:1.4}}
-          title="Ver sugestão">
-          💡
-        </button>
-      )}
-      {showSug && (sugestao||placeholder) && (
-        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:20,background:T.bgPicker,border:`1px solid ${T.accentBorder}`,borderRadius:8,padding:"8px 10px",boxShadow:"0 6px 20px rgba(0,0,0,0.18)"}}>
-          <div style={{fontSize:9,color:"#38bdf8",fontFamily:mono,letterSpacing:1,marginBottom:4}}>SUGESTÃO</div>
-          <div style={{fontSize:11,color:T.text2,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{sugestao||placeholder}</div>
-          <button onClick={()=>{
-            if(fieldRef?.current) fieldRef.current.value = sugestao||placeholder;
-            if(onBlurSave&&fieldName) onBlurSave(fieldName, sugestao||placeholder);
-            setShowSug(false);
-          }} style={{marginTop:6,background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.25)",borderRadius:4,color:"#38bdf8",fontSize:10,cursor:"pointer",padding:"2px 8px",fontFamily:"inherit"}}>
-            ↙ Usar
-          </button>
-          <button onClick={()=>setShowSug(false)} style={{marginTop:6,marginLeft:4,background:"none",border:"none",color:"#475569",fontSize:10,cursor:"pointer"}}>✕</button>
-        </div>
-      )}
       {isAntigo && (
         <span style={{position:"absolute",bottom:4,right:6,fontSize:9,color:"#475569",fontFamily:mono,letterSpacing:0.5,pointerEvents:"none"}}>
           dia ant.
