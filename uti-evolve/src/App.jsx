@@ -3363,18 +3363,35 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const hoje2=new Date().toISOString().split("T")[0];
     onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""},__extraCats__:{...(data.__extraCats__||{}),[key]:cat}});
   };
+  const normExam=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  const presetFiltrados=novoExame.trim()?PRESET_LABS.filter(ex=>normExam(ex.label).includes(normExam(novoExame))).filter(ex=>!extrasKeys.includes(ex.key)):[];
+  const addExamFromText=text=>{
+    const raw=String(text||"").trim();if(!raw)return;
+    const preset=PRESET_LABS.find(ex=>normExam(ex.label)===normExam(raw));
+    if(preset)addExtraExam(preset.key,preset.cat);
+    else addExtraExam(`_extra_${normExam(raw).replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"")}`,"");
+    setNovoExame("");setShowAddExame(false);
+  };
 
   const gasosData = date => { try { const v=data[date]?._gasos; return v?(typeof v==="string"?JSON.parse(v):v):[]; } catch{return [];} };
+  const datasAte = date => Object.keys(data).filter(k=>/^\d{4}-\d{2}-\d{2}/.test(k)&&k.slice(0,10)<=date.slice(0,10)).sort().reverse();
+  const ultimoLab = (date,key) => {for(const d of datasAte(date)){const v=data[d]?.[key];if(v!==undefined&&v!==null&&String(v).trim()!=="")return v;}return "";};
+  const ultimoScore = (date,key) => {for(const d of datasAte(date)){const v=data[d]?._scoreInputs?.[key];if(v!==undefined&&v!==null&&String(v).trim()!=="")return v;}return "";};
+  const ultimaGaso = date => {for(const d of datasAte(date)){const gs=gasosData(d);for(let i=gs.length-1;i>=0;i--){if(Object.values(gs[i]||{}).some(Boolean))return gs[i];}}return {};};
   const scoreInputs = date => {
     const row=data[date]||{}, salvo=row._scoreInputs||{};
-    const gasos=gasosData(date), g=gasos[gasos.length-1]||{};
-    const fio2=numScore(date===hoje?leito.vm_fio2:salvo.fio2);
-    const po2=numScore(g.po2), sat=numScore(g.sato2)??numScore(row.c24_sat);
+    const g=ultimaGaso(date);
+    const fio2=numScore(date===hoje?(leito.vm_fio2||ultimoScore(date,"fio2")):ultimoScore(date,"fio2"));
+    const po2=numScore(g.po2), sat=numScore(g.sato2)??numScore(ultimoLab(date,"c24_sat"));
     const nora=date===hoje?calcDoseFromMLH("noradrenalina",leito.drogasVazao?.noradrenalina,leito.peso,undefined,undefined,config)?.dose:null;
-    const autoCirc=nora?(numScore(nora)>0.1?"dva_alta":"dva_media"):(date===hoje&&Object.values(leito.drogasVazao||{}).some(Boolean)?"dva_baixa":numScore(row.c24_pam)!==null&&numScore(row.c24_pam)<70?"pam_baixa":"normal");
-    return {bilirrubina:row.bttot||"",creatinina:row.cr||"",inr:row.rni||"",leucocitos:row.leuco||"",plaquetas:row.plaq||"",diurese:row.c24_diur||"",
+    const circAnterior=ultimoScore(date,"circulacaoSofa")||ultimoScore(date,"circulacao");
+    const pam=numScore(ultimoLab(date,"c24_pam"));
+    const autoCirc=nora?(numScore(nora)>0.1?"dva_alta":"dva_media"):(date===hoje&&Object.values(leito.drogasVazao||{}).some(Boolean)?"dva_baixa":circAnterior||(pam!==null&&pam<70?"pam_baixa":"normal"));
+    const gcsAtual=date===hoje?(evolCampos.nGlasgow||ultimoScore(date,"gcs")):ultimoScore(date,"gcs");
+    const suporteAtual=date===hoje?(!!leito.vm_modo||ultimoScore(date,"suporteResp")):ultimoScore(date,"suporteResp");
+    return {bilirrubina:ultimoLab(date,"bttot"),creatinina:ultimoLab(date,"cr"),inr:ultimoLab(date,"rni"),leucocitos:ultimoLab(date,"leuco"),plaquetas:ultimoLab(date,"plaq"),diurese:ultimoLab(date,"c24_diur"),
       pf:po2!==null&&fio2?String(Math.round(po2/(fio2/100))):"",sf:sat!==null&&fio2?String(Math.round(sat/(fio2/100))):"",fio2:fio2??"",
-      gcs:date===hoje?(evolCampos.nGlasgow||""):"",suporteResp:date===hoje&&!!leito.vm_modo,circulacao:autoCirc,circulacaoSofa:autoCirc,
+      gcs:gcsAtual||"",suporteResp:!!suporteAtual,circulacao:autoCirc,circulacaoSofa:autoCirc,
       ...salvo};
   };
   const salvarScoreInputs = (date, values) => {
@@ -3685,28 +3702,17 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 
       {showAddExame && (
         <div style={{marginBottom:14,padding:"12px 14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10}}>
-          <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1,marginBottom:7}}>EXAMES PRÉ-ESTABELECIDOS</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{PRESET_LABS.map(ex=>{
-            const active=extrasKeys.includes(ex.key);
-            return <button key={ex.key} onClick={()=>{if(!active)addExtraExam(ex.key,ex.cat);}} disabled={active} title={ex.hint} style={{padding:"5px 9px",borderRadius:14,border:`1px solid ${active?T.border:"rgba(167,139,250,.35)"}`,background:active?T.bgInput:"rgba(167,139,250,.10)",color:active?T.text4:"#c4b5fd",fontSize:10,cursor:active?"default":"pointer"}}>{active?"✓ ":"+ "}{ex.label}</button>;
-          })}</div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}><div style={{fontSize:12,color:"#c4b5fd"}}>Outro exame:</div>
+          <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1,marginBottom:7}}>BUSCAR OU ADICIONAR EXAME</div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}><div style={{fontSize:12,color:"#c4b5fd"}}>Exame:</div><div style={{position:"relative",flex:1}}>
           <input value={novoExame} onChange={e=>setNovoExame(e.target.value)}
             onKeyDown={e=>{
-              if(e.key==="Enter"&&novoExame.trim()){
-                const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-                addExtraExam(key,"");
-                setNovoExame(""); setShowAddExame(false);
-              }
+              if(e.key==="Enter"&&novoExame.trim()){e.preventDefault();addExamFromText(presetFiltrados[0]?.label||novoExame);}
+              if(e.key==="Escape")setShowAddExame(false);
             }}
-            placeholder="Ex: PCR, Procalcitonina, Troponina..."
-            style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"6px 10px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-          <button onClick={()=>{
-            if(!novoExame.trim()) return;
-            const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-            addExtraExam(key,"");
-            setNovoExame(""); setShowAddExame(false);
-          }} disabled={!novoExame.trim()}
+            placeholder="Digite: vanco, CPK, NT-proBNP..."
+            style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:6,padding:"6px 10px",color:T.text1,fontSize:13,fontFamily:"inherit"}}/>
+          {presetFiltrados.length>0&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:50,background:T.bgPicker,border:"1px solid rgba(167,139,250,.35)",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.28)",overflow:"hidden"}}>{presetFiltrados.map(ex=><button key={ex.key} onMouseDown={e=>e.preventDefault()} onClick={()=>addExamFromText(ex.label)} style={{display:"flex",width:"100%",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",border:0,borderBottom:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left",fontSize:11}}><span>{ex.label}</span><span style={{fontSize:9,color:T.text3}}>{ex.hint}</span></button>)}</div>}
+          </div><button onClick={()=>addExamFromText(presetFiltrados[0]?.label||novoExame)} disabled={!novoExame.trim()}
             style={{padding:"6px 14px",background:novoExame.trim()?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novoExame.trim()?"#a78bfa":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novoExame.trim()?"#c4b5fd":"#475569",fontWeight:600,fontSize:12,cursor:novoExame.trim()?"pointer":"default"}}>
             Adicionar
           </button>
