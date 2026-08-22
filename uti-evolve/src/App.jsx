@@ -6382,6 +6382,24 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
 }
 
 
+// ── Precauções microbiológicas no sidebar ─────────────────────────────────────
+function precaucaoMicrobiologica(culturas=[]) {
+  const normalizar = valor => String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  const registros = culturas.map(c=>({
+    texto:normalizar(`${c.tipo||""} ${c.material||""} ${c.resultado||""}`),
+    status:normalizar(c.status)
+  }));
+
+  // Aceita MDN (legenda institucional) e NDM (sigla microbiológica usual).
+  if(registros.some(c=>/\b(?:MDN|NDM)\b/.test(c.texto)))
+    return {cor:"#2563eb",fundo:"rgba(37,99,235,.13)",label:"MDN/NDM identificado"};
+  if(registros.some(c=>/\b(?:KPC|VRE|MTR)\b/.test(c.texto)))
+    return {cor:"#dc2626",fundo:"rgba(220,38,38,.13)",label:"KPC, VRE ou MTR identificado"};
+  if(registros.some(c=>c.status==="AGUARDANDO"||c.status==="PARCIAL"))
+    return {cor:"#eab308",fundo:"rgba(234,179,8,.13)",label:"Aguardando cultura ou swab"};
+  return null;
+}
+
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
 function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePrioridade }) {
   const T=useTheme();
@@ -6389,9 +6407,10 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePr
   const [nomeTemp,setNomeTemp]=useState(leito.nome);
   const [menuOpen,setMenuOpen]=useState(false);
   const cardRef=useRef(null);
+  const precaucao=precaucaoMicrobiologica(leito.culturas||[]);
   useEffect(()=>{const close=e=>{if(!cardRef.current?.contains(e.target))setMenuOpen(false);};document.addEventListener("mousedown",close);return()=>document.removeEventListener("mousedown",close);},[]);
   const confirmarNome=()=>{if(nomeTemp.trim())onRename(nomeTemp.trim());setEditingNome(false);};
-  return <div ref={cardRef} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuOpen(true);}} onClick={()=>{if(!editingNome&&!menuOpen)onClick();}} title="Clique para abrir · botão direito para ações" style={{position:"relative",cursor:"pointer",borderRadius:10,padding:"10px 12px",background:selecionado?T.bgSel:T.bgCard,border:`1.5px solid ${selecionado?T.accent:T.border}`,marginBottom:7,boxShadow:selecionado?"none":T.shadowCard}}>
+  return <div ref={cardRef} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuOpen(true);}} onClick={()=>{if(!editingNome&&!menuOpen)onClick();}} title={`${precaucao?`${precaucao.label} · `:""}Clique para abrir · botão direito para ações`} style={{position:"relative",cursor:"pointer",borderRadius:10,padding:"10px 12px",background:precaucao?precaucao.fundo:(selecionado?T.bgSel:T.bgCard),border:`2px solid ${precaucao?precaucao.cor:(selecionado?T.accent:T.border)}`,marginBottom:7,boxShadow:selecionado?`0 0 0 2px ${T.accent}45`:T.shadowCard}}>
     {editingNome?<input autoFocus value={nomeTemp} onChange={e=>setNomeTemp(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirmarNome();if(e.key==="Escape"){setEditingNome(false);setNomeTemp(leito.nome);}}} onBlur={confirmarNome} onClick={e=>e.stopPropagation()} style={{width:"100%",background:T.bgInput,border:`1px solid ${T.accentBorder}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:11}}/>:<>
       <div style={{fontSize:10,color:T.text3,fontFamily:mono,letterSpacing:1.5,whiteSpace:"normal",overflowWrap:"anywhere",lineHeight:1.35}}>{leito.nome}</div>
       <div style={{fontSize:13,color:leito.paciente?T.text1:T.textDim,fontWeight:leito.paciente?650:400,fontStyle:leito.paciente?"normal":"italic",marginTop:3,whiteSpace:"normal",overflowWrap:"anywhere",wordBreak:"normal",lineHeight:1.35}}>{leito.paciente||"Vago"}</div>
