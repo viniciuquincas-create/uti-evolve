@@ -4743,23 +4743,31 @@ function TroponinaPanel({ data={}, onChange, datas=[], hoje="" }) {
 
 
 // ── CulturasPanel — tabela de culturas ────────────────────────────────────
-const CULTURA_TIPOS = ["Hemocultura","AT - Aspirado Traqueal","Urocultura","Swab Retal","Swab Nasal","Líquido Pleural","LCR","Swab Ferida","Outro"];
-const CULTURA_STATUS = ["Aguardando","Negativa","Parcial","Resistente","Sensível"];
+const CULTURA_TIPOS = ["Hemocultura","AT - Aspirado Traqueal","Urocultura","Swab Retal","Swab de Vigilância","Líquido Pleural","LCR","Swab Ferida","Outro"];
+const CULTURA_STATUS = ["Aguardando","Parcial","Positiva","Negativa","Resistente","Sensível"];
+const CULTURA_MATERIAIS = {
+  Hemocultura:["Periférico","CVC","Shilley","Perm-cath","Porthocath"],
+  "Swab de Vigilância":["VRE","MTR"]
+};
+const CULTURA_RESISTENCIAS = ["KPC","NDM","MDN","VRE","MTR","ESBL","AmpC","OXA-48","MRSA","Outra"];
 
 function CulturasPanel({ culturas=[], onChange }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [show, setShow] = useState(false);
-  const [nova, setNova] = useState({tipo:"Hemocultura",material:"",dataColeta:new Date().toISOString().split("T")[0],status:"Aguardando",resultado:""});
+  const [nova, setNova] = useState({tipo:"Hemocultura",material:"",dataColeta:new Date().toISOString().split("T")[0],status:"Aguardando",resultado:"",germes:[]});
 
   const adicionar = () => {
     if(!nova.tipo) return;
     onChange([...culturas, {...nova, id:Date.now()+""}]);
-    setNova({tipo:"Hemocultura",material:"",dataColeta:new Date().toISOString().split("T")[0],status:"Aguardando",resultado:""});
+    setNova({tipo:"Hemocultura",material:"",dataColeta:new Date().toISOString().split("T")[0],status:"Aguardando",resultado:"",germes:[]});
     setShow(false);
   };
 
   const atualizar = (id, field, val) => onChange(culturas.map(c=>c.id===id?{...c,[field]:val}:c));
+  const adicionarGerme = id => onChange(culturas.map(c=>c.id===id?{...c,germes:[...(c.germes||[]),{id:Date.now()+"",nome:"",resistencia:"",atbs:""}]}:c));
+  const atualizarGerme = (culturaId, germeId, field, val) => onChange(culturas.map(c=>c.id===culturaId?{...c,germes:(c.germes||[]).map(g=>g.id===germeId?{...g,[field]:val}:g)}:c));
+  const removerGerme = (culturaId, germeId) => onChange(culturas.map(c=>c.id===culturaId?{...c,germes:(c.germes||[]).filter(g=>g.id!==germeId)}:c));
   const remover = (id) => onChange(culturas.filter(c=>c.id!==id));
 
   const corStatus = s => s==="Negativa"?"#34d399":s==="Parcial"?"#fbbf24":s==="Resistente"?"#f87171":s==="Sensível"?"#34d399":"#64748b";
@@ -4778,13 +4786,16 @@ function CulturasPanel({ culturas=[], onChange }) {
       {show&&(
         <div style={{background:"rgba(163,230,53,0.04)",border:"1px solid rgba(163,230,53,0.15)",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-            <select value={nova.tipo} onChange={e=>setNova(n=>({...n,tipo:e.target.value}))}
+            <select value={nova.tipo} onChange={e=>setNova(n=>({...n,tipo:e.target.value,material:""}))}
               style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}>
               {CULTURA_TIPOS.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
-            <input placeholder="Material (ex: periférico, cateter)" value={nova.material}
+            {CULTURA_MATERIAIS[nova.tipo]?<select value={nova.material} onChange={e=>setNova(n=>({...n,material:e.target.value}))}
+              style={{flex:1,minWidth:140,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}>
+              <option value="">Selecione o material…</option>{CULTURA_MATERIAIS[nova.tipo].map(m=><option key={m} value={m}>{m}</option>)}
+            </select>:<input placeholder="Material / sítio" value={nova.material}
               onChange={e=>setNova(n=>({...n,material:e.target.value}))}
-              style={{flex:1,minWidth:120,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}/>
+              style={{flex:1,minWidth:120,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}/>}
             <input type="date" value={nova.dataColeta} onChange={e=>setNova(n=>({...n,dataColeta:e.target.value}))}
               style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12}}/>
           </div>
@@ -4809,22 +4820,35 @@ function CulturasPanel({ culturas=[], onChange }) {
         <div key={c.id} style={{display:"flex",gap:8,alignItems:"center",marginBottom:6,padding:"6px 10px",
           background:"rgba(255,255,255,0.02)",border:`1px solid ${corStatus(c.status)}20`,borderRadius:7,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:140}}>
-            <div style={{fontSize:11,color:"#cbd5e1",fontWeight:600}}>{c.tipo}{c.material?` — ${c.material}`:""}</div>
+            <div style={{fontSize:11,color:"#cbd5e1",fontWeight:600}}>{c.tipo}</div>
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono}}>{c.dataColeta&&new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR")}</div>
           </div>
+          {CULTURA_MATERIAIS[c.tipo]?<select value={c.material||""} onChange={e=>atualizar(c.id,"material",e.target.value)}
+            style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:5,padding:"3px 6px",color:"#cbd5e1",fontSize:10}}>
+            <option value="">Material…</option>{CULTURA_MATERIAIS[c.tipo].map(m=><option key={m} value={m}>{m}</option>)}
+          </select>:<input value={c.material||""} onChange={e=>atualizar(c.id,"material",e.target.value)} placeholder="Material / sítio"
+            style={{minWidth:120,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:5,padding:"3px 6px",color:"#cbd5e1",fontSize:10}}/>}
           <select value={c.status} onChange={e=>atualizar(c.id,"status",e.target.value)}
             style={{background:"rgba(255,255,255,0.04)",border:`1px solid ${corStatus(c.status)}40`,borderRadius:5,
               padding:"3px 6px",color:corStatus(c.status),fontSize:10,fontFamily:mono,cursor:"pointer"}}>
             {CULTURA_STATUS.map(s=><option key={s} value={s}>{s}</option>)}
           </select>
-          <input value={c.resultado||""} onChange={e=>atualizar(c.id,"resultado",e.target.value)}
-            placeholder="Resultado..."
-            style={{flex:2,minWidth:120,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
-              borderRadius:5,padding:"3px 7px",color:"#e2e8f0",fontSize:11}}/>
+          {(c.germes||[]).length===0&&c.resultado&&<div style={{flex:2,minWidth:140,fontSize:10,color:"#94a3b8"}}>Resultado anterior: {c.resultado}</div>}
+          <button onClick={()=>adicionarGerme(c.id)} style={{background:"rgba(56,189,248,.08)",border:"1px solid rgba(56,189,248,.25)",borderRadius:5,color:"#38bdf8",padding:"3px 8px",cursor:"pointer",fontSize:10}}>+ micro-organismo</button>
           <button onClick={()=>remover(c.id)}
             style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:13}}>✕</button>
+          {(c.germes||[]).map(g=><div key={g.id} style={{width:"100%",display:"grid",gridTemplateColumns:"minmax(150px,1.3fr) minmax(110px,.7fr) minmax(180px,1.4fr) auto",gap:6,marginTop:5}}>
+            <input value={g.nome||""} onChange={e=>atualizarGerme(c.id,g.id,"nome",e.target.value)} placeholder="Micro-organismo"
+              style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:5,padding:"5px 7px",color:"#e2e8f0",fontSize:11}}/>
+            <input list="resistencias-cultura" value={g.resistencia||""} onChange={e=>atualizarGerme(c.id,g.id,"resistencia",e.target.value)} placeholder="Resistência"
+              style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(248,113,113,.22)",borderRadius:5,padding:"5px 7px",color:"#fca5a5",fontSize:11}}/>
+            <input value={g.atbs||""} onChange={e=>atualizarGerme(c.id,g.id,"atbs",e.target.value)} placeholder="ATB sensíveis (separe por vírgulas)"
+              style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(52,211,153,.22)",borderRadius:5,padding:"5px 7px",color:"#a7f3d0",fontSize:11}}/>
+            <button onClick={()=>removerGerme(c.id,g.id)} title="Excluir micro-organismo" style={{background:"none",border:"none",color:"#64748b",cursor:"pointer"}}>✕</button>
+          </div>)}
         </div>
       ))}
+      <datalist id="resistencias-cultura">{CULTURA_RESISTENCIAS.map(r=><option key={r} value={r}/>)}</datalist>
     </div>
   );
 }
@@ -5608,7 +5632,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         const tipo=(CULTURA_TIPOS.find(x=>x.id===c.tipo)||{lbl:c.tipo||""}).lbl;
         const data=c.dataColeta?new Date(c.dataColeta+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
         const hdr=`${tipo}${c.material?" ("+c.material+")":""} ${data}`;
-        const germes=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, ${g.resistencia}`;return t;}).filter(Boolean).join("; ");
+        const germes=(c.germes||[]).map(g=>{let t=g.nome||"";if(g.ufc)t+=`, ${g.ufc} UFC/mL`;if(g.resistencia)t+=`, resistência: ${g.resistencia}`;if(g.atbs)t+=` — sensível: ${g.atbs}`;return t;}).filter(Boolean).join("; ");
         return `${hdr}: ${germes||c.resultado||"aguardando resultado"}`;
       }).join("\n");
     })();
@@ -6386,14 +6410,16 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
 function precaucaoMicrobiologica(culturas=[]) {
   const normalizar = valor => String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
   const registros = culturas.map(c=>({
-    texto:normalizar(`${c.tipo||""} ${c.material||""} ${c.resultado||""}`),
-    status:normalizar(c.status)
+    texto:normalizar(`${c.tipo||""} ${c.material||""} ${c.resultado||""} ${(c.germes||[]).map(g=>`${g.nome||""} ${g.resistencia||""} ${g.atbs||""}`).join(" ")}`),
+    status:normalizar(c.status),
+    vigilancia:normalizar(c.tipo).includes("SWAB DE VIGILANCIA"),
+    material:normalizar(c.material)
   }));
 
   // Aceita MDN (legenda institucional) e NDM (sigla microbiológica usual).
   if(registros.some(c=>/\b(?:MDN|NDM)\b/.test(c.texto)))
     return {cor:"#2563eb",fundo:"rgba(37,99,235,.13)",label:"MDN/NDM identificado"};
-  if(registros.some(c=>/\b(?:KPC|VRE|MTR)\b/.test(c.texto)))
+  if(registros.some(c=>/\bKPC\b/.test(c.texto)||(c.vigilancia&&/\b(?:VRE|MTR)\b/.test(c.material)&&!["AGUARDANDO","PARCIAL","NEGATIVA"].includes(c.status))))
     return {cor:"#dc2626",fundo:"rgba(220,38,38,.13)",label:"KPC, VRE ou MTR identificado"};
   if(registros.some(c=>c.status==="AGUARDANDO"||c.status==="PARCIAL"))
     return {cor:"#eab308",fundo:"rgba(234,179,8,.13)",label:"Aguardando cultura ou swab"};
