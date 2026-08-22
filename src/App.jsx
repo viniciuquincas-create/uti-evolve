@@ -3292,6 +3292,25 @@ function OptionalDrenosUI({ data, onChange, datas, hoje, customCtrls=[], onCusto
   );
 }
 
+const PRESET_LABS = [
+  {label:"Vancocinemia",key:"_extra_vancocinemia",cat:"vanco",hint:"Infeccioso · junto à vancomicina"},
+  {label:"Tacrolinemia",key:"_extra_tacrolinemia",cat:"hb",hint:"Hematológico"},
+  {label:"CPK",key:"_extra_cpk",cat:"cr",hint:"Renal/Metabólico"},
+  {label:"NT-proBNP",key:"_extra_ntprobnp",cat:"trop",hint:"Cardiovascular"},
+  {label:"Procalcitonina",key:"_extra_procalcitonina",cat:"inf",hint:"Infeccioso"},
+  {label:"PCR",key:"_extra_pcr",cat:"inf",hint:"Infeccioso"},
+  {label:"CK-MB",key:"_extra_ckmb",cat:"trop",hint:"Cardiovascular"},
+  {label:"Dímero-D",key:"_extra_dimero_d",cat:"hb",hint:"Hematológico"},
+  {label:"Amônia",key:"_extra_amonia",cat:"tgo",hint:"TGI/Hepático"},
+  {label:"Beta-D-glucana",key:"_extra_beta_d_glucana",cat:"inf",hint:"Infeccioso"},
+];
+const FLUID_ANALYSIS_TYPES = {
+  liquor:{label:"Líquor (LCR)",target:"n",fields:[["aspecto","Aspecto"],["pressao","Pressão abertura"],["celulas","Células/mm³"],["hemacias","Hemácias/mm³"],["neutrofilos","Neutrófilos %"],["linfocitos","Linfócitos %"],["proteinas","Proteínas mg/dL"],["glicose","Glicose mg/dL"],["lactato","Lactato mmol/L"],["cloro","Cloro mEq/L"],["gram","Gram"],["cultura","Cultura/PCR"]]},
+  pleural:{label:"Líquido pleural",target:"res",fields:[["aspecto","Aspecto"],["ph","pH"],["celulas","Células/mm³"],["hemacias","Hemácias/mm³"],["neutrofilos","Neutrófilos %"],["linfocitos","Linfócitos %"],["proteinas","Proteínas líquido"],["proteinasSericas","Proteínas séricas"],["ldh","LDH líquido"],["ldhSerico","LDH sérico"],["ldhLimite","LSN do LDH sérico"],["glicose","Glicose"],["amilase","Amilase"],["triglicerides","Triglicérides"],["colesterol","Colesterol"],["gram","Gram"],["cultura","Cultura/citologia"]]},
+  peritoneal:{label:"Líquido peritoneal/ascítico",target:"tgi",fields:[["aspecto","Aspecto"],["celulas","Células/mm³"],["pmns","PMN/mm³"],["hemacias","Hemácias/mm³"],["albumina","Albumina"],["albuminaSerica","Albumina sérica"],["proteinas","Proteínas"],["ldh","LDH"],["glicose","Glicose"],["amilase","Amilase"],["gram","Gram"],["cultura","Cultura/citologia"]]},
+  outro:{label:"Outro líquido",target:"n",fields:[["aspecto","Aspecto"],["celulas","Células"],["hemacias","Hemácias"],["proteinas","Proteínas"],["glicose","Glicose"],["ldh","LDH"],["gram","Gram"],["cultura","Cultura/citologia"]]},
+};
+
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
 function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange, evolCampos={}, config={} }) {
   const customCtrls = leito.customCtrls || [];
@@ -3340,6 +3359,10 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   };
   const setVal = (date, key, val) =>
     onChange({ ...data, [date]: { ...(data[date]||{}), [key]: val } });
+  const addExtraExam = (key,cat="") => {
+    const hoje2=new Date().toISOString().split("T")[0];
+    onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""},__extraCats__:{...(data.__extraCats__||{}),[key]:cat}});
+  };
 
   const gasosData = date => { try { const v=data[date]?._gasos; return v?(typeof v==="string"?JSON.parse(v):v):[]; } catch{return [];} };
   const scoreInputs = date => {
@@ -3468,6 +3491,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       .filter(g=>g[key])
       .map(g=>{ const h=g.horario?`[${g.horario}] `:""; return `${h}${label} ${g[key]}${unit?" "+unit:""} (gaso)`; });
     const rmGasoExtra = [
+      ...gasoExtraLines("hco3","HCO3","mEq/L"),
       ...gasoExtraLines("na","Na","mEq/L"), ...gasoExtraLines("k","K","mEq/L"),
       ...gasoExtraLines("ca","Ca","mmol/L"), ...gasoExtraLines("cl","Cl","mEq/L"),
     ];
@@ -3509,7 +3533,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     extrasKeys.forEach(k=>{
       const cat = extraCats[k];
       const campoAlvo = CAT_MAP[cat] || null;
-      const nome = k.replace(/^_extra_/,'').replace(/_/g,' ');
+      const nome = PRESET_LABS.find(x=>x.key===k)?.label || k.replace(/^_extra_/,'').replace(/_/g,' ');
       const val  = getVal(chaveHoje, k);
       if (val && campoAlvo) {
         campos[campoAlvo] = campos[campoAlvo]
@@ -3557,6 +3581,32 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       return `${partes}${lbl ? " ("+lbl+")" : ""}`;
     }).join("\n");
     if (atbTexto) campos.heAtb = atbTexto;
+
+    // Análises de líquidos do dia → Exames complementares do sistema correspondente.
+    const fluidRaw=data[chaveHoje]?._fluidAnalyses;
+    let fluidEntries=[];try{fluidEntries=fluidRaw?(typeof fluidRaw==="string"?JSON.parse(fluidRaw):fluidRaw):[];}catch{fluidEntries=[];}
+    const fluidTargets={n:[],res:[],tgi:[]};
+    fluidEntries.forEach(entry=>{
+      const cfg=FLUID_ANALYSIS_TYPES[entry.type]||FLUID_ANALYSIS_TYPES.outro;
+      const titulo=`${entry.type==="outro"?(entry.nomeOutro||"Análise de outro líquido"):cfg.label}${entry.hora?` — ${entry.hora}`:""}`;
+      const labels=Object.fromEntries(cfg.fields);
+      const values=Object.entries(entry.values||{}).filter(([,v])=>String(v||"").trim()).map(([k,v])=>`${labels[k]||k}: ${v}`);
+      if(entry.outros)values.push(entry.outros);
+      if(entry.conclusao)values.push(`Conclusão: ${entry.conclusao}`);
+      if(!values.length)return;
+      const target=entry.type==="outro"?(entry.target||"n"):cfg.target;
+      (fluidTargets[target]||fluidTargets.n).push({id:`fluid_${entry.id}`,data:entry.data||chaveHoje,titulo,resultado:values.join(" / ")});
+    });
+    const visNext={...(evolCampos._vis_||{})};
+    [["n","n_exames"],["res","res_exames"],["tgi","tgi_exames"]].forEach(([system,key])=>{
+      if(!fluidTargets[system].length)return;
+      const atuais=Array.isArray(evolCampos[key])?evolCampos[key].filter(e=>!String(e.id||"").startsWith("fluid_")):[];
+      campos[key]=[...atuais,...fluidTargets[system]];
+      visNext[`add_${system}_exames`]=true;
+    });
+    const infLabs=extrasKeys.filter(k=>extraCats[k]==="inf"&&getVal(chaveHoje,k)).map(k=>({id:`labextra_${k}`,data:chaveHoje.slice(0,10),titulo:PRESET_LABS.find(x=>x.key===k)?.label||k.replace(/^_extra_/,"").replace(/_/g," "),resultado:String(getVal(chaveHoje,k))}));
+    if(infLabs.length){const atuais=Array.isArray(evolCampos.in_exames)?evolCampos.in_exames.filter(e=>!String(e.id||"").startsWith("labextra_")):[];campos.in_exames=[...atuais,...infLabs];visNext.add_in_exames=true;}
+    if(Object.keys(visNext).length)campos._vis_=visNext;
 
     onAplicarEvolucao(campos,{navegar:navegarDepois});
   };
@@ -3634,15 +3684,18 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       )}
 
       {showAddExame && (
-        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,padding:"12px 14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10}}>
-          <div style={{fontSize:12,color:"#c4b5fd"}}>Nome do exame:</div>
+        <div style={{marginBottom:14,padding:"12px 14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10}}>
+          <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1,marginBottom:7}}>EXAMES PRÉ-ESTABELECIDOS</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{PRESET_LABS.map(ex=>{
+            const active=extrasKeys.includes(ex.key);
+            return <button key={ex.key} onClick={()=>{if(!active)addExtraExam(ex.key,ex.cat);}} disabled={active} title={ex.hint} style={{padding:"5px 9px",borderRadius:14,border:`1px solid ${active?T.border:"rgba(167,139,250,.35)"}`,background:active?T.bgInput:"rgba(167,139,250,.10)",color:active?T.text4:"#c4b5fd",fontSize:10,cursor:active?"default":"pointer"}}>{active?"✓ ":"+ "}{ex.label}</button>;
+          })}</div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}><div style={{fontSize:12,color:"#c4b5fd"}}>Outro exame:</div>
           <input value={novoExame} onChange={e=>setNovoExame(e.target.value)}
             onKeyDown={e=>{
               if(e.key==="Enter"&&novoExame.trim()){
                 const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-                // Garante que a chave existe para aparecer na tabela
-                const hoje2=new Date().toISOString().split("T")[0];
-                onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""}});
+                addExtraExam(key,"");
                 setNovoExame(""); setShowAddExame(false);
               }
             }}
@@ -3651,18 +3704,18 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
           <button onClick={()=>{
             if(!novoExame.trim()) return;
             const key=`_extra_${novoExame.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-            const hoje2=new Date().toISOString().split("T")[0];
-            onChange({...data,[hoje2]:{...(data[hoje2]||{}),[key]:data[hoje2]?.[key]||""}});
+            addExtraExam(key,"");
             setNovoExame(""); setShowAddExame(false);
           }} disabled={!novoExame.trim()}
             style={{padding:"6px 14px",background:novoExame.trim()?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${novoExame.trim()?"#a78bfa":"rgba(255,255,255,0.08)"}`,borderRadius:6,color:novoExame.trim()?"#c4b5fd":"#475569",fontWeight:600,fontSize:12,cursor:novoExame.trim()?"pointer":"default"}}>
             Adicionar
           </button>
+          </div>
         </div>
       )}
       {tabela==="labs" && (
         <div style={{display:"flex",gap:5,paddingBottom:8,borderBottom:`1px solid ${T.border}`,marginBottom:8,flexShrink:0}}>
-          {[["labs","🔬 Laboratório"],["gasos","🫁 Gasometrias"],["tropos","🫀 Troponina"],["culturas","🧫 Culturas"]].map(([id,lbl])=>(
+          {[["labs","🔬 Laboratório"],["gasos","🫁 Gasometrias"],["tropos","🫀 Troponina"],["culturas","🧫 Culturas"],["fluidos","💧 Líquidos"]].map(([id,lbl])=>(
             <button key={id} onClick={()=>setSubTabLabs(id)}
               style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${subTabLabs===id?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.08)"}`,
                 background:subTabLabs===id?"rgba(56,189,248,0.1)":"transparent",
@@ -3698,6 +3751,11 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
         <div style={{overflowY:"auto",flex:1}}>
           <CulturasPanel culturas={leito.culturas||[]}
             onChange={novas=>{if(onLeitoChange)onLeitoChange({...leito,culturas:novas});}}/>
+        </div>
+      )}
+      {tabela==="labs" && subTabLabs==="fluidos" && (
+        <div style={{overflowY:"auto",flex:1,padding:"8px 0"}}>
+          <FluidAnalysisPanel data={data} onChange={onChange} datas={Object.keys(data).filter(k=>!k.startsWith("_")).sort()} hoje={hoje}/>
         </div>
       )}
       {tabela==="labs" && subTabLabs==="labs" && (datas.length === 0 ? (
@@ -3855,12 +3913,14 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                     const catAtual = (data.__extraCats__||{})[k] || "";
                     const CATS_LAB = [
                       {k:"",        label:"— Sem categoria —", cor:"#475569"},
+                      {k:"vanco",   label:"💊 Vancomicina",      cor:"#38bdf8"},
+                      {k:"inf",     label:"🔴 Infeccioso",       cor:"#f59e0b"},
                       {k:"hb",      label:"🩸 Hematológico",    cor:"#f87171"},
                       {k:"cr",      label:"🫘 Renal/Metabólico", cor:"#34d399"},
                       {k:"tgo",     label:"🫀 Hepatograma",      cor:"#fb923c"},
                       {k:"trop",    label:"❤️ Cardíaco",         cor:"#f87171"},
                       {k:"po2",     label:"🫁 Gasometria",       cor:"#38bdf8"},
-                      {k:"he",      label:"🔴 Infeccioso",       cor:"#f59e0b"},
+                      {k:"he",      label:"🩸 Hematológico (legado)", cor:"#f87171"},
                     ];
                     return (
                       <tr key={k}
@@ -4415,6 +4475,26 @@ function PickField({ label, options=[], value="", onChange, rows=2, placeholder=
       )}
     </div>
   );
+}
+
+function FluidAnalysisPanel({data={},onChange,datas=[],hoje=""}) {
+  const T=useTheme();
+  const getEntries=d=>{const raw=data[d]?._fluidAnalyses;if(!raw)return[];try{return typeof raw==="string"?JSON.parse(raw):raw;}catch{return[];}};
+  const setEntries=(d,entries)=>onChange({...data,[d]:{...(data[d]||{}),_fluidAnalyses:JSON.stringify(entries)}});
+  const add=type=>setEntries(hoje,[...getEntries(hoje),{id:`fa_${Date.now()}`,type,target:"n",data:hoje,hora:"",nomeOutro:"",values:{},outros:"",conclusao:""}]);
+  const upd=(d,id,key,value)=>setEntries(d,getEntries(d).map(e=>e.id===id?{...e,[key]:value}:e));
+  const updVal=(d,id,key,value)=>setEntries(d,getEntries(d).map(e=>e.id===id?{...e,values:{...(e.values||{}),[key]:value}}:e));
+  const remove=(d,id)=>setEntries(d,getEntries(d).filter(e=>e.id!==id));
+  return <div style={{marginTop:8}}>
+    <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:9}}><span style={{fontSize:10,fontFamily:mono,letterSpacing:1.5,color:"#38bdf8"}}>ANÁLISE DE LÍQUIDOS</span>{Object.entries(FLUID_ANALYSIS_TYPES).map(([key,cfg])=><button key={key} onClick={()=>add(key)} style={{padding:"3px 8px",borderRadius:12,border:"1px solid rgba(56,189,248,.28)",background:"rgba(56,189,248,.07)",color:"#38bdf8",fontSize:10,cursor:"pointer"}}>+ {cfg.label}</button>)}</div>
+    {datas.map(d=>getEntries(d).map(entry=>{const cfg=FLUID_ANALYSIS_TYPES[entry.type]||FLUID_ANALYSIS_TYPES.outro;return <div key={entry.id} style={{marginBottom:9,padding:"9px 10px",border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard}}>
+      <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:7}}><strong style={{fontSize:11,color:"#38bdf8"}}>{entry.type==="outro"?(entry.nomeOutro||cfg.label):cfg.label}</strong><input type="date" value={entry.data||d} onChange={e=>upd(d,entry.id,"data",e.target.value)} style={{marginLeft:"auto",width:125,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><input type="time" value={entry.hora||""} onChange={e=>upd(d,entry.id,"hora",e.target.value)} style={{width:80,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/>{d===hoje&&<button onClick={()=>remove(d,entry.id)} style={{border:0,background:"transparent",color:"#f87171",cursor:"pointer"}}>✕</button>}</div>
+      {entry.type==="outro"&&<div style={{display:"grid",gridTemplateColumns:"1fr 210px",gap:6,marginBottom:6}}><label style={{fontSize:9,color:T.text3}}>NOME DO LÍQUIDO<input value={entry.nomeOutro||""} onChange={e=>upd(d,entry.id,"nomeOutro",e.target.value)} placeholder="Ex.: líquido pericárdico" style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1}}/></label><label style={{fontSize:9,color:T.text3}}>LANÇAR EM<select value={entry.target||"n"} onChange={e=>upd(d,entry.id,"target",e.target.value)} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1}}><option value="n">Neurológico</option><option value="res">Respiratório</option><option value="tgi">TGI</option></select></label></div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:5}}>{cfg.fields.map(([key,label])=><label key={key} style={{fontSize:9,color:T.text3}}>{label}<input value={entry.values?.[key]||""} onChange={e=>updVal(d,entry.id,key,e.target.value)} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1,fontSize:10}}/></label>)}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:6}}><label style={{fontSize:9,color:T.text3}}>OUTROS PARÂMETROS<input value={entry.outros||""} onChange={e=>upd(d,entry.id,"outros",e.target.value)} placeholder="Nome e valor de outros parâmetros" style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1}}/></label><label style={{fontSize:9,color:T.text3}}>INTERPRETAÇÃO / CONCLUSÃO<input value={entry.conclusao||""} onChange={e=>upd(d,entry.id,"conclusao",e.target.value)} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1}}/></label></div>
+    </div>}))}
+    {!datas.some(d=>getEntries(d).length)&&<div style={{padding:"12px 0",fontSize:11,color:T.text4}}>Nenhuma análise registrada.</div>}
+  </div>;
 }
 
 function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
@@ -5491,6 +5571,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         const dia=lblDiaAtb(diasAtb24h(a.dataInicio,a.horaInicio));
         const terapia=a.diasPlanejados?` · terapia planejada: ${a.diasPlanejados} dias`:"";
         p.push(`- ${a.nome}${dia?` · ${dia}`:""}${a.dose?` · ${a.dose}`:""}${a.via?` · ${a.via}`:""} · início: ${fmtDataClinica(a.dataInicio)}${terapia}`);
+        if(/vancom/i.test(a.nome)){
+          const ds=Object.keys(tabelaDataLeito||{}).filter(k=>/^\d{4}-\d{2}-\d{2}/.test(k)).sort().reverse();
+          const dV=ds.find(d=>tabelaDataLeito[d]?._extra_vancomicinemia||tabelaDataLeito[d]?._extra_vancocinemia);
+          const nivel=dV&&(tabelaDataLeito[dV]._extra_vancomicinemia||tabelaDataLeito[dV]._extra_vancocinemia);
+          if(nivel)p.push(`  ↳ Vancocinemia [${fmtDataClinica(dV.slice(0,10))}]: ${nivel}`);
+        }
       });
     }
     if(previos.length){
