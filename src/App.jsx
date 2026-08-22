@@ -1977,7 +1977,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
   const addAtb = (nome="") => {
     const now = new Date();
     const horaAtual = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-    onChange([...antibioticos, { id: Date.now(), nome, via:"EV", dose:"", dataInicio: hoje, horaInicio: horaAtual, dataFim:"", doseConfirmada:false }]);
+    onChange([...antibioticos, { id: Date.now(), nome, via:"EV", dose:"", dataInicio: hoje, horaInicio: horaAtual, dataFim:"", diasPlanejados:"", doseConfirmada:false }]);
     setBusca(""); setShowBusca(false);
   };
   const remAtb = (id) => onChange(antibioticos.filter(a => a.id !== id));
@@ -2060,6 +2060,9 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                 <input type="time" value={atb.horaInicio||""} onChange={e=>updAtb(atb.id,"horaInicio",e.target.value)}
                   title="Hora da 1ª dose"
                   style={{width:62,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 4px",color:T.text2,fontSize:11}}/>
+                <input type="number" min="1" value={atb.diasPlanejados||""} onChange={e=>updAtb(atb.id,"diasPlanejados",e.target.value)}
+                  placeholder="Dias planejados" title="Duração planejada da terapia"
+                  style={{width:112,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 6px",color:T.text2,fontSize:11}}/>
               </div>
 
               {/* Alerta renal — só se relevante */}
@@ -4814,7 +4817,23 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], gruposCustom=[], peso, vazoe
 // ── SysB / Row / Col / FL — hoisted para escopo de módulo (fix: definir componentes dentro do render
 // do EvolucaoEditor fazia o React remontar todo o subtree a cada tecla digitada em campos
 // controlados como os da Ventilação, derrubando o foco do input) ──
-const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[], customFields=[], onAddCustomField, onUpdateCustomField, onRemoveCustomField, controlledOpen, onRequestOpen, reviewMode=false}) => {
+function SystemTextSection({title,txtFn,color="#fbbf24"}) {
+  const T=useTheme();
+  const [text,setText]=useState(()=>txtFn?txtFn():"");
+  const [copied,setCopied]=useState(false);
+  const regenerate=()=>setText(txtFn?txtFn():"");
+  const copy=()=>{if(!text.trim())return;navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1800);});};
+  return <div style={{border:`1px solid ${color}33`,borderRadius:8,background:`${color}08`,padding:"9px 10px"}}>
+    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6}}><span style={{fontSize:10,color,fontFamily:mono,letterSpacing:1.3,fontWeight:700}}>{title}</span><button onClick={regenerate} style={{marginLeft:"auto",fontSize:9,color:T.text3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:4,padding:"2px 7px",cursor:"pointer"}}>↺ Regenerar</button></div>
+    <textarea value={text} onChange={e=>setText(e.target.value)} rows={Math.max(4,text.split("\n").length+1)} style={{width:"100%",boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:7,padding:"8px 9px",color:T.text1,fontSize:12,resize:"vertical",fontFamily:mono,lineHeight:1.55}}/>
+    <button onClick={copy} style={{marginTop:6,width:"100%",padding:"7px",borderRadius:6,border:`1px solid ${copied?"#34d399":`${color}55`}`,background:copied?"rgba(52,211,153,.10)":`${color}10`,color:copied?"#34d399":color,fontSize:11,fontWeight:700,cursor:"pointer"}}>{copied?"✅ Copiado":"📋 Copiar para o Tasy"}</button>
+  </div>;
+}
+function SystemTextSections({sections=[]}) {
+  return <div style={{borderTop:"2px solid rgba(251,191,36,0.20)",padding:"10px 14px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:8}}>{sections.map(s=><SystemTextSection key={s.id||s.title} {...s}/>)}</div>;
+}
+
+const SysB = ({id, sigla, label, color, txtFn, textSections=[], children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[], customFields=[], onAddCustomField, onUpdateCustomField, onRemoveCustomField, controlledOpen, onRequestOpen, reviewMode=false}) => {
   const T=useTheme();
   const [localOpen,setLocalOpen]=useState(true);
   const open = controlledOpen===undefined ? localOpen : controlledOpen;
@@ -4871,7 +4890,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
             </button>
           </div>
         )}
-        {open&&<button onClick={abrirPreview}
+        {open&&textSections.length===0&&<button onClick={abrirPreview}
           style={{margin:"4px 2px",padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
             background:preview!==null?"rgba(251,191,36,0.15)":T.bgInput,
             border:`1px solid ${preview!==null?"rgba(217,119,6,0.55)":T.border}`,
@@ -4879,7 +4898,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
           title="Ver e editar o texto que será copiado">
           {preview!==null?"✕":"👁"}
         </button>}
-        {open&&<button onClick={copiar}
+        {open&&textSections.length===0&&<button onClick={copiar}
           title="Copiar texto deste sistema"
           style={{margin:"6px 8px 6px 2px",padding:"4px 12px",borderRadius:6,fontSize:11,fontWeight:600,
             background:cp2?"rgba(16,185,129,0.15)":T.bgInput,
@@ -4923,6 +4942,7 @@ const SysB = ({id, sigla, label, color, txtFn, children, opcionais=[], adicionav
           <textarea defaultValue={f.value||""} onBlur={e=>onUpdateCustomField&&onUpdateCustomField(id,f.id,e.target.value)} rows={2} style={{width:"100%",background:T.bgCard,border:`1px solid ${T.borderStrong}`,borderRadius:6,padding:"7px 9px",color:T.text1,fontFamily:"inherit",resize:"vertical"}}/>
         </div>)}
       </div>}
+      {open&&textSections.length>0&&<SystemTextSections sections={textSections}/>}
       {open && preview!==null && (
         <div style={{borderTop:"2px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.03)",padding:"10px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -5459,12 +5479,33 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.add_he_exames){const e=eventText("he","exames");if(e)p.push(e);}
     return p.join("\n");
   };
-  const txtInFull = () => {
+  const fmtDataClinica = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString("pt-BR") : "não informada";
+  const txtAntimicrobianos = () => {
     const p=[];
-    if(get("heTemp")) p.push(`- Temperatura: ${get("heTemp")}`);
-    if(vis.inProf&&get("heMed")) p.push(get("heMed"));
-    if(get("heAtb"))      p.push(get("heAtb"));
-    // Auto-build culturas text from leito.culturas
+    const atbs=(leito.antibioticos||[]).filter(a=>a.nome);
+    const ativos=atbs.filter(a=>!a.dataFim);
+    const previos=atbs.filter(a=>a.dataFim);
+    if(ativos.length){
+      p.push("ANTIMICROBIANOS ATUAIS:");
+      ativos.forEach(a=>{
+        const dia=lblDiaAtb(diasAtb24h(a.dataInicio,a.horaInicio));
+        const terapia=a.diasPlanejados?` · terapia planejada: ${a.diasPlanejados} dias`:"";
+        p.push(`- ${a.nome}${dia?` · ${dia}`:""}${a.dose?` · ${a.dose}`:""}${a.via?` · ${a.via}`:""} · início: ${fmtDataClinica(a.dataInicio)}${terapia}`);
+      });
+    }
+    if(previos.length){
+      if(p.length)p.push("");
+      p.push("ANTIMICROBIANOS PRÉVIOS:");
+      previos.forEach(a=>p.push(`- ${a.nome} · ${fmtDataClinica(a.dataInicio)} a ${fmtDataClinica(a.dataFim)}`));
+    }
+    if(!p.length&&get("heAtb"))p.push(get("heAtb"));
+    if(vis.inProf&&get("heMed"))p.push(`\n${get("heMed")}`);
+    return p.join("\n");
+  };
+  const txtCulturas = () => {
+    const p=[];
+    const temp=String(get("heTemp")||"").replace(/^\s*(?:temperatura|temp\.?)\s*(?:\([^)]*\))?\s*[:\-–—]?\s*/i,"").replace(/^\s*t\s*[:\-–—]?\s*/i,"").trim();
+    if(temp)p.push(`- T 24h: ${temp}`);
     const cText = (()=>{
       const cs = leito.culturas||[];
       if(!cs.length) return "";
@@ -5477,6 +5518,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       }).join("\n");
     })();
     if(cText) p.push(`- Culturas:\n${cText}`);
+    return p.join("\n");
+  };
+  const txtInFull = () => {
+    const p=[txtAntimicrobianos(),txtCulturas()].filter(Boolean);
     if(vis.inObs&&getExtra("inObs")) p.push(`*${getExtra("inObs")}`);
     p.push(...customLines("in"));
     if(vis.add_in_interconsulta){const e=eventText("in","interconsulta");if(e)p.push(e);}
@@ -5877,13 +5922,16 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       </SysB>
 
       <SysB id="in" sigla="== In:" label="Infeccioso" color={"#94a3b8"} txtFn={txtInFull}
+        textSections={[
+          {id:"antimicrobianos",title:"ANTIMICROBIANOS — TEXTO PARA O TASY",txtFn:txtAntimicrobianos,color:"#38bdf8"},
+          {id:"culturas",title:"CULTURAS — TEXTO PARA O TASY",txtFn:txtCulturas,color:"#a3e635"},
+        ]}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Temperatura",value:campos.heTemp},{label:"Antibióticos/Culturas",value:((leito.antibioticos||[]).length>0||(leito.culturas||[]).length>0)?"1":""}]} {...customProps("in")}>
 
         <ClinicalGroup label="ANTIMICROBIANOS E TRATAMENTO" color="#94a3b8">
-        <Row><Col><FL>Temperatura — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} sugestao="37,2 - 36,2" rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col></Row>
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
                 {/* ── Antibioticoterapia ── */}
         {onLeitoChange?(<>
@@ -5927,6 +5975,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         )}
         </ClinicalGroup>
         <ClinicalGroup label="MICROBIOLOGIA E VIGILÂNCIA" color="#94a3b8">
+        <Row><Col><FL>Temperatura nas últimas 24h — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col></Row>
         <Row><Col>
           <FL>🧫 Culturas</FL>
           {(leito.culturas||[]).length>0 ? (
