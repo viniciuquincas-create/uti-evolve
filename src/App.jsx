@@ -4761,7 +4761,7 @@ function CulturasPanel({ culturas=[], onChange }) {
 
 
 // ── MiniBombas — drogas de bomba embedadas dentro de cada SysB ───────────────
-function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChange, config={} }) {
+function MiniBombas({ title="BOMBAS", drogaKeys=[], gruposCustom=[], peso, vazoes={}, onVazaoChange, config={} }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const getConf = (k) => DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k)||null;
@@ -4771,9 +4771,11 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], peso, vazoes={}, onVazaoChan
     if(n<1) return n.toFixed(3); return n.toFixed(2);
   };
 
-  // chips de drogas disponíveis (que ainda não têm vazão)
-  const comVazao = drogaKeys.filter(k=>vazoes[k]&&parseFloat(vazoes[k])>0);
-  const semVazao = drogaKeys.filter(k=>!vazoes[k]||parseFloat(vazoes[k])<=0);
+  // Inclui automaticamente as drogas personalizadas do grupo correspondente.
+  const customKeys=(config?.drogasCustom||[]).filter(d=>gruposCustom.includes(d.grupo)).map(d=>d.key);
+  const todasKeys=[...new Set([...drogaKeys,...customKeys])];
+  const comVazao = todasKeys.filter(k=>vazoes[k]&&parseFloat(vazoes[k])>0);
+  const semVazao = todasKeys.filter(k=>!vazoes[k]||parseFloat(vazoes[k])<=0);
   const [mostrarChips, setMostrarChips] = useState(false);
 
   return (
@@ -5307,7 +5309,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("nAnalg")) p.push(`- Analgesia: ${get("nAnalg")}`);
     if(get("n24h")) p.push(`- Controles 24h: ${get("n24h")}`);
     if(vis.nPsiq&&get("nPsiq")) p.push(`- Psicoativos: ${get("nPsiq")}`);
-    {const NK=["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"];
+    {const NK=["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina",...(config?.drogasCustom||[]).filter(d=>["sedacao","analgesia"].includes(d.grupo)).map(d=>d.key)];
     const vz=leito.drogasVazao||{};const fD=d=>{const n=parseFloat(d);if(isNaN(n))return d;return n<1?n.toFixed(3):n.toFixed(2);};
     const nd=NK.filter(k=>vz[k]&&parseFloat(vz[k])>0).map(k=>{
       const cf=DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k);
@@ -5325,7 +5327,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const txtCvFull = () => {
     const p=[];
     // DVA drogas de bomba
-    {const CK=["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato","amiodarona","furosemida"];
+    {const CK=["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato","amiodarona","furosemida",...(config?.drogasCustom||[]).filter(d=>d.grupo==="vasoativa").map(d=>d.key)];
     const vz=leito.drogasVazao||{};const fD=d=>{const n=parseFloat(d);if(isNaN(n))return d;return n<0.01?n.toFixed(4):n<1?n.toFixed(3):n.toFixed(2);};
     const cd=CK.filter(k=>vz[k]&&parseFloat(vz[k])>0).map(k=>{
       const cf=DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k);
@@ -5618,6 +5620,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {/* Bombas: Sedação/Analgesia */}
         <MiniBombas title="SEDAÇÃO / ANALGESIA (BOMBAS)"
           drogaKeys={["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"]}
+          gruposCustom={["sedacao","analgesia"]}
           peso={leito.peso} vazoes={leito.drogasVazao||{}} config={config}
           onVazaoChange={(k,v)=>onLeitoChange&&onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>
         </ClinicalGroup>
@@ -5657,6 +5660,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#f87171">
         {onLeitoChange&&<MiniBombas title="DVA / BOMBAS CARDIOVASCULARES"
           drogaKeys={["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato","amiodarona","furosemida"]}
+          gruposCustom={["vasoativa"]}
           peso={leito.peso} vazoes={leito.drogasVazao||{}} config={config}
           onVazaoChange={(k,v)=>onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>}
         {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
