@@ -4766,7 +4766,13 @@ function CulturasPanel({ culturas=[], onChange }) {
 
   const atualizar = (id, field, val) => onChange(culturas.map(c=>c.id===id?{...c,[field]:val}:c));
   const adicionarGerme = id => onChange(culturas.map(c=>c.id===id?{...c,germes:[...(c.germes||[]),{id:Date.now()+"",nome:"",resistencia:"",atbs:""}]}:c));
-  const atualizarGerme = (culturaId, germeId, field, val) => onChange(culturas.map(c=>c.id===culturaId?{...c,germes:(c.germes||[]).map(g=>g.id===germeId?{...g,[field]:val}:g)}:c));
+  const atualizarGerme = (culturaId, germeId, field, val) => onChange(culturas.map(c=>{
+    if(c.id!==culturaId)return c;
+    const germes=(c.germes||[]).map(g=>g.id===germeId?{...g,[field]:val}:g);
+    const temIdentificacao=germes.some(g=>String(g.nome||"").trim()||String(g.resistencia||"").trim());
+    const status=temIdentificacao&&["Aguardando","Parcial"].includes(c.status)?"Positiva":c.status;
+    return {...c,germes,status};
+  }));
   const removerGerme = (culturaId, germeId) => onChange(culturas.map(c=>c.id===culturaId?{...c,germes:(c.germes||[]).filter(g=>g.id!==germeId)}:c));
   const remover = (id) => onChange(culturas.filter(c=>c.id!==id));
 
@@ -6411,18 +6417,19 @@ function precaucaoMicrobiologica(culturas=[]) {
   const normalizar = valor => String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
   const registros = culturas.map(c=>({
     texto:normalizar(`${c.tipo||""} ${c.material||""} ${c.resultado||""} ${(c.germes||[]).map(g=>`${g.nome||""} ${g.resistencia||""} ${g.atbs||""}`).join(" ")}`),
+    achados:normalizar(`${c.resultado||""} ${(c.germes||[]).map(g=>`${g.nome||""} ${g.resistencia||""}`).join(" ")}`),
     status:normalizar(c.status),
     vigilancia:normalizar(c.tipo).includes("SWAB DE VIGILANCIA"),
     material:normalizar(c.material)
   }));
 
   // Aceita MDN (legenda institucional) e NDM (sigla microbiológica usual).
-  if(registros.some(c=>/\b(?:MDN|NDM)\b/.test(c.texto)))
-    return {cor:"#2563eb",fundo:"rgba(37,99,235,.13)",label:"MDN/NDM identificado"};
-  if(registros.some(c=>/\bKPC\b/.test(c.texto)||(c.vigilancia&&/\b(?:VRE|MTR)\b/.test(c.material)&&!["AGUARDANDO","PARCIAL","NEGATIVA"].includes(c.status))))
-    return {cor:"#dc2626",fundo:"rgba(220,38,38,.13)",label:"KPC, VRE ou MTR identificado"};
+  if(registros.some(c=>/\b(?:MDN|NDM)\b/.test(c.achados)))
+    return {cor:"#2563eb",fundo:"rgba(37,99,235,.22)",label:"MDN/NDM identificado"};
+  if(registros.some(c=>/\b(?:KPC|VRE|MTR)\b/.test(c.achados)||(c.vigilancia&&/\b(?:VRE|MTR)\b/.test(c.material)&&!["AGUARDANDO","PARCIAL","NEGATIVA"].includes(c.status))))
+    return {cor:"#dc2626",fundo:"rgba(220,38,38,.22)",label:"KPC, VRE ou MTR identificado"};
   if(registros.some(c=>c.status==="AGUARDANDO"||c.status==="PARCIAL"))
-    return {cor:"#eab308",fundo:"rgba(234,179,8,.13)",label:"Aguardando cultura ou swab"};
+    return {cor:"#eab308",fundo:"rgba(234,179,8,.22)",label:"Aguardando cultura ou swab"};
   return null;
 }
 
@@ -6439,7 +6446,10 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePr
   return <div ref={cardRef} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuOpen(true);}} onClick={()=>{if(!editingNome&&!menuOpen)onClick();}} title={`${precaucao?`${precaucao.label} · `:""}Clique para abrir · botão direito para ações`} style={{position:"relative",cursor:"pointer",borderRadius:10,padding:"10px 12px",background:precaucao?precaucao.fundo:(selecionado?T.bgSel:T.bgCard),border:`2px solid ${precaucao?precaucao.cor:(selecionado?T.accent:T.border)}`,marginBottom:7,boxShadow:selecionado?`0 0 0 2px ${T.accent}45`:T.shadowCard}}>
     {editingNome?<input autoFocus value={nomeTemp} onChange={e=>setNomeTemp(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirmarNome();if(e.key==="Escape"){setEditingNome(false);setNomeTemp(leito.nome);}}} onBlur={confirmarNome} onClick={e=>e.stopPropagation()} style={{width:"100%",background:T.bgInput,border:`1px solid ${T.accentBorder}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:11}}/>:<>
       <div style={{fontSize:10,color:T.text3,fontFamily:mono,letterSpacing:1.5,whiteSpace:"normal",overflowWrap:"anywhere",lineHeight:1.35}}>{leito.nome}</div>
-      <div style={{fontSize:13,color:leito.paciente?T.text1:T.textDim,fontWeight:leito.paciente?650:400,fontStyle:leito.paciente?"normal":"italic",marginTop:3,whiteSpace:"normal",overflowWrap:"anywhere",wordBreak:"normal",lineHeight:1.35}}>{leito.paciente||"Vago"}</div>
+      <div style={{display:"flex",alignItems:"flex-start",gap:6,marginTop:3}}>
+        {precaucao&&<span title={precaucao.label} style={{width:8,height:8,borderRadius:"50%",background:precaucao.cor,boxShadow:`0 0 0 2px ${precaucao.cor}30`,marginTop:5,flex:"0 0 auto"}}/>}
+        <div style={{fontSize:13,color:leito.paciente?T.text1:T.textDim,fontWeight:leito.paciente?650:400,fontStyle:leito.paciente?"normal":"italic",whiteSpace:"normal",overflowWrap:"anywhere",wordBreak:"normal",lineHeight:1.35}}>{leito.paciente||"Vago"}</div>
+      </div>
     </>}
     {menuOpen&&<div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:7,right:7,zIndex:40,display:"flex",gap:4,padding:"4px",borderRadius:8,background:T.bgPicker,border:`1px solid ${T.borderStrong}`,boxShadow:"0 8px 24px rgba(0,0,0,.28)"}}>
       <button onClick={()=>{onTogglePrioridade&&onTogglePrioridade();setMenuOpen(false);}} title={leito.prioritario?"Remover dos prioritários":"Favoritar leito"} style={{border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:leito.prioritario?"#fbbf24":T.text3,padding:"4px 7px",cursor:"pointer"}}>{leito.prioritario?"★":"☆"}</button>
