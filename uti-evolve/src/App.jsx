@@ -6423,6 +6423,7 @@ function precaucaoMicrobiologica(culturas=[]) {
     material:normalizar(c.material)
   }));
 
+  // Prioridade institucional: azul > vermelho > amarelo.
   // Aceita MDN (legenda institucional) e NDM (sigla microbiológica usual).
   if(registros.some(c=>/\b(?:MDN|NDM)\b/.test(c.achados)))
     return {cor:"#2563eb",fundo:"rgba(37,99,235,.22)",label:"MDN/NDM identificado"};
@@ -7777,11 +7778,13 @@ export default function App() {
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
               {leitosOrdenados.map(l=>{
                 const rotulo = (l.nome.match(/\d+/)||[])[0] || l.nome.slice(0,2).toUpperCase();
+                const precaucao = precaucaoMicrobiologica(l.culturas||[]);
+                const ativo = l.id===leitoSelId&&viewGlobal==="leitos";
                 return (
                   <button key={l.id}
                     onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setViewGlobal("leitos");}}
-                    title={`${l.nome}${l.paciente?" — "+l.paciente:""}`}
-                    style={{width:40,height:40,borderRadius:10,background:(l.id===leitoSelId&&viewGlobal==="leitos")?T.accentBg:T.bgCard,border:`1.5px solid ${(l.id===leitoSelId&&viewGlobal==="leitos")?T.accent:T.border}`,color:(l.id===leitoSelId&&viewGlobal==="leitos")?T.accent:T.text3,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:mono,flexShrink:0}}>
+                    title={`${l.nome}${l.paciente?" — "+l.paciente:""}${precaucao?" · "+precaucao.label:""}`}
+                    style={{width:40,height:40,borderRadius:10,background:precaucao?precaucao.fundo:(ativo?T.accentBg:T.bgCard),border:`2px solid ${precaucao?precaucao.cor:(ativo?T.accent:T.border)}`,boxShadow:ativo?`0 0 0 2px ${T.accent}55`:"none",color:precaucao?precaucao.cor:(ativo?T.accent:T.text3),fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:mono,flexShrink:0}}>
                     {rotulo}
                   </button>
                 );
