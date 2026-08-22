@@ -1889,6 +1889,11 @@ function lblDiaAtb(d) {
   if (d === null || d === undefined) return null;
   return d <= 0 ? "<24h" : `D${d}`;
 }
+function ultimoValorTabela(tabela={},keys=[]) {
+  const ds=Object.keys(tabela||{}).filter(k=>/^\d{4}-\d{2}-\d{2}/.test(k)).sort().reverse();
+  for(const d of ds)for(const key of keys){const valor=tabela[d]?.[key];if(valor!==undefined&&valor!==null&&String(valor).trim())return {valor,data:d.slice(0,10)};}
+  return null;
+}
 
 function atbAjusteRenal(nomeAtb, clcr) {
   const key = nomeAtb.trim().toLowerCase();
@@ -1938,7 +1943,7 @@ function contarAlertasLeito(leito, tabelaData, config={}) {
   return n;
 }
 
-function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", idadeAnos=null, sexo="M", clcrOverride=null }) {
+function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", idadeAnos=null, sexo="M", clcrOverride=null, vancocinemia=null }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const hoje = new Date().toISOString().split("T")[0];
@@ -2064,6 +2069,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                   placeholder="Dias planejados" title="Duração planejada da terapia"
                   style={{width:112,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"4px 6px",color:T.text2,fontSize:11}}/>
               </div>
+              {/vancom/i.test(atb.nome||"")&&<div style={{marginTop:6,padding:"5px 8px",borderRadius:6,background:"rgba(56,189,248,.07)",border:"1px solid rgba(56,189,248,.20)",display:"flex",alignItems:"center",gap:7,fontSize:10,fontFamily:mono}}><span style={{color:"#38bdf8",fontWeight:700}}>Vancocinemia</span>{vancocinemia?.valor?<><strong style={{color:T.text1}}>{vancocinemia.valor}</strong><span style={{color:T.text4}}>{vancocinemia.data?fmtData(vancocinemia.data):""}</span></>:<span style={{color:T.text4}}>sem dosagem registrada</span>}</div>}
 
               {/* Alerta renal — só se relevante */}
               {(()=>{
@@ -5536,9 +5542,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(d.tipo==="parenteral"&&d.suplementacaoNPT) dl+=` · suplementação: ${d.suplementacaoNPT}`;
       p.push(dl);
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
-    const rf=avaliarRealimentacao(leito,tabelaDataLeito);
-    if(rf.aspen) p.push(`- Alerta de realimentação (ASPEN): possível ${rf.gravidade||"síndrome"}${rf.quedaMax>=10?` · queda ${rf.eletrólito} ${rf.quedaMax.toFixed(0)}% em até 5 dias`:""} — requer correlação clínica`);
-    else if(rf.alto) p.push(`- Risco de realimentação: alto risco pelos critérios NICE (${rf.criterios.join(", ")})`);
     if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h")) p.push(`- 24h: ${get("tg24h")}`);
     const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
@@ -6033,7 +6036,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             crSerico={(()=>{const ds=Object.keys(tabelaDataLeito||{}).filter(k=>!k.startsWith("_")).sort().reverse();for(const d of ds){if(tabelaDataLeito[d]?.cr)return tabelaDataLeito[d].cr;}return "";})()}
             peso={leito.peso||""}
             idadeAnos={idadeDoLeito(leito)}
-            sexo={leito.sexo||"M"}/>
+            sexo={leito.sexo||"M"}
+            vancocinemia={ultimoValorTabela(tabelaDataLeito,["_extra_vancocinemia","_extra_vancomicinemia"])}/>
           {/* ── Sugestão de ajuste de dose por ClCr, inline por ATB — ações rápidas ── */}
           {(()=>{
             const crHojeIn=(()=>{const ds=Object.keys(tabelaDataLeito||{}).filter(k=>!k.startsWith("_")).sort().reverse();for(const d of ds){if(tabelaDataLeito[d]?.cr)return tabelaDataLeito[d].cr;}return "";})();
@@ -6380,83 +6384,24 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
 function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePrioridade }) {
-  const T = useTheme();
-  const dias = diasInternacao(leito.dataInternacao);
-  const vago = !leito.paciente;
-  const [editingNome, setEditingNome] = useState(false);
-  const [nomeTemp, setNomeTemp] = useState(leito.nome);
-
-  const confirmarNome = () => {
-    if (nomeTemp.trim()) onRename(nomeTemp.trim());
-    setEditingNome(false);
-  };
-
-  return (
-    <div style={{cursor:"pointer",borderRadius:12,padding:"14px 16px",background:selecionado?T.bgSel:T.bgCard,border:`1.5px solid ${selecionado?T.accent:T.border}`,transition:"all 0.2s",marginBottom:8,boxShadow:selecionado?"none":T.shadowCard}} onClick={e=>{if(!editingNome) onClick();}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-        {editingNome ? (
-          <input autoFocus value={nomeTemp}
-            onChange={e=>setNomeTemp(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter")confirmarNome(); if(e.key==="Escape"){setEditingNome(false);setNomeTemp(leito.nome);}}}
-            onBlur={confirmarNome}
-            onClick={e=>e.stopPropagation()}
-            style={{fontSize:11,fontFamily:mono,letterSpacing:1,color:T.accent,background:T.accentBg,border:`1px solid ${T.accentBorder}`,borderRadius:4,padding:"2px 6px",width:"100%"}}/>
-        ) : (
-          <span style={{fontSize:11,color:T.text3,fontFamily:mono,letterSpacing:2}}
-            onDoubleClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}>
-            {leito.nome}
-          </span>
-        )}
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          {!editingNome&&<button onClick={e=>{e.stopPropagation();onTogglePrioridade&&onTogglePrioridade();}}
-            title={leito.prioritario?"Remover dos leitos prioritários":"Fixar entre os leitos prioritários"}
-            style={{background:"none",border:"none",color:leito.prioritario?"#fbbf24":T.text4,cursor:"pointer",fontSize:15,padding:"0 2px",lineHeight:1}}>{leito.prioritario?"★":"☆"}</button>}
-          {!editingNome && dias!==null && !vago && <span style={{fontSize:11,color:"#a78bfa",fontWeight:700}}>D{dias}</span>}
-          {!editingNome && (
-            <button onClick={e=>{e.stopPropagation();setEditingNome(true);setNomeTemp(leito.nome);}}
-              title="Renomear leito"
-              style={{background:"none",border:"none",color:T.text4,cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>✏️</button>
-          )}
-          {onRemove && (
-            <button onClick={e=>{e.stopPropagation();if(confirm(`Remover ${leito.nome}?`))onRemove();}}
-              title="Remover leito"
-              style={{background:"none",border:"none",color:T.text4,cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1}}>🗑️</button>
-          )}
-        </div>
-      </div>
-      {vago ? <div style={{fontSize:13,color:T.textDim,marginTop:4,fontStyle:"italic"}}>Vago</div> : <>
-        <div style={{fontSize:14,color:T.text1,marginTop:2,fontWeight:600}}>{leito.paciente}</div>
-        <div style={{fontSize:12,color:T.text2,marginTop:2}}>{leito.diagnostico}</div>
-        {(leito.peso||leito.altura)&&<div style={{fontSize:11,color:T.text3,marginTop:3}}>{leito.peso?`${leito.peso} kg`:""}{leito.peso&&leito.altura?" · ":""}{leito.altura?`${leito.altura} cm`:""}</div>}
-        {(leito.procedimentos||[]).length>0&&(
-          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
-            {leito.procedimentos.map(p=>{
-              const po=Math.floor((new Date()-new Date(p.data+"T00:00:00"))/86400000);
-              const cor=po===0?"#f87171":po<=3?"#fb923c":po<=7?"#fbbf24":"#34d399";
-              return <span key={p.id} style={{fontSize:10,fontFamily:mono,color:cor,background:`rgba(${po===0?"248,113,113":po<=3?"251,146,60":po<=7?"245,158,11":"52,211,153"},0.1)`,border:`1px solid ${cor}44`,borderRadius:4,padding:"1px 6px"}}>{po===0?"POI":`PO${po}`}</span>;
-            })}
-          </div>
-        )}
-        {(() => {
-          const d = leito.dispositivos || {};
-          const temAlerta =
-            DISP_MULTIPLO.some(def=>(Array.isArray(d[def.key])?d[def.key]:[]).some(inst=>{
-              const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
-              return dd>def.alertaDias;
-            })) ||
-            DISP_SINGULAR.some(def=>{
-              if (!d[def.key]?.ativo||!d[def.key].data) return false;
-              const dd=Math.floor((new Date()-new Date(d[def.key].data+"T00:00:00"))/86400000);
-              return dd>def.alertaDias;
-            }) || (Array.isArray(d.custom)?d.custom:[]).some(inst=>{
-              if(!inst.data)return false;const dd=Math.floor((new Date()-new Date(inst.data+"T00:00:00"))/86400000);
-              return dd>(inst.alertaDias||21);
-            });
-          return temAlerta ? <div style={{marginTop:5,fontSize:10,color:"#f87171",fontFamily:mono}}>⚠️ Dispositivo p/ revisão</div> : null;
-        })()}
-      </>}
-    </div>
-  );
+  const T=useTheme();
+  const [editingNome,setEditingNome]=useState(false);
+  const [nomeTemp,setNomeTemp]=useState(leito.nome);
+  const [menuOpen,setMenuOpen]=useState(false);
+  const cardRef=useRef(null);
+  useEffect(()=>{const close=e=>{if(!cardRef.current?.contains(e.target))setMenuOpen(false);};document.addEventListener("mousedown",close);return()=>document.removeEventListener("mousedown",close);},[]);
+  const confirmarNome=()=>{if(nomeTemp.trim())onRename(nomeTemp.trim());setEditingNome(false);};
+  return <div ref={cardRef} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuOpen(true);}} onClick={()=>{if(!editingNome&&!menuOpen)onClick();}} title="Clique para abrir · botão direito para ações" style={{position:"relative",cursor:"pointer",borderRadius:10,padding:"10px 12px",background:selecionado?T.bgSel:T.bgCard,border:`1.5px solid ${selecionado?T.accent:T.border}`,marginBottom:7,boxShadow:selecionado?"none":T.shadowCard}}>
+    {editingNome?<input autoFocus value={nomeTemp} onChange={e=>setNomeTemp(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirmarNome();if(e.key==="Escape"){setEditingNome(false);setNomeTemp(leito.nome);}}} onBlur={confirmarNome} onClick={e=>e.stopPropagation()} style={{width:"100%",background:T.bgInput,border:`1px solid ${T.accentBorder}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:11}}/>:<>
+      <div style={{fontSize:10,color:T.text3,fontFamily:mono,letterSpacing:1.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{leito.nome}</div>
+      <div style={{fontSize:13,color:leito.paciente?T.text1:T.textDim,fontWeight:leito.paciente?650:400,fontStyle:leito.paciente?"normal":"italic",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{leito.paciente||"Vago"}</div>
+    </>}
+    {menuOpen&&<div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:7,right:7,zIndex:40,display:"flex",gap:4,padding:"4px",borderRadius:8,background:T.bgPicker,border:`1px solid ${T.borderStrong}`,boxShadow:"0 8px 24px rgba(0,0,0,.28)"}}>
+      <button onClick={()=>{onTogglePrioridade&&onTogglePrioridade();setMenuOpen(false);}} title={leito.prioritario?"Remover dos prioritários":"Favoritar leito"} style={{border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:leito.prioritario?"#fbbf24":T.text3,padding:"4px 7px",cursor:"pointer"}}>{leito.prioritario?"★":"☆"}</button>
+      <button onClick={()=>{setEditingNome(true);setNomeTemp(leito.nome);setMenuOpen(false);}} title="Editar nome do leito" style={{border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:T.text3,padding:"4px 7px",cursor:"pointer"}}>✏️</button>
+      {onRemove&&<button onClick={()=>{setMenuOpen(false);if(confirm(`Remover ${leito.nome}?`))onRemove();}} title="Excluir leito" style={{border:"1px solid rgba(248,113,113,.3)",borderRadius:5,background:"rgba(248,113,113,.08)",color:"#f87171",padding:"4px 7px",cursor:"pointer"}}>🗑️</button>}
+    </div>}
+  </div>;
 }
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -7963,6 +7908,7 @@ ${linha}`:linha}));
                     peso={leito.peso||""}
                     idadeAnos={idadeAnos}
                     sexo={leito.sexo||"M"}
+                    vancocinemia={ultimoValorTabela(tabelaData[leitoSelId]||{},["_extra_vancocinemia","_extra_vancomicinemia"])}
                     clcrOverride={(()=>{
                       const hoje2=new Date().toISOString().split("T")[0];
                       const sel=(leito.tfgSel||{})[hoje2];
