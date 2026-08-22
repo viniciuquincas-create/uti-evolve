@@ -5023,6 +5023,25 @@ function SerialMeasurements({title,fieldKey,fields=[],suggestedParams=[],value,o
   </div>;
 }
 
+// Interconsultas e exames complementares estruturados, com múltiplos registros por sistema.
+function ClinicalEvents({kind="interconsulta",value,onChange,color="#38bdf8",legacy=""}){
+  const T=useTheme();
+  const entries=Array.isArray(value)?value:[];
+  const isIC=kind==="interconsulta";
+  const add=()=>onChange([...entries,{id:`ce_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,data:new Date().toISOString().slice(0,10),titulo:"",avaliacao:"",conduta:"",resultado:""}]);
+  const upd=(id,key,val)=>onChange(entries.map(e=>e.id===id?{...e,[key]:val}:e));
+  const remove=id=>onChange(entries.filter(e=>e.id!==id));
+  return <div style={{marginTop:9,border:`1px solid ${color}33`,borderRadius:9,background:`${color}08`,overflow:"hidden"}}>
+    <div style={{display:"flex",alignItems:"center",padding:"7px 9px",borderBottom:entries.length?`1px solid ${color}22`:0}}><span style={{fontSize:10,fontFamily:mono,letterSpacing:1.2,color,fontWeight:700}}>{isIC?"INTERCONSULTAS":"EXAMES COMPLEMENTARES"}</span><button onClick={add} style={{marginLeft:"auto",padding:"3px 8px",borderRadius:6,border:`1px solid ${color}55`,background:`${color}12`,color,cursor:"pointer",fontSize:10,fontWeight:700}}>+ {isIC?"interconsulta":"exame"}</button></div>
+    {legacy&&<div style={{padding:"6px 9px",fontSize:9,color:T.text3,borderBottom:`1px dashed ${T.border}`}}>Registro anterior: {legacy}</div>}
+    {entries.map((e,i)=><div key={e.id} style={{padding:"8px 9px",borderTop:i?`1px solid ${T.border}`:0}}>
+      <div style={{display:"grid",gridTemplateColumns:"130px minmax(180px,1fr) auto",gap:6,alignItems:"end"}}><label style={{fontSize:9,color:T.text3}}>DATA<input type="date" value={e.data||""} onChange={x=>upd(e.id,"data",x.target.value)} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1,fontSize:10}}/></label><label style={{fontSize:9,color:T.text3}}>{isIC?"ESPECIALIDADE":"EXAME"}<input value={e.titulo||""} onChange={x=>upd(e.id,"titulo",x.target.value)} placeholder={isIC?"Ex.: Cardiologia":"Ex.: Ecocardiograma"} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1,fontSize:10}}/></label><button onClick={()=>remove(e.id)} title="Excluir" style={{height:28,border:0,background:"transparent",color:"#f87171",cursor:"pointer"}}>✕</button></div>
+      {isIC?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:6}}><label style={{fontSize:9,color:T.text3}}>AVALIAÇÃO<input value={e.avaliacao||""} onChange={x=>upd(e.id,"avaliacao",x.target.value)} placeholder="Parecer e avaliação da especialidade" style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10}}/></label><label style={{fontSize:9,color:T.text3}}>CONDUTA<input value={e.conduta||""} onChange={x=>upd(e.id,"conduta",x.target.value)} placeholder="Condutas propostas" style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10}}/></label></div>:<label style={{display:"block",fontSize:9,color:T.text3,marginTop:6}}>RESULTADO<input value={e.resultado||""} onChange={x=>upd(e.id,"resultado",x.target.value)} placeholder="Resultado ou status do exame" style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10}}/></label>}
+    </div>)}
+    {!entries.length&&!legacy&&<div style={{padding:"7px 9px",fontSize:10,color:T.text4}}>Nenhum registro.</div>}
+  </div>;
+}
+
 const SERIAL_MONITOR_CONFIG={
   nDTC:{title:"DTC — REGISTROS SERIADOS",color:"#a78bfa",fields:[{key:"bnoD",label:"Bainha do nervo óptico D"},{key:"bnoE",label:"Bainha do nervo óptico E"},{key:"acmIP",label:"ACM IP"},{key:"acmFVd",label:"ACM FVd"},{key:"lindegaard",label:"Lindegaard"}]},
   cvPocusSerial:{title:"POCUS — CICLO HEMODINÂMICO",color:"#f87171",subjective:true,calculator:"pocus-co",workflow:true,fields:[{key:"vciMax",label:"VCI maior (cm)",reference:"≤2,1"},{key:"vciMin",label:"VCI menor (cm)"},{key:"lvotDiam",label:"Diâmetro VSVE (cm)"},{key:"vtiVE",label:"VTI VE (cm)",reference:"18–22"},{key:"fc",label:"FC (bpm)"},{key:"vtiVD",label:"VTI VD"},{key:"ea",label:"E/A",reference:"0,8–2"},{key:"ee",label:"E/e'",reference:"<8; >14 alto"}],suggestedParams:[{key:"tacc",label:"TAcc (ms)",reference:">130"},{key:"fac",label:"FAC (%)",reference:"≥35%"},{key:"tapse",label:"TAPSE (mm)",reference:"≥17"},{key:"psap",label:"PSAP (mmHg)",reference:"≤35"}]},
@@ -5291,6 +5310,20 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     }).filter(Boolean);
   };
   const serialPanel=(fieldKey)=><SerialMeasurements fieldKey={fieldKey} {...SERIAL_MONITOR_CONFIG[fieldKey]} patient={leito} value={campos[fieldKey]} onChange={value=>onCampoEdit(fieldKey,value)}/>;
+  const eventPanel=(system,kind,color)=>{const key=`${system}_${kind}`;return <ClinicalEvents kind={kind} color={color} value={campos[key]} legacy={campos[`add_${system}_${kind}`]||""} onChange={value=>onCampoEdit(key,value)}/>;};
+  const eventText=(system,kind)=>{
+    const key=`${system}_${kind}`,entries=Array.isArray(campos[key])?campos[key]:[];
+    const legacy=String(campos[`add_${system}_${kind}`]||"").trim();
+    const rows=entries.filter(e=>e.titulo||e.avaliacao||e.conduta||e.resultado).map(e=>{
+      const data=e.data?new Date(`${e.data}T00:00:00`).toLocaleDateString("pt-BR"):"sem data";
+      const header=`- ${e.titulo|| (kind==="interconsulta"?"Especialidade não informada":"Exame não informado")} [${data}]`;
+      const sub=kind==="interconsulta"?[e.avaliacao?`  • Avaliação: ${e.avaliacao}`:null,e.conduta?`  • Conduta: ${e.conduta}`:null]:[e.resultado?`  • Resultado: ${e.resultado}`:null];
+      return [header,...sub.filter(Boolean)].join("\n");
+    });
+    if(legacy) rows.push(`- Registro anterior: ${legacy}`);
+    if(!rows.length)return "";
+    return `\n${kind==="interconsulta"?"Interconsultas":"Exames complementares"}:\n${rows.join("\n")}`;
+  };
 
   // ── txt funções completas (incluem opcionais/adicionáveis) ──
   const txtNFull = () => {
@@ -5316,12 +5349,12 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       const rs=cf?calcDoseFromMLH(k,vz[k],leito.peso,undefined,cf.modoCalcDefault,config):null;
       return `${cf?.label||k} ${vz[k]}mL/h${rs?` (≈${fD(rs.dose)} ${rs.label})`:""}`;
     });if(nd.length)p.push(`- Sedação/Analgesia (bombas): ${nd.join(" · ")}`);}
-    if(vis.add_n_interconsulta&&getExtra("add_n_interconsulta")) p.push(`- IC: ${getExtra("add_n_interconsulta")}`);
-    if(vis.add_n_exames&&getExtra("add_n_exames")) p.push(`- Exames: ${getExtra("add_n_exames")}`);
     p.push(...serialLines("nDTC","DTC"));
     if(vis.add_n_pocus&&getExtra("add_n_pocus")) p.push(`- POCUS: ${getExtra("add_n_pocus")}`);
     if(vis.nObs&&get("nObs")) p.push(`*${get("nObs")}`);
     p.push(...customLines("n"));
+    if(vis.add_n_interconsulta){const e=eventText("n","interconsulta");if(e)p.push(e);}
+    if(vis.add_n_exames){const e=eventText("n","exames");if(e)p.push(e);}
     return p.join("\n");
   };
   const txtCvFull = () => {
@@ -5365,9 +5398,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     }
     if(vis.cvMed&&get("cvMed")) p.push(`- Medicações: ${get("cvMed")}`);
     p.push(...serialLines("cvPerfusaoSerial","Perfusão"),...serialLines("cvPocusSerial","POCUS"),...serialLines("cvPiccoSerial","PiCCO"),...serialLines("cvSwanSerial","Swan-Ganz"),...serialLines("cvBiaSerial","BIA"));
-    if(vis.add_cv_interconsulta&&getExtra("add_cv_interconsulta")) p.push(`- IC: ${getExtra("add_cv_interconsulta")}`);
     if(vis.cvObs&&get("cvObs")) p.push(`*${get("cvObs")}`);
     p.push(...customLines("cv"));
+    if(vis.add_cv_interconsulta){const e=eventText("cv","interconsulta");if(e)p.push(e);}
+    if(vis.add_cv_exames){const e=eventText("cv","exames");if(e)p.push(e);}
     return p.join("\n");
   };
   const txtResFull = () => {
@@ -5390,10 +5424,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(vis.reLUS&&get("reLUS")) p.push(`- LUS: ${get("reLUS")}`);
     if(vis.rePocus&&get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
     p.push(...serialLines("reLusSerial","LUS"));
-    if(vis.add_res_exames&&getExtra("add_res_exames")) p.push(`- Exames: ${getExtra("add_res_exames")}`);
-    if(vis.add_res_interconsulta&&getExtra("add_res_interconsulta")) p.push(`- IC: ${getExtra("add_res_interconsulta")}`);
     if(vis.reObs&&get("reObs")) p.push(`*${get("reObs")}`);
     p.push(...customLines("res"));
+    if(vis.add_res_interconsulta){const e=eventText("res","interconsulta");if(e)p.push(e);}
+    if(vis.add_res_exames){const e=eventText("res","exames");if(e)p.push(e);}
     return p.join("\n");
   };
   const txtReMeFull = () => {
@@ -5402,9 +5436,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
     if(vis.rmTRS&&get("rmTRS")) p.push(`- TRS: ${get("rmTRS")}`);
     p.push(...serialLines("rmTrsSerial","TRS"),...serialLines("rmPocusSerial","POCUS renal"));
-    if(vis.add_reme_interconsulta&&getExtra("add_reme_interconsulta")) p.push(`- IC: ${getExtra("add_reme_interconsulta")}`);
     if(vis.rmObs&&get("rmObs")) p.push(`*${get("rmObs")}`);
     p.push(...customLines("reme"));
+    if(vis.add_reme_interconsulta){const e=eventText("reme","interconsulta");if(e)p.push(e);}
+    if(vis.add_reme_exames){const e=eventText("reme","exames");if(e)p.push(e);}
     return p.join("\n");
   };
   const txtTGIFull = () => {
@@ -5432,20 +5467,20 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(vis.tgPocus&&get("tgPocus")) p.push(`- POCUS: ${get("tgPocus")}`);
     p.push(...serialLines("tgPocusSerial","POCUS abdominal"));
-    if(vis.add_tgi_interconsulta&&getExtra("add_tgi_interconsulta")) p.push(`- IC: ${getExtra("add_tgi_interconsulta")}`);
-    if(vis.add_tgi_exames&&getExtra("add_tgi_exames")) p.push(`- Exames: ${getExtra("add_tgi_exames")}`);
     if(vis.tgObs&&get("tgObs")) p.push(`*${get("tgObs")}`);
     p.push(...customLines("tgi"));
+    if(vis.add_tgi_interconsulta){const e=eventText("tgi","interconsulta");if(e)p.push(e);}
+    if(vis.add_tgi_exames){const e=eventText("tgi","exames");if(e)p.push(e);}
     return p.join("\n");
   };
   const txtHeFull = () => {
     const p=[];
     if(get("heLabs")) p.push(`- Labs: ${get("heLabs")}`);
     if(get("heProf")) p.push(`- Profilaxia TEV: ${get("heProf")}`);
-    if(vis.add_he_interconsulta&&getExtra("add_he_interconsulta")) p.push(`- IC: ${getExtra("add_he_interconsulta")}`);
-    if(vis.add_he_exames&&getExtra("add_he_exames")) p.push(`- Exames: ${getExtra("add_he_exames")}`);
     if(vis.heObs&&get("heObs")) p.push(`*${get("heObs")}`);
     p.push(...customLines("he"));
+    if(vis.add_he_interconsulta){const e=eventText("he","interconsulta");if(e)p.push(e);}
+    if(vis.add_he_exames){const e=eventText("he","exames");if(e)p.push(e);}
     return p.join("\n");
   };
   const txtInFull = () => {
@@ -5466,10 +5501,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       }).join("\n");
     })();
     if(cText) p.push(`- Culturas:\n${cText}`);
-    if(vis.add_in_interconsulta&&getExtra("add_in_interconsulta")) p.push(`- IC: ${getExtra("add_in_interconsulta")}`);
-    if(vis.add_in_exames&&getExtra("add_in_exames")) p.push(`- Exames: ${getExtra("add_in_exames")}`);
     if(vis.inObs&&getExtra("inObs")) p.push(`*${getExtra("inObs")}`);
     p.push(...customLines("in"));
+    if(vis.add_in_interconsulta){const e=eventText("in","interconsulta");if(e)p.push(e);}
+    if(vis.add_in_exames){const e=eventText("in","exames");if(e)p.push(e);}
     return p.join("\n");
   };
 
@@ -5585,7 +5620,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <SysB id="n" sigla="== N:" label="Neurológico" color={"#a78bfa"} txtFn={txtNFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"n24h",label:"Controles 24h"},{key:"nEFExtra",label:"EF"},{key:"nPsiq",label:"Psicoativos"}]}
-        adicionaveis={[{key:"exames",label:"Exames Compl."},{key:"dtc",label:"DTC"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"dtc",label:"DTC"}]}
         statusFields={[{label:"RASS",value:campos.nRASS},{label:"Glasgow",value:campos.nGlasgow},{label:"Pupilas",value:campos.nPupilas},{label:"Motricidade",value:campos.nEF},{label:"Dor",value:campos.nDor}]} {...customProps("n")}>
         <ClinicalGroup label="AVALIAÇÃO" color="#a78bfa">
         <Row>
@@ -5625,8 +5660,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           onVazaoChange={(k,v)=>onLeitoChange&&onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>
         </ClinicalGroup>
         {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} rows={2} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_n_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_n_interconsulta")} defaultValue={campos["add_n_interconsulta"]} isAntigo={isAntigo("add_n_interconsulta")} rows={2} fieldName="add_n_interconsulta" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_n_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_n_exames")} defaultValue={campos["add_n_exames"]} isAntigo={isAntigo("add_n_exames")} rows={2} fieldName="add_n_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_n_interconsulta"]&&eventPanel("n","interconsulta","#a78bfa")}
+        {vis["add_n_exames"]&&eventPanel("n","exames","#a78bfa")}
         {vis["add_n_dtc"]&&serialPanel("nDTC")}
         {vis["add_n_pocus"]&&<Row><Col><FL>POCUS</FL><TA fieldRef={ExtraRef("add_n_pocus")} defaultValue={campos["add_n_pocus"]} isAntigo={isAntigo("add_n_pocus")} rows={2} fieldName="add_n_pocus" onBlurSave={salvar}/></Col></Row>}
         {vis["nObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.nObs} defaultValue={campos.nObs} isAntigo={isAntigo("nObs")} rows={2} fieldName="nObs" onBlurSave={salvar}/></Col></Row>}
@@ -5634,8 +5669,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
       <SysB id="cv" sigla="== Cv:" label="Cardiovascular" color={"#f87171"} txtFn={txtCvFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
-        opcionais={[{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"}]}
-        adicionaveis={[{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"},{key:"bia",label:"BIA"}]}
+        opcionais={[{key:"cvEF",label:"EF Cardiovascular (outros)"},{key:"cvMed",label:"Medicações"},{key:"cvTropo",label:"Troponina"},{key:"cvDeltaCO2",label:"ΔCO₂/ΔPP"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"},{key:"picco",label:"PiCCO"},{key:"swan",label:"Swan-Ganz"},{key:"bia",label:"BIA"}]}
         statusFields={[{label:"Hemodinâmica",value:campos.cvHemo},{label:"Ausculta",value:campos.cvAusculta},{label:"Cardioscopia",value:campos.cvCardioscopia}]} {...customProps("cv")}>
         <ClinicalGroup label="AVALIAÇÃO" color="#f87171">
         <Row>
@@ -5651,8 +5686,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <PickField label="Ausculta cardíaca"
               options={["BNF RCR 2T sem sopros","BHNF RCR 2T","BNF IRR 2T","Sopro sistólico","Sopro diastólico","HS audíveis"]}
               value={campos.cvAusculta||""} onChange={v=>onCampoEdit("cvAusculta",v)} rows={1}/>
-            <FL>EF Cardiovascular (outros)</FL>
-            <TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} rows={2} fieldName="cvEF" onBlurSave={salvar}/>
+            {vis.cvEF&&<><FL>EF Cardiovascular (outros)</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} rows={2} fieldName="cvEF" onBlurSave={salvar}/></>}
           </Col>
         </Row>
         </ClinicalGroup>
@@ -5712,8 +5746,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <FL>Obs. Troponina (manual)</FL>
           <TA fieldRef={refs.cvTropo} defaultValue={campos.cvTropo} isAntigo={isAntigo("cvTropo")} rows={1} fieldName="cvTropo" onBlurSave={salvar}/>
         </Col></Row>}
-        {vis["add_cv_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_cv_interconsulta")} defaultValue={campos["add_cv_interconsulta"]||""} sugestao="Cardiologia 29/04: Eco TT marcado" rows={1} fieldName="add_cv_interconsulta" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_cv_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_cv_exames")} defaultValue={campos["add_cv_exames"]||""} sugestao="ECG 29/04: RS, sem alterações" rows={1} fieldName="add_cv_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_cv_interconsulta"]&&eventPanel("cv","interconsulta","#f87171")}
+        {vis["add_cv_exames"]&&eventPanel("cv","exames","#f87171")}
         {vis["add_cv_pocus"]&&serialPanel("cvPocusSerial")}
         {vis["add_cv_picco"]&&serialPanel("cvPiccoSerial")}
         {vis["add_cv_swan"]&&serialPanel("cvSwanSerial")}
@@ -5724,7 +5758,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <SysB id="res" sigla="== Res:" label="Respiratório" color={"#38bdf8"} txtFn={txtResFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]}
-        adicionaveis={[{key:"lus",label:"LUS"},{key:"exames",label:"Exames Compl."}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"lus",label:"LUS"}]}
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]} {...customProps("res")}>
         {/* ── Suporte Ventilatório ── */}
         <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
@@ -5761,7 +5795,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </ClinicalGroup>
         {vis["rePocus"]&&<Row><Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} sugestao="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col></Row>}
         {vis["add_res_lus"]&&serialPanel("reLusSerial")}
-        {vis["add_res_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_res_exames")} defaultValue={campos["add_res_exames"]||""} sugestao="Rx tórax 29/04: sem novidades" rows={1} fieldName="add_res_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_res_interconsulta"]&&eventPanel("res","interconsulta","#38bdf8")}
+        {vis["add_res_exames"]&&eventPanel("res","exames","#38bdf8")}
         {vis["add_res_outro"]&&<Row><Col><FL>OUTRO</FL><TA fieldRef={ExtraRef("add_res_outro")} defaultValue={campos["add_res_outro"]||""} rows={1} fieldName="add_res_outro" onBlurSave={salvar}/></Col></Row>}
         {vis["reObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.reObs} defaultValue={campos.reObs} isAntigo={isAntigo("reObs")} sugestao="Tentar reduzir PS amanhã" rows={1} fieldName="reObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
@@ -5769,7 +5804,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={"#34d399"} txtFn={txtReMeFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]}
-        adicionaveis={[{key:"trs",label:"TRS"},{key:"pocus",label:"POCUS"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"trs",label:"TRS"},{key:"pocus",label:"POCUS"}]}
         statusFields={[{label:"24h — HD/BH",value:campos.rm24h},{label:"Labs renais",value:campos.rmLabs}]} {...customProps("reme")}>
         <ClinicalGroup label="FUNÇÃO RENAL E MONITORIZAÇÃO" color="#34d399">
         {/* Em uso de ATB? — somente leitura, refletindo o bloco Infeccioso (relevante p/ ajuste de dose renal) */}
@@ -5796,13 +5831,15 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {vis["rmTRS"]&&<ClinicalGroup label="TERAPIA RENAL SUBSTITUTIVA" color="#34d399"><Row><Col><FL>TRS (registro anterior)</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
         {vis["add_reme_trs"]&&serialPanel("rmTrsSerial")}
         {vis["add_reme_pocus"]&&serialPanel("rmPocusSerial")}
+        {vis["add_reme_interconsulta"]&&eventPanel("reme","interconsulta","#34d399")}
+        {vis["add_reme_exames"]&&eventPanel("reme","exames","#34d399")}
         {vis["rmObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} sugestao="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
       <SysB id="tgi" sigla="== TGI:" label="Gastrointestinal" color={"#fb923c"} txtFn={txtTGIFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"tgLabs",label:"Labs hepáticos"}]}
-        adicionaveis={[{key:"pocus",label:"POCUS"},{key:"exames",label:"Exames Compl."}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"pocus",label:"POCUS"}]}
         statusFields={[{label:"Via/Dieta",value:leito.dieta?.tipo},{label:"Última evacuação",value:campos.tgUltEvac}]} {...customProps("tgi")}>
                 {/* ── Dieta ── */}
         <ClinicalGroup label="NUTRIÇÃO E TERAPIA" color="#fb923c">
@@ -5843,23 +5880,23 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {(vis["tgLabs"]||campos.tgLabs)&&<Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} sugestao="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>}
         </div>
         </ClinicalGroup>
-        {vis["add_tgi_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_tgi_interconsulta")} defaultValue={campos["add_tgi_interconsulta"]||""} sugestao="Gastro 29/04: endoscopia não indicada no momento" rows={1} fieldName="add_tgi_interconsulta" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_tgi_interconsulta"]&&eventPanel("tgi","interconsulta","#fb923c")}
         {vis["add_tgi_pocus"]&&serialPanel("tgPocusSerial")}
-        {vis["add_tgi_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_tgi_exames")} defaultValue={campos["add_tgi_exames"]||""} sugestao="USG abdome 29/04: sem novidades" rows={1} fieldName="add_tgi_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_tgi_exames"]&&eventPanel("tgi","exames","#fb923c")}
         {vis["tgObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.tgObs} defaultValue={campos.tgObs} isAntigo={isAntigo("tgObs")} sugestao="Omeprazol para LAMG" rows={1} fieldName="tgObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
       <SysB id="he" sigla="== He:" label="Hematológico" color={"#f59e0b"} txtFn={txtHeFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]}
-        adicionaveis={[{key:"exames",label:"Exames Compl."}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
         statusFields={[{label:"Labs hematológicos",value:campos.heLabs},{label:"Profilaxia TEV",value:campos.heProf}]} {...customProps("he")}>
         <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#f59e0b">
         <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={1} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
         <ClinicalGroup label="PROFILAXIA TEV" color="#f59e0b"><Row><Col><PickField label="Modalidade" options={["Sem profilaxia TEV","HNF","Enoxaparina 40mg","Enoxaparina 20mg"]} value={campos.heProf||""} onChange={v=>onCampoEdit("heProf",v)} rows={1} placeholder="Digite outra modalidade..."/></Col></Row></ClinicalGroup>
-        {vis["add_he_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_he_interconsulta")} defaultValue={campos["add_he_interconsulta"]||""} sugestao="Hematologia 29/04: sem indicação de transfusão" rows={1} fieldName="add_he_interconsulta" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_he_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_he_exames")} defaultValue={campos["add_he_exames"]||""} sugestao="Mielograma solicitado" rows={1} fieldName="add_he_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_he_interconsulta"]&&eventPanel("he","interconsulta","#f59e0b")}
+        {vis["add_he_exames"]&&eventPanel("he","exames","#f59e0b")}
         {vis["heObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.heObs} defaultValue={campos.heObs} isAntigo={isAntigo("heObs")} sugestao="Aguarda cultura / BAAR negativo" rows={1} fieldName="heObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
@@ -5929,8 +5966,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           ) : <div style={{fontSize:10,color:"#334155",marginBottom:4}}>Nenhuma cultura. Adicione na aba 🧫 Culturas.</div>}
         </Col></Row>
         </ClinicalGroup>
-        {vis["add_in_interconsulta"]&&<Row><Col><FL>INTERCONSULTA</FL><TA fieldRef={ExtraRef("add_in_interconsulta")} defaultValue={campos["add_in_interconsulta"]||""} sugestao="ID 29/04: avaliar troca ATB aguardando culturas" rows={1} fieldName="add_in_interconsulta" onBlurSave={salvar}/></Col></Row>}
-        {vis["add_in_exames"]&&<Row><Col><FL>EXAMES COMPLEMENTARES</FL><TA fieldRef={ExtraRef("add_in_exames")} defaultValue={campos["add_in_exames"]||""} sugestao="Beta-D-glucana 29/04: pendente" rows={1} fieldName="add_in_exames" onBlurSave={salvar}/></Col></Row>}
+        {vis["add_in_interconsulta"]&&eventPanel("in","interconsulta","#94a3b8")}
+        {vis["add_in_exames"]&&eventPanel("in","exames","#94a3b8")}
         {vis["inObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={ExtraRef("inObs")} defaultValue={campos["inObs"]||""} sugestao="Reavaliação com culturas em 48h" rows={1} fieldName="inObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
