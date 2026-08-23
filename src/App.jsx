@@ -154,7 +154,7 @@ const DROGAS_PROTOCOLO = {
     doseInfo:"20 – 50 mcg/hora  (dose sem ajuste por peso)\nCom ajuste: 0,5 – 3 mcg/kg/h\nAnalgesia em VM: 25–100 mcg/h\nAtingir score de dor ≤ 3 (BPS ou CPOT)",
   },
   precedex: {
-    label:"Precedex (Dex)", grupo:"sedacao",
+    label:"Precedex", grupo:"sedacao",
     diluicaoDesc:"4 mL (200 mcg) em SF0,9% 96 mL → 100 mL",
     concMcgML: 2,
     modoCalcDefault:"mcg_kg_h",
@@ -163,7 +163,7 @@ const DROGAS_PROTOCOLO = {
     doseInfo:"0,2 – 1,5 mcg/kg/h\nSem ventilação mecânica: 0,2–0,7 mcg/kg/h\nCom VM: pode usar até 1,5 mcg/kg/h\nVantagem: manutenção da cooperação (sedação colaborativa)",
   },
   cetamina: {
-    label:"Cetamina (S+)", grupo:"analgesia",
+    label:"Cetamina", grupo:"analgesia",
     diluicaoDesc:"10 mL escetamina (500 mg) em SG5% 90 mL → 100 mL · 5 mg/mL",
     concMcgML: 5000,
     modoCalcDefault:"mg_kg_h",
@@ -241,29 +241,43 @@ const MODOS_CALC = {
   "mcg_kg_min": { label:"mcg/kg/min", fn:(mlh,conc,peso)=>peso?((mlh*conc)/(peso*60)).toFixed(4):null },
   "mcg_kg_h":   { label:"mcg/kg/h",   fn:(mlh,conc,peso)=>peso?((mlh*conc)/peso).toFixed(2):null },
   "mg_kg_h":    { label:"mg/kg/h",    fn:(mlh,conc,peso)=>peso?((mlh*conc/1000)/peso).toFixed(3):null },
+  "mg_kg_min":  { label:"mg/kg/min",  fn:(mlh,conc,peso)=>peso?((mlh*conc/1000)/(peso*60)).toFixed(4):null },
   "mg_h":       { label:"mg/h",       fn:(mlh,conc,_)=>((mlh*conc/1000)).toFixed(2) },
+  "mg_min":     { label:"mg/min",     fn:(mlh,conc,_)=>((mlh*conc/1000)/60).toFixed(3) },
   "mcg_min":    { label:"mcg/min",    fn:(mlh,conc,_)=>((mlh*conc)/60).toFixed(1) },
-  "ui_min":     { label:"UI/min",     fn:(mlh,_,__)=>null }, // tratado separado
+  "ui_min":     { label:"UI/min",     fn:(mlh,_,__)=>null },
+  "ui_h":       { label:"UI/h",       fn:(mlh,_,__)=>null },
+  "ui_kg_h":    { label:"UI/kg/h",    fn:(mlh,_,__)=>null },
+  "ui_kg_min":  { label:"UI/kg/min",  fn:(mlh,_,__)=>null },
+};
+
+const getDrogaConfig=(drogaKey,config={})=>{
+  const padrao=DROGAS_PROTOCOLO[drogaKey];
+  if(padrao)return {...padrao,...(config?.drogasPadrao?.[drogaKey]||{})};
+  return (config?.drogasCustom||[]).find(d=>d.key===drogaKey)||null;
 };
 
 // mL/h → dose
-function calcDoseFromMLH(drogaKey, mlh, peso, concCustom, modoCustom, config={}) {
-  const mlhN = parseFloat(mlh), p = parseFloat(peso);
+function calcDoseFromMLH(drogaKey, mlh, peso, concCustom, modoCustom, config={}, pesoPreditoValor=null) {
+  const mlhN = parseFloat(mlh);
   if (!mlhN || mlhN <= 0) return null;
   // Check protocol first, then custom drugs from config
-  const conf = DROGAS_PROTOCOLO[drogaKey]
-    || (config?.drogasCustom||[]).find(d=>d.key===drogaKey)
-    || null;
+  const conf = getDrogaConfig(drogaKey,config);
   if (!conf) return null;
+  const p = parseFloat(conf.pesoBase==="predito"?pesoPreditoValor:peso);
+  const modoKey = modoCustom || (config?.drogasModo?.[drogaKey]) || conf.modoCalcDefault;
   const conc = concCustom !== undefined ? parseFloat(concCustom) : conf.concMcgML;
   // vasopressina UI
-  if (conf.modoCalcDefault === "ui_min" && !modoCustom) {
-    const uiMin = mlhN * conf.concUIML / 60;
-    return { dose: uiMin.toFixed(4), label: "UI/min" };
+  if (modoKey.startsWith("ui_")) {
+    const concUI=parseFloat(conf.concUIML);
+    if(!concUI||concUI<=0)return null;
+    let dose=mlhN*concUI;
+    if(modoKey.endsWith("_min"))dose/=60;
+    if(modoKey.includes("_kg_")){if(!p||p<=0)return null;dose/=p;}
+    return { dose: dose.toFixed(4), label: MODOS_CALC[modoKey]?.label||modoKey };
   }
   if (!conc || conc <= 0) return null;
   // Modo: config override > modoCustom > default do protocolo
-  const modoKey = modoCustom || (config?.drogasModo?.[drogaKey]) || conf.modoCalcDefault;
   const modo = MODOS_CALC[modoKey];
   if (!modo) return null;
   const dose = modo.fn(mlhN, conc, p);
@@ -586,7 +600,7 @@ function ProcedimentosPanel({ procedimentos=[], onChange }) {
 // ── DrogasCalculadora ─────────────────────────────────────────────────────────
 const GRUPOS = { vasoativa:"Vasoativas", sedacao:"Sedação", analgesia:"Analgesia" };
 
-function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, config={} }) {
+function DrogasCalculadora({ peso, pesoPreditoValor=null, onLancarDroga, vazoes={}, onVazaoChange, config={} }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const inputS = {
@@ -634,11 +648,11 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
 
   const [sug, setSug] = useState({}); // {id: true/false}
   const allDrugs = [
-    ...Object.entries(DROGAS_PROTOCOLO).map(([k,v])=>({key:k, label:v.label})),
+    ...Object.keys(DROGAS_PROTOCOLO).map(k=>({key:k, label:getDrogaConfig(k,config).label})),
     ...(config?.drogasCustom||[]).map(d=>({key:d.key, label:d.label})),
   ];
   // Merged protocol for dose calc
-  const getConf = (key) => DROGAS_PROTOCOLO[key] || (config?.drogasCustom||[]).find(d=>d.key===key) || null;
+  const getConf = (key) => getDrogaConfig(key,config);
 
   const fmtDose = (d) => {
     const n = parseFloat(d);
@@ -661,7 +675,7 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
 
       {list.map(drug=>{
         const conf = drug.key ? getConf(drug.key) : null;
-        const resultado = (conf && drug.mlh) ? calcDoseFromMLH(drug.key, drug.mlh, peso, undefined, conf?.modoCalcDefault, config) : null;
+        const resultado = (conf && drug.mlh) ? calcDoseFromMLH(drug.key, drug.mlh, peso, undefined, conf?.modoCalcDefault, config, pesoPreditoValor) : null;
         const acimaDose = resultado && conf?.max && parseFloat(resultado.dose)>conf.max;
         const filtered = allDrugs.filter(d=>d.label.toLowerCase().includes((drug.customName||"").toLowerCase()));
 
@@ -670,7 +684,7 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
             {/* Row: name | mlh | × */}
             <div style={{display:"flex", gap:8, alignItems:"center"}}>
               <div style={{flex:1, position:"relative"}}>
-                <input value={drug.customName||""}
+                <input value={drug.key?(conf?.label||drug.customName||""):(drug.customName||"")}
                   onChange={e=>{
                     const name=e.target.value;
                     const match=allDrugs.find(d=>d.label.toLowerCase()===name.toLowerCase());
@@ -695,7 +709,7 @@ function DrogasCalculadora({ peso, onLancarDroga, vazoes={}, onVazaoChange, conf
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                         <span>{d.label}</span>
                         <span style={{fontSize:10,color:"#475569"}}>
-                          {DROGAS_PROTOCOLO[d.key]?.diluicaoDesc?.split("→")[1]?.trim()||""}
+                          {getDrogaConfig(d.key,config)?.diluicaoDesc?.split("→")[1]?.trim()||""}
                         </span>
                       </div>
                     ))}
@@ -910,8 +924,8 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   if(leito.labSOFA){
     const sofas=datas.map(d=>calcSofa(scorePorData(d))).filter(s=>!(s.faltam||[]).length&&Number.isFinite(s.sofa)).map(s=>s.sofa);
     const base=dvaAtivas.length?rotuloChoque("Choque séptico"):"Sepse";
-    problemas.push({id:"sepse",texto:sofas.length?`${base} — SOFA ${evolucao(sofas)}`:base,detalhe:dvaAtivas.length?dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + "):"sem DVA ativa"});
-  }else if(dvaAtivas.length)problemas.push({id:"choque",texto:rotuloChoque("Choque"),detalhe:dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + ")});
+    problemas.push({id:"sepse",texto:sofas.length?`${base} — SOFA ${evolucao(sofas)}`:base,detalhe:dvaAtivas.length?dvaAtivas.map(([k])=>getDrogaConfig(k,config)?.label||k).join(" + "):"sem DVA ativa"});
+  }else if(dvaAtivas.length)problemas.push({id:"choque",texto:rotuloChoque("Choque"),detalhe:dvaAtivas.map(([k])=>getDrogaConfig(k,config)?.label||k).join(" + ")});
   if(leito.labACLF){
     const melds=datas.map(d=>calcMeldNa({bilirrubina:tabelaDataLeito[d]?.bttot,inr:tabelaDataLeito[d]?.rni,creatinina:tabelaDataLeito[d]?.cr,sodio:tabelaDataLeito[d]?.na})).filter(Boolean).map(s=>s.meldNa);
     const clifs=datas.map(d=>calcClifScores(scorePorData(d),idadeDoLeito(leito))).filter(s=>!(s.faltam||[]).length&&Number.isFinite(s.clifOF));
@@ -2027,6 +2041,7 @@ const ATB_RENAL = {
   "pip/tazo":        [{tfg:40,rec:"2,25g q8h (EV)"},{tfg:20,rec:"2,25g q8h (intervalo aumentado)"}],
   "pipe/tazo":       [{tfg:40,rec:"2,25g q8h (EV)"},{tfg:20,rec:"2,25g q8h (intervalo aumentado)"}],
   "pip-tazo":        [{tfg:40,rec:"2,25g q8h (EV)"},{tfg:20,rec:"2,25g q8h (intervalo aumentado)"}],
+  "piperacilina-tazobactam":[{tfg:40,rec:"2,25g q8h (EV)"},{tfg:20,rec:"2,25g q8h (intervalo aumentado)"}],
   "amp/sulbactam":   [{tfg:30,rec:"1,5-3g q12h"},{tfg:15,rec:"1,5-3g q24h"}],
   "ampicilina":      [{tfg:30,rec:"q8-12h"},{tfg:10,rec:"q12h"}],
   "cefepime":        [{tfg:60,rec:"2g q24h"},{tfg:30,rec:"1g q24h"},{tfg:11,rec:"500mg q24h"}],
@@ -2143,7 +2158,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
     // Carbapenems
     "Meropenem","Imipenem","Ertapenem",
     // Beta-lactâmicos
-    "Pip/Tazo (Piperacilina-Tazobactam)","Amp/Sulbactam","Ampicilina",
+    "Piperacilina-Tazobactam","Amp/Sulbactam","Ampicilina",
     "Cefepime","Ceftriaxona","Cefazolina","Ceftazidima","Ceftolozana-Tazobactam","Cefiderocol",
     // Glicopeptídeos
     "Vancomicina","Teicoplanina",
@@ -2766,13 +2781,15 @@ function SysBlock({ sigla, label, color="#38bdf8", preview, children }) {
 // ── Drogas Personalizadas — configuração no Settings ─────────────────────────
 const MODOS_LABELS = {
   "mcg_kg_min":"mcg/kg/min", "mcg_kg_h":"mcg/kg/h",
-  "mg_kg_h":"mg/kg/h", "mg_h":"mg/h", "mcg_min":"mcg/min",
+  "mg_kg_h":"mg/kg/h", "mg_kg_min":"mg/kg/min", "mg_h":"mg/h", "mg_min":"mg/min", "mcg_min":"mcg/min",
+  "ui_min":"UI/min", "ui_h":"UI/h", "ui_kg_h":"UI/kg/h", "ui_kg_min":"UI/kg/min",
 };
 
 function DrogasCustomConfig({ config, onChange }) {
   const mono = "'DM Mono',monospace";
   const T = useTheme();
   const [show, setShow] = useState(false);
+  const [showPadrao,setShowPadrao]=useState(false);
   const [form, setForm] = useState({
     label:"", grupo:"vasoativa", diluicaoDesc:"", concMcgML:"",
     modoCalcDefault:"mcg_kg_min", max:"", unidadeLabel:""
@@ -2797,9 +2814,26 @@ function DrogasCustomConfig({ config, onChange }) {
   };
 
   const remover = (key) => onChange({...config, drogasCustom: custom.filter(d=>d.key!==key)});
+  const atualizarPadrao=(key,campo,valor)=>onChange({...config,drogasPadrao:{...(config?.drogasPadrao||{}),[key]:{...(config?.drogasPadrao?.[key]||{}),[campo]:valor}}});
 
   return (
     <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,marginBottom:20,overflow:"hidden"}}>
+      <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        <div><div style={{fontSize:11,color:T.accent,fontFamily:mono,letterSpacing:2}}>SOLUÇÕES PADRÃO E CÁLCULO DE DOSE</div><div style={{fontSize:11,color:T.text3,marginTop:2}}>Edite nome, solução, concentração, unidade de dose e peso usado no cálculo.</div></div>
+        <button onClick={()=>setShowPadrao(v=>!v)} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:11}}>{showPadrao?"Fechar":"Editar soluções"}</button>
+      </div>
+      {showPadrao&&<div style={{padding:"8px 12px",borderBottom:`1px solid ${T.border}`,display:"grid",gap:6}}>
+        {Object.keys(DROGAS_PROTOCOLO).map(key=>{const d=getDrogaConfig(key,config);const usaPeso=String(d.modoCalcDefault||"").includes("_kg_");return <details key={key} style={{border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard}}>
+          <summary style={{padding:"8px 10px",cursor:"pointer",fontSize:11,fontWeight:700,color:T.text1}}>{d.label} <span style={{fontWeight:400,color:T.text3}}>· {MODOS_LABELS[d.modoCalcDefault]||d.modoCalcDefault}{usaPeso?` · peso ${d.pesoBase==="predito"?"predito":"real"}`:""}</span></summary>
+          <div style={{padding:"0 10px 10px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:7}}>
+            <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>NOME<input value={d.label||""} onChange={e=>atualizarPadrao(key,"label",e.target.value)} style={{display:"block",width:"100%",marginTop:3,padding:"6px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>
+            <label style={{fontSize:9,color:T.text3,fontFamily:mono,gridColumn:"span 2"}}>SOLUÇÃO / DILUIÇÃO<input value={d.diluicaoDesc||""} onChange={e=>atualizarPadrao(key,"diluicaoDesc",e.target.value)} style={{display:"block",width:"100%",marginTop:3,padding:"6px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>
+            <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>CONCENTRAÇÃO ({String(d.modoCalcDefault).startsWith("ui_")?"UI/mL":"mcg/mL"})<input type="number" value={String(d.modoCalcDefault).startsWith("ui_")?(d.concUIML??""):(d.concMcgML??"")} onChange={e=>atualizarPadrao(key,String(d.modoCalcDefault).startsWith("ui_")?"concUIML":"concMcgML",e.target.value)} style={{display:"block",width:"100%",marginTop:3,padding:"6px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>
+            <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>CÁLCULO<select value={d.modoCalcDefault||""} onChange={e=>atualizarPadrao(key,"modoCalcDefault",e.target.value)} style={{display:"block",width:"100%",marginTop:3,padding:"6px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}>{Object.entries(MODOS_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
+            <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PESO PARA O CÁLCULO<select value={d.pesoBase||"real"} disabled={!usaPeso} onChange={e=>atualizarPadrao(key,"pesoBase",e.target.value)} style={{display:"block",width:"100%",marginTop:3,padding:"6px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,opacity:usaPeso?1:.5}}><option value="real">Peso real</option><option value="predito">Peso predito</option></select></label>
+          </div>
+        </details>})}
+      </div>}
       <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",
         background:"rgba(255,255,255,0.02)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
@@ -3584,7 +3618,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const g=ultimaGaso(date);
     const fio2=numScore(date===hoje?(leito.vm_fio2||ultimoScore(date,"fio2")):ultimoScore(date,"fio2"));
     const po2=numScore(g.po2), sat=numScore(g.sato2)??numScore(ultimoLab(date,"c24_sat"));
-    const nora=date===hoje?calcDoseFromMLH("noradrenalina",leito.drogasVazao?.noradrenalina,leito.peso,undefined,undefined,config)?.dose:null;
+    const nora=date===hoje?calcDoseFromMLH("noradrenalina",leito.drogasVazao?.noradrenalina,leito.peso,undefined,undefined,config,pesoPredito(leito.altura,leito.sexo))?.dose:null;
     const circAnterior=ultimoScore(date,"circulacaoSofa")||ultimoScore(date,"circulacao");
     const pam=numScore(ultimoLab(date,"c24_pam"));
     const autoCirc=nora?(numScore(nora)>0.1?"dva_alta":"dva_media"):(date===hoje&&Object.values(leito.drogasVazao||{}).some(Boolean)?"dva_baixa":circAnterior||(pam!==null&&pam<70?"pam_baixa":"normal"));
@@ -5095,10 +5129,10 @@ function CulturasPanel({ culturas=[], onChange }) {
 
 
 // ── MiniBombas — drogas de bomba embedadas dentro de cada SysB ───────────────
-function MiniBombas({ title="BOMBAS", drogaKeys=[], gruposCustom=[], peso, vazoes={}, onVazaoChange, config={} }) {
+function MiniBombas({ title="BOMBAS", drogaKeys=[], gruposCustom=[], peso, pesoPreditoValor=null, vazoes={}, onVazaoChange, config={} }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
-  const getConf = (k) => DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k)||null;
+  const getConf = (k) => getDrogaConfig(k,config);
   const fmtDose = (d) => {
     const n=parseFloat(d); if(isNaN(n)) return d;
     if(n<0.001) return n.toExponential(2); if(n<0.01) return n.toFixed(4);
@@ -5128,7 +5162,7 @@ function MiniBombas({ title="BOMBAS", drogaKeys=[], gruposCustom=[], peso, vazoe
       {comVazao.map(k=>{
         const conf=getConf(k);
         const mlh=vazoes[k]||"";
-        const res=conf&&mlh?calcDoseFromMLH(k,mlh,peso,undefined,conf.modoCalcDefault,config):null;
+        const res=conf&&mlh?calcDoseFromMLH(k,mlh,peso,undefined,conf.modoCalcDefault,config,pesoPreditoValor):null;
         const acima=res&&conf?.max&&parseFloat(res.dose)>conf.max;
         return (
           <div key={k} className="mini-bomba-row" style={{marginBottom:4}}>
@@ -5714,8 +5748,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     {const NK=["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina",...(config?.drogasCustom||[]).filter(d=>["sedacao","analgesia"].includes(d.grupo)).map(d=>d.key)];
     const vz=leito.drogasVazao||{};const fD=d=>{const n=parseFloat(d);if(isNaN(n))return d;return n<1?n.toFixed(3):n.toFixed(2);};
     const nd=NK.filter(k=>vz[k]&&parseFloat(vz[k])>0).map(k=>{
-      const cf=DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k);
-      const rs=cf?calcDoseFromMLH(k,vz[k],leito.peso,undefined,cf.modoCalcDefault,config):null;
+      const cf=getDrogaConfig(k,config);
+      const rs=cf?calcDoseFromMLH(k,vz[k],leito.peso,undefined,cf.modoCalcDefault,config,pesoPredito(leito.altura,leito.sexo)):null;
       return `${cf?.label||k} ${vz[k]}mL/h${rs?` (≈${fD(rs.dose)} ${rs.label})`:""}`;
     });if(nd.length)p.push(`- Sedação/Analgesia (bombas): ${nd.join(" · ")}`);}
     p.push(...serialLines("nDTC","DTC"));
@@ -5732,8 +5766,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     {const CK=["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato","amiodarona","furosemida",...(config?.drogasCustom||[]).filter(d=>d.grupo==="vasoativa").map(d=>d.key)];
     const vz=leito.drogasVazao||{};const fD=d=>{const n=parseFloat(d);if(isNaN(n))return d;return n<0.01?n.toFixed(4):n<1?n.toFixed(3):n.toFixed(2);};
     const cd=CK.filter(k=>vz[k]&&parseFloat(vz[k])>0).map(k=>{
-      const cf=DROGAS_PROTOCOLO[k]||(config?.drogasCustom||[]).find(d=>d.key===k);
-      const rs=cf?calcDoseFromMLH(k,vz[k],leito.peso,undefined,cf.modoCalcDefault,config):null;
+      const cf=getDrogaConfig(k,config);
+      const rs=cf?calcDoseFromMLH(k,vz[k],leito.peso,undefined,cf.modoCalcDefault,config,pesoPredito(leito.altura,leito.sexo)):null;
       return `${cf?.label||k} ${vz[k]}mL/h${rs?` (≈${fD(rs.dose)} ${rs.label})`:""}`;
     });
     if(cd.length)p.push(`- DVA: ${cd.join(" · ")}`);}
@@ -6054,7 +6088,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <MiniBombas title="SEDAÇÃO / ANALGESIA (BOMBAS)"
           drogaKeys={["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina"]}
           gruposCustom={["sedacao","analgesia"]}
-          peso={leito.peso} vazoes={leito.drogasVazao||{}} config={config}
+          peso={leito.peso} pesoPreditoValor={pesoPredito(leito.altura,leito.sexo)} vazoes={leito.drogasVazao||{}} config={config}
           onVazaoChange={(k,v)=>onLeitoChange&&onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>
         </ClinicalGroup>
         {vis["nPsiq"]&&<Row><Col><FL>PSICOATIVOS</FL><TA fieldRef={refs.nPsiq} defaultValue={campos.nPsiq} isAntigo={isAntigo("nPsiq")} rows={2} fieldName="nPsiq" onBlurSave={salvar}/></Col></Row>}
@@ -6093,7 +6127,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {onLeitoChange&&<MiniBombas title="DVA / BOMBAS CARDIOVASCULARES"
           drogaKeys={["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato","amiodarona","furosemida"]}
           gruposCustom={["vasoativa"]}
-          peso={leito.peso} vazoes={leito.drogasVazao||{}} config={config}
+          peso={leito.peso} pesoPreditoValor={pesoPredito(leito.altura,leito.sexo)} vazoes={leito.drogasVazao||{}} config={config}
           onVazaoChange={(k,v)=>onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>}
         {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
         </ClinicalGroup>
@@ -6918,7 +6952,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
 
   const DRUG_LABELS = {
     propofol:"Propofol", midazolam:"Midazolam", fentanil:"Fentanil",
-    cetamina:"Cetamina (S+)", precedex:"Precedex (Dex)", morfina:"Morfina",
+    cetamina:"Cetamina", precedex:"Precedex", morfina:"Morfina",
     noradrenalina:"Noradrenalina", dobutamina:"Dobutamina", vasopressina:"Vasopressina",
     nitroglicerina:"Nitroglicerina", nitroprussiato:"Nitroprussiato",
     furosemida:"Furosemida", amiodarona:"Amiodarona",
@@ -8232,7 +8266,7 @@ export default function App() {
                 <div style={{flex:3,minWidth:320}}>
                   {leito.peso && <>
                     <SecTitle>CALCULADORA DE DROGAS — VAZÃO → DOSE</SecTitle>
-                    <DrogasCalculadora peso={leito.peso} onLancarDroga={(linha,campo)=>{
+                    <DrogasCalculadora peso={leito.peso} pesoPreditoValor={pesoPredito(leito.altura,leito.sexo)} onLancarDroga={(linha,campo)=>{
                       setEvolCamposComPersistencia(c=>({...c,[campo]:c[campo]?`${c[campo]}
 ${linha}`:linha}));
                       setEvolVersion(v=>v+1);
