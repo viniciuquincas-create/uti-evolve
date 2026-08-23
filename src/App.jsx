@@ -6143,26 +6143,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#fb923c">
         <div style={{padding:"12px 14px",border:"1px solid rgba(251,146,60,.22)",borderRadius:12,background:"linear-gradient(135deg,rgba(251,146,60,.055),rgba(251,146,60,.015))"}}>
         <Row>
-          <Col><FL>Última evacuação</FL>
-            <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <input type="date" value={campos.tgUltEvac||""} onChange={e=>onCampoEdit("tgUltEvac",e.target.value)}
-                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12}}/>
-              {campos.tgUltEvac&&<span style={{fontSize:11,color:"#94a3b8",fontFamily:"'DM Mono',monospace"}}>
-                {Math.floor((new Date()-new Date(campos.tgUltEvac+"T00:00:00"))/86400000)}d atrás
-              </span>}
-            </div>
-          </Col>
-          <Col><PickField label="Laxativos" options={["Sem laxativos","Lactulose","Macrogol","Bisacodil","Enema","Lactulose + Macrogol"]} value={campos.tgLaxativos||""} onChange={v=>onCampoEdit("tgLaxativos",v)} rows={1} placeholder="Digite o esquema..."/></Col>
-          <Col><FL>Profilaxia LAMG</FL>
-            <select value={campos.tgLAMG||""} onChange={e=>onCampoEdit("tgLAMG",e.target.value)}
-              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:12,cursor:"pointer"}}>
-              <option value="">— sem profilaxia —</option>
-              <option value="Omeprazol 40mg EV 1x/d">Omeprazol 40mg EV</option>
-              <option value="Esomeprazol 40mg SNE 1x/d">Esomeprazol SNE</option>
-              <option value="Omeprazol 80mg EV 1x/d">Omeprazol 80mg EV</option>
-              <option value="Pantoprazol 40mg EV 1x/d">Pantoprazol 40mg EV</option>
-            </select>
-          </Col>
+          <Col><FL>Última evacuação</FL><div style={{position:"relative"}}><input type="date" value={campos.tgUltEvac||""} onChange={e=>onCampoEdit("tgUltEvac",e.target.value)} style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/>{campos.tgUltEvac&&<span style={{position:"absolute",right:36,top:10,fontSize:9,color:T.text3,fontFamily:mono,pointerEvents:"none"}}>{Math.floor((new Date()-new Date(campos.tgUltEvac+"T00:00:00"))/86400000)}d</span>}</div></Col>
+          <Col><FL>Laxativos</FL><input list="tgi-laxativos" value={campos.tgLaxativos||""} onChange={e=>onCampoEdit("tgLaxativos",e.target.value)} placeholder="Sem laxativos ou esquema…" style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/><datalist id="tgi-laxativos">{["Sem laxativos","Lactulose","Macrogol","Bisacodil","Enema","Lactulose + Macrogol"].map(x=><option key={x} value={x}/>)}</datalist></Col>
+          <Col><FL>Profilaxia LAMG</FL><input list="tgi-lamg" value={campos.tgLAMG||""} onChange={e=>onCampoEdit("tgLAMG",e.target.value)} placeholder="Sem profilaxia ou esquema…" style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/><datalist id="tgi-lamg">{["Sem profilaxia","Omeprazol 40mg EV 1x/d","Esomeprazol 40mg SNE 1x/d","Omeprazol 80mg EV 1x/d","Pantoprazol 40mg EV 1x/d"].map(x=><option key={x} value={x}/>)}</datalist></Col>
         </Row>
 <Row>
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
