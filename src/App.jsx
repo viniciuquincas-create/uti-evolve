@@ -3656,8 +3656,8 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
       ...gasoExtraLines("ca","Ca","mmol/L"), ...gasoExtraLines("cl","Cl","mEq/L"),
     ];
     if (rmGasoExtra.length) rmStr = [rmStr, ...rmGasoExtra].filter(Boolean).join("\n");
-    const tgGasoExtra = gasoExtraLines("glic","Glicemia","mg/dL");
-    if (tgGasoExtra.length) tgStr = [tgStr, ...tgGasoExtra].filter(Boolean).join("\n");
+    const glicGasoExtra = gasoExtraLines("glic","Glicemia","mg/dL");
+    if (glicGasoExtra.length) rmStr = [rmStr, ...glicGasoExtra].filter(Boolean).join("\n");
     const heGasoExtra = gasoExtraLines("hb","Hb","g/dL");
     if (heGasoExtra.length) heStr = [heStr, ...heGasoExtra].filter(Boolean).join("\n");
     const lactTabela = pegar(["lact"]).replace(/^Lactato\s*/i,"");
@@ -3668,7 +3668,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const cvCtrl   = pegarCtrl(["c24_fc","c24_pam","c24_pas"]); // Cv: 24h
     const reCtrl   = pegarCtrl(["c24_fr","c24_sat"]);   // Res: 24h
     const bhStr    = pegarCtrl(["c24_diur","c24_bh"]);  // ReMe: 24h
-    const dextroStr= pegarCtrl(["c24_dextro"]);          // TGI: 24h
+    const dextroStr= pegarCtrl(["c24_dextro"]);          // ReMe: metabólico 24h
     const neuroCtrl24h = [
       getVal(chaveHoje,"c24_pic") ? `PIC ${getVal(chaveHoje,"c24_pic")} mmHg` : "",
       getVal(chaveHoje,"c24_dve") ? `DVE ${getVal(chaveHoje,"c24_dve")} mL` : "",
@@ -3706,10 +3706,11 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     if (tempStr)  campos.heTemp  = tempStr;
     if (cvCtrl)   campos.cv24h   = cvCtrl;
     if (reCtrl)   campos.re24h   = reCtrl;
-    if (bhStr)    campos.rm24h   = bhStr;
+    const rmCtrl=[bhStr,dextroStr].filter(Boolean).join(" · ");
+    if (rmCtrl)   campos.rm24h   = rmCtrl;
 
-    // TGI: glicemia + drenos dinâmicos
-    const tgCtrl = [dextroStr, drenosStr].filter(Boolean).join(" · ");
+    // TGI: drenos/evacuações; glicemia pertence ao metabólico
+    const tgCtrl = drenosStr;
     if (tgCtrl) campos.tg24h = tgCtrl;
 
     // TFG selecionada → inclui no campo renal da evolução
@@ -5380,6 +5381,22 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     impressao:useRef(),
   };
 
+  // Migra controles glicêmicos antigos do TGI para Renal/Metabólico sem perder o restante do texto.
+  useEffect(()=>{
+    const bruto=String(campos.tg24h||"");
+    const partes=bruto.split(/\s*·\s*|\n+/).map(x=>x.trim()).filter(Boolean);
+    const glic=partes.filter(x=>/^(dex(?:tro)?|glic(?:emia|\.?\s*capilar)?|hgt)\b/i.test(x));
+    if(!glic.length)return;
+    const restante=partes.filter(x=>!glic.includes(x)).join(" · ");
+    const renalAtual=String(campos.rm24h||"").trim();
+    const novos=glic.filter(x=>!renalAtual.toLowerCase().includes(x.toLowerCase()));
+    const renalNovo=[renalAtual,...novos].filter(Boolean).join(" · ");
+    if(refs.rm24h.current)refs.rm24h.current.value=renalNovo;
+    if(refs.tg24h.current)refs.tg24h.current.value=restante;
+    if(renalNovo!==renalAtual)salvar("rm24h",renalNovo);
+    salvar("tg24h",restante);
+  },[campos.tg24h]);
+
 
   const txtN = () => {
     const p=[];
@@ -6112,7 +6129,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"trs",label:"TRS"},{key:"pocus",label:"POCUS"}]}
-        statusFields={[{label:"24h — HD/BH",value:campos.rm24h},{label:"Labs renais",value:campos.rmLabs}]} {...customProps("reme")}>
+        statusFields={[{label:"24h — HD/BH/Dextro",value:campos.rm24h},{label:"Labs renais/metabólicos",value:campos.rmLabs}]} {...customProps("reme")}>
         <ClinicalGroup label="FUNÇÃO RENAL E MONITORIZAÇÃO" color="#34d399">
         {/* Em uso de ATB? — somente leitura, refletindo o bloco Infeccioso (relevante p/ ajuste de dose renal) */}
         {(()=>{
@@ -6132,7 +6149,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             </Col></Row>
           );
         })()}
-        <Row><Col><FL>24h — HD · BH</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} sugestao="HD 3000 / BH +1084 > +1508" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>24h — HD · BH · Dextro</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} sugestao="HD 3000 / BH +1084 > +1508 / Dextro 90–160" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
         <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={1} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
         {vis["rmTRS"]&&<ClinicalGroup label="TERAPIA RENAL SUBSTITUTIVA" color="#34d399"><Row><Col><FL>TRS (registro anterior)</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
@@ -6165,7 +6182,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </Row>
 <Row>
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — Dex · Evacuação</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} sugestao="Dex 105 - 167 | última evacuação 21/04" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — Evacuação · Drenos digestivos</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} sugestao="Evacuações 2x / dreno abdominal 120 mL" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
         </Row>
         {(vis["tgLabs"]||campos.tgLabs)&&<Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} sugestao="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>}
         </div>
