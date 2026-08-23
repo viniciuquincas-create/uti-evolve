@@ -1538,6 +1538,25 @@ function calcMechanicalPower(leito) {
   return {valor,formula:"Becher — PCV",driving:deltaPinsp};
 }
 
+const pontosExPres=(tipo,v)=>{
+  if(!Number.isFinite(v))return null;
+  if(tipo==="rsbi")return v<=42?25:v<=54?20:v<=76?10:v<=90?5:0;
+  if(tipo==="complacencia")return v>=63?15:v>=51?10:v>=43?7:v>=32?3:0;
+  if(tipo==="dias")return v>=11?0:v>=9?1:v>=6?4:v>=4?7:v>=1?10:null;
+  if(tipo==="egcs")return v>=13.5?10:v>=11.7?6:v>=8.9?3:0;
+  if(tipo==="mrc")return v>=49?10:v>=37?7:v>=25?4:v>=13?1:0;
+  if(tipo==="ht")return v>=37?10:v>=32?7:v>=26?3:v>=22?1:0;
+  if(tipo==="cr")return v<=.99?10:v<=1.2?7:v<=1.5?4:v<=2.9?1:0;
+  return null;
+};
+
+function calcularExPres({rsbi,complacencia,dias,egcs,mrc,ht,cr,neuro}){
+  const componentes={rsbi:pontosExPres("rsbi",rsbi),complacencia:pontosExPres("complacencia",complacencia),dias:pontosExPres("dias",dias),egcs:pontosExPres("egcs",egcs),mrc:pontosExPres("mrc",mrc),ht:pontosExPres("ht",ht),cr:pontosExPres("cr",cr),neuro:typeof neuro==="boolean"?(neuro?0:10):null};
+  const faltantes=Object.entries(componentes).filter(([,v])=>v===null).map(([k])=>k);
+  const total=faltantes.length?null:Object.values(componentes).reduce((a,b)=>a+b,0);
+  return {componentes,faltantes,total,faixa:total===null?"incompleto":total<=44?"baixa":total<=58?"intermediária":"alta"};
+}
+
 function gerarTextoVM(leito) {
   const modo = leito.vm_modo;
   if (!modo || modo === "ar_ambiente") return leito.vm_sato2 ? `Ar ambiente / SatO2 ${leito.vm_sato2}%` : "Ar ambiente";
@@ -1575,7 +1594,7 @@ function gerarTextoVM(leito) {
   return `${label}: ${partes.join(" / ")}${cuidados.length?`\n- Cuidados VM: ${cuidados.join("; ")}`:""}`;
 }
 
-function VentilacaoPanel({ leito, onChange, integrated=false }) {
+function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={} }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [busca, setBusca] = useState("");
@@ -1603,6 +1622,17 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
   const ppeak_est = leito.vm_ppico ? parseFloat(leito.vm_ppico) : null;
   const pf_calc = (po2>0&&fio2>0) ? Math.round(po2/(fio2/100)) : null;
   const mechanicalPower=calcMechanicalPower(leito);
+  const ultimoLab=(chaves)=>{
+    const datas=Object.keys(tabelaDataLeito||{}).sort().reverse();
+    for(const data of datas){for(const chave of chaves){const bruto=tabelaDataLeito[data]?.[chave];const valor=parseFloat(String(bruto??"").replace(",","."));if(Number.isFinite(valor))return {valor,data};}}
+    return {valor:null,data:""};
+  };
+  const htExPres=ultimoLab(["ht","hto","hematocrito"]),crExPres=ultimoLab(["cr","creatinina"]);
+  const tot=leito.dispositivos?.tot;
+  const diasTot=tot?.ativo&&tot.data?Math.max(0,Math.floor((new Date()-new Date(`${tot.data}T00:00:00`))/86400000)):null;
+  const numExPres=key=>{const n=parseFloat(String(leito[key]??"").replace(",","."));return Number.isFinite(n)?n:null;};
+  const rsbiPsv=(numExPres("vm_fr")!==null&&numExPres("vm_vt")>0)?numExPres("vm_fr")/(numExPres("vm_vt")/1000):null;
+  const exPres=calcularExPres({rsbi:numExPres("expres_rsbi"),complacencia:numExPres("expres_complacencia"),dias:diasTot,egcs:numExPres("expres_egcs"),mrc:numExPres("expres_mrc"),ht:htExPres.valor,cr:crExPres.valor,neuro:leito.expres_neuro==="sim"?true:leito.expres_neuro==="nao"?false:null});
   const suporteResumo = (()=>{
     const itens=[];
     if (["cn","ms","mnr"].includes(leito.vm_modo)&&leito.vm_o2) itens.push(`O₂ ${leito.vm_o2} L/min`);
@@ -1803,6 +1833,22 @@ function VentilacaoPanel({ leito, onChange, integrated=false }) {
               </div>
             </div>
           )}
+
+          {leito.vm_modo==="vm_psv"&&<div style={{marginBottom:10,padding:"11px 12px",borderRadius:10,background:"rgba(167,139,250,.06)",border:"1px solid rgba(167,139,250,.25)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:9}}>
+              <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1.2,fontWeight:800}}>ExPreS — PREDIÇÃO DE SUCESSO DA EXTUBAÇÃO</div>
+              {exPres.total!==null&&<span style={{padding:"3px 9px",borderRadius:10,fontSize:11,fontWeight:800,color:exPres.faixa==="alta"?"#34d399":exPres.faixa==="intermediária"?"#fbbf24":"#f87171",background:"rgba(255,255,255,.04)"}}>{exPres.total}/100 · probabilidade {exPres.faixa}</span>}
+              {exPres.total===null&&<span style={{fontSize:10,color:T.text3}}>Preencha os campos faltantes para calcular.</span>}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:8}}>
+              {[["expres_rsbi","RSBI no TRE","irpm/L"],["expres_complacencia","Complacência dinâmica","mL/cmH₂O"],["expres_egcs","Glasgow estimado","pontos"],["expres_mrc","Força muscular MRC","0–60"]].map(([key,label,unidade])=><label key={key} style={{fontSize:9,color:T.text3,fontFamily:mono}}>{label}<input type="number" value={leito[key]||""} onChange={e=>set(key,e.target.value)} placeholder={unidade} style={{display:"block",width:"100%",marginTop:3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text1,fontSize:11}}/></label>)}
+              <div style={{padding:"6px 8px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:10,color:T.text2}}><span style={{display:"block",fontSize:9,color:T.text3,fontFamily:mono}}>TEMPO DE VM</span>{diasTot===null?"TOT sem data de inserção":`${diasTot} dia(s) pelo TOT`}</div>
+              <div style={{padding:"6px 8px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:10,color:T.text2}}><span style={{display:"block",fontSize:9,color:T.text3,fontFamily:mono}}>HEMATÓCRITO</span>{htExPres.valor===null?"Não encontrado":`${htExPres.valor}% · ${htExPres.data}`}</div>
+              <div style={{padding:"6px 8px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:10,color:T.text2}}><span style={{display:"block",fontSize:9,color:T.text3,fontFamily:mono}}>CREATININA</span>{crExPres.valor===null?"Não encontrada":`${crExPres.valor} mg/dL · ${crExPres.data}`}</div>
+              <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>Comorbidade neurológica<select value={leito.expres_neuro||""} onChange={e=>set("expres_neuro",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text1,fontSize:11}}><option value="">Definir…</option><option value="nao">Não</option><option value="sim">Sim</option></select></label>
+            </div>
+            <div style={{marginTop:8,fontSize:9,color:T.text3,lineHeight:1.5}}>RSBI deve ser o medido ao fim do TRE. Estimativa atual em PSV: {rsbiPsv===null?"—":rsbiPsv.toFixed(0)} irpm/L. O escore é apoio à decisão e não substitui TRE, avaliação de proteção de via aérea ou julgamento clínico.</div>
+          </div>}
 
           {/* Observações */}
           <div>
@@ -5931,7 +5977,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]} {...customProps("res")}>
         {/* ── Suporte Ventilatório ── */}
         <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
-        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated/>}
+        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated tabelaDataLeito={tabelaDataLeito}/>}
         {!onLeitoChange&&leito.vm_modo&&(()=>{
           const vm2=VM_MODOS.find(m=>m.id===leito.vm_modo);
           return vm2?<div style={{padding:"6px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.1)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
