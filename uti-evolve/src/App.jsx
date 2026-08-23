@@ -883,11 +883,13 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
       pf:po2!==null&&fio2?String(Math.round(po2/(fio2/100))):"",sf:sat!==null&&fio2?String(Math.round(sat/(fio2/100))):"",fio2:fio2??"",gcs:atual?(campos.nGlasgow||valorAte(date,"gcs",true)):valorAte(date,"gcs",true),suporteResp:atual?(!!leito.vm_modo||!!valorAte(date,"suporteResp",true)):!!valorAte(date,"suporteResp",true),circulacao:autoCirc,circulacaoSofa:autoCirc,...salvo};
   };
   const evolucao=(valores,format=v=>v)=>valores.length?`${format(valores[0])}${valores.length>1?` → ${format(valores.at(-1))}`:""}`:"";
+  const tipoChoque=String(leito.tipoChoque||"").trim();
+  const rotuloChoque=base=>tipoChoque?`${base} (${tipoChoque})`:base;
   if(leito.labSOFA){
     const sofas=datas.map(d=>calcSofa(scorePorData(d))).filter(s=>!(s.faltam||[]).length&&Number.isFinite(s.sofa)).map(s=>s.sofa);
-    if(sofas.length)problemas.push({id:"sepse",texto:`${dvaAtivas.length?"Choque séptico":"Sepse"} — SOFA ${evolucao(sofas)}`,detalhe:dvaAtivas.length?dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + "):"sem DVA ativa"});
-    else problemas.push({id:"sepse",texto:`${dvaAtivas.length?"Choque séptico":"Sepse"} — SOFA incompleto`,detalhe:dvaAtivas.length?"DVA ativa; faltam variáveis para o SOFA":"faltam variáveis para o SOFA"});
-  }else if(dvaAtivas.length)problemas.push({id:"choque",texto:"Choque",detalhe:dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + ")});
+    const base=dvaAtivas.length?rotuloChoque("Choque séptico"):"Sepse";
+    problemas.push({id:"sepse",texto:sofas.length?`${base} — SOFA ${evolucao(sofas)}`:base,detalhe:dvaAtivas.length?dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + "):"sem DVA ativa"});
+  }else if(dvaAtivas.length)problemas.push({id:"choque",texto:rotuloChoque("Choque"),detalhe:dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + ")});
   if(leito.labACLF){
     const melds=datas.map(d=>calcMeldNa({bilirrubina:tabelaDataLeito[d]?.bttot,inr:tabelaDataLeito[d]?.rni,creatinina:tabelaDataLeito[d]?.cr,sodio:tabelaDataLeito[d]?.na})).filter(Boolean).map(s=>s.meldNa);
     const clifs=datas.map(d=>calcClifScores(scorePorData(d),idadeDoLeito(leito))).filter(s=>!(s.faltam||[]).length&&Number.isFinite(s.clifOF));
@@ -902,7 +904,8 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const crAtual=num(linhaAtual.cr??linhaAtual.creatinina),peso=num(leito.peso),diurese=num(linhaAtual.c24_diur);
   const atualMs=dataAtual?new Date(`${dataAtual.slice(0,10)}T12:00:00`).getTime():null;
   const crAnteriores=datas.slice(0,-1).map(d=>({data:d.slice(0,10),valor:num(tabelaDataLeito[d]?.cr??tabelaDataLeito[d]?.creatinina)})).filter(x=>x.valor!==null&&(!atualMs||atualMs-new Date(`${x.data}T12:00:00`).getTime()<=7*86400000));
-  const basal=crAnteriores.length?Math.min(...crAnteriores.map(x=>x.valor)):null;
+  const basalInformada=num(leito.creatininaBasal);
+  const basal=basalInformada??(crAnteriores.length?Math.min(...crAnteriores.map(x=>x.valor)):null);
   const cr48=crAnteriores.filter(x=>atualMs-new Date(`${x.data}T12:00:00`).getTime()<=2*86400000).map(x=>x.valor);
   let grauCr=0;
   if(crAtual!==null){if((basal!==null&&crAtual>=4&&crAtual-basal>=.3)||(basal&&crAtual>=3*basal))grauCr=3;else if(basal&&crAtual>=2*basal)grauCr=2;else if((basal&&crAtual>=1.5*basal)||cr48.some(v=>crAtual-v>=.3))grauCr=1;}
@@ -911,9 +914,19 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const trsTexto=String(campos.rmTRS||"").toLowerCase();
   const emTRS=/(hemodi|di[aá]lise|\btrs\b|crrt|cvvh)/i.test(trsTexto)&&!/(sem|suspensa|não|nao)\s+(hemodi|di[aá]lise|trs|crrt|cvvh)/i.test(trsTexto);
   const grau=Math.max(grauCr,grauDiurese,emTRS?3:0);
-  if(grau>0){const criterios=[];if(emTRS)criterios.push("TRS");if(crAtual!==null)criterios.push(`Cr ${crAtual}${basal!==null?` (basal ${basal})`:""}`);if(debitoKgH!==null)criterios.push(`DU ${debitoKgH.toFixed(2).replace(".",",")} mL/kg/h`);problemas.push({id:"lra",texto:`Lesão Renal Aguda — KDIGO ${grau}`,detalhe:`estimado: ${criterios.join(" · ")}`});}
+  const eletrolitos=[];
+  const addDist=(key,baixo,alto,nomeBaixo,nomeAlto)=>{const v=num(dataAtual?valorAte(dataAtual,key):null);if(v!==null){if(v<baixo)eletrolitos.push(`${nomeBaixo} (${ABREV[key]||key} ${v})`);else if(v>alto)eletrolitos.push(`${nomeAlto} (${ABREV[key]||key} ${v})`);}};
+  addDist("na",135,145,"Hiponatremia","Hipernatremia");
+  addDist("k",3.5,5.5,"Hipocalemia","Hipercalemia");
+  addDist("mg",1.6,2.6,"Hipomagnesemia","Hipermagnesemia");
+  addDist("cai",1.1,1.3,"Hipocalcemia iônica","Hipercalcemia iônica");
+  addDist("p",2.5,4.5,"Hipofosfatemia","Hiperfosfatemia");
+  if(grau>0){const criterios=[];if(emTRS)criterios.push("TRS");if(crAtual!==null)criterios.push(`Cr ${crAtual}${basal!==null?` (basal ${basal}${basalInformada!==null?", informada":""})`:""}`);if(debitoKgH!==null)criterios.push(`DU ${debitoKgH.toFixed(2).replace(".",",")} mL/kg/h`);problemas.push({id:"lra",texto:`Lesão Renal Aguda — KDIGO ${grau}`,detalhe:`estimado: ${criterios.join(" · ")}`,subitens:eletrolitos});}
+  else if(eletrolitos.length)problemas.push({id:"eletrolitos",texto:"Distúrbios hidroeletrolíticos",subitens:eletrolitos});
   return problemas;
 }
+
+const textoProblemaAutomatico=p=>[p.texto,...(p.subitens||[]).map(s=>`  - ${s}`)].join("\n");
 
 function NutriBar({ label, recebeu, meta }) {
   const pct = (meta && recebeu) ? Math.min(Math.round(recebeu / meta * 100), 150) : null;
@@ -4478,13 +4491,18 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
       {open && (
         <div style={{background:T.bgCard,border:"1px solid rgba(239,68,68,0.32)",
           borderRadius:"0 0 12px 12px",padding:"10px 12px",overflowY:"auto",flex:1}}>
-          {!!problemasAuto.length&&<div style={{display:"grid",gap:5,marginBottom:8}}>{problemasAuto.map(p=><div key={p.id} style={{padding:"6px 8px",borderRadius:7,border:"1px solid rgba(248,113,113,.28)",background:"rgba(248,113,113,.07)",fontSize:10,color:"#fca5a5",lineHeight:1.35}}><b>{p.texto}</b>{p.detalhe&&<small style={{display:"block",color:T.text3,marginTop:1}}>{p.detalhe}</small>}</div>)}</div>}
+          {!!problemasAuto.length&&<div style={{display:"grid",gap:5,marginBottom:8}}>{problemasAuto.map(p=><div key={p.id} style={{padding:"6px 8px",borderRadius:7,border:"1px solid rgba(248,113,113,.28)",background:"rgba(248,113,113,.07)",fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.35}}>
+            <b>{p.texto}</b>{p.detalhe&&<small style={{display:"block",color:T.text3,marginTop:1}}>{p.detalhe}</small>}
+            {!!p.subitens?.length&&<div style={{marginTop:4,color:T.text2}}>{p.subitens.map(s=><div key={s}>└ {s}</div>)}</div>}
+            {(p.id==="choque"||p.id==="sepse"&&p.texto.startsWith("Choque"))&&<select value={["","distributivo","hemorrágico","cardiogênico","obstrutivo","misto"].includes(leito.tipoChoque||"")?(leito.tipoChoque||""):"__outro__"} onChange={e=>{let tipo=e.target.value;if(tipo==="__outro__"){tipo=window.prompt("Caracterização do choque:","")?.trim()||leito.tipoChoque||"";}onLeitoChange?.({...leito,tipoChoque:tipo});}} style={{width:"100%",marginTop:5,padding:"4px 6px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}><option value="">Caracterizar choque…</option><option value="distributivo">Distributivo</option><option value="hemorrágico">Hemorrágico</option><option value="cardiogênico">Cardiogênico</option><option value="obstrutivo">Obstrutivo</option><option value="misto">Misto</option><option value="__outro__">Outro…</option></select>}
+          </div>)}</div>}
+          <details style={{margin:"0 0 7px",fontSize:9,color:T.text3}}><summary style={{cursor:"pointer"}}>Função renal · informar creatinina basal</summary><input type="number" step="0.01" min="0" defaultValue={leito.creatininaBasal||""} placeholder="Creatinina basal (mg/dL)" onBlur={e=>onLeitoChange?.({...leito,creatininaBasal:e.target.value})} style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:"5px 7px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}/></details>
           <TA fieldRef={refs.current.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
             sugestao={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"}
             rows={7} fieldName="probAtivos" onBlurSave={salvar}/>
           <button onClick={()=>{
             const manual=refs.current.probAtivos?.current?.value||campos.probAtivos||"";
-            const t=[...problemasAuto.map(p=>p.texto),manual].filter(Boolean).join("\n");
+            const t=[...problemasAuto.map(textoProblemaAutomatico),manual].filter(Boolean).join("\n");
             if(t){navigator.clipboard?.writeText(t).catch(()=>{});
               setCopiado(c=>({...c,probAtivos:true}));
               setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}}
@@ -5431,7 +5449,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
   const txtProblemas = () => {
     const p=[];
-    const automaticos=problemasAtivosAutomaticos(leito,tabelaDataLeito,campos,config).map(x=>x.texto);
+    const automaticos=problemasAtivosAutomaticos(leito,tabelaDataLeito,campos,config).map(textoProblemaAutomatico);
     const ativos=[...automaticos,get("probAtivos")].filter(Boolean).join("\n");
     if(ativos) p.push(`ATIVOS:\n${ativos}`);
     if(get("probResolvidos")) p.push(`RESOLVIDOS:\n${get("probResolvidos")}`);
