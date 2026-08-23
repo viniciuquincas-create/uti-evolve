@@ -1606,8 +1606,8 @@ function calcPoccEffort(leito){
   const peep=parseFloat(String(leito.vm_peep??"").replace(",","."));
   const pocc=parseFloat(String(leito.vm_pocc??"").replace(",","."));
   if(!Number.isFinite(peep)||!Number.isFinite(pocc)||pocc>peep)return null;
-  const delta=pocc-peep;
-  const pmusc=Math.abs(delta)*0.75;
+  const delta=peep-pocc;
+  const pmusc=delta*0.75;
   return {pocc,delta,pmusc};
 }
 
@@ -1885,7 +1885,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
               {poccEffort&&<><div style={{padding:"5px 12px",borderRadius:8,background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.24)",fontSize:12,color:"#c4b5fd"}}>ΔPocc: <strong>{poccEffort.delta.toFixed(1).replace(".",",")} cmH₂O</strong></div><div style={{padding:"5px 12px",borderRadius:8,background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.24)",fontSize:12,color:"#c4b5fd"}}>Pmusc estimada: <strong>{poccEffort.pmusc.toFixed(1).replace(".",",")} cmH₂O</strong></div></>}
             </div>
           )}
-          {leito.vm_modo==="vm_psv"&&poccEffort&&<div style={{margin:"-5px 0 10px",fontSize:9,color:T.text3,fontFamily:mono}}>Calculado pela pressão mínima durante oclusão expiratória: ΔPocc = Pocc − PEEP; Pmusc ≈ −0,75 × ΔPocc.</div>}
+          {leito.vm_modo==="vm_psv"&&poccEffort&&<div style={{margin:"-5px 0 10px",fontSize:9,color:T.text3,fontFamily:mono}}>Calculado pela magnitude da queda durante oclusão expiratória: ΔPocc = PEEP − Pocc; Pmusc ≈ 0,75 × ΔPocc.</div>}
 
           {(["vm_vcv","vm_pcv"].includes(leito.vm_modo))&&(
             <div style={{marginBottom:10,padding:"9px 12px",borderRadius:9,background:T.accentBg,border:`1px solid ${T.accentBorder}`,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
