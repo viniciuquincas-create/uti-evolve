@@ -866,7 +866,8 @@ function calcularNutriDia(leito={}, linha={}, config={}) {
 
 function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config={}){
   const problemas=[];
-  if(leito.dispositivos?.tot?.ativo)problemas.push({id:"vmi",texto:"Intubado em VMI",detalhe:"TOT ativo"});
+  const problemaVmi=leito.dispositivos?.tot?.ativo?{id:"vmi",texto:"Intubado em VMI",detalhe:"TOT ativo",subitens:[]}:null;
+  if(problemaVmi)problemas.push(problemaVmi);
   const vasoativas=new Set(["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato",...(config.drogasCustom||[]).filter(d=>d.grupo==="vasoativa").map(d=>d.key)]);
   const dvaAtivas=Object.entries(leito.drogasVazao||{}).filter(([k,v])=>vasoativas.has(k)&&parseFloat(String(v).replace(",","."))>0);
   const datas=Object.keys(tabelaDataLeito||{}).filter(d=>/^\d{4}-\d{2}-\d{2}/.test(d)).sort();
@@ -883,6 +884,27 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
       pf:po2!==null&&fio2?String(Math.round(po2/(fio2/100))):"",sf:sat!==null&&fio2?String(Math.round(sat/(fio2/100))):"",fio2:fio2??"",gcs:atual?(campos.nGlasgow||valorAte(date,"gcs",true)):valorAte(date,"gcs",true),suporteResp:atual?(!!leito.vm_modo||!!valorAte(date,"suporteResp",true)):!!valorAte(date,"suporteResp",true),circulacao:autoCirc,circulacaoSofa:autoCirc,...salvo};
   };
   const evolucao=(valores,format=v=>v)=>valores.length?`${format(valores[0])}${valores.length>1?` → ${format(valores.at(-1))}`:""}`:"";
+  if(problemaVmi&&leito.vm_modo==="vm_psv"){
+    const nVent=v=>{const n=parseFloat(String(v??"").replace(",","."));return Number.isFinite(n)?n:null;};
+    const opcionalVentAtivo=id=>!Object.prototype.hasOwnProperty.call(leito.vmOpcionais||{},id)||!!leito.vmOpcionais[id];
+    const alteracoesDiafragma=[];
+    const ed=nVent(leito.vm_ed),fed=nVent(leito.vm_fed),pimax=nVent(leito.vm_pimax);
+    if(opcionalVentAtivo("ed")&&ed!==null&&ed<1)alteracoesDiafragma.push(`ED ${String(leito.vm_ed).replace(".",",")} cm (<1)`);
+    if(opcionalVentAtivo("fed")&&fed!==null&&fed<20)alteracoesDiafragma.push(`FED ${String(leito.vm_fed).replace(".",",")}% (<20%)`);
+    if(opcionalVentAtivo("pimax")&&pimax!==null&&Math.abs(pimax)<30)alteracoesDiafragma.push(`PImax ${String(leito.vm_pimax).replace(".",",")} cmH₂O (magnitude <30)`);
+    if(alteracoesDiafragma.length)problemaVmi.subitens.push(`Disfunção diafragmática — ${alteracoesDiafragma.join(" · ")}`);
+
+    const ultimoValor=chaves=>{for(const d of [...datas].reverse())for(const k of chaves){const v=nVent(tabelaDataLeito[d]?.[k]);if(v!==null)return v;}return null;};
+    const tot=leito.dispositivos?.tot,diasTot=tot?.data?Math.max(0,Math.floor((new Date()-new Date(`${tot.data}T00:00:00`))/86400000)):null;
+    const exPres=calcularExPres({rsbi:nVent(leito.expres_rsbi),complacencia:nVent(leito.expres_complacencia),dias:diasTot,egcs:nVent(campos.nGlasgow||leito.expres_egcs),mrc:nVent(leito.expres_mrc),ht:ultimoValor(["ht","hto","hematocrito"]),cr:ultimoValor(["cr","creatinina"]),neuro:leito.expres_neuro==="sim"?true:leito.expres_neuro==="nao"?false:null});
+    if(opcionalVentAtivo("expres")&&exPres.total!==null&&exPres.total<=44)problemaVmi.subitens.push(`Alto risco de falha em extubação — ExPreS ${exPres.total}/100`);
+
+    const p01=nVent(leito.vm_p01),esforco=calcPoccEffort(leito),insuficientes=[],excessivas=[];
+    if(p01!==null){if(p01>3.5)insuficientes.push(`P0.1 ${p01} cmH₂O`);else if(p01<1)excessivas.push(`P0.1 ${p01} cmH₂O`);}
+    if(esforco){if(esforco.delta>15)insuficientes.push(`ΔPocc ${esforco.delta.toFixed(1).replace(".",",")} cmH₂O`);else if(esforco.delta<3)excessivas.push(`ΔPocc ${esforco.delta.toFixed(1).replace(".",",")} cmH₂O`);if(esforco.pmusc>10)insuficientes.push(`Pmusc ${esforco.pmusc.toFixed(1).replace(".",",")} cmH₂O`);else if(esforco.pmusc<5)excessivas.push(`Pmusc ${esforco.pmusc.toFixed(1).replace(".",",")} cmH₂O`);}
+    if(insuficientes.length)problemaVmi.subitens.push(`Assistência ventilatória insuficiente — ${insuficientes.join(" · ")}`);
+    if(excessivas.length)problemaVmi.subitens.push(`Assistência ventilatória excessiva — ${excessivas.join(" · ")}`);
+  }
   const tipoChoque=String(leito.tipoChoque||"").trim();
   const rotuloChoque=base=>tipoChoque?`${base} (${tipoChoque})`:base;
   if(leito.labSOFA){
