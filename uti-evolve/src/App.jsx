@@ -4649,6 +4649,21 @@ function PickField({ label, options=[], value="", onChange, rows=2, placeholder=
   );
 }
 
+function CompactMultiSelect({value="",options=[],onChange,placeholder=""}){
+  const T=useTheme();
+  const [open,setOpen]=useState(false);
+  const selecionados=String(value||"").split(/\s*\/\s*/).map(x=>x.trim()).filter(Boolean);
+  const toggle=opt=>{
+    const existe=selecionados.includes(opt);
+    const novos=opt==="Sem laxativos"?(existe?[]:[opt]):(existe?selecionados.filter(x=>x!==opt):[...selecionados.filter(x=>x!=="Sem laxativos"),opt]);
+    onChange(novos.join(" / "));
+  };
+  return <div style={{position:"relative"}}>
+    <div style={{display:"flex",height:36}}><input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{width:"100%",minWidth:0,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRight:0,borderRadius:"8px 0 0 8px",padding:"6px 10px",color:T.text1,fontSize:12}}/><button type="button" onClick={()=>setOpen(x=>!x)} title="Selecionar um ou mais laxativos" style={{width:34,border:`1px solid ${T.borderStrong}`,borderRadius:"0 8px 8px 0",background:T.bgCardHover,color:T.text3,cursor:"pointer"}}>{open?"▲":"▼"}</button></div>
+    {open&&<div style={{position:"absolute",zIndex:80,top:40,left:0,right:0,padding:7,borderRadius:8,border:`1px solid ${T.borderStrong}`,background:T.bgPicker,boxShadow:"0 10px 28px rgba(0,0,0,.25)",display:"flex",gap:5,flexWrap:"wrap"}}>{options.map(opt=>{const ativo=selecionados.includes(opt);return <button type="button" key={opt} onClick={()=>toggle(opt)} style={{padding:"4px 8px",borderRadius:12,border:`1px solid ${ativo?T.accentBorder:T.border}`,background:ativo?T.accentBg:T.bgCard,color:ativo?T.accent:T.text2,cursor:"pointer",fontSize:9}}>{ativo?"✓ ":""}{opt}</button>;})}<button type="button" onClick={()=>setOpen(false)} style={{marginLeft:"auto",padding:"4px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.text3,cursor:"pointer",fontSize:9}}>Concluir</button></div>}
+  </div>;
+}
+
 function FluidAnalysisPanel({data={},onChange,datas=[],hoje=""}) {
   const T=useTheme();
   const getEntries=d=>{const raw=data[d]?._fluidAnalyses;if(!raw)return[];try{return typeof raw==="string"?JSON.parse(raw):raw;}catch{return[];}};
@@ -6177,7 +6192,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <div style={{padding:"12px 14px",border:"1px solid rgba(251,146,60,.22)",borderRadius:12,background:"linear-gradient(135deg,rgba(251,146,60,.055),rgba(251,146,60,.015))"}}>
         <Row>
           <Col><FL>Última evacuação</FL><div style={{position:"relative"}}><input type="date" value={campos.tgUltEvac||""} onChange={e=>onCampoEdit("tgUltEvac",e.target.value)} style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/>{campos.tgUltEvac&&<span style={{position:"absolute",right:36,top:10,fontSize:9,color:T.text3,fontFamily:mono,pointerEvents:"none"}}>{Math.floor((new Date()-new Date(campos.tgUltEvac+"T00:00:00"))/86400000)}d</span>}</div></Col>
-          <Col><FL>Laxativos</FL><input list="tgi-laxativos" value={campos.tgLaxativos||""} onChange={e=>onCampoEdit("tgLaxativos",e.target.value)} placeholder="Sem laxativos ou esquema…" style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/><datalist id="tgi-laxativos">{["Sem laxativos","Lactulose","Macrogol","Bisacodil","Enema","Lactulose + Macrogol"].map(x=><option key={x} value={x}/>)}</datalist></Col>
+          <Col><FL>Laxativos</FL><CompactMultiSelect value={campos.tgLaxativos||""} onChange={v=>onCampoEdit("tgLaxativos",v)} placeholder="Sem laxativos ou esquema…" options={["Sem laxativos","Lactulose","Macrogol","Bisacodil","Enema"]}/></Col>
           <Col><FL>Profilaxia LAMG</FL><input list="tgi-lamg" value={campos.tgLAMG||""} onChange={e=>onCampoEdit("tgLAMG",e.target.value)} placeholder="Sem profilaxia ou esquema…" style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/><datalist id="tgi-lamg">{["Sem profilaxia","Omeprazol 40mg EV 1x/d","Esomeprazol 40mg SNE 1x/d","Omeprazol 80mg EV 1x/d","Pantoprazol 40mg EV 1x/d"].map(x=><option key={x} value={x}/>)}</datalist></Col>
         </Row>
 <Row>
