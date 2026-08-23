@@ -967,10 +967,12 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const nutri=calcularNutriDia(leito,linhaAtual,config);
   if(Number.isFinite(nutri.adequacaoCaloricaPct)&&nutri.adequacaoCaloricaPct<80)problemas.push({id:"kcal",texto:"Fora de metas calóricas",detalhe:`adequação ${nutri.adequacaoCaloricaPct}%`});
   const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return Number.isFinite(n)?n:null;};
-  const crAtual=num(linhaAtual.cr??linhaAtual.creatinina),peso=num(leito.peso),diurese=num(linhaAtual.c24_diur);
-  const atualMs=dataAtual?new Date(`${dataAtual.slice(0,10)}T12:00:00`).getTime():null;
   const crRegistradas=datas.map(d=>({data:d.slice(0,10),valor:num(tabelaDataLeito[d]?.cr??tabelaDataLeito[d]?.creatinina)})).filter(x=>x.valor!==null);
-  const crAnteriores=crRegistradas.filter(x=>x.data<(dataAtual||"").slice(0,10)&&(!atualMs||atualMs-new Date(`${x.data}T12:00:00`).getTime()<=7*86400000));
+  const registroCrAtual=crRegistradas.at(-1)||null;
+  const crAtual=registroCrAtual?.valor??null,dataReferenciaCr=registroCrAtual?.data||null;
+  const peso=num(leito.peso),diurese=num(dataAtual?valorAte(dataAtual,"c24_diur"):null);
+  const atualMs=dataReferenciaCr?new Date(`${dataReferenciaCr}T12:00:00`).getTime():null;
+  const crAnteriores=crRegistradas.filter(x=>x.data<(dataReferenciaCr||"")&&(!atualMs||atualMs-new Date(`${x.data}T12:00:00`).getTime()<=7*86400000));
   const basalInformada=num(leito.creatininaBasal);
   const basal=basalInformada??(crRegistradas.length?Math.min(...crRegistradas.map(x=>x.valor)):null);
   const cr48=crAnteriores.filter(x=>atualMs-new Date(`${x.data}T12:00:00`).getTime()<=2*86400000).map(x=>x.valor);
