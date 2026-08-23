@@ -869,9 +869,33 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   if(leito.dispositivos?.tot?.ativo)problemas.push({id:"vmi",texto:"Intubado em VMI",detalhe:"TOT ativo"});
   const vasoativas=new Set(["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato",...(config.drogasCustom||[]).filter(d=>d.grupo==="vasoativa").map(d=>d.key)]);
   const dvaAtivas=Object.entries(leito.drogasVazao||{}).filter(([k,v])=>vasoativas.has(k)&&parseFloat(String(v).replace(",","."))>0);
-  if(dvaAtivas.length)problemas.push({id:"choque",texto:"Choque",detalhe:dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + ")});
   const datas=Object.keys(tabelaDataLeito||{}).filter(d=>/^\d{4}-\d{2}-\d{2}/.test(d)).sort();
   const dataAtual=datas.at(-1),linhaAtual=dataAtual?tabelaDataLeito[dataAtual]||{}:{};
+  const valorAte=(date,key,score=false)=>{for(const d of [...datas].filter(x=>x<=date).reverse()){const v=score?tabelaDataLeito[d]?._scoreInputs?.[key]:tabelaDataLeito[d]?.[key];if(v!==undefined&&v!==null&&String(v).trim()!=="")return v;}return "";};
+  const gasoAte=date=>{for(const d of [...datas].filter(x=>x<=date).reverse()){let gs=tabelaDataLeito[d]?._gasos||[];try{if(typeof gs==="string")gs=JSON.parse(gs);}catch{gs=[];}for(let i=(gs?.length||0)-1;i>=0;i--)if(Object.values(gs[i]||{}).some(Boolean))return gs[i];}return {};};
+  const scorePorData=date=>{
+    const salvo=tabelaDataLeito[date]?._scoreInputs||{},g=gasoAte(date),hoje=new Date().toISOString().slice(0,10),atual=date.slice(0,10)===hoje;
+    const fio2=numScore(atual?(leito.vm_fio2||valorAte(date,"fio2",true)):valorAte(date,"fio2",true));
+    const po2=numScore(g.po2),sat=numScore(g.sato2)??numScore(valorAte(date,"c24_sat")),pam=numScore(valorAte(date,"c24_pam"));
+    const circAnterior=valorAte(date,"circulacaoSofa",true)||valorAte(date,"circulacao",true);
+    const autoCirc=atual&&dvaAtivas.length?"dva_baixa":circAnterior||(pam!==null&&pam<70?"pam_baixa":"normal");
+    return {bilirrubina:valorAte(date,"bttot"),creatinina:valorAte(date,"cr"),inr:valorAte(date,"rni"),leucocitos:valorAte(date,"leuco"),plaquetas:valorAte(date,"plaq"),diurese:valorAte(date,"c24_diur"),
+      pf:po2!==null&&fio2?String(Math.round(po2/(fio2/100))):"",sf:sat!==null&&fio2?String(Math.round(sat/(fio2/100))):"",fio2:fio2??"",gcs:atual?(campos.nGlasgow||valorAte(date,"gcs",true)):valorAte(date,"gcs",true),suporteResp:atual?(!!leito.vm_modo||!!valorAte(date,"suporteResp",true)):!!valorAte(date,"suporteResp",true),circulacao:autoCirc,circulacaoSofa:autoCirc,...salvo};
+  };
+  const evolucao=(valores,format=v=>v)=>valores.length?`${format(valores[0])}${valores.length>1?` → ${format(valores.at(-1))}`:""}`:"";
+  if(leito.labSOFA){
+    const sofas=datas.map(d=>calcSofa(scorePorData(d))).filter(s=>!(s.faltam||[]).length&&Number.isFinite(s.sofa)).map(s=>s.sofa);
+    if(sofas.length)problemas.push({id:"sepse",texto:`${dvaAtivas.length?"Choque séptico":"Sepse"} — SOFA ${evolucao(sofas)}`,detalhe:dvaAtivas.length?dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + "):"sem DVA ativa"});
+    else problemas.push({id:"sepse",texto:`${dvaAtivas.length?"Choque séptico":"Sepse"} — SOFA incompleto`,detalhe:dvaAtivas.length?"DVA ativa; faltam variáveis para o SOFA":"faltam variáveis para o SOFA"});
+  }else if(dvaAtivas.length)problemas.push({id:"choque",texto:"Choque",detalhe:dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + ")});
+  if(leito.labACLF){
+    const melds=datas.map(d=>calcMeldNa({bilirrubina:tabelaDataLeito[d]?.bttot,inr:tabelaDataLeito[d]?.rni,creatinina:tabelaDataLeito[d]?.cr,sodio:tabelaDataLeito[d]?.na})).filter(Boolean).map(s=>s.meldNa);
+    const clifs=datas.map(d=>calcClifScores(scorePorData(d),idadeDoLeito(leito))).filter(s=>!(s.faltam||[]).length&&Number.isFinite(s.clifOF));
+    const partes=[];
+    if(clifs.length){partes.push(`CLIF-OF ${evolucao(clifs,s=>s.clifOF)}`);if(clifs.every(s=>Number.isFinite(s.clifC)))partes.push(`CLIF-C ${evolucao(clifs,s=>s.clifC)}`);}
+    if(melds.length)partes.push(`MELD-Na ${evolucao(melds)}`);
+    problemas.push({id:"aclf",texto:partes.length?`ACLF — ${partes.join(" · ")}`:"ACLF — escores incompletos"});
+  }
   const nutri=calcularNutriDia(leito,linhaAtual,config);
   if(Number.isFinite(nutri.adequacaoCaloricaPct)&&nutri.adequacaoCaloricaPct<80)problemas.push({id:"kcal",texto:"Fora de metas calóricas",detalhe:`adequação ${nutri.adequacaoCaloricaPct}%`});
   const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return Number.isFinite(n)?n:null;};
