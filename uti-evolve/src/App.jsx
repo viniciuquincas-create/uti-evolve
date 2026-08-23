@@ -1561,8 +1561,7 @@ const VM_CAMPOS = {
                { key:"vm_fr",   label:"FR espontânea",type:"number",placeholder:"" },
                { key:"vm_vt",   label:"VC corrente (mL)",type:"number",placeholder:"" },
                { key:"vm_p01",  label:"P0.1 (cmH₂O)", type:"number",placeholder:"" },
-               { key:"vm_pocc", label:"Pocc (cmH₂O)", type:"number",placeholder:"" },
-               { key:"vm_pmusc",label:"Pmusc (cmH₂O)",type:"number",placeholder:"" }],
+               { key:"vm_pocc", label:"Pocc mínima (cmH₂O)", type:"number",placeholder:"ex: -7" }],
   vm_pcv:     [{ key:"vm_pins", label:"ΔPins acima da PEEP (cmH₂O)", type:"number",placeholder:"" },
                { key:"vm_peep", label:"PEEP (cmH₂O)", type:"number",placeholder:"5-20" },
                { key:"vm_fio2", label:"FiO₂ (%)",     type:"number",placeholder:"21-100" },
@@ -1600,6 +1599,16 @@ function calcMechanicalPower(leito) {
   if(!Number.isFinite(deltaPinsp)||deltaPinsp<0)return null;
   const valor=0.098*vtL*rr*(peep+deltaPinsp);
   return {valor,formula:"Becher — PCV",driving:deltaPinsp};
+}
+
+function calcPoccEffort(leito){
+  if(leito.vm_modo!=="vm_psv")return null;
+  const peep=parseFloat(String(leito.vm_peep??"").replace(",","."));
+  const pocc=parseFloat(String(leito.vm_pocc??"").replace(",","."));
+  if(!Number.isFinite(peep)||!Number.isFinite(pocc)||pocc>peep)return null;
+  const delta=pocc-peep;
+  const pmusc=Math.abs(delta)*0.75;
+  return {pocc,delta,pmusc};
 }
 
 const pontosExPres=(tipo,v)=>{
@@ -1642,6 +1651,10 @@ function gerarTextoVM(leito) {
     if ((modo==="vm_vcv")&&leito.vm_pplat&&leito.vm_peep) {const dp=parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep);if(Number.isFinite(dp)) partes.push(`DP: ${Math.round(dp*10)/10} cmH₂O`);}
     if (modo==="vm_vcv"&&leito.vm_vt&&leito.vm_pplat&&leito.vm_peep) {const csr=parseFloat(leito.vm_vt)/(parseFloat(leito.vm_pplat)-parseFloat(leito.vm_peep));if(Number.isFinite(csr)) partes.push(`Csr: ${Math.round(csr)} mL/cmH₂O`);}
     const mp=calcMechanicalPower(leito); if(mp) partes.push(`Mechanical Power: ${mp.valor.toFixed(1).replace(".",",")} J/min`);
+  }
+  if(modo==="vm_psv"){
+    const esforco=calcPoccEffort(leito);
+    if(esforco){partes.push(`ΔPocc: ${esforco.delta.toFixed(1).replace(".",",")} cmH₂O`);partes.push(`Pmusc estimada: ${esforco.pmusc.toFixed(1).replace(".",",")} cmH₂O`);}
   }
   if (leito.vm_sato2) partes.push(`SatO2: ${leito.vm_sato2}%`);
   if (VM_INVASIVA_MODOS.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
@@ -1686,6 +1699,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const ppeak_est = leito.vm_ppico ? parseFloat(leito.vm_ppico) : null;
   const pf_calc = (po2>0&&fio2>0) ? Math.round(po2/(fio2/100)) : null;
   const mechanicalPower=calcMechanicalPower(leito);
+  const poccEffort=calcPoccEffort(leito);
   const ultimoLab=(chaves)=>{
     const datas=Object.keys(tabelaDataLeito||{}).sort().reverse();
     for(const data of datas){for(const chave of chaves){const bruto=tabelaDataLeito[data]?.[chave];const valor=parseFloat(String(bruto??"").replace(",","."));if(Number.isFinite(valor))return {valor,data};}}
@@ -1857,7 +1871,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
             );
           })()}
           {/* Calculados em tempo real */}
-          {(dp!==null||csr!==null||pf_calc!==null) && (
+          {(dp!==null||csr!==null||pf_calc!==null||poccEffort) && (
             <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
               {dp!==null&&<div style={{padding:"5px 12px",borderRadius:8,background:dp>15?"rgba(248,113,113,0.1)":"rgba(52,211,153,0.08)",border:`1px solid ${dp>15?"rgba(248,113,113,0.3)":"rgba(52,211,153,0.2)"}`,fontSize:12,color:dp>15?"#f87171":"#34d399"}}>
                 DP: <strong>{dp} cmH₂O</strong> {dp>15?"⚠️ alto":dp<=10?"✅ baixo":""}
@@ -1868,8 +1882,10 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
               {pf_calc!==null&&<div style={{padding:"5px 12px",borderRadius:8,background:pf_calc<150?"rgba(248,113,113,0.1)":pf_calc<200?"rgba(251,191,36,0.1)":"rgba(52,211,153,0.08)",border:"1px solid rgba(255,255,255,0.1)",fontSize:12,color:pf_calc<150?"#f87171":pf_calc<200?"#fbbf24":"#34d399"}}>
                 P/F: <strong>{pf_calc}</strong> {pf_calc<150?"SDRA grave":pf_calc<200?"SDRA moderada":pf_calc<300?"SDRA leve":"OK"}
               </div>}
+              {poccEffort&&<><div style={{padding:"5px 12px",borderRadius:8,background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.24)",fontSize:12,color:"#c4b5fd"}}>ΔPocc: <strong>{poccEffort.delta.toFixed(1).replace(".",",")} cmH₂O</strong></div><div style={{padding:"5px 12px",borderRadius:8,background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.24)",fontSize:12,color:"#c4b5fd"}}>Pmusc estimada: <strong>{poccEffort.pmusc.toFixed(1).replace(".",",")} cmH₂O</strong></div></>}
             </div>
           )}
+          {leito.vm_modo==="vm_psv"&&poccEffort&&<div style={{margin:"-5px 0 10px",fontSize:9,color:T.text3,fontFamily:mono}}>Calculado pela pressão mínima durante oclusão expiratória: ΔPocc = Pocc − PEEP; Pmusc ≈ −0,75 × ΔPocc.</div>}
 
           {(["vm_vcv","vm_pcv"].includes(leito.vm_modo))&&(
             <div style={{marginBottom:10,padding:"9px 12px",borderRadius:9,background:T.accentBg,border:`1px solid ${T.accentBorder}`,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
