@@ -1594,7 +1594,7 @@ function gerarTextoVM(leito) {
   return `${label}: ${partes.join(" / ")}${cuidados.length?`\n- Cuidados VM: ${cuidados.join("; ")}`:""}`;
 }
 
-function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={} }) {
+function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}, glasgowNeurologico="" }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [busca, setBusca] = useState("");
@@ -1631,8 +1631,9 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const tot=leito.dispositivos?.tot;
   const diasTot=tot?.ativo&&tot.data?Math.max(0,Math.floor((new Date()-new Date(`${tot.data}T00:00:00`))/86400000)):null;
   const numExPres=key=>{const n=parseFloat(String(leito[key]??"").replace(",","."));return Number.isFinite(n)?n:null;};
+  const glasgowExPres=(()=>{const n=parseFloat(String(glasgowNeurologico??"").replace(",","."));return Number.isFinite(n)?n:numExPres("expres_egcs");})();
   const rsbiPsv=(numExPres("vm_fr")!==null&&numExPres("vm_vt")>0)?numExPres("vm_fr")/(numExPres("vm_vt")/1000):null;
-  const exPres=calcularExPres({rsbi:numExPres("expres_rsbi"),complacencia:numExPres("expres_complacencia"),dias:diasTot,egcs:numExPres("expres_egcs"),mrc:numExPres("expres_mrc"),ht:htExPres.valor,cr:crExPres.valor,neuro:leito.expres_neuro==="sim"?true:leito.expres_neuro==="nao"?false:null});
+  const exPres=calcularExPres({rsbi:numExPres("expres_rsbi"),complacencia:numExPres("expres_complacencia"),dias:diasTot,egcs:glasgowExPres,mrc:numExPres("expres_mrc"),ht:htExPres.valor,cr:crExPres.valor,neuro:leito.expres_neuro==="sim"?true:leito.expres_neuro==="nao"?false:null});
   const suporteResumo = (()=>{
     const itens=[];
     if (["cn","ms","mnr"].includes(leito.vm_modo)&&leito.vm_o2) itens.push(`O₂ ${leito.vm_o2} L/min`);
@@ -1841,7 +1842,8 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
               {exPres.total===null&&<span style={{fontSize:10,color:T.text3}}>Preencha os campos faltantes para calcular.</span>}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:8}}>
-              {[["expres_rsbi","RSBI no TRE","irpm/L"],["expres_complacencia","Complacência dinâmica","mL/cmH₂O"],["expres_egcs","Glasgow estimado","pontos"],["expres_mrc","Força muscular MRC","0–60"]].map(([key,label,unidade])=><label key={key} style={{fontSize:9,color:T.text3,fontFamily:mono}}>{label}<input type="number" value={leito[key]||""} onChange={e=>set(key,e.target.value)} placeholder={unidade} style={{display:"block",width:"100%",marginTop:3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text1,fontSize:11}}/></label>)}
+              {[["expres_rsbi","RSBI no TRE","irpm/L"],["expres_complacencia","Complacência dinâmica","mL/cmH₂O"],["expres_mrc","Força muscular MRC","0–60"]].map(([key,label,unidade])=><label key={key} style={{fontSize:9,color:T.text3,fontFamily:mono}}>{label}<input type="number" value={leito[key]||""} onChange={e=>set(key,e.target.value)} placeholder={unidade} style={{display:"block",width:"100%",marginTop:3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text1,fontSize:11}}/></label>)}
+              {glasgowNeurologico!==""?<div style={{padding:"6px 8px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:10,color:T.text2}}><span style={{display:"block",fontSize:9,color:T.text3,fontFamily:mono}}>GLASGOW</span>{glasgowExPres} · exame neurológico</div>:<label style={{fontSize:9,color:T.text3,fontFamily:mono}}>Glasgow estimado<input type="number" value={leito.expres_egcs||""} onChange={e=>set("expres_egcs",e.target.value)} placeholder="pontos" style={{display:"block",width:"100%",marginTop:3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text1,fontSize:11}}/></label>}
               <div style={{padding:"6px 8px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:10,color:T.text2}}><span style={{display:"block",fontSize:9,color:T.text3,fontFamily:mono}}>TEMPO DE VM</span>{diasTot===null?"TOT sem data de inserção":`${diasTot} dia(s) pelo TOT`}</div>
               <div style={{padding:"6px 8px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:10,color:T.text2}}><span style={{display:"block",fontSize:9,color:T.text3,fontFamily:mono}}>HEMATÓCRITO</span>{htExPres.valor===null?"Não encontrado":`${htExPres.valor}% · ${htExPres.data}`}</div>
               <div style={{padding:"6px 8px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:10,color:T.text2}}><span style={{display:"block",fontSize:9,color:T.text3,fontFamily:mono}}>CREATININA</span>{crExPres.valor===null?"Não encontrada":`${crExPres.valor} mg/dL · ${crExPres.data}`}</div>
@@ -5977,7 +5979,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]} {...customProps("res")}>
         {/* ── Suporte Ventilatório ── */}
         <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
-        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated tabelaDataLeito={tabelaDataLeito}/>}
+        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated tabelaDataLeito={tabelaDataLeito} glasgowNeurologico={campos.nGlasgow}/>}
         {!onLeitoChange&&leito.vm_modo&&(()=>{
           const vm2=VM_MODOS.find(m=>m.id===leito.vm_modo);
           return vm2?<div style={{padding:"6px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.1)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
