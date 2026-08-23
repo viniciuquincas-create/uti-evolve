@@ -864,6 +864,33 @@ function calcularNutriDia(leito={}, linha={}, config={}) {
   };
 }
 
+function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config={}){
+  const problemas=[];
+  if(leito.dispositivos?.tot?.ativo)problemas.push({id:"vmi",texto:"Intubado em VMI",detalhe:"TOT ativo"});
+  const vasoativas=new Set(["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato",...(config.drogasCustom||[]).filter(d=>d.grupo==="vasoativa").map(d=>d.key)]);
+  const dvaAtivas=Object.entries(leito.drogasVazao||{}).filter(([k,v])=>vasoativas.has(k)&&parseFloat(String(v).replace(",","."))>0);
+  if(dvaAtivas.length)problemas.push({id:"choque",texto:"Choque",detalhe:dvaAtivas.map(([k])=>(DROGAS_PROTOCOLO[k]||(config.drogasCustom||[]).find(d=>d.key===k))?.label||k).join(" + ")});
+  const datas=Object.keys(tabelaDataLeito||{}).filter(d=>/^\d{4}-\d{2}-\d{2}/.test(d)).sort();
+  const dataAtual=datas.at(-1),linhaAtual=dataAtual?tabelaDataLeito[dataAtual]||{}:{};
+  const nutri=calcularNutriDia(leito,linhaAtual,config);
+  if(Number.isFinite(nutri.adequacaoCaloricaPct)&&nutri.adequacaoCaloricaPct<80)problemas.push({id:"kcal",texto:"Fora de metas calóricas",detalhe:`adequação ${nutri.adequacaoCaloricaPct}%`});
+  const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return Number.isFinite(n)?n:null;};
+  const crAtual=num(linhaAtual.cr??linhaAtual.creatinina),peso=num(leito.peso),diurese=num(linhaAtual.c24_diur);
+  const atualMs=dataAtual?new Date(`${dataAtual.slice(0,10)}T12:00:00`).getTime():null;
+  const crAnteriores=datas.slice(0,-1).map(d=>({data:d.slice(0,10),valor:num(tabelaDataLeito[d]?.cr??tabelaDataLeito[d]?.creatinina)})).filter(x=>x.valor!==null&&(!atualMs||atualMs-new Date(`${x.data}T12:00:00`).getTime()<=7*86400000));
+  const basal=crAnteriores.length?Math.min(...crAnteriores.map(x=>x.valor)):null;
+  const cr48=crAnteriores.filter(x=>atualMs-new Date(`${x.data}T12:00:00`).getTime()<=2*86400000).map(x=>x.valor);
+  let grauCr=0;
+  if(crAtual!==null){if((basal!==null&&crAtual>=4&&crAtual-basal>=.3)||(basal&&crAtual>=3*basal))grauCr=3;else if(basal&&crAtual>=2*basal)grauCr=2;else if((basal&&crAtual>=1.5*basal)||cr48.some(v=>crAtual-v>=.3))grauCr=1;}
+  let grauDiurese=0,debitoKgH=null;
+  if(diurese!==null&&peso>0){debitoKgH=diurese/peso/24;if(diurese===0||debitoKgH<.3)grauDiurese=3;else if(debitoKgH<.5)grauDiurese=2;}
+  const trsTexto=String(campos.rmTRS||"").toLowerCase();
+  const emTRS=/(hemodi|di[aá]lise|\btrs\b|crrt|cvvh)/i.test(trsTexto)&&!/(sem|suspensa|não|nao)\s+(hemodi|di[aá]lise|trs|crrt|cvvh)/i.test(trsTexto);
+  const grau=Math.max(grauCr,grauDiurese,emTRS?3:0);
+  if(grau>0){const criterios=[];if(emTRS)criterios.push("TRS");if(crAtual!==null)criterios.push(`Cr ${crAtual}${basal!==null?` (basal ${basal})`:""}`);if(debitoKgH!==null)criterios.push(`DU ${debitoKgH.toFixed(2).replace(".",",")} mL/kg/h`);problemas.push({id:"lra",texto:`Lesão Renal Aguda — KDIGO ${grau}`,detalhe:`estimado: ${criterios.join(" · ")}`});}
+  return problemas;
+}
+
 function NutriBar({ label, recebeu, meta }) {
   const pct = (meta && recebeu) ? Math.min(Math.round(recebeu / meta * 100), 150) : null;
   const ok  = pct !== null && pct >= 80;
@@ -4374,7 +4401,7 @@ const editarTextoMeta = (metas,meta,onChange) => {
 
 // Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
 // visível nas 5 abas do paciente (Paciente · Beira-leito · Tabela Clínica · Importar Print · Metas) — não só no Beira-leito.
-function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}, tabelaDataLeito={}, onLeitoChange }) {
+function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}, tabelaDataLeito={}, onLeitoChange, config={} }) {
   const T=useTheme();
   const [open, setOpen] = useState(true);
   const [openResolvidos, setOpenResolvidos] = useState(false);
@@ -4392,6 +4419,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
   const ultimaEvacuacao=campos.tgUltEvac||leito.tgUltEvac||"";
   const diasSemEvacuar=ultimaEvacuacao?Math.floor((new Date(hoje+"T12:00:00")-new Date(ultimaEvacuacao+"T00:00:00"))/86400000):null;
   const riscoLAMG=avaliarRiscoLAMG(leito,tabelaDataLeito,campos);
+  const problemasAuto=problemasAtivosAutomaticos(leito,tabelaDataLeito,campos,config);
 
   if (minimized) {
     return (
@@ -4426,11 +4454,13 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
       {open && (
         <div style={{background:T.bgCard,border:"1px solid rgba(239,68,68,0.32)",
           borderRadius:"0 0 12px 12px",padding:"10px 12px",overflowY:"auto",flex:1}}>
+          {!!problemasAuto.length&&<div style={{display:"grid",gap:5,marginBottom:8}}>{problemasAuto.map(p=><div key={p.id} style={{padding:"6px 8px",borderRadius:7,border:"1px solid rgba(248,113,113,.28)",background:"rgba(248,113,113,.07)",fontSize:10,color:"#fca5a5",lineHeight:1.35}}><b>{p.texto}</b>{p.detalhe&&<small style={{display:"block",color:T.text3,marginTop:1}}>{p.detalhe}</small>}</div>)}</div>}
           <TA fieldRef={refs.current.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
             sugestao={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"}
             rows={7} fieldName="probAtivos" onBlurSave={salvar}/>
           <button onClick={()=>{
-            const t=refs.current.probAtivos?.current?.value||campos.probAtivos||"";
+            const manual=refs.current.probAtivos?.current?.value||campos.probAtivos||"";
+            const t=[...problemasAuto.map(p=>p.texto),manual].filter(Boolean).join("\n");
             if(t){navigator.clipboard?.writeText(t).catch(()=>{});
               setCopiado(c=>({...c,probAtivos:true}));
               setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}}
@@ -5377,7 +5407,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
   const txtProblemas = () => {
     const p=[];
-    if(get("probAtivos"))    p.push(`ATIVOS:\n${get("probAtivos")}`);
+    const automaticos=problemasAtivosAutomaticos(leito,tabelaDataLeito,campos,config).map(x=>x.texto);
+    const ativos=[...automaticos,get("probAtivos")].filter(Boolean).join("\n");
+    if(ativos) p.push(`ATIVOS:\n${ativos}`);
     if(get("probResolvidos")) p.push(`RESOLVIDOS:\n${get("probResolvidos")}`);
     return p.join("\n");
   };
@@ -8329,6 +8361,7 @@ ${linha}`:linha}));
               onCampoEdit={(field, value)=>{ setEvolCamposComPersistencia(c=>({...c, [field]: value})); }}
               metas={metasPorLeito[leitoSelId]||[]}
               leito={leito}
+              config={config}
               tabelaDataLeito={tabelaData[leitoSelId]||{}}
               onLeitoChange={atualizar}
               onMetaChange={(novas)=>{ setMetasPorLeito(mp=>{const novo={...mp,[leitoSelId]:novas};salvarMetas(novo);return novo;}); }}/>
