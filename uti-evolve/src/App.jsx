@@ -951,12 +951,19 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const emTRS=/(hemodi|di[aá]lise|\btrs\b|crrt|cvvh)/i.test(trsTexto)&&!/(sem|suspensa|não|nao)\s+(hemodi|di[aá]lise|trs|crrt|cvvh)/i.test(trsTexto);
   const grau=Math.max(grauCr,grauDiurese,emTRS?3:0);
   const eletrolitos=[];
-  const addDist=(key,baixo,alto,nomeBaixo,nomeAlto)=>{const v=num(dataAtual?valorAte(dataAtual,key):null);if(v!==null){if(v<baixo)eletrolitos.push(`${nomeBaixo} (${ABREV[key]||key} ${v})`);else if(v>alto)eletrolitos.push(`${nomeAlto} (${ABREV[key]||key} ${v})`);}};
-  addDist("na",135,145,"Hiponatremia","Hipernatremia");
-  addDist("k",3.5,5.5,"Hipocalemia","Hipercalemia");
-  addDist("mg",1.6,2.6,"Hipomagnesemia","Hipermagnesemia");
-  addDist("cai",1.1,1.3,"Hipocalcemia iônica","Hipercalcemia iônica");
-  addDist("p",2.5,4.5,"Hipofosfatemia","Hiperfosfatemia");
+  const registrarDist=(key,nome,grauDist,v,omitir=false)=>{if(!omitir)eletrolitos.push(`${nome} ${grauDist} (${ABREV[key]||key} ${String(v).replace(".",",")})`);};
+  const valoresEletro={na:num(dataAtual?valorAte(dataAtual,"na"):null),k:num(dataAtual?valorAte(dataAtual,"k"):null),mg:num(dataAtual?valorAte(dataAtual,"mg"):null),cai:num(dataAtual?valorAte(dataAtual,"cai"):null),p:num(dataAtual?valorAte(dataAtual,"p"):null)};
+  const {na,k,mg,cai,p}=valoresEletro;
+  if(na!==null&&na<135){const g=na<125?"grave":na<130?"moderada":"leve";registrarDist("na","Hiponatremia",g,na,g!=="grave");}
+  else if(na!==null&&na>145){const g=na>=160?"grave":na>=151?"moderada":"leve";registrarDist("na","Hipernatremia",g,na,g==="leve");}
+  if(k!==null&&k<3.5)registrarDist("k","Hipocalemia",k<2.5?"grave":k<3?"moderada":"leve",k);
+  else if(k!==null&&k>5.5)registrarDist("k","Hipercalemia",k>=6.5?"grave":k>=6?"moderada":"leve",k);
+  if(mg!==null&&mg<1.6)registrarDist("mg","Hipomagnesemia",mg<1?"grave":mg<1.2?"moderada":"leve",mg);
+  else if(mg!==null&&mg>2.6){const g=mg>8?"grave":mg>=5?"moderada":"leve";registrarDist("mg","Hipermagnesemia",g,mg,g!=="grave");}
+  if(cai!==null&&cai<1.1)registrarDist("cai","Hipocalcemia iônica",cai<.8?"grave":cai<1?"moderada":"leve",cai);
+  else if(cai!==null&&cai>1.3)registrarDist("cai","Hipercalcemia iônica",cai>1.6?"grave":cai>1.4?"moderada":"leve",cai);
+  if(p!==null&&p<2.5)registrarDist("p","Hipofosfatemia",p<1?"grave":p<2?"moderada":"leve",p);
+  else if(p!==null&&p>4.5){const g=p>7?"grave":p>5.5?"moderada":"leve";registrarDist("p","Hiperfosfatemia",g,p,g==="leve");}
   if(grau>0){const criterios=[];if(emTRS)criterios.push("TRS");if(crAtual!==null)criterios.push(`Cr ${crAtual}${basal!==null?` (basal ${basal}${basalInformada!==null?", informada":""})`:""}`);if(debitoKgH!==null)criterios.push(`DU ${debitoKgH.toFixed(2).replace(".",",")} mL/kg/h`);problemas.push({id:"lra",texto:`Lesão Renal Aguda — KDIGO ${grau}`,detalhe:`estimado: ${criterios.join(" · ")}`,subitens:eletrolitos});}
   else if(eletrolitos.length)problemas.push({id:"eletrolitos",texto:"Distúrbios hidroeletrolíticos",subitens:eletrolitos});
   return problemas;
@@ -4640,7 +4647,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
           <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
             <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS</div>
             {ordenarMetas(metas).map((m,i)=>(
-              <div key={m.id||i} onContextMenu={e=>{e.preventDefault();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
+              <div key={m.id||i} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,metaIndex:metas.indexOf(m),equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
                 <MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/>
                 <button onClick={()=>onMetaChange&&onMetaChange(metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x))}
                   style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
@@ -4664,7 +4671,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
               + meta
             </button>
           </div>
-          <MetaEquipeMenu menu={menuEquipe} onClose={()=>setMenuEquipe(null)} onSelect={equipe=>onMetaChange&&onMetaChange(metas.map(m=>m.id===menuEquipe?.metaId?{...m,equipe}:m))}/>
+          <MetaEquipeMenu menu={menuEquipe} onClose={()=>setMenuEquipe(null)} onSelect={equipe=>onMetaChange&&onMetaChange(metas.map((m,i)=>(menuEquipe?.metaId?m.id===menuEquipe.metaId:i===menuEquipe?.metaIndex)?{...m,equipe}:m))}/>
         </div>
       )}
     </div>
@@ -6510,11 +6517,11 @@ function MetaEquipeMenu({menu,onClose,onSelect}){
   useEffect(()=>{if(!menu)return;const close=()=>onClose();const esc=e=>e.key==="Escape"&&onClose();window.addEventListener("click",close);window.addEventListener("keydown",esc);return()=>{window.removeEventListener("click",close);window.removeEventListener("keydown",esc);};},[menu,onClose]);
   if(!menu)return null;
   const escolher=(e,id)=>{e.stopPropagation();onSelect(id);onClose();};
-  return <div onClick={e=>e.stopPropagation()} style={{position:"fixed",left:Math.min(menu.x,window.innerWidth-210),top:Math.min(menu.y,window.innerHeight-245),zIndex:4000,width:195,padding:6,border:`1px solid ${T.borderStrong}`,borderRadius:9,background:T.bgCard,boxShadow:"0 12px 32px rgba(0,0,0,.38)"}}>
+  return createPortal(<div onClick={e=>e.stopPropagation()} style={{position:"fixed",left:Math.max(6,Math.min(menu.x,window.innerWidth-210)),top:Math.max(6,Math.min(menu.y,window.innerHeight-245)),zIndex:10000,width:195,padding:6,border:`1px solid ${T.borderStrong}`,borderRadius:9,background:T.bgCard,boxShadow:"0 12px 32px rgba(0,0,0,.38)"}}>
     <div style={{padding:"4px 7px 6px",fontSize:9,fontFamily:mono,letterSpacing:1.2,color:T.text3}}>DIRECIONAR META PARA</div>
     <button onClick={e=>escolher(e,"")} style={{width:"100%",padding:"7px 8px",textAlign:"left",border:0,borderRadius:6,background:!menu.equipe?T.bgCardHover:"transparent",color:T.text2,cursor:"pointer",fontSize:11}}>📋 Sem equipe</button>
     {EQUIPES.map(eq=><button key={eq.id} onClick={e=>escolher(e,eq.id)} style={{width:"100%",padding:"7px 8px",textAlign:"left",border:0,borderRadius:6,background:menu.equipe===eq.id?`${eq.cor}18`:"transparent",color:menu.equipe===eq.id?eq.cor:T.text2,cursor:"pointer",fontSize:11}}>{eq.emoji} {eq.label}{menu.equipe===eq.id?" ✓":""}</button>)}
-  </div>;
+  </div>,document.body);
 }
 
 
