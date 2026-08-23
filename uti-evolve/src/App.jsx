@@ -1635,6 +1635,7 @@ function gerarTextoVM(leito) {
   if (!modo || modo === "ar_ambiente") return leito.vm_sato2 ? `Ar ambiente / SatO2 ${leito.vm_sato2}%` : "Ar ambiente";
   const m = VM_MODOS.find(x=>x.id===modo);
   const label = m ? m.label : modo;
+  const mostraOpcional=id=>!Object.prototype.hasOwnProperty.call(leito.vmOpcionais||{},id)||!!leito.vmOpcionais[id];
   let partes=[];
   if(modo==="vm_pcv"){
     if(leito.vm_pins) partes.push(`Pins: ${leito.vm_pins}`);
@@ -1656,9 +1657,12 @@ function gerarTextoVM(leito) {
     const esforco=calcPoccEffort(leito);
     if(esforco){partes.push(`ΔPocc: ${esforco.delta.toFixed(1).replace(".",",")} cmH₂O`);partes.push(`Pmusc estimada: ${esforco.pmusc.toFixed(1).replace(".",",")} cmH₂O`);}
   }
+  if(mostraOpcional("ed")&&leito.vm_ed) partes.push(`ED: ${leito.vm_ed} cm`);
+  if(mostraOpcional("fed")&&leito.vm_fed) partes.push(`FED: ${leito.vm_fed}%`);
+  if(mostraOpcional("pimax")&&leito.vm_pimax) partes.push(`PImax: ${leito.vm_pimax} cmH₂O`);
   if (leito.vm_sato2) partes.push(`SatO2: ${leito.vm_sato2}%`);
   if (VM_INVASIVA_MODOS.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
-  if (leito.vm_obs) partes.push(leito.vm_obs);
+  if (mostraOpcional("obs")&&leito.vm_obs) partes.push(leito.vm_obs);
   const pao2=parseFloat(leito.vm_pf), fio2=parseFloat(leito.vm_fio2);
   if(Number.isFinite(pao2)&&pao2>0&&Number.isFinite(fio2)&&fio2>0) partes.push(`→ P/F ${Math.round(pao2/(fio2/100))}`);
   const cuidados=[];
@@ -1730,6 +1734,17 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const oxiCor = sat!==null ? (sat<90?"#f87171":sat<94?"#fbbf24":"#34d399") : pf_calc!==null ? (pf_calc<150?"#f87171":pf_calc<300?"#fbbf24":"#34d399") : "#94a3b8";
 
   const set = (key, val) => onChange({...leito, [key]: val});
+  const opcionais=leito.vmOpcionais||{};
+  const temExPres=["expres_rsbi","expres_complacencia","expres_mrc","expres_egcs","expres_neuro"].some(k=>leito[k]!==undefined&&leito[k]!=="");
+  const opcionalAtivo=(id)=>Object.prototype.hasOwnProperty.call(opcionais,id)?!!opcionais[id]:(
+    id==="ed"?!!leito.vm_ed:
+    id==="fed"?!!leito.vm_fed:
+    id==="pimax"?!!leito.vm_pimax:
+    id==="expres"?temExPres:
+    id==="obs"?!!leito.vm_obs:
+    id==="neb"?!!(leito.nebMed||leito.nebFreq):false
+  );
+  const toggleOpcional=(id)=>onChange({...leito,vmOpcionais:{...opcionais,[id]:!opcionalAtivo(id)}});
 
   return (
     <div>
@@ -1854,6 +1869,24 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
             ))}
           </div>
 
+          {VM_INVASIVA_MODOS.includes(leito.vm_modo)&&<>
+            <div style={{marginBottom:10,padding:"8px 10px",borderRadius:9,border:`1px solid ${T.border}`,background:T.bgInput}}>
+              <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.1,marginBottom:6}}>VARIÁVEIS OPCIONAIS</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {[
+                  ["ed","ED"],["fed","FED"],["pimax","PImax"],
+                  ...(leito.vm_modo==="vm_psv"?[["expres","ExPreS"]]:[]),
+                  ["obs","Observações"],["neb","Nebulização + frequência"]
+                ].map(([id,label])=>{const ativo=opcionalAtivo(id);return <button key={id} type="button" onClick={()=>toggleOpcional(id)} style={{padding:"4px 9px",borderRadius:12,cursor:"pointer",fontSize:10,fontWeight:700,color:ativo?T.accent:T.text3,background:ativo?T.accentBg:"transparent",border:`1px solid ${ativo?T.accentBorder:T.border}`}}>{ativo?"✓ ":"+ "}{label}</button>;})}
+              </div>
+            </div>
+            {(opcionalAtivo("ed")||opcionalAtivo("fed")||opcionalAtivo("pimax"))&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>
+              {opcionalAtivo("ed")&&<label style={{fontSize:9,color:T.text3,fontFamily:mono}}>ED — EXCURSÃO DIAFRAGMÁTICA (cm)<input type="number" step="0.1" value={leito.vm_ed||""} onChange={e=>set("vm_ed",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>}
+              {opcionalAtivo("fed")&&<label style={{fontSize:9,color:T.text3,fontFamily:mono}}>FED — FRAÇÃO DE ESPESSAMENTO (%)<input type="number" step="0.1" value={leito.vm_fed||""} onChange={e=>set("vm_fed",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>}
+              {opcionalAtivo("pimax")&&<label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PImax (cmH₂O)<input type="number" step="1" value={leito.vm_pimax||""} onChange={e=>set("vm_pimax",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>}
+            </div>}
+          </>}
+
           {/* Tidal volume vs peso predito */}
           {(()=>{
             const pp2 = pesoPredito(leito.altura, leito.sexo);
@@ -1915,7 +1948,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
             </div>
           )}
 
-          {leito.vm_modo==="vm_psv"&&<div style={{marginBottom:10,padding:"11px 12px",borderRadius:10,background:"rgba(167,139,250,.06)",border:"1px solid rgba(167,139,250,.25)"}}>
+          {leito.vm_modo==="vm_psv"&&opcionalAtivo("expres")&&<div style={{marginBottom:10,padding:"11px 12px",borderRadius:10,background:"rgba(167,139,250,.06)",border:"1px solid rgba(167,139,250,.25)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:9}}>
               <div style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,letterSpacing:1.2,fontWeight:800}}>ExPreS — PREDIÇÃO DE SUCESSO DA EXTUBAÇÃO</div>
               {exPres.total!==null&&<span style={{padding:"3px 9px",borderRadius:10,fontSize:11,fontWeight:800,color:exPres.faixa==="alta"?"#34d399":exPres.faixa==="intermediária"?"#fbbf24":"#f87171",background:"rgba(255,255,255,.04)"}}>{exPres.total}/100 · probabilidade {exPres.faixa}</span>}
@@ -1933,15 +1966,15 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
           </div>}
 
           {/* Observações */}
-          <div>
+          {opcionalAtivo("obs")&&<div>
             <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>OBSERVAÇÕES / PARÂMETROS ADICIONAIS</div>
             <textarea value={leito.vm_obs||""} onChange={e=>set("vm_obs",e.target.value)}
               placeholder="Ex: Prone 16h, sincronismo adequado, ajuste de sedação..." rows={2}
               style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12,resize:"vertical",fontFamily:"inherit"}}/>
-          </div>
+          </div>}
         </>
       )}
-      {modoAtual&&<div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+      {modoAtual&&opcionalAtivo("neb")&&<div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
         <div style={{minWidth:180,flex:2}}>
           <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>NEBULIZAÇÃO — MEDICAÇÃO</div>
           <input value={leito.nebMed||""} onChange={e=>set("nebMed",e.target.value)} placeholder="Ex: Salbutamol + ipratrópio"
@@ -5718,7 +5751,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const txtResFull = () => {
     const p=[];
     // Usa diretamente o suporte atual do leito; reVM permanece como fallback para registros legados.
-    const nebTxt = (leito.nebMed||leito.nebFreq) ? ` | Neb: ${[leito.nebMed,leito.nebFreq].filter(Boolean).join(" ")}` : "";
+    const nebVisivel=!Object.prototype.hasOwnProperty.call(leito.vmOpcionais||{},"neb")||!!leito.vmOpcionais.neb;
+    const nebTxt = nebVisivel&&(leito.nebMed||leito.nebFreq) ? ` | Neb: ${[leito.nebMed,leito.nebFreq].filter(Boolean).join(" ")}` : "";
     const vmAtual=leito.vm_modo?gerarTextoVM(leito):get("reVM");
     if(vmAtual){const [vmLinha,...vmExtras]=vmAtual.split("\n");p.push(`- Ventilação: ${vmLinha}${nebTxt}`,...vmExtras);}
     else if(nebTxt) p.push(`- Nebulização:${nebTxt}`);
