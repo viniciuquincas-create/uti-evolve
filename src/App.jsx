@@ -878,6 +878,34 @@ function calcularNutriDia(leito={}, linha={}, config={}) {
   };
 }
 
+function analisarGasometria(g={}){
+  const n=v=>{const x=parseFloat(String(v??"").replace(",","."));return Number.isFinite(x)?x:null;};
+  const ph=n(g.ph),hco3=n(g.hco3),pco2=n(g.pco2),sat=n(g.sato2),na=n(g.na),cl=n(g.cl);
+  const arterial=sat!==null&&sat>90;
+  const anionGap=[na,cl,hco3].every(Number.isFinite)?Math.round((na-cl-hco3)*10)/10:null;
+  const agAumentado=anionGap!==null&&anionGap>12;
+  const deltaDelta=agAumentado&&hco3<24&&24-hco3>0?Math.round(((anionGap-12)/(24-hco3))*100)/100:null;
+  const gravidadeAcidose=()=>ph!==null?(ph<7.2?"grave":ph<7.3?"moderada":"leve"):(hco3<10?"grave":hco3<18?"moderada":"leve");
+  const gravidadeAlcalose=()=>ph!==null?(ph>7.6?"grave":ph>7.5?"moderada":"leve"):(hco3>40?"grave":hco3>32?"moderada":"leve");
+  const disturbios=[];
+  let acidoseMetabolica=null;
+  if(hco3!==null&&hco3<24){
+    let compensacao="compensação respiratória não avaliada (gasometria não arterial)";
+    if(arterial&&pco2!==null){const esperado=1.5*hco3+8;compensacao=pco2<esperado-2?"alcalose respiratória associada":pco2>esperado+2?"acidose respiratória associada":"compensação respiratória adequada";}
+    acidoseMetabolica={gravidade:gravidadeAcidose(),compensacao,anionGap,agAumentado,deltaDelta};
+    disturbios.push(`Acidose metabólica ${acidoseMetabolica.gravidade} · ${compensacao}`);
+  }else if(hco3!==null&&hco3>28){
+    let compensacao="compensação respiratória não avaliada (gasometria não arterial)";
+    if(arterial&&pco2!==null){const esperado=.7*(hco3-24)+40;compensacao=pco2<esperado-5?"alcalose respiratória associada":pco2>esperado+5?"acidose respiratória associada":"compensação respiratória adequada";}
+    disturbios.push(`Alcalose metabólica ${gravidadeAlcalose()} · ${compensacao}`);
+  }
+  if(arterial&&ph!==null&&pco2!==null){
+    if(pco2>45&&ph<7.35)disturbios.push(`Acidose respiratória ${ph<7.2?"grave":ph<7.3?"moderada":"leve"} · ${hco3!==null&&hco3>24?"com compensação metabólica":"sem compensação metabólica evidente"}`);
+    else if(pco2<35&&ph>7.45)disturbios.push(`Alcalose respiratória ${ph>7.6?"grave":ph>7.5?"moderada":"leve"} · ${hco3!==null&&hco3<24?"com compensação metabólica":"sem compensação metabólica evidente"}`);
+  }
+  return {arterial,anionGap,agAumentado,deltaDelta,acidoseMetabolica,disturbios};
+}
+
 function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config={}){
   const problemas=[];
   const problemaVmi=leito.dispositivos?.tot?.ativo?{id:"vmi",texto:"Intubado em VMI",detalhe:"TOT ativo",subitens:[]}:null;
@@ -966,6 +994,21 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   else if(p!==null&&p>4.5){const g=p>7?"grave":p>5.5?"moderada":"leve";registrarDist("p","Hiperfosfatemia",g,p,g==="leve");}
   if(grau>0){const criterios=[];if(emTRS)criterios.push("TRS");if(crAtual!==null)criterios.push(`Cr ${crAtual}${basal!==null?` (basal ${basal}${basalInformada!==null?", informada":""})`:""}`);if(debitoKgH!==null)criterios.push(`DU ${debitoKgH.toFixed(2).replace(".",",")} mL/kg/h`);problemas.push({id:"lra",texto:`Lesão Renal Aguda — KDIGO ${grau}`,detalhe:`estimado: ${criterios.join(" · ")}`,subitens:eletrolitos});}
   else if(eletrolitos.length)problemas.push({id:"eletrolitos",texto:"Distúrbios hidroeletrolíticos",subitens:eletrolitos});
+  if(dataAtual){
+    const acidose=analisarGasometria(gasoAte(dataAtual)).acidoseMetabolica;
+    if(acidose){
+      const detalhes=[];
+      if(acidose.anionGap!==null)detalhes.push(`AG ${acidose.anionGap.toFixed(1).replace(".",",")}${acidose.agAumentado?" aumentado":""}`);
+      if(acidose.deltaDelta!==null)detalhes.push(`Δ/Δ ${acidose.deltaDelta.toFixed(2).replace(".",",")}`);
+      detalhes.push(acidose.compensacao);
+      const item=`Acidose metabólica ${acidose.gravidade} — ${detalhes.join(" · ")}`;
+      const lra=problemas.find(p=>p.id==="lra");
+      const choque=problemas.find(p=>p.id==="choque"||(p.id==="sepse"&&p.texto.startsWith("Choque")));
+      if(lra)lra.subitens=[...(lra.subitens||[]),item];
+      else if(choque)choque.subitens=[...(choque.subitens||[]),item];
+      else problemas.push({id:"acidose-metabolica",texto:`Acidose metabólica ${acidose.gravidade}`,detalhe:detalhes.join(" · ")});
+    }
+  }
   return problemas;
 }
 
@@ -4863,6 +4906,8 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
             </div>
             {gasos.map(g=>{
               const open = !!expandidos[g.id];
+              const analise = analisarGasometria(g);
+              const deltaInterpretacao=analise.deltaDelta===null?"":analise.deltaDelta<.4?"acidose metabólica com AG normal predominante":analise.deltaDelta<.8?"distúrbio misto: AG aumentado + AG normal":analise.deltaDelta<=2?"compatível com acidose de AG aumentado isolada":"alcalose metabólica associada";
               return (
               <div key={g.id} style={{marginBottom:4,
                 background:isHoje2?"rgba(56,189,248,0.02)":"transparent",
@@ -4910,6 +4955,11 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
                     })}
                   </div>
                 )}
+                {(analise.anionGap!==null||analise.disturbios.length>0)&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:5,paddingTop:5,borderTop:`1px dashed ${analise.agAumentado?"rgba(251,146,60,.28)":"rgba(148,163,184,.14)"}`}}>
+                  {analise.anionGap!==null&&<span style={{padding:"2px 6px",borderRadius:5,fontSize:9,fontFamily:mono,color:analise.agAumentado?"#fb923c":"#94a3b8",background:analise.agAumentado?"rgba(251,146,60,.09)":"rgba(148,163,184,.05)"}}>AG {analise.anionGap.toFixed(1).replace(".",",")}{analise.agAumentado?" ↑":""}</span>}
+                  {analise.deltaDelta!==null&&<span title={deltaInterpretacao} style={{padding:"2px 6px",borderRadius:5,fontSize:9,fontFamily:mono,color:"#fbbf24",background:"rgba(251,191,36,.08)"}}>Δ/Δ {analise.deltaDelta.toFixed(2).replace(".",",")} · {deltaInterpretacao}</span>}
+                  {analise.disturbios.map((txt,i)=><span key={i} style={{fontSize:9,color:txt.includes("grave")?"#f87171":txt.includes("moderada")?"#fb923c":"#94a3b8",fontFamily:mono}}>{txt}</span>)}
+                </div>}
               </div>
               );
             })}
