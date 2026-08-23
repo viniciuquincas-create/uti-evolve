@@ -1681,9 +1681,15 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const [busca, setBusca] = useState("");
   const [showBusca, setShowBusca] = useState(false);
   const [showDetails, setShowDetails] = useState(!integrated);
+  const [showPaO2List, setShowPaO2List] = useState(false);
 
   const modoAtual = VM_MODOS.find(m=>m.id===leito.vm_modo);
   const campos = VM_CAMPOS[leito.vm_modo] || [];
+  const pao2Gasometrias=Object.keys(tabelaDataLeito||{}).sort().reverse().flatMap(data=>{
+    let gasos=tabelaDataLeito[data]?._gasos||[];
+    try{if(typeof gasos==="string")gasos=JSON.parse(gasos);}catch{gasos=[];}
+    return (Array.isArray(gasos)?gasos:[]).filter(g=>g?.po2!==undefined&&g.po2!=="").map(g=>({valor:g.po2,horario:g.horario||"sem horário",data:g.data||data})).reverse();
+  });
 
   const modosFiltrados = busca.length >= 1
     ? VM_MODOS.filter(m=>m.label.toLowerCase().includes(busca.toLowerCase()))
@@ -1842,8 +1848,17 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
             <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>SATO2 (%)</div>
             <input type="number" value={leito.vm_sato2||""} onChange={e=>set("vm_sato2",e.target.value)}
               placeholder="90-100"
-              style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
+              style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text1,fontSize:12}}/>
           </div>
+          {VM_INVASIVA_MODOS.includes(leito.vm_modo)&&<div style={{minWidth:160,flex:1,position:"relative"}}>
+            <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ (mmHg) — calcula P/F</div>
+            <input type="number" value={leito.vm_pf||""} onChange={e=>set("vm_pf",e.target.value)} onFocus={()=>setShowPaO2List(true)} onBlur={()=>setTimeout(()=>setShowPaO2List(false),150)} placeholder="Digite ou escolha da gasometria"
+              style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text1,fontSize:12}}/>
+            {showPaO2List&&pao2Gasometrias.length>0&&<div style={{position:"absolute",zIndex:30,top:"100%",left:0,right:0,marginTop:4,maxHeight:190,overflowY:"auto",border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 28px rgba(0,0,0,.24)"}}>
+              <div style={{padding:"6px 9px",fontSize:8,color:T.text3,fontFamily:mono,letterSpacing:1}}>PaO₂ REGISTRADAS NAS GASOMETRIAS</div>
+              {pao2Gasometrias.map((g,i)=><button key={`${g.data}-${g.horario}-${i}`} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>{set("vm_pf",String(g.valor));setShowPaO2List(false);}} style={{width:"100%",padding:"7px 9px",display:"flex",justifyContent:"space-between",gap:10,border:0,borderTop:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left"}}><strong>PaO₂ {g.valor} mmHg</strong><span style={{fontSize:9,color:T.text3,fontFamily:mono}}>{g.horario} · {String(g.data).split("-").reverse().join("/")}</span></button>)}
+            </div>}
+          </div>}
           {VM_INVASIVA_MODOS.includes(leito.vm_modo) && leito.dispositivos?.tqt?.ativo && (
             <div style={{minWidth:120,flex:1}}>
               <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>CUFF (TQT)</div>
@@ -1932,18 +1947,6 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
                 ):(
                   <>Becher (PCV): 0,098 × VT(L) × FR × (PEEP + ΔPins)<br/>Necessários: VT medido, FR, PEEP e ΔPins acima da PEEP.</>
                 )}
-              </div>
-            </div>
-          )}
-
-          {/* PaO₂ permanece editável mesmo após o cálculo da relação P/F. */}
-          {(leito.vm_modo==="vm_psv"||leito.vm_modo==="vm_pcv"||leito.vm_modo==="vm_vcv"||leito.vm_modo==="vm_aprv")&&(
-            <div style={{display:"flex",gap:10,marginBottom:10}}>
-              <div style={{minWidth:120,flex:1}}>
-                <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ (mmHg) — calcula P/F</div>
-                <input type="number" value={leito.vm_pf||""} onChange={e=>set("vm_pf",e.target.value)}
-                  placeholder="Ex: 280"
-                  style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
               </div>
             </div>
           )}
