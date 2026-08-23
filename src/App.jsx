@@ -1012,7 +1012,7 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   return problemas;
 }
 
-const textoProblemaAutomatico=p=>[p.texto,...(p.subitens||[]).map(s=>`  - ${s}`)].join("\n");
+const textoProblemaAutomatico=p=>[`- ${p.texto}`,...(p.subitens||[]).map(s=>`  └ ${s}`)].join("\n");
 
 function NutriBar({ label, recebeu, meta }) {
   const pct = (meta && recebeu) ? Math.min(Math.round(recebeu / meta * 100), 150) : null;
