@@ -1560,7 +1560,7 @@ const VM_CAMPOS = {
                { key:"vm_fio2", label:"FiO₂ (%)",    type:"number", placeholder:"21-100" },
                { key:"vm_fr",   label:"FR espontânea",type:"number",placeholder:"" },
                { key:"vm_vt",   label:"VC corrente (mL)",type:"number",placeholder:"" },
-               { key:"vm_p01",  label:"P0.1 (cmH₂O)", type:"number",placeholder:"" },
+               { key:"vm_p01",  label:"P0.1 (cmH₂O)", reference:"ref. 1–3,5", type:"number",placeholder:"" },
                { key:"vm_pocc", label:"Pocc mínima (cmH₂O)", type:"number",placeholder:"ex: -7" }],
   vm_pcv:     [{ key:"vm_pins", label:"ΔPins acima da PEEP (cmH₂O)", type:"number",placeholder:"" },
                { key:"vm_peep", label:"PEEP (cmH₂O)", type:"number",placeholder:"5-20" },
@@ -1846,7 +1846,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
           <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
             {campos.map(c=>(
               <div key={c.key} style={{minWidth:120,flex:1}}>
-                <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{c.label.toUpperCase()}</div>
+                <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>{c.label.toUpperCase()}{c.reference&&<small style={{marginLeft:5,fontSize:8,color:T.text4,letterSpacing:0,textTransform:"none"}}>{c.reference}</small>}</div>
                 <input type={c.type||"text"} value={leito[c.key]||""} onChange={e=>set(c.key,e.target.value)}
                   placeholder={c.placeholder}
                   style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"#e2e8f0",fontSize:12}}/>
@@ -1882,7 +1882,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
               {pf_calc!==null&&<div style={{padding:"5px 12px",borderRadius:8,background:pf_calc<150?"rgba(248,113,113,0.1)":pf_calc<200?"rgba(251,191,36,0.1)":"rgba(52,211,153,0.08)",border:"1px solid rgba(255,255,255,0.1)",fontSize:12,color:pf_calc<150?"#f87171":pf_calc<200?"#fbbf24":"#34d399"}}>
                 P/F: <strong>{pf_calc}</strong> {pf_calc<150?"SDRA grave":pf_calc<200?"SDRA moderada":pf_calc<300?"SDRA leve":"OK"}
               </div>}
-              {poccEffort&&<><div style={{padding:"5px 12px",borderRadius:8,background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.24)",fontSize:12,color:"#c4b5fd"}}>ΔPocc: <strong>{poccEffort.delta.toFixed(1).replace(".",",")} cmH₂O</strong></div><div style={{padding:"5px 12px",borderRadius:8,background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.24)",fontSize:12,color:"#c4b5fd"}}>Pmusc estimada: <strong>{poccEffort.pmusc.toFixed(1).replace(".",",")} cmH₂O</strong></div></>}
+              {poccEffort&&<><div style={{padding:"5px 12px",borderRadius:8,background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.24)",fontSize:12,color:"#c4b5fd"}}><span>ΔPocc <small style={{color:T.text3,fontSize:8}}>ref. 3–15</small>:</span> <strong>{poccEffort.delta.toFixed(1).replace(".",",")} cmH₂O</strong></div><div style={{padding:"5px 12px",borderRadius:8,background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.24)",fontSize:12,color:"#c4b5fd"}}><span>Pmusc estimada <small style={{color:T.text3,fontSize:8}}>alvo 5–10</small>:</span> <strong>{poccEffort.pmusc.toFixed(1).replace(".",",")} cmH₂O</strong></div></>}
             </div>
           )}
           {leito.vm_modo==="vm_psv"&&poccEffort&&<div style={{margin:"-5px 0 10px",fontSize:9,color:T.text3,fontFamily:mono}}>Calculado pela magnitude da queda durante oclusão expiratória: ΔPocc = PEEP − Pocc; Pmusc ≈ 0,75 × ΔPocc.</div>}
