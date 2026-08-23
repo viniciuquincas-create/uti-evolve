@@ -889,12 +889,14 @@ function analisarGasometria(g={}){
   const gravidadeAlcalose=()=>ph!==null?(ph>7.6?"grave":ph>7.5?"moderada":"leve"):(hco3>40?"grave":hco3>32?"moderada":"leve");
   const disturbios=[];
   let acidoseMetabolica=null;
-  if(hco3!==null&&hco3<24){
+  const acidoseMetabolicaPresente=hco3!==null&&((ph!==null&&ph<7.35&&hco3<22)||(ph===null&&hco3<18));
+  const alcaloseMetabolicaPresente=hco3!==null&&((ph!==null&&ph>7.45&&hco3>26)||(ph===null&&hco3>30));
+  if(acidoseMetabolicaPresente){
     let compensacao="compensação respiratória não avaliada (gasometria não arterial)";
     if(arterial&&pco2!==null){const esperado=1.5*hco3+8;compensacao=pco2<esperado-2?"alcalose respiratória associada":pco2>esperado+2?"acidose respiratória associada":"compensação respiratória adequada";}
     acidoseMetabolica={gravidade:gravidadeAcidose(),compensacao,anionGap,agAumentado,deltaDelta};
     disturbios.push(`Acidose metabólica ${acidoseMetabolica.gravidade} · ${compensacao}`);
-  }else if(hco3!==null&&hco3>28){
+  }else if(alcaloseMetabolicaPresente){
     let compensacao="compensação respiratória não avaliada (gasometria não arterial)";
     if(arterial&&pco2!==null){const esperado=.7*(hco3-24)+40;compensacao=pco2<esperado-5?"alcalose respiratória associada":pco2>esperado+5?"acidose respiratória associada":"compensação respiratória adequada";}
     disturbios.push(`Alcalose metabólica ${gravidadeAlcalose()} · ${compensacao}`);
@@ -915,7 +917,7 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const datas=Object.keys(tabelaDataLeito||{}).filter(d=>/^\d{4}-\d{2}-\d{2}/.test(d)).sort();
   const dataAtual=datas.at(-1),linhaAtual=dataAtual?tabelaDataLeito[dataAtual]||{}:{};
   const valorAte=(date,key,score=false)=>{for(const d of [...datas].filter(x=>x<=date).reverse()){const v=score?tabelaDataLeito[d]?._scoreInputs?.[key]:tabelaDataLeito[d]?.[key];if(v!==undefined&&v!==null&&String(v).trim()!=="")return v;}return "";};
-  const gasoAte=date=>{for(const d of [...datas].filter(x=>x<=date).reverse()){let gs=tabelaDataLeito[d]?._gasos||[];try{if(typeof gs==="string")gs=JSON.parse(gs);}catch{gs=[];}for(let i=(gs?.length||0)-1;i>=0;i--)if(Object.values(gs[i]||{}).some(Boolean))return gs[i];}return {};};
+  const gasoAte=date=>{for(const d of [...datas].filter(x=>x<=date).reverse()){let gs=tabelaDataLeito[d]?._gasos||[];try{if(typeof gs==="string")gs=JSON.parse(gs);}catch{gs=[];}gs=[...(gs||[])].filter(g=>Object.values(g||{}).some(Boolean)).sort((a,b)=>`${a.data||d} ${a.horario||""} ${a.id||""}`.localeCompare(`${b.data||d} ${b.horario||""} ${b.id||""}`));if(gs.length)return gs.at(-1);}return {};};
   const scorePorData=date=>{
     const salvo=tabelaDataLeito[date]?._scoreInputs||{},g=gasoAte(date),hoje=new Date().toISOString().slice(0,10),atual=date.slice(0,10)===hoje;
     const fio2=numScore(atual?(leito.vm_fio2||valorAte(date,"fio2",true)):valorAte(date,"fio2",true));
@@ -967,9 +969,10 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return Number.isFinite(n)?n:null;};
   const crAtual=num(linhaAtual.cr??linhaAtual.creatinina),peso=num(leito.peso),diurese=num(linhaAtual.c24_diur);
   const atualMs=dataAtual?new Date(`${dataAtual.slice(0,10)}T12:00:00`).getTime():null;
-  const crAnteriores=datas.slice(0,-1).map(d=>({data:d.slice(0,10),valor:num(tabelaDataLeito[d]?.cr??tabelaDataLeito[d]?.creatinina)})).filter(x=>x.valor!==null&&(!atualMs||atualMs-new Date(`${x.data}T12:00:00`).getTime()<=7*86400000));
+  const crRegistradas=datas.map(d=>({data:d.slice(0,10),valor:num(tabelaDataLeito[d]?.cr??tabelaDataLeito[d]?.creatinina)})).filter(x=>x.valor!==null);
+  const crAnteriores=crRegistradas.filter(x=>x.data<(dataAtual||"").slice(0,10)&&(!atualMs||atualMs-new Date(`${x.data}T12:00:00`).getTime()<=7*86400000));
   const basalInformada=num(leito.creatininaBasal);
-  const basal=basalInformada??(crAnteriores.length?Math.min(...crAnteriores.map(x=>x.valor)):null);
+  const basal=basalInformada??(crRegistradas.length?Math.min(...crRegistradas.map(x=>x.valor)):null);
   const cr48=crAnteriores.filter(x=>atualMs-new Date(`${x.data}T12:00:00`).getTime()<=2*86400000).map(x=>x.valor);
   let grauCr=0;
   if(crAtual!==null){if((basal!==null&&crAtual>=4&&crAtual-basal>=.3)||(basal&&crAtual>=3*basal))grauCr=3;else if(basal&&crAtual>=2*basal)grauCr=2;else if((basal&&crAtual>=1.5*basal)||cr48.some(v=>crAtual-v>=.3))grauCr=1;}
