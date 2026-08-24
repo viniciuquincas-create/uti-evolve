@@ -351,27 +351,27 @@ const DARK = {
 };
 
 const LIGHT = {
-  bgPage:           "#d6dee8",
-  bgCard:           "#f8fafc",
-  bgCardHover:      "#e6edf4",
-  bgSidebar:        "#e1e7ee",
-  bgHeader:         "rgba(238,243,248,0.98)",
+  bgPage:           "#cbd5e1",
+  bgCard:           "#ffffff",
+  bgCardHover:      "#e2e8f0",
+  bgSidebar:        "#dbe4ee",
+  bgHeader:         "rgba(248,250,252,0.98)",
   bgInput:          "#ffffff",
   bgPicker:         "#ffffff",
   bgSel:            "rgba(2,132,199,0.07)",
   text1:            "#0f172a",
   text2:            "#334155",
-  text3:            "#64748b",
-  text4:            "#475569",
-  textDim:          "#64748b",
-  border:           "#9eacbd",
-  borderStrong:     "#718096",
+  text3:            "#475569",
+  text4:            "#334155",
+  textDim:          "#475569",
+  border:           "#8291a3",
+  borderStrong:     "#5f6f82",
   borderAccent:     "rgba(2,132,199,0.18)",
   accent:           "#0284c7",
   accentBg:         "rgba(2,132,199,0.08)",
   accentBorder:     "rgba(2,132,199,0.35)",
   shadow:           "0 1px 3px rgba(0,0,0,0.08)",
-  shadowCard:       "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05)",
+  shadowCard:       "0 3px 10px rgba(15,23,42,0.13), 0 1px 3px rgba(15,23,42,0.08)",
   colorScheme:      "light",
   bgTableHead:      "#f0f4f8",
   bgTableSticky:    "#ffffff",
@@ -8102,15 +8102,24 @@ export default function App() {
         .theme-light .uti-tab-btn:hover{background:rgba(248,250,252,.75)!important;color:#0f172a!important}
         .theme-light .uti-tab-btn[data-active="true"]{background:#f8fafc!important;color:#075985!important;border-color:#94a3b8!important;box-shadow:0 -2px 7px rgba(15,23,42,.10)}
         .theme-light .system-card{border-color:#8493a5!important;border-radius:14px!important;box-shadow:0 4px 12px rgba(15,23,42,.13)!important;background:#f8fafc!important}
-        .theme-light .system-card>div:first-child{background:#dbe5ee!important;min-height:44px;border-bottom:1px solid #aebccb}
-        .theme-light .system-card-body{background:#f8fafc;padding:16px!important}
-        .theme-light .clinical-group{background:#e7edf4;border:1px solid #b8c5d3;border-radius:10px;padding:10px 12px;margin-bottom:12px!important}
+        .theme-light .system-card>div:first-child{background:#d3deea!important;min-height:44px;border-bottom:1px solid #91a1b3}
+        .theme-light .system-card-body{background:#fff;padding:16px!important}
+        .theme-light .clinical-group{background:#e4ebf3;border:1px solid #9eacbd;border-radius:10px;padding:10px 12px;margin-bottom:12px!important}
         .theme-light .clinical-group:last-child{margin-bottom:0!important}
         .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]),.theme-light textarea,.theme-light select{background:#fff!important;border-color:#94a3b8!important;color:#0f172a!important}
         .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.theme-light textarea:focus,.theme-light select:focus{border-color:#0284c7!important;box-shadow:0 0 0 2px rgba(2,132,199,.10)}
         .theme-light .mini-bomba-row>span:first-child{color:#334155!important}
         .theme-light .mini-bomba-row>span:nth-of-type(2){color:#0369a1!important}
         .theme-light option{background:#fff;color:#0f172a}
+        .theme-light [style*="color: rgb(226, 232, 240)"],.theme-light [style*="color:#e2e8f0"],.theme-light [style*="color: #e2e8f0"]{color:#0f172a!important}
+        .theme-light [style*="color: rgb(148, 163, 184)"],.theme-light [style*="color:#94a3b8"],.theme-light [style*="color: #94a3b8"]{color:#475569!important}
+        .theme-light [style*="color: rgb(100, 116, 139)"],.theme-light [style*="color:#64748b"],.theme-light [style*="color: #64748b"]{color:#475569!important}
+        .theme-light [style*="color: rgb(56, 189, 248)"],.theme-light [style*="color:#38bdf8"],.theme-light [style*="color: #38bdf8"]{color:#0369a1!important}
+        .theme-light [style*="color: rgb(167, 139, 250)"],.theme-light [style*="color:#a78bfa"],.theme-light [style*="color: #a78bfa"]{color:#6d28d9!important}
+        .theme-light [style*="color: rgb(251, 146, 60)"],.theme-light [style*="color:#fb923c"],.theme-light [style*="color: #fb923c"]{color:#c2410c!important}
+        .theme-light [style*="color: rgb(52, 211, 153)"],.theme-light [style*="color:#34d399"],.theme-light [style*="color: #34d399"]{color:#047857!important}
+        .theme-light [style*="color: rgb(248, 113, 113)"],.theme-light [style*="color:#f87171"],.theme-light [style*="color: #f87171"]{color:#b91c1c!important}
+        .theme-light button{font-weight:600}
         .mini-bomba-row{display:grid;grid-template-columns:minmax(120px,220px) 72px minmax(145px,220px) 18px;gap:6px;align-items:center;justify-content:start;max-width:560px}
         @media(min-width:701px){.patient-content-with-problems{padding-right:312px!important}.patient-navigation-with-problems{padding-right:296px!important}}
         @media(max-width:700px){.prob-floating{position:static!important;width:100%!important;margin-bottom:12px;filter:none!important}}
