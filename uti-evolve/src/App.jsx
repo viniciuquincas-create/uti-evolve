@@ -351,10 +351,10 @@ const DARK = {
 };
 
 const LIGHT = {
-  bgPage:           "#cbd5e1",
+  bgPage:           "#e8eef5",
   bgCard:           "#ffffff",
   bgCardHover:      "#e2e8f0",
-  bgSidebar:        "#dbe4ee",
+  bgSidebar:        "#edf2f7",
   bgHeader:         "rgba(248,250,252,0.98)",
   bgInput:          "#ffffff",
   bgPicker:         "#ffffff",
@@ -3040,7 +3040,7 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, on
   };
 
   return (
-    <div style={{maxWidth:620}}>
+    <div className="config-panel" style={{maxWidth:680}}>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
         <button onClick={onVoltar} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",cursor:"pointer",fontSize:12,padding:"6px 12px"}}>← Voltar</button>
         <div>
@@ -8095,16 +8095,16 @@ export default function App() {
         .system-card{transition:border-color .18s,box-shadow .18s}
         .system-card:focus-within{border-color:rgba(56,189,248,.34)!important;box-shadow:0 0 0 1px rgba(56,189,248,.08)}
         .theme-light .app-header{border-bottom-color:#94a3b8!important;box-shadow:0 2px 10px rgba(15,23,42,.14)}
-        .theme-light .app-sidebar{background:#e1e7ee!important;border-right-color:#94a3b8!important}
-        .theme-light .patient-tabs{background:#c7d2df!important;padding:7px 8px 0 18px!important;gap:4px;border-bottom-color:#94a3b8!important}
+        .theme-light .app-sidebar{background:#edf2f7!important;border-right-color:#94a3b8!important}
+        .theme-light .patient-tabs{background:#dde6f0!important;padding:7px 8px 0 18px!important;gap:4px;border-bottom-color:#94a3b8!important}
         .theme-light .patient-tabs.patient-navigation-with-problems{padding-right:296px!important}
         .theme-light .uti-tab-btn{padding:9px 14px!important;border:1px solid transparent!important;border-bottom:0!important;border-radius:9px 9px 0 0!important;color:#475569!important}
         .theme-light .uti-tab-btn:hover{background:rgba(248,250,252,.75)!important;color:#0f172a!important}
         .theme-light .uti-tab-btn[data-active="true"]{background:#f8fafc!important;color:#075985!important;border-color:#94a3b8!important;box-shadow:0 -2px 7px rgba(15,23,42,.10)}
         .theme-light .system-card{border-color:#8493a5!important;border-radius:14px!important;box-shadow:0 4px 12px rgba(15,23,42,.13)!important;background:#f8fafc!important}
-        .theme-light .system-card>div:first-child{background:#d3deea!important;min-height:44px;border-bottom:1px solid #91a1b3}
+        .theme-light .system-card>div:first-child{background:#e7edf4!important;min-height:44px;border-bottom:1px solid #91a1b3}
         .theme-light .system-card-body{background:#fff;padding:16px!important}
-        .theme-light .clinical-group{background:#e4ebf3;border:1px solid #9eacbd;border-radius:10px;padding:10px 12px;margin-bottom:12px!important}
+        .theme-light .clinical-group{background:#f1f5f9;border:1px solid #9eacbd;border-radius:10px;padding:10px 12px;margin-bottom:12px!important}
         .theme-light .clinical-group:last-child{margin-bottom:0!important}
         .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]),.theme-light textarea,.theme-light select{background:#fff!important;border-color:#94a3b8!important;color:#0f172a!important}
         .theme-light input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.theme-light textarea:focus,.theme-light select:focus{border-color:#0284c7!important;box-shadow:0 0 0 2px rgba(2,132,199,.10)}
@@ -8112,6 +8112,7 @@ export default function App() {
         .theme-light .mini-bomba-row>span:nth-of-type(2){color:#0369a1!important}
         .theme-light option{background:#fff;color:#0f172a}
         .theme-light [style*="color: rgb(226, 232, 240)"],.theme-light [style*="color:#e2e8f0"],.theme-light [style*="color: #e2e8f0"]{color:#0f172a!important}
+        .theme-light [style*="color: rgb(203, 213, 225)"],.theme-light [style*="color:#cbd5e1"],.theme-light [style*="color: #cbd5e1"]{color:#1e293b!important}
         .theme-light [style*="color: rgb(148, 163, 184)"],.theme-light [style*="color:#94a3b8"],.theme-light [style*="color: #94a3b8"]{color:#475569!important}
         .theme-light [style*="color: rgb(100, 116, 139)"],.theme-light [style*="color:#64748b"],.theme-light [style*="color: #64748b"]{color:#475569!important}
         .theme-light [style*="color: rgb(56, 189, 248)"],.theme-light [style*="color:#38bdf8"],.theme-light [style*="color: #38bdf8"]{color:#0369a1!important}
@@ -8119,6 +8120,11 @@ export default function App() {
         .theme-light [style*="color: rgb(251, 146, 60)"],.theme-light [style*="color:#fb923c"],.theme-light [style*="color: #fb923c"]{color:#c2410c!important}
         .theme-light [style*="color: rgb(52, 211, 153)"],.theme-light [style*="color:#34d399"],.theme-light [style*="color: #34d399"]{color:#047857!important}
         .theme-light [style*="color: rgb(248, 113, 113)"],.theme-light [style*="color:#f87171"],.theme-light [style*="color: #f87171"]{color:#b91c1c!important}
+        .theme-light [style*="color: rgb(252, 211, 77)"],.theme-light [style*="color:#fcd34d"],.theme-light [style*="color: #fcd34d"]{color:#92400e!important}
+        .theme-light [style*="color: rgb(196, 181, 253)"],.theme-light [style*="color:#c4b5fd"],.theme-light [style*="color: #c4b5fd"]{color:#6d28d9!important}
+        .theme-light .config-panel{background:#fff;border:1px solid #94a3b8;border-radius:14px;padding:18px;box-shadow:0 4px 14px rgba(15,23,42,.10)}
+        .theme-light .config-panel>div[style*="overflow: hidden"]{background:#f8fafc!important;border-color:#94a3b8!important}
+        .theme-light .config-panel>div[style*="overflow: hidden"]>div{border-color:#cbd5e1!important}
         .theme-light button{font-weight:600}
         .mini-bomba-row{display:grid;grid-template-columns:minmax(120px,220px) 72px minmax(145px,220px) 18px;gap:6px;align-items:center;justify-content:start;max-width:560px}
         @media(min-width:701px){.patient-content-with-problems{padding-right:312px!important}.patient-navigation-with-problems{padding-right:296px!important}}
