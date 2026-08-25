@@ -64,7 +64,7 @@ const LEITOS_INICIAIS = [
 ];
 
 const leitoVazio = (leito) => ({
-  id:leito.id,nome:leito.nome,paciente:"",diagnostico:"",dataInternacao:"",dataNascimento:"",idadeAnos:"",rankinAdmissao:"",
+  id:leito.id,nome:leito.nome,utiId:leito.utiId,paciente:"",diagnostico:"",dataInternacao:"",dataNascimento:"",idadeAnos:"",rankinAdmissao:"",
   peso:"",altura:"",sexo:"M",bhPrevio:"",acompanhantes:[],procedimentos:[],dispositivos:{},antibioticos:[],culturas:[],
   drogasVazao:{},dieta:{},vm_modo:"",
 });
@@ -2400,7 +2400,8 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
   );
 }
 // ── PacientePanel ─────────────────────────────────────────────────────────────
-function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={} }) {
+function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={}, leitosDisponiveis=[], onTransferir }) {
+  const [destinoLeito,setDestinoLeito]=useState("");
   const dias  = diasInternacao(dados.dataInternacao);
   const idadeAnos = idadeDoLeito(dados);
   const idade = idadeAnos;
@@ -2449,6 +2450,11 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
           <button title="Remover acompanhante" onClick={()=>onChange({...dados,acompanhantes:(dados.acompanhantes||[]).filter((_,j)=>j!==i)})} style={{height:38,borderRadius:7,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
         </div>)}</div>
       </div>
+
+      {dados.paciente&&leitosDisponiveis.length>0&&<div style={{display:"flex",alignItems:"end",gap:8,flexWrap:"wrap",margin:"10px 0 14px",padding:"10px 12px",borderRadius:9,border:"1px solid rgba(251,191,36,.25)",background:"rgba(251,191,36,.045)"}}>
+        <label style={{flex:1,minWidth:220,fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1}}>TRANSFERIR PACIENTE PARA OUTRO LEITO<select value={destinoLeito} onChange={e=>setDestinoLeito(e.target.value)} style={{display:"block",width:"100%",height:38,marginTop:4,borderRadius:8,border:"1px solid rgba(251,191,36,.3)",background:"rgba(255,255,255,.04)",color:"#e2e8f0",padding:"0 9px"}}><option value="">— selecionar leito vago —</option>{leitosDisponiveis.map(l=><option key={l.id} value={l.id}>{l.nome}</option>)}</select></label>
+        <button disabled={!destinoLeito} onClick={async()=>{if(await onTransferir?.(destinoLeito))setDestinoLeito("");}} style={{height:38,padding:"0 13px",borderRadius:8,border:"1px solid rgba(251,191,36,.35)",background:"rgba(251,191,36,.09)",color:"#d97706",fontWeight:800,cursor:destinoLeito?"pointer":"not-allowed",opacity:destinoLeito?1:.45}}>Transferir leito</button>
+      </div>}
 
 
       {/* Balanço Hídrico Prévio */}
@@ -4847,6 +4853,7 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [expandidos, setExpandidos] = useState({});
+  const [diasExpandidos,setDiasExpandidos]=useState({});
   const CAMPOS_GASO = [
     {k:"ph",   lbl:"pH"},
     {k:"hco3", lbl:"HCO₃", unit:"mEq/L"},
@@ -4854,6 +4861,7 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
     {k:"po2",  lbl:"pO₂",  unit:"mmHg"},
     {k:"be",   lbl:"BE",   unit:"mEq/L"},
     {k:"sato2",lbl:"SatO₂",unit:"%"},
+    {k:"lact", lbl:"Lact", unit:"mmol/L"},
   ];
   const CAMPOS_GASO_EXTRA = [
     {k:"na",   lbl:"Na",   unit:"mEq/L"},
@@ -4861,7 +4869,6 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
     {k:"ca",   lbl:"Ca",   unit:"mmol/L"},
     {k:"cl",   lbl:"Cl",   unit:"mEq/L"},
     {k:"glic", lbl:"Glic", unit:"mg/dL"},
-    {k:"lact", lbl:"Lact", unit:"mmol/L"},
     {k:"hb",   lbl:"Hb",   unit:"g/dL"},
   ];
 
@@ -4910,17 +4917,17 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
             background:"rgba(56,189,248,0.08)",color:"#38bdf8",cursor:"pointer",fontSize:11}}>
           + Gaso
         </button>
-        <span style={{fontSize:9,color:"#334155",fontFamily:mono}}>Na/K/Ca/Cl/Glic/Lact/Hb → lançados nos respectivos sistemas</span>
+        <span style={{fontSize:9,color:"#334155",fontFamily:mono}}>Na/K/Ca/Cl/Glic/Hb → parâmetros adicionais</span>
       </div>
-      {datas.map(d => {
-        const gasos = getGasos(d);
+      {[...datas].sort((a,b)=>b.localeCompare(a)).map(d => {
+        const gasos = [...getGasos(d)].sort((a,b)=>`${b.data||d} ${b.horario||""} ${b.id||""}`.localeCompare(`${a.data||d} ${a.horario||""} ${a.id||""}`));
         if(!gasos.length) return null;
         const isHoje2 = d===hoje||d.startsWith(hoje+"T");
+        const diaAberto=isHoje2||!!diasExpandidos[d];
         return (
           <div key={d} style={{marginBottom:10}}>
-            <div style={{fontSize:9,fontFamily:mono,color:"#334155",marginBottom:4}}>
-              {new Date(d+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}
-            </div>
+            <button onClick={()=>!isHoje2&&setDiasExpandidos(x=>({...x,[d]:!x[d]}))} style={{width:"100%",display:"flex",alignItems:"center",gap:7,padding:"5px 7px",marginBottom:diaAberto?4:0,border:`1px solid ${T.border}`,borderRadius:6,background:isHoje2?T.accentBg:T.bgCard,color:isHoje2?T.accent:T.text2,cursor:isHoje2?"default":"pointer",fontSize:9,fontFamily:mono,textAlign:"left"}}><b>{new Date(d+"T00:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</b><span style={{color:T.text3}}>{gasos.length} gasometria(s)</span><span style={{marginLeft:"auto"}}>{diaAberto?"▴":"▾ consultar"}</span></button>
+            {diaAberto&&<>
             {gasos.map(g=>{
               const open = !!expandidos[g.id];
               const analise = analisarGasometria(g);
@@ -4946,7 +4953,7 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
                     );
                   })}
                   <button onClick={()=>setExpandidos(e=>({...e,[g.id]:!e[g.id]}))}
-                    title="Mais parâmetros (Na/K/Ca/Cl/Glic/Lact/Hb)"
+                    title="Mais parâmetros (Na/K/Ca/Cl/Glic/Hb)"
                     style={{padding:"2px 7px",borderRadius:5,fontSize:10,cursor:"pointer",
                       background:open||temExtra(g)?"rgba(163,230,53,0.1)":"rgba(255,255,255,0.04)",
                       border:`1px solid ${open||temExtra(g)?"rgba(163,230,53,0.3)":"rgba(255,255,255,0.08)"}`,
@@ -4980,6 +4987,7 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
               </div>
               );
             })}
+            </>}
           </div>
         );
       })}
@@ -7989,6 +7997,41 @@ export default function App() {
     });
   };
 
+  const transferirPaciente = async (destinoId) => {
+    const origem=leito;
+    const destino=leitos.find(l=>String(l.id)===String(destinoId));
+    if(!origem?.paciente||!destino||destino.paciente||String(origem.id)===String(destino.id)){
+      window.alert("Selecione um leito vago da mesma UTI.");return false;
+    }
+    if(!window.confirm(`Transferir ${origem.paciente} de ${origem.nome} para ${destino.nome}?`))return false;
+    const registroTransferencia={de:origem.nome,para:destino.nome,em:new Date().toISOString()};
+    const pacienteMovido={...origem,id:destino.id,nome:destino.nome,utiId:destino.utiId||origem.utiId,
+      transferencias:[...(origem.transferencias||[]),registroTransferencia]};
+    const novosLeitos=leitos.map(l=>String(l.id)===String(origem.id)?leitoVazio(l):String(l.id)===String(destino.id)?pacienteMovido:l);
+    const mover=(obj,valor)=>{const novo={...obj};delete novo[origem.id];delete novo[destino.id];if(valor!==undefined)novo[destino.id]=JSON.parse(JSON.stringify(valor));return novo;};
+    const novaTabela=mover(tabelaData,tabelaData[origem.id]);
+    const novaEvol=mover(evolPorLeito,evolCampos||evolPorLeito[origem.id]);
+    const novasMetas=mover(metasPorLeito,metasPorLeito[origem.id]);
+    const novoHistorico={...historicoDiario};
+    if(origem.admissionId)novoHistorico[origem.admissionId]={...(novoHistorico[origem.admissionId]||{}),currentBedId:destino.id,currentBedName:destino.nome,
+      transfers:[...(novoHistorico[origem.admissionId]?.transfers||[]),registroTransferencia]};
+    setSaving(true);
+    try{
+      const resultados=await Promise.all([
+        supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(novosLeitos)}),
+        supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(novaTabela)}),
+        supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(novaEvol)}),
+        supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(novasMetas)}),
+        supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novoHistorico)}),
+      ]);
+      const falha=resultados.find(r=>r.error);if(falha)throw falha.error;
+      setLeitos(novosLeitos);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);
+      setLeitoSelId(destino.id);setEvolCampos(novaEvol[destino.id]||EVOLUCAO_VAZIA);setEvolVersion(v=>v+1);setPacienteEditorAberto(false);
+      window.alert(`Paciente transferido para ${destino.nome}. Todos os dados clínicos foram preservados.`);return true;
+    }catch(e){console.error("Falha ao transferir paciente",e);window.alert("Não foi possível transferir. Nenhum dado foi alterado.");return false;}
+    finally{setSaving(false);}
+  };
+
   const darAltaPaciente = () => {
     if(!leito?.paciente)return;
     setAltaEditor({dataAlta:new Date().toISOString().slice(0,10),destino:"",destinoOutro:"",rankinAlta:""});
@@ -8652,6 +8695,7 @@ ${linha}`:linha}));
           </div>
           <div style={{overflowY:"auto",padding:"20px 22px"}}><PacientePanel
             dados={leito} onChange={atualizar} config={config}
+            leitosDisponiveis={leitosDaUti.filter(l=>String(l.id)!==String(leito.id)&&!l.paciente)} onTransferir={transferirPaciente}
             onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
             diureseHoje={(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort().reverse();for(const d of datas)if(tb[d]?.c24_diur)return tb[d].c24_diur;return "";})()}
             tabelaHoje={(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort().reverse();for(const d of datas)if(tb[d]?.c24_diet_vol)return tb[d];return tb[datas[0]]||{};})()}
