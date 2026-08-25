@@ -1766,6 +1766,10 @@ function gerarTextoVM(leito) {
   return `${label}: ${partes.join(" / ")}${cuidados.length?`\n- Cuidados VM: ${cuidados.join("; ")}`:""}`;
 }
 
+const VM_SNAPSHOT_KEYS=["vm_modo","vm_sato2","vm_pf","vm_o2","vm_flow","vm_fio2","vm_ipap","vm_epap","vm_br","vm_ps","vm_peep","vm_fr","vm_vt","vm_p01","vm_pocc","vm_pins","vm_pplat","vm_ppico","vm_phigh","vm_plow","vm_thigh","vm_tlow","vm_cuff"];
+const snapshotVM=(leito)=>Object.fromEntries(VM_SNAPSHOT_KEYS.filter(k=>leito[k]!==undefined&&leito[k]!=="").map(k=>[k,leito[k]]));
+const resumoSnapshotVM=(snap={})=>snap.vm_modo?gerarTextoVM({...snap}).split("\n")[0]:"Suporte não definido";
+
 function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}, glasgowNeurologico="" }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
@@ -1773,6 +1777,10 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const [showBusca, setShowBusca] = useState(false);
   const [showDetails, setShowDetails] = useState(!integrated);
   const [showPaO2List, setShowPaO2List] = useState(false);
+  const [showMudanca,setShowMudanca]=useState(false);
+  const [interpretacaoMudanca,setInterpretacaoMudanca]=useState("");
+  const [condutaMudanca,setCondutaMudanca]=useState("");
+  const [historicoAberto,setHistoricoAberto]=useState({});
 
   const modoAtual = VM_MODOS.find(m=>m.id===leito.vm_modo);
   const campos = VM_CAMPOS[leito.vm_modo] || [];
@@ -1830,7 +1838,16 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const sat = parseFloat(leito.vm_sato2||0)||null;
   const oxiCor = sat!==null ? (sat<90?"#f87171":sat<94?"#fbbf24":"#34d399") : pf_calc!==null ? (pf_calc<150?"#f87171":pf_calc<300?"#fbbf24":"#34d399") : "#94a3b8";
 
-  const set = (key, val) => onChange({...leito, [key]: val});
+  const alterarVM=(patch)=>onChange({...leito,vmBaseline:leito.vmBaseline||snapshotVM(leito),...patch});
+  const set = (key, val) => alterarVM({[key]:val});
+  const registrarMudanca=()=>{
+    const anterior=leito.vmBaseline||snapshotVM(leito),atual=snapshotVM(leito);
+    if(JSON.stringify(anterior)===JSON.stringify(atual)){window.alert("Altere ao menos um parâmetro ventilatório antes de registrar.");return;}
+    if(!interpretacaoMudanca.trim()){window.alert("Descreva a interpretação que motivou a mudança.");return;}
+    const registro={id:globalThis.crypto?.randomUUID?.()||`vm-${Date.now()}`,dataHora:new Date().toISOString(),anterior,atual,interpretacao:interpretacaoMudanca.trim(),conduta:condutaMudanca.trim()};
+    onChange({...leito,vmBaseline:atual,vmHistorico:[registro,...(leito.vmHistorico||[])]});
+    setInterpretacaoMudanca("");setCondutaMudanca("");setShowMudanca(false);
+  };
   const opcionais=leito.vmOpcionais||{};
   const temExPres=["expres_rsbi","expres_complacencia","expres_mrc","expres_egcs","expres_neuro"].some(k=>leito[k]!==undefined&&leito[k]!=="");
   const opcionalAtivo=(id)=>Object.prototype.hasOwnProperty.call(opcionais,id)?!!opcionais[id]:(
@@ -1877,6 +1894,16 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
         </div>
       ) : <SecTitle>SUPORTE VENTILATÓRIO</SecTitle>}
 
+      {modoAtual&&<div style={{margin:"-2px 0 12px",border:`1px solid ${T.border}`,borderRadius:9,background:T.bgCard,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px"}}><div style={{fontSize:9,fontFamily:mono,letterSpacing:1.2,color:T.text3,fontWeight:800}}>EVOLUÇÃO DO SUPORTE</div><span style={{fontSize:9,color:T.text4}}>{(leito.vmHistorico||[]).length} mudança(s)</span><button type="button" onClick={()=>setShowMudanca(x=>!x)} style={{marginLeft:"auto",padding:"4px 9px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:10,fontWeight:750,cursor:"pointer"}}>{showMudanca?"Cancelar":"＋ Registrar mudança"}</button></div>
+        {showMudanca&&<div style={{padding:"9px 10px",borderTop:`1px solid ${T.border}`,background:T.bgInput}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:8,marginBottom:8}}><div style={{padding:"7px 9px",borderRadius:7,border:`1px solid ${T.border}`,fontSize:10,color:T.text2}}><span style={{display:"block",fontSize:8,color:T.text4,fontFamily:mono,marginBottom:3}}>ANTES</span>{resumoSnapshotVM(leito.vmBaseline||snapshotVM(leito))}</div><div style={{padding:"7px 9px",borderRadius:7,border:`1px solid ${T.accentBorder}`,fontSize:10,color:T.text1}}><span style={{display:"block",fontSize:8,color:T.accent,fontFamily:mono,marginBottom:3}}>AGORA</span>{resumoSnapshotVM(snapshotVM(leito))}</div></div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:8}}><label style={{fontSize:9,color:T.text3,fontFamily:mono}}>INTERPRETAÇÃO / MOTIVO<textarea value={interpretacaoMudanca} onChange={e=>setInterpretacaoMudanca(e.target.value)} placeholder="Ex.: melhora da mecânica, esforço excessivo, hipoxemia..." rows={2} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:3,padding:"7px 8px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text1,resize:"vertical"}}/></label><label style={{fontSize:9,color:T.text3,fontFamily:mono}}>CONDUTA / OBJETIVO<textarea value={condutaMudanca} onChange={e=>setCondutaMudanca(e.target.value)} placeholder="Ex.: reduzir PS e reavaliar em 30 min" rows={2} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:3,padding:"7px 8px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text1,resize:"vertical"}}/></label></div>
+          <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}><button type="button" onClick={registrarMudanca} style={{padding:"6px 11px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontWeight:800,cursor:"pointer"}}>Guardar alteração</button></div>
+        </div>}
+        {(leito.vmHistorico||[]).length>0&&<div style={{borderTop:`1px solid ${T.border}`}}>{(leito.vmHistorico||[]).map((h,i)=>{const aberto=!!historicoAberto[h.id];return <div key={h.id} style={{borderBottom:i<(leito.vmHistorico||[]).length-1?`1px solid ${T.border}`:"none"}}><button type="button" onClick={()=>setHistoricoAberto(x=>({...x,[h.id]:!x[h.id]}))} style={{width:"100%",display:"flex",alignItems:"center",gap:7,padding:"7px 10px",border:0,background:"transparent",color:T.text2,cursor:"pointer",textAlign:"left",fontSize:9}}><span style={{fontFamily:mono,color:T.text4}}>{new Date(h.dataHora).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</span><strong style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.interpretacao}</strong><span style={{marginLeft:"auto"}}>{aberto?"▴":"▾"}</span></button>{aberto&&<div style={{padding:"0 10px 9px",fontSize:10,lineHeight:1.5,color:T.text2}}><div><b>Antes:</b> {resumoSnapshotVM(h.anterior)}</div><div><b>Depois:</b> {resumoSnapshotVM(h.atual)}</div><div><b>Interpretação:</b> {h.interpretacao}</div>{h.conduta&&<div><b>Conduta/objetivo:</b> {h.conduta}</div>}</div>}</div>;})}</div>}
+      </div>}
+
       {VM_INVASIVA_MODOS.includes(leito.vm_modo)&&<div style={{margin:"-2px 0 12px",padding:"8px 11px",border:`1px solid ${T.border}`,borderRadius:9,background:T.bgInput}}>
         <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.2,fontWeight:700,marginBottom:6}}>CUIDADOS EM VENTILAÇÃO MECÂNICA</div>
         <div style={{display:"flex",alignItems:"center",gap:"7px 16px",flexWrap:"wrap",fontSize:11,color:T.text2}}>
@@ -1898,18 +1925,18 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{modoAtual.label}</div>
             </div>
-            <button onClick={()=>{onChange({...leito,vm_modo:""});setBusca("");}} style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:11,padding:"3px 10px"}}>Trocar modo</button>
+            <button onClick={()=>{alterarVM({vm_modo:""});setBusca("");}} style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,color:"#f87171",cursor:"pointer",fontSize:11,padding:"3px 10px"}}>Trocar modo</button>
           </div>
         ) : (
           <div>
             <input value={busca} onChange={e=>{setBusca(e.target.value);setShowBusca(true);}} onFocus={()=>setShowBusca(true)}
-              onKeyDown={e=>{if(e.key==="Enter"&&modosFiltrados.length>0)onChange({...leito,vm_modo:modosFiltrados[0].id});if(e.key==="Escape")setShowBusca(false);}}
+              onKeyDown={e=>{if(e.key==="Enter"&&modosFiltrados.length>0)alterarVM({vm_modo:modosFiltrados[0].id});if(e.key==="Escape")setShowBusca(false);}}
               placeholder="Buscar modo ventilação... (ex: PSV, CNAF, VNI)"
               style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",color:"#e2e8f0",fontSize:13,outline:"none"}}/>
             {showBusca&&modosFiltrados.length>0&&(
               <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:99,background:"#0c1a10",border:"1px solid rgba(56,189,248,0.25)",borderRadius:8,marginTop:4,maxHeight:280,overflowY:"auto"}}>
                 {modosFiltrados.map(m=>(
-                  <div key={m.id} onClick={()=>{onChange({...leito,vm_modo:m.id});setBusca("");setShowBusca(false);}}
+                  <div key={m.id} onClick={()=>{alterarVM({vm_modo:m.id});setBusca("");setShowBusca(false);}}
                     style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#cbd5e1",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}
                     onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.1)"}
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -1920,7 +1947,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
             )}
             {!busca&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
               {VM_MODOS.map(m=>(
-                <button key={m.id} onClick={()=>onChange({...leito,vm_modo:m.id})}
+                <button key={m.id} onClick={()=>alterarVM({vm_modo:m.id})}
                   style={{padding:"5px 12px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#94a3b8",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",gap:5}}
                   onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.08)"}
                   onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}>
