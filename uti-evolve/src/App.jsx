@@ -57,15 +57,15 @@ const RANKIN_OPCOES=[
 ];
 
 const LEITOS_INICIAIS = [
-  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
-  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", procedimentos:[], dispositivos:{} },
+  { id:1, nome:"Leito 01", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", acompanhantes:[], procedimentos:[], dispositivos:{} },
+  { id:2, nome:"Leito 02", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", acompanhantes:[], procedimentos:[], dispositivos:{} },
+  { id:3, nome:"Leito 03", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", acompanhantes:[], procedimentos:[], dispositivos:{} },
+  { id:4, nome:"Leito 04", paciente:"", diagnostico:"", dataInternacao:"", dataNascimento:"", idadeAnos:"", rankinAdmissao:"", peso:"", altura:"", sexo:"M", bhPrevio:"", acompanhantes:[], procedimentos:[], dispositivos:{} },
 ];
 
 const leitoVazio = (leito) => ({
   id:leito.id,nome:leito.nome,paciente:"",diagnostico:"",dataInternacao:"",dataNascimento:"",idadeAnos:"",rankinAdmissao:"",
-  peso:"",altura:"",sexo:"M",bhPrevio:"",procedimentos:[],dispositivos:{},antibioticos:[],culturas:[],
+  peso:"",altura:"",sexo:"M",bhPrevio:"",acompanhantes:[],procedimentos:[],dispositivos:{},antibioticos:[],culturas:[],
   drogasVazao:{},dieta:{},vm_modo:"",
 });
 
@@ -2436,6 +2436,18 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         <Field label="PESO (kg)"   value={dados.peso}   onChange={v=>onChange({...dados,peso:v})}   type="number" placeholder="70"  suffix="kg" style={{minWidth:90}}/>
         <Field label="ALTURA (cm)" value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm" style={{minWidth:90}}/>
         <div style={{minWidth:260,flex:2}}><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>RANKIN MODIFICADA — ADMISSÃO</div><select value={dados.rankinAdmissao??""} onChange={e=>onChange({...dados,rankinAdmissao:e.target.value})} style={{width:"100%",height:38,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"0 9px",color:"#e2e8f0",fontSize:11}}><option value="">— selecionar —</option>{RANKIN_OPCOES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>
+      </div>
+
+      <div style={{margin:"14px 0",padding:"12px 14px",border:"1px solid rgba(56,189,248,.18)",borderRadius:10,background:"rgba(56,189,248,.035)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:(dados.acompanhantes||[]).length?10:0}}>
+          <div><div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5,fontWeight:700}}>ACOMPANHANTES / FAMILIARES</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>Nome e vínculo com o paciente</div></div>
+          <button onClick={()=>onChange({...dados,acompanhantes:[...(dados.acompanhantes||[]),{id:`acomp_${Date.now()}`,nome:"",parentesco:""}]})} style={{padding:"5px 9px",borderRadius:7,border:"1px solid rgba(56,189,248,.3)",background:"rgba(56,189,248,.08)",color:"#38bdf8",fontSize:10,fontWeight:700,cursor:"pointer"}}>＋ Adicionar</button>
+        </div>
+        <div style={{display:"grid",gap:8}}>{(dados.acompanhantes||[]).map((a,i)=><div key={a.id||i} style={{display:"grid",gridTemplateColumns:"minmax(180px,2fr) minmax(140px,1fr) 32px",gap:8,alignItems:"end"}}>
+          <Field label="NOME" value={a.nome||""} onChange={v=>onChange({...dados,acompanhantes:(dados.acompanhantes||[]).map((x,j)=>j===i?{...x,nome:v}:x)})} placeholder="Nome do acompanhante"/>
+          <Field label="PARENTESCO / VÍNCULO" value={a.parentesco||""} onChange={v=>onChange({...dados,acompanhantes:(dados.acompanhantes||[]).map((x,j)=>j===i?{...x,parentesco:v}:x)})} placeholder="Ex: filha, esposo, cuidador"/>
+          <button title="Remover acompanhante" onClick={()=>onChange({...dados,acompanhantes:(dados.acompanhantes||[]).filter((_,j)=>j!==i)})} style={{height:38,borderRadius:7,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
+        </div>)}</div>
       </div>
 
 
@@ -7908,7 +7920,7 @@ export default function App() {
     const id=`uti-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
     const novas=[...utis,{id,nome}];setUtis(novas);
     try{await supabase.from("config").upsert({key:"utis_data",value:JSON.stringify(novas)});}catch{}
-    const novoLeito={id:Date.now()+1,utiId:id,nome:"Leito 01",paciente:"",diagnostico:"",dataInternacao:"",rankinAdmissao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}};
+    const novoLeito={id:Date.now()+1,utiId:id,nome:"Leito 01",paciente:"",diagnostico:"",dataInternacao:"",rankinAdmissao:"",peso:"",altura:"",sexo:"M",acompanhantes:[],procedimentos:[],dispositivos:{}};
     const todos=[...leitos,novoLeito];setLeitos(todos);salvarLeitos(todos);
     setUtiAtivaId(id);sessionStorage.setItem("uti_ativa_id",id);setLeitoSelId(novoLeito.id);setAba("evolucao");setViewGlobal("leitos");
   };
@@ -8213,7 +8225,7 @@ export default function App() {
                 const novoId = Date.now();
                 const novoNum = leitosDaUti.length + 1;
                 setLeitos(ls=>{
-                  const novo = [...ls,{id:novoId,utiId:utiAtiva.id,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",rankinAdmissao:"",peso:"",altura:"",sexo:"M",procedimentos:[],dispositivos:{}}];
+                  const novo = [...ls,{id:novoId,utiId:utiAtiva.id,nome:`Leito ${String(novoNum).padStart(2,"0")}`,paciente:"",diagnostico:"",dataInternacao:"",rankinAdmissao:"",peso:"",altura:"",sexo:"M",acompanhantes:[],procedimentos:[],dispositivos:{}}];
                   salvarLeitos(novo);
                   return novo;
                 });
