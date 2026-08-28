@@ -8029,11 +8029,17 @@ export default function App() {
       const preservados=recebidos.filter(p=>correspondencias.has(normalizarNomeSbari(p.paciente)));
       const novos=recebidos.filter(p=>!correspondencias.has(normalizarNomeSbari(p.paciente)));
       const removidos=ocupados.filter(l=>!idsCorrespondidos.has(String(l.id)));
-      if(ocupados.length>=5&&(recebidos.length<Math.ceil(ocupados.length*0.5)||removidos.length>ocupados.length*0.6)){
-        const reconhecidos=recebidos.slice(0,8).map(p=>p.paciente).filter(Boolean).join(", ");
-        throw new Error(`Sincronização interrompida por segurança: o SBARI retornou ${recebidos.length} paciente(s), mas existem ${ocupados.length} leitos ocupados e ${removidos.length} seriam arquivados. Nenhum dado foi alterado.${reconhecidos?` Reconhecidos no documento: ${reconhecidos}.`:""}`);
-      }
-      const resumo=`Atualização do SBARI — ${utiAtiva.nome}\n\n${preservados.length} paciente(s) mantido(s), sem alterar dados clínicos\n${novos.length} paciente(s) novo(s)\n${removidos.length} paciente(s) ausente(s), que será(ão) arquivado(s) com alta pendente\n\nContinuar?`;
+      const listaMantidos=preservados.length?preservados.map(p=>{
+        const atual=correspondencias.get(normalizarNomeSbari(p.paciente));
+        const mudouLeito=normalizarNomeSbari(atual?.nome)!==normalizarNomeSbari(p.leito);
+        return `• ${p.leito} — ${p.paciente}${mudouLeito?` (era ${atual?.nome||"outro leito"})`:""}`;
+      }).join("\n"):"— nenhum";
+      const listaNovos=novos.length?novos.map(p=>`• ${p.leito} — ${p.paciente}`).join("\n"):"— nenhum";
+      const listaAusentes=removidos.length?removidos.map(l=>`• ${l.nome} — ${l.paciente}`).join("\n"):"— nenhum";
+      const alerta=(ocupados.length>=5&&(recebidos.length<Math.ceil(ocupados.length*0.5)||removidos.length>ocupados.length*0.6))
+        ?"\n\n⚠️ ATENÇÃO: muitos pacientes seriam arquivados. Revise cuidadosamente as listas antes de continuar."
+        :"";
+      const resumo=`Atualização do SBARI — ${utiAtiva.nome}\n\nMANTIDOS (${preservados.length}) — dados clínicos preservados\n${listaMantidos}\n\nNOVOS (${novos.length})\n${listaNovos}\n\nAUSENTES (${removidos.length}) — serão arquivados com alta pendente\n${listaAusentes}${alerta}\n\nDeseja aplicar exatamente estas alterações?`;
       if(!window.confirm(resumo))return;
       const agora=new Date().toISOString();
       const vagas=atuais.filter(l=>!l.paciente);
