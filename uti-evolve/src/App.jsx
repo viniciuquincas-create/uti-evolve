@@ -809,18 +809,6 @@ const DIETAS_DEFAULT = [
     nome:"NP HIPERPROTEICA tricompartimentada poliaminoácidos + glicose + lipídeo - 1000 mL (central)",
     comercial:"Olimel N9 — Baxter",
     kcalML:1.05, ptnML:0.072, choML:0.100, lipML:0.040 },
-  { id:"olig_trat",    tipo:"parenteral",
-    nome:"Oligoelementos para nutrição parenteral total - 2 mL",
-    comercial:"OLIG-TRAT®",
-    kcalML:0, ptnML:0, choML:0, lipML:0 },
-  { id:"cerne12",      tipo:"parenteral",
-    nome:"Polivitamínicos - 5 mL pó liofilizado",
-    comercial:"Cerne 12 — Baxter",
-    kcalML:0, ptnML:0, choML:0, lipML:0 },
-  { id:"fitomenadiona",tipo:"parenteral",
-    nome:"Fitomenadiona MM 10 mg/mL - 1 mL",
-    comercial:"Vitamina K",
-    kcalML:0, ptnML:0, choML:0, lipML:0 },
 ];
 
 function getDietasCatalogo(config) {
@@ -853,6 +841,28 @@ function calcMetaAbsoluta(meta, peso) {
   return (m.kcal || m.ptn) ? m : null;
 }
 
+function calcularRecomendacaoNutricional(dados={}){
+  const peso=parseFloat(dados.peso),altura=parseFloat(dados.altura),ideal=parseFloat(pesoPredito(dados.altura,dados.sexo));
+  if(!Number.isFinite(peso)||peso<=0||!Number.isFinite(altura)||altura<=0)return null;
+  const imc=peso/Math.pow(altura/100,2);
+  let kcalMin,kcalMax,kcalPeso=peso,kcalBase="peso atual";
+  if(imc<30){kcalMin=25*peso;kcalMax=30*peso;}
+  else if(imc<=50){kcalMin=11*peso;kcalMax=14*peso;}
+  else if(Number.isFinite(ideal)&&ideal>0){kcalMin=22*ideal;kcalMax=25*ideal;kcalPeso=ideal;kcalBase="peso ideal";}
+  else return {imc,kcalMin:null,kcalMax:null,ptnMin:null,ptnMax:null,erro:"Informe sexo e altura para calcular o peso ideal."};
+  let ptnMin=null,ptnMax=null,ptnPeso=null;
+  if(imc>=30&&Number.isFinite(ideal)&&ideal>0){ptnPeso=ideal;const fator=imc>=40?2.5:2;ptnMin=fator*ideal;ptnMax=fator*ideal;}
+  return {imc,ideal:Number.isFinite(ideal)?ideal:null,kcalMin,kcalMax,kcalPeso,kcalBase,ptnMin,ptnMax,ptnPeso};
+}
+
+function calcMetaNutricional(dados={}){
+  const meta=dados.dieta?.meta||{},manual=calcMetaAbsoluta(meta,parseFloat(dados.peso)||0),rec=calcularRecomendacaoNutricional(dados);
+  if(meta.manualOverride===true||!rec)return manual;
+  const kcal=rec.kcalMin!==null?Math.round((rec.kcalMin+rec.kcalMax)/2):null;
+  const ptn=rec.ptnMin!==null?+((rec.ptnMin+rec.ptnMax)/2).toFixed(1):manual?.ptn??null;
+  return kcal||ptn?{kcal,ptn}:manual;
+}
+
 function diasAteInicioDieta(dataInternacao, dataInicio) {
   if (!dataInternacao || !dataInicio) return null;
   const inicio=new Date(`${dataInternacao}T00:00:00`), dieta=new Date(`${dataInicio}T00:00:00`);
@@ -863,7 +873,7 @@ function diasAteInicioDieta(dataInternacao, dataInicio) {
 function calcularNutriDia(leito={}, linha={}, config={}) {
   const dieta=leito.dieta||{}, vol=parseFloat(linha.c24_diet_vol)||0;
   const formula=getDietasCatalogo(config).find(d=>d.id===dieta.catalogId)||null;
-  const meta=calcMetaAbsoluta(dieta.meta,parseFloat(leito.peso)||0);
+  const meta=calcMetaNutricional(leito);
   const calculada=calcNutri(formula,vol);
   const modulo=dieta.moduloProteina?.ativo?(parseFloat(dieta.moduloProteina.gramas)||0):0;
   const oferta=calculada?{...calculada,ptn:+(calculada.ptn+modulo).toFixed(1)}:(modulo?{kcal:0,ptn:modulo,cho:0,lip:0}:null);
@@ -1123,6 +1133,7 @@ function RefeedingRiskBox({ dados={}, tabelaDataLeito={}, onChange }) {
 
 // ── DietaPanel ────────────────────────────────────────────────────────────────
 function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataLeito={}, integrated=false }) {
+  const T=useTheme();
   const dieta = dados.dieta || {
     tipo:"enteral", catalogId:"", formula:"",
     vazao:"",
@@ -1131,6 +1142,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
   };
   const upd     = (field, val) => onChange({ ...dados, dieta: { ...dieta, [field]: val } });
   const updMeta = (field, val) => upd("meta", { ...(dieta.meta||{}), [field]: val });
+  const updMetaManual = (field, val) => upd("meta", { ...(dieta.meta||{}), manualOverride:true, [field]: val });
 
   const [showCatalog, setShowCatalog] = useState(false);
   const [showDetails, setShowDetails] = useState(!integrated);
@@ -1140,7 +1152,10 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
   const catalogo = getDietasCatalogo(config);
   const dietaSel = catalogo.find(d=>d.id===dieta.catalogId) || null;
   const meta     = dieta.meta || { modo:"kg" };
-  const metaAbs  = calcMetaAbsoluta(meta, peso);
+  const recomendacao=calcularRecomendacaoNutricional(dados);
+  const usarDiretriz=meta.manualOverride!==true;
+  const metaManual=calcMetaAbsoluta(meta,peso);
+  const metaAbs=calcMetaNutricional(dados)||metaManual;
   const volHoje  = parseFloat(diureseHojeVol) || 0;
   const moduloProteina = dieta.moduloProteina || {ativo:false,gramas:""};
   const moduloPtn = moduloProteina.ativo ? (parseFloat(moduloProteina.gramas)||0) : 0;
@@ -1164,7 +1179,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
     {k:"jejum",     label:"⛔ Jejum"},
   ];
   const filtrados = dieta.tipo==="parenteral"
-    ? catalogo.filter(d=>d.tipo==="parenteral")
+    ? catalogo.filter(d=>d.tipo==="parenteral"&&((parseFloat(d.kcalML)||0)>0||(parseFloat(d.ptnML)||0)>0))
     : catalogo.filter(d=>d.tipo==="enteral");
 
   return (
@@ -1223,7 +1238,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
           <div style={{marginBottom:12}}>
             <div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>FÓRMULA / DIETA</div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <button onClick={()=>setShowCatalog(s=>!s)} style={{flex:1,padding:"9px 14px",textAlign:"left",background:dietaSel?"rgba(56,189,248,0.08)":"rgba(255,255,255,0.04)",border:`1px solid ${dietaSel?"rgba(56,189,248,0.3)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:dietaSel?"#e2e8f0":"#64748b",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+              <button onClick={()=>setShowCatalog(s=>!s)} style={{flex:1,padding:"9px 14px",textAlign:"left",background:dietaSel?T.accentBg:T.bgInput,border:`1px solid ${dietaSel?T.accentBorder:T.border}`,borderRadius:8,color:dietaSel?T.text1:T.text3,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
                 {dietaSel ? (
                   <div>
                     <div style={{fontWeight:600,fontSize:12,lineHeight:1.4}}>{dietaSel.nome}</div>
@@ -1237,14 +1252,14 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
               {dietaSel && <button onClick={()=>{upd("catalogId","");upd("formula","");}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.03)",color:"#64748b",fontSize:11,cursor:"pointer"}}>✕</button>}
             </div>
             {showCatalog && (
-              <div style={{marginTop:6,background:"#0c1a10",border:"1px solid rgba(56,189,248,0.2)",borderRadius:10,maxHeight:200,overflowY:"auto",padding:"4px"}}>
+              <div style={{marginTop:6,background:T.bgCard,border:`1px solid ${T.borderStrong}`,borderRadius:10,maxHeight:240,overflowY:"auto",padding:"4px",boxShadow:"0 12px 30px rgba(15,23,42,.22)"}}>
                 {filtrados.length===0 ? <div style={{padding:"12px",textAlign:"center",color:"#475569",fontSize:12}}>Adicione fórmulas em ⚙️ Configurações.</div>
                   : filtrados.map(d=>(
                     <button key={d.id} onClick={()=>{
                       onChange({...dados, dieta:{...dieta, catalogId:d.id, formula:d.nome}});
                       setShowCatalog(false);
                     }}
-                      style={{width:"100%",padding:"8px 12px",textAlign:"left",background:dieta.catalogId===d.id?"rgba(56,189,248,0.1)":"transparent",border:"none",borderRadius:7,cursor:"pointer",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
+                      style={{width:"100%",padding:"8px 12px",textAlign:"left",background:dieta.catalogId===d.id?T.accentBg:"transparent",border:"none",borderBottom:`1px solid ${T.border}`,borderRadius:7,cursor:"pointer",color:T.text1,fontSize:12,fontFamily:"inherit"}}>
                       <div style={{fontWeight:600,lineHeight:1.4,marginBottom:2}}>
                         {d.nome}
                         {d.id.startsWith("custom_")&&<span style={{fontSize:9,color:"#c4b5fd",marginLeft:4}}> ★</span>}
@@ -1311,22 +1326,23 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
             </div>}
           </div>
 
-          {dieta.tipo==="parenteral"&&<div style={{padding:"10px 12px",marginBottom:14,border:"1px solid rgba(56,189,248,.22)",borderRadius:9,background:"rgba(56,189,248,.04)"}}>
+          {dieta.tipo==="parenteral"&&<div style={{padding:"10px 12px",marginBottom:14,border:`1px solid ${T.accentBorder}`,borderRadius:9,background:T.accentBg}}>
             <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1,marginBottom:7}}>SUPLEMENTAÇÃO ASSOCIADA À NPT</div>
-            <input value={dieta.suplementacaoNPT||""} onChange={e=>upd("suplementacaoNPT",e.target.value)} placeholder="Ex.: Vitamina K 10 mg/semana · Tiamina 100 mg/dia"
-              style={{width:"100%",background:"rgba(255,255,255,.04)",border:"1px solid rgba(56,189,248,.25)",borderRadius:7,padding:"7px 9px",color:"#e2e8f0",fontSize:12}}/>
             <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
-              {["Vitamina K","Tiamina","Polivitamínico","Oligoelementos"].map(s=><button key={s} onClick={()=>{const atual=dieta.suplementacaoNPT||"";if(!atual.toLowerCase().includes(s.toLowerCase()))upd("suplementacaoNPT",[atual,s].filter(Boolean).join(" · "));}} style={{padding:"2px 8px",borderRadius:12,border:"1px solid rgba(56,189,248,.2)",background:"transparent",color:"#7dd3fc",fontSize:10,cursor:"pointer"}}>+ {s}</button>)}
+              {["Fitomenadiona","Tiamina","Polivitamínicos","Oligoelementos"].map(s=>{const lista=dieta.suplementosNPT||[];const ativo=lista.includes(s);return <button key={s} onClick={()=>upd("suplementosNPT",ativo?lista.filter(x=>x!==s):[...lista,s])} style={{padding:"4px 9px",borderRadius:12,border:`1px solid ${ativo?T.accentBorder:T.border}`,background:ativo?T.accentBg:T.bgCard,color:ativo?T.accent:T.text2,fontSize:10,cursor:"pointer",fontWeight:700}}>{ativo?"✓":"+"} {s}</button>;})}
             </div>
+            <input value={dieta.suplementacaoNPT||""} onChange={e=>upd("suplementacaoNPT",e.target.value)} placeholder="Outras suplementações, doses e frequências..." style={{width:"100%",boxSizing:"border-box",marginTop:7,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1,fontSize:12}}/>
           </div>}
 
           {/* Metas nutricionais */}
           <div style={{padding:"12px 14px",background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:10,marginBottom:14}}>
             <button onClick={()=>setShowMetas(v=>!v)} style={{width:"100%",display:"flex",justifyContent:"space-between",background:"none",border:"none",padding:0,color:"#c4b5fd",cursor:"pointer",fontFamily:mono,fontSize:10,letterSpacing:1}}><span>🎯 METAS NUTRICIONAIS{metaAbs?` · ${metaAbs.kcal||"—"} kcal · ${metaAbs.ptn||"—"} g ptn/d`:""}</span><span>{showMetas?"▲":"▼"}</span></button>
             {showMetas&&<div style={{marginTop:10}}>
+            {recomendacao&&<div style={{marginBottom:10,padding:"9px 10px",borderRadius:8,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.text2,fontSize:10,lineHeight:1.55}}><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><strong style={{color:T.accent}}>Recomendação por IMC {recomendacao.imc.toFixed(1).replace(".",",")}</strong><button onClick={()=>updMeta("manualOverride",false)} style={{marginLeft:"auto",padding:"3px 8px",borderRadius:10,border:`1px solid ${!usarDiretriz?T.border:T.accentBorder}`,background:usarDiretriz?T.accentBg:T.bgCard,color:usarDiretriz?T.accent:T.text3,cursor:"pointer",fontSize:9}}>{usarDiretriz?"✓ Em uso":"Usar recomendação"}</button></div>{recomendacao.kcalMin!==null&&<div>Energia: <b>{Math.round(recomendacao.kcalMin)}–{Math.round(recomendacao.kcalMax)} kcal/dia</b> · {recomendacao.imc<30?"25–30 kcal/kg de peso atual":recomendacao.imc<=50?"11–14 kcal/kg de peso atual":"22–25 kcal/kg de peso ideal"}</div>}{recomendacao.ptnMin!==null?<div>Proteína: <b>{recomendacao.ptnMin.toFixed(0)} g/dia</b> · {recomendacao.imc>=40?"2,5":"2,0"} g/kg de peso ideal ({recomendacao.ideal?.toFixed(1)} kg)</div>:<div>Proteína: mantenha a meta individualizada abaixo.</div>}{recomendacao.erro&&<div style={{color:"#f87171"}}>{recomendacao.erro}</div>}<div style={{color:T.text4}}>A meta operacional usa o ponto médio da faixa energética; pode ser substituída por uma meta personalizada.</div></div>}
             <div style={{display:"flex",gap:6,marginBottom:10}}>
+              <button onClick={()=>updMeta("manualOverride",true)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${!usarDiretriz?"#a78bfa":T.border}`,background:!usarDiretriz?"rgba(167,139,250,.15)":T.bgCard,color:!usarDiretriz?"#7c3aed":T.text3,fontSize:11,cursor:"pointer",fontWeight:700}}>Personalizada</button>
               {[{k:"kg",label:"Por kg/dia"},{k:"total",label:"Total fixo/dia"}].map(m=>(
-                <button key={m.k} onClick={()=>updMeta("modo",m.k)}
+                <button key={m.k} onClick={()=>updMetaManual("modo",m.k)}
                   style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${meta.modo===m.k?"#a78bfa":"rgba(255,255,255,0.1)"}`,background:meta.modo===m.k?"rgba(167,139,250,0.15)":"rgba(255,255,255,0.03)",color:meta.modo===m.k?"#c4b5fd":"#64748b",fontSize:11,cursor:"pointer",fontWeight:meta.modo===m.k?700:400}}>
                   {m.label}
                 </button>
@@ -1337,7 +1353,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
                 <div style={{flex:1}}>
                   <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:3}}>KCAL/KG/DIA</div>
                   <div style={{display:"flex",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:7,overflow:"hidden"}}>
-                    <input type="number" step="0.5" value={meta.kcalKg||""} onChange={e=>updMeta("kcalKg",e.target.value)} placeholder="25"
+                    <input type="number" step="0.5" value={meta.kcalKg||""} onChange={e=>updMetaManual("kcalKg",e.target.value)} placeholder="25"
                       style={{flex:1,background:"none",border:"none",padding:"7px 9px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
                     <span style={{paddingRight:8,color:"#475569",fontSize:11,alignSelf:"center"}}>kcal/kg</span>
                   </div>
@@ -1346,7 +1362,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
                 <div style={{flex:1}}>
                   <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:3}}>PTN G/KG/DIA</div>
                   <div style={{display:"flex",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:7,overflow:"hidden"}}>
-                    <input type="number" step="0.1" value={meta.ptnKg||""} onChange={e=>updMeta("ptnKg",e.target.value)} placeholder="1.5"
+                    <input type="number" step="0.1" value={meta.ptnKg||""} onChange={e=>updMetaManual("ptnKg",e.target.value)} placeholder="1.5"
                       style={{flex:1,background:"none",border:"none",padding:"7px 9px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
                     <span style={{paddingRight:8,color:"#475569",fontSize:11,alignSelf:"center"}}>g/kg</span>
                   </div>
@@ -1358,7 +1374,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
                 <div style={{flex:1}}>
                   <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:3}}>KCAL TOTAL/DIA</div>
                   <div style={{display:"flex",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:7,overflow:"hidden"}}>
-                    <input type="number" value={meta.kcalTotal||""} onChange={e=>updMeta("kcalTotal",e.target.value)} placeholder="1800"
+                    <input type="number" value={meta.kcalTotal||""} onChange={e=>updMetaManual("kcalTotal",e.target.value)} placeholder="1800"
                       style={{flex:1,background:"none",border:"none",padding:"7px 9px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
                     <span style={{paddingRight:8,color:"#475569",fontSize:11,alignSelf:"center"}}>kcal</span>
                   </div>
@@ -1367,7 +1383,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
                 <div style={{flex:1}}>
                   <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:3}}>PTN TOTAL/DIA (g)</div>
                   <div style={{display:"flex",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:7,overflow:"hidden"}}>
-                    <input type="number" value={meta.ptnTotal||""} onChange={e=>updMeta("ptnTotal",e.target.value)} placeholder="105"
+                    <input type="number" value={meta.ptnTotal||""} onChange={e=>updMetaManual("ptnTotal",e.target.value)} placeholder="105"
                       style={{flex:1,background:"none",border:"none",padding:"7px 9px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
                     <span style={{paddingRight:8,color:"#475569",fontSize:11,alignSelf:"center"}}>g</span>
                   </div>
@@ -4437,7 +4453,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                       {/* Kcal e ptn calculados — logo abaixo do Vol. Dieta */}
                       {key==="c24_diet_vol" && (() => {
                         const dietaSel = getDietasCatalogo(config||{}).find(d=>d.id===leito.dieta?.catalogId);
-                        const metaAbs  = calcMetaAbsoluta(leito.dieta?.meta, parseFloat(leito.peso));
+                        const metaAbs  = calcMetaNutricional(leito);
                         if (!dietaSel) return null;
                         const rows = [
                           { lbl:"↳ Kcal recebida", unit:"kcal", calc:(vol)=>(vol*dietaSel.kcalML).toFixed(0), meta:metaAbs?.kcal, cor:(v,m)=>m?(v/m>=0.8?"#34d399":"#f87171"):"#94a3b8" },
@@ -5664,7 +5680,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       let dl=`Dieta: ${tl}`;
       if(d.formula) dl+=` ${d.formula}`;
       if(d.moduloProteina?.ativo&&d.moduloProteina?.gramas) dl+=` + módulo proteico ${d.moduloProteina.gramas}g/d`;
-      if(d.tipo==="parenteral"&&d.suplementacaoNPT) dl+=` · suplementação: ${d.suplementacaoNPT}`;
+      if(d.tipo==="parenteral"&&(d.suplementosNPT?.length||d.suplementacaoNPT)){const sups=[...(d.suplementosNPT||[]),d.suplementacaoNPT].filter(Boolean);dl+=` · suplementação: ${sups.join(" · ")}`;}
       if(d.volTotal24) dl+=` ${d.volTotal24}mL/24h`;
       if(d.kcalManual&&peso) dl+=` (${(parseFloat(d.kcalManual)/peso).toFixed(1)} kcal/kg/d`;
       else if(d.catalogId&&d.volTotal24){
@@ -5968,7 +5984,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(d.formula) dl+=` ${d.formula}`;
       if(d.vazao) dl+=` @ ${d.vazao}mL/h`;
       if(d.moduloProteina?.ativo&&d.moduloProteina?.gramas) dl+=` + módulo proteico ${d.moduloProteina.gramas}g/d`;
-      if(d.tipo==="parenteral"&&d.suplementacaoNPT) dl+=` · suplementação: ${d.suplementacaoNPT}`;
+      if(d.tipo==="parenteral"&&(d.suplementosNPT?.length||d.suplementacaoNPT)){const sups=[...(d.suplementosNPT||[]),d.suplementacaoNPT].filter(Boolean);dl+=` · suplementação: ${sups.join(" · ")}`;}
       p.push(dl);
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
     if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
