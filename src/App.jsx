@@ -5565,7 +5565,7 @@ const SERIAL_MONITOR_CONFIG={
   cvPerfusaoSerial:{title:"PERFUSÃO — ΔCO₂ / ΔPP · CICLO HEMODINÂMICO",color:"#f87171",workflow:true,compactHistory:true,fields:[{key:"deltaCO2",label:"ΔCO₂ (mmHg)",reference:"<6"},{key:"deltaPP",label:"ΔPP (%)",reference:"<10%; >13 sugere resposta"},{key:"lactato",label:"Lactato",reference:"<2 mmol/L"},{key:"svcO2",label:"ScvO₂ (%)",reference:"70–80%"}]},
   cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",compactHistory:true,fields:[{key:"pvc",label:"PVC"},{key:"paps",label:"PAPs"},{key:"papd",label:"PAPd"},{key:"papm",label:"PAPm"},{key:"pcp",label:"PCP"},{key:"dc",label:"DC"},{key:"ic",label:"IC"},{key:"svo2",label:"SvO₂"},{key:"rvs",label:"RVS"}]},
   cvBiaSerial:{title:"BIA — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"assistencia",label:"Relação de assistência"},{key:"trigger",label:"Trigger"},{key:"augmentacao",label:"Augmentação"},{key:"pasAssistida",label:"PAS assistida"},{key:"pasNaoAssistida",label:"PAS não assistida"},{key:"diastolicaAumentada",label:"Diastólica aumentada"},{key:"pam",label:"PAM"}]},
-  reLusSerial:{title:"LUS — REGISTROS SERIADOS",color:"#38bdf8",fields:[{key:"htd",label:"HTD"},{key:"hte",label:"HTE"}]},
+  reLusSerial:{title:"LUS — AVALIAÇÕES SERIADAS",color:"#38bdf8",subjective:true,workflow:true,compactHistory:true,fields:[{key:"htd",label:"HTD"},{key:"hte",label:"HTE"}]},
   rmTrsSerial:{title:"TRS — SESSÕES",color:"#34d399",fields:[{key:"modalidade",label:"Modalidade"},{key:"uf",label:"UF"},{key:"duracao",label:"Tempo de duração"},{key:"intercorrencias",label:"Intercorrências"}]},
   rmPocusSerial:{title:"POCUS RENAL — REGISTROS SERIADOS",color:"#34d399",subjective:true,fields:[{key:"vci",label:"VCI"},{key:"vexus",label:"VExUS / congestão"},{key:"rins",label:"Rins"},{key:"bexiga",label:"Bexiga"}]},
   tgPocusSerial:{title:"POCUS ABDOMINAL — REGISTROS SERIADOS",color:"#fb923c",subjective:true,fields:[{key:"vesicula",label:"Vesícula"},{key:"viasBiliares",label:"Vias biliares"},{key:"alcas",label:"Alças"},{key:"liquidoLivre",label:"Líquido livre"}]},
@@ -5833,7 +5833,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(!state||!Array.isArray(state.entries)) return [];
     const cfg=SERIAL_MONITOR_CONFIG[fieldKey]||{};
     const labels=Object.fromEntries([...(cfg.subjective?[{key:"avaliacao",label:"Avaliação subjetiva"}]:[]),...(cfg.fields||[]),...((state.customParams||[]))].map(f=>[f.key,f.label]));
-    const somenteHoje=new Set(["cvPerfusaoSerial","cvPocusSerial","cvPiccoSerial","cvSwanSerial"]).has(fieldKey);
+    const somenteHoje=new Set(["cvPerfusaoSerial","cvPocusSerial","cvPiccoSerial","cvSwanSerial","reLusSerial"]).has(fieldKey);
     return state.entries.filter(entry=>!somenteHoje||entry.data===hoje).map(entry=>{
       const date=entry.data?new Date(`${entry.data}T00:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
       const when=[date,entry.hora].filter(Boolean).join(" ");
@@ -5958,7 +5958,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       const bullets = gasoTxt.split("\n").map(l=>`  • ${l}`).join("\n");
       p.push(`- Gaso:\n${bullets}`);
     }
-    if(vis.reLUS&&get("reLUS")) p.push(`- LUS: ${get("reLUS")}`);
+    if(vis.reLUS&&get("reLUS")&&!isAntigo("reLUS")) p.push(`- LUS: ${get("reLUS")}`);
     if(vis.rePocus&&get("rePocus")) p.push(`- POCUS: ${get("rePocus")}`);
     p.push(...serialLines("reLusSerial","LUS"));
     if(vis.reObs&&get("reObs")) p.push(`*${get("reObs")}`);
