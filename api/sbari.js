@@ -12,6 +12,11 @@ function readGoogleCredentials(){
   }
   if((raw.startsWith('"')&&raw.endsWith('"'))||(raw.startsWith("'")&&raw.endsWith("'")))raw=raw.slice(1,-1);
   raw=raw.replace(/\\r/g,"").replace(/\\n/g,"\n").replace(/\r/g,"").trim();
+  const pem=raw.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/);
+  if(pem){
+    const body=pem[1].replace(/\s+/g,"");
+    if(body)raw=`-----BEGIN PRIVATE KEY-----\n${body.match(/.{1,64}/g)?.join("\n")||body}\n-----END PRIVATE KEY-----`;
+  }
   if(raw&&!raw.includes("BEGIN PRIVATE KEY")){
     try{const decoded=Buffer.from(raw,"base64").toString("utf8").trim();if(decoded.includes("BEGIN PRIVATE KEY"))raw=decoded;}catch{}
   }
