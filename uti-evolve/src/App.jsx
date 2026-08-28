@@ -829,6 +829,14 @@ function calcNutri(dietaSel, volMl) {
   };
 }
 
+function calcAporteGlicose(aporte={}){
+  if(!aporte.ativo)return {kcal:0,cho:0};
+  const concentracao=parseFloat(aporte.concentracao),volume=parseFloat(aporte.volumeDia);
+  if(!Number.isFinite(concentracao)||!Number.isFinite(volume)||concentracao<=0||volume<=0)return {kcal:0,cho:0};
+  const cho=volume*concentracao/100;
+  return {cho:+cho.toFixed(1),kcal:+(cho*4).toFixed(0)};
+}
+
 function calcMetaAbsoluta(meta, peso) {
   if (!meta) return null;
   const m = meta.modo === "kg" ? {
@@ -876,7 +884,8 @@ function calcularNutriDia(leito={}, linha={}, config={}) {
   const meta=calcMetaNutricional(leito);
   const calculada=calcNutri(formula,vol);
   const modulo=dieta.moduloProteina?.ativo?(parseFloat(dieta.moduloProteina.gramas)||0):0;
-  const oferta=calculada?{...calculada,ptn:+(calculada.ptn+modulo).toFixed(1)}:(modulo?{kcal:0,ptn:modulo,cho:0,lip:0}:null);
+  const glicose=calcAporteGlicose(dieta.aporteGlicose);
+  const oferta=calculada||modulo||glicose.kcal?{kcal:+((calculada?.kcal||0)+glicose.kcal).toFixed(0),ptn:+((calculada?.ptn||0)+modulo).toFixed(1),cho:+((calculada?.cho||0)+glicose.cho).toFixed(1),lip:calculada?.lip||0}:null;
   return {
     volumeMl:vol||null,metaKcal:meta?.kcal??null,metaProteinaG:meta?.ptn??null,
     ofertaKcal:oferta?.kcal??null,ofertaProteinaG:oferta?.ptn??null,
@@ -1159,8 +1168,10 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
   const volHoje  = parseFloat(diureseHojeVol) || 0;
   const moduloProteina = dieta.moduloProteina || {ativo:false,gramas:""};
   const moduloPtn = moduloProteina.ativo ? (parseFloat(moduloProteina.gramas)||0) : 0;
-  const somarModulo = n => n ? {...n,ptn:Math.round((n.ptn+moduloPtn)*10)/10} : (moduloPtn?{kcal:0,ptn:moduloPtn}:null);
-  const nutriHoje = somarModulo(calcNutri(dietaSel, volHoje));
+  const aporteGlicose=dieta.aporteGlicose||{ativo:false,concentracao:"5",volumeDia:""};
+  const glicoseNutri=calcAporteGlicose(aporteGlicose);
+  const somarAdicionais = n => n||moduloPtn||glicoseNutri.kcal?{kcal:+((n?.kcal||0)+glicoseNutri.kcal).toFixed(0),ptn:+((n?.ptn||0)+moduloPtn).toFixed(1),cho:+((n?.cho||0)+glicoseNutri.cho).toFixed(1),lip:n?.lip||0}:null;
+  const nutriHoje = somarAdicionais(calcNutri(dietaSel, volHoje));
   const kcalPct = metaAbs?.kcal && nutriHoje?.kcal ? Math.round(nutriHoje.kcal/metaAbs.kcal*100) : null;
   const ptnPct = metaAbs?.ptn && nutriHoje?.ptn ? Math.round(nutriHoje.ptn/metaAbs.ptn*100) : null;
   const adequacao = kcalPct!==null && ptnPct!==null ? Math.min(kcalPct,ptnPct) : (kcalPct ?? ptnPct);
@@ -1221,6 +1232,11 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
             {t.label}
           </button>
         ))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:8,marginBottom:14}}>
+        <div style={{padding:"9px 11px",border:`1px solid ${T.border}`,borderRadius:9,background:T.bgInput}}><label style={{display:"flex",alignItems:"center",gap:7,color:T.text2,fontSize:11,fontWeight:700,cursor:"pointer"}}><input type="checkbox" checked={!!moduloProteina.ativo} onChange={e=>upd("moduloProteina",{...moduloProteina,ativo:e.target.checked})}/>Adicionar módulo de proteína</label>{moduloProteina.ativo&&<div style={{display:"flex",gap:7,alignItems:"center",marginTop:7}}><input type="number" min="0" step="1" value={moduloProteina.gramas||""} onChange={e=>upd("moduloProteina",{...moduloProteina,gramas:e.target.value})} placeholder="30" style={{width:90,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text1}}/><span style={{fontSize:10,color:T.text3}}>g de proteína/dia</span></div>}</div>
+        <div style={{padding:"9px 11px",border:`1px solid ${T.border}`,borderRadius:9,background:T.bgInput}}><label style={{display:"flex",alignItems:"center",gap:7,color:T.text2,fontSize:11,fontWeight:700,cursor:"pointer"}}><input type="checkbox" checked={!!aporteGlicose.ativo} onChange={e=>upd("aporteGlicose",{...aporteGlicose,ativo:e.target.checked})}/>Adicionar aporte glicêmico</label>{aporteGlicose.ativo&&<div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap",marginTop:7}}><select value={aporteGlicose.concentracao||"5"} onChange={e=>upd("aporteGlicose",{...aporteGlicose,concentracao:e.target.value})} style={{background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text1}}>{[5,10,25,50].map(c=><option key={c} value={c}>SG {c}%</option>)}</select><input type="number" min="0" step="10" value={aporteGlicose.volumeDia||""} onChange={e=>upd("aporteGlicose",{...aporteGlicose,volumeDia:e.target.value})} placeholder="Volume/dia" style={{width:105,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text1}}/><span style={{fontSize:10,color:T.text3}}>mL/dia{glicoseNutri.kcal>0?` · ${glicoseNutri.kcal} kcal`:""}</span></div>}</div>
       </div>
 
       {dieta.tipo==="jejum" ? (
@@ -1289,7 +1305,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
             <div style={{fontSize:10,color:"#475569",marginTop:4}}>ℹ️ O volume real que entrou é registrado nos <strong style={{color:"#38bdf8"}}>Controles 24h</strong> → Vol. Dieta.</div>
             {dietaSel && dieta.vazao && peso>0 && (()=>{
               const volProj = parseFloat(dieta.vazao)*24;
-              const nutriProj = somarModulo(calcNutri(dietaSel, volProj));
+              const nutriProj = somarAdicionais(calcNutri(dietaSel, volProj));
               if (!nutriProj) return null;
               return (
                 <div style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -1311,19 +1327,6 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
               style={{width:"100%",maxWidth:220,background:"rgba(255,255,255,.04)",border:"1px solid rgba(251,146,60,.24)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:12}}/>
             <div style={{fontSize:10,color:"#475569",marginTop:5,lineHeight:1.4}}>Usada para comparar K, P e Mg da tabela clínica antes da dieta com os valores dos cinco dias seguintes.{diasParaDieta!==null&&<> <strong style={{color:"#fdba74"}}>Dieta iniciada após {diasParaDieta} dia(s) da admissão.</strong></>}</div>
           </div>
-          </div>
-
-          {/* Módulo proteico */}
-          <div style={{padding:"10px 12px",marginBottom:14,border:"1px solid rgba(251,146,60,.2)",borderRadius:9,background:"rgba(251,146,60,.04)"}}>
-            <label style={{display:"flex",alignItems:"center",gap:8,color:"#fdba74",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              <input type="checkbox" checked={!!moduloProteina.ativo} onChange={e=>upd("moduloProteina",{...moduloProteina,ativo:e.target.checked})}/>
-              Adicionar módulo de proteína
-            </label>
-            {moduloProteina.ativo&&<div style={{display:"flex",gap:8,alignItems:"center",marginTop:9,maxWidth:280}}>
-              <input type="number" min="0" step="1" value={moduloProteina.gramas||""} onChange={e=>upd("moduloProteina",{...moduloProteina,gramas:e.target.value})} placeholder="Ex.: 30"
-                style={{width:110,background:"rgba(255,255,255,.04)",border:"1px solid rgba(251,146,60,.3)",borderRadius:7,padding:"7px 9px",color:"#e2e8f0",fontSize:13}}/>
-              <span style={{fontSize:11,color:"#94a3b8"}}>g de proteína/dia</span>
-            </div>}
           </div>
 
           {dieta.tipo==="parenteral"&&<div style={{padding:"10px 12px",marginBottom:14,border:`1px solid ${T.accentBorder}`,borderRadius:9,background:T.accentBg}}>
@@ -1400,7 +1403,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
           </div>
 
           {/* Atingimento hoje */}
-          {dietaSel && metaAbs && (
+          {nutriHoje && metaAbs && (
             <div style={{padding:"12px 14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:10,marginBottom:14}}>
               <div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1,marginBottom:10}}>
                 📊 ATINGIMENTO HOJE
@@ -5689,6 +5692,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(d.ptnManual&&peso)  dl+=` / ${(parseFloat(d.ptnManual)/peso).toFixed(2)} g ptn/kg/d)`;
       p.push(`- ${dl}`);
     }else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
+    if(d?.aporteGlicose?.ativo&&d.aporteGlicose.volumeDia){const ag=calcAporteGlicose(d.aporteGlicose);p.push(`- Aporte glicêmico: SG ${d.aporteGlicose.concentracao||5}% · ${d.aporteGlicose.volumeDia} mL/dia · ${ag.kcal} kcal/dia`);}
     if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
     const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
@@ -5987,6 +5991,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(d.tipo==="parenteral"&&(d.suplementosNPT?.length||d.suplementacaoNPT)){const sups=[...(d.suplementosNPT||[]),d.suplementacaoNPT].filter(Boolean);dl+=` · suplementação: ${sups.join(" · ")}`;}
       p.push(dl);
     } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
+    if(d?.aporteGlicose?.ativo&&d.aporteGlicose.volumeDia){const ag=calcAporteGlicose(d.aporteGlicose);p.push(`- Aporte glicêmico: SG ${d.aporteGlicose.concentracao||5}% · ${d.aporteGlicose.volumeDia} mL/dia · ${ag.kcal} kcal/dia`);}
     if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h")) p.push(`- 24h: ${get("tg24h")}`);
     const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
