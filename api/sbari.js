@@ -33,7 +33,7 @@ async function serviceToken() {
   try{signature=crypto.sign("RSA-SHA256",Buffer.from(unsigned),privateKey).toString("base64url");}
   catch{throw new Error("A chave privada do Google está em formato inválido. Cole o valor completo de private_key do JSON, incluindo BEGIN e END PRIVATE KEY.");}
   const response=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion:`${unsigned}.${signature}`})});
-  if(!response.ok)throw new Error("Não foi possível autenticar no Google Drive.");
+  if(!response.ok){const detail=await response.json().catch(()=>({}));throw new Error(`Não foi possível autenticar no Google Drive${detail.error?` (${detail.error})`:""}. Confirme se o e-mail e a chave pertencem à mesma Service Account.`);}
   return (await response.json()).access_token;
 }
 
@@ -52,7 +52,14 @@ async function downloadDrive(url) {
   }
   const headers={authorization:`Bearer ${token}`};
   const metaRes=await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType`,{headers});
-  if(!metaRes.ok)throw new Error("O SBARI não foi encontrado ou não foi compartilhado com a conta de integração.");
+  if(!metaRes.ok){
+    const googleError=await metaRes.json().catch(()=>({}));
+    const reason=googleError?.error?.errors?.[0]?.reason||"";
+    const email=readGoogleCredentials().email;
+    if(metaRes.status===403)throw new Error(`O Google Drive recusou o acesso (${reason||"403"}). Confirme que a Drive API está ativa no projeto da Service Account ${email}.`);
+    if(metaRes.status===404)throw new Error(`O documento não está acessível para ${email}. Confirme se este é exatamente o e-mail compartilhado e se o link corresponde ao documento correto.`);
+    throw new Error(`Falha do Google Drive (${metaRes.status}${reason?` · ${reason}`:""}).`);
+  }
   const meta=await metaRes.json();
   const native=meta.mimeType==="application/vnd.google-apps.document";
   const fileRes=await fetch(native?`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/plain`:`https://www.googleapis.com/drive/v3/files/${id}?alt=media`,{headers});
