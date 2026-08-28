@@ -39,6 +39,7 @@ async function serviceToken() {
 
 async function downloadDrive(url) {
   const id=url.match(/\/d\/([\w-]+)/)?.[1]||url.match(/[?&]id=([\w-]+)/)?.[1];
+  const resourceKey=url.match(/[?&]resourcekey=([^&#]+)/i)?.[1];
   if(!id)throw new Error("Link do Google Drive inválido.");
   const token=await serviceToken();
   if(!token){
@@ -50,8 +51,14 @@ async function downloadDrive(url) {
     if(!text.trim()||/<html[\s>]/i.test(text))throw new Error("O SBARI não está público e a integração Google Drive ainda não foi configurada no servidor.");
     return {text,name:"SBARI público",id};
   }
-  const headers={authorization:`Bearer ${token}`};
-  const metaRes=await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType`,{headers});
+  const headers={authorization:`Bearer ${token}`,...(resourceKey?{"X-Goog-Drive-Resource-Keys":`${id}/${decodeURIComponent(resourceKey)}`}:{})};
+  const docsExport=await fetch(`https://docs.google.com/document/d/${id}/export?format=txt`,{headers,redirect:"follow"});
+  if(docsExport.ok){
+    const buffer=Buffer.from(await docsExport.arrayBuffer());
+    const text=buffer.toString("utf8");
+    if(buffer.length<=10_000_000&&text.trim()&&!/<html[\s>]/i.test(text))return {text,name:"SBARI",id};
+  }
+  const metaRes=await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType&supportsAllDrives=true`,{headers});
   if(!metaRes.ok){
     const googleError=await metaRes.json().catch(()=>({}));
     const reason=googleError?.error?.errors?.[0]?.reason||"";
