@@ -14,7 +14,7 @@ function section(text, start, ends) {
 
 export function parseSbari(textRaw) {
   let ultimoLeito=0;
-  const text = clean(textRaw).split("\n").map(linha=>{
+  let text = clean(textRaw).split("\n").map(linha=>{
     const numerado=linha.match(/^\s*(?:Leito|Box)\s*(?:n[º°o]\.?\s*)?[:#-]?\s*(\d{1,4})\b/i);
     if(numerado){ultimoLeito=Number(numerado[1]);return linha;}
     // Corrige cabeçalhos ocasionais como "Leito Nome, 63 anos" quando o
@@ -24,6 +24,8 @@ export function parseSbari(textRaw) {
     }
     return linha;
   }).join("\n");
+  text=text.replace(/(^|\n)(\s*(?:Leito|Box)\s*(?:n[º°o]\.?\s*)?[:#-]?\s*\d{1,4})\s*:\s*(?=\n|$)/gi,"$1$2: Vago");
+  text=text.replace(/(^|\n)(\s*(?:Leito|Box)\s*(?:n[º°o]\.?\s*)?[:#-]?\s*\d{1,4})\s*(?=\n\s*(?:\n|(?:Leito|Box)\b|$))/gi,"$1$2: Vago");
   // Alguns SBARIs exportados do Google Docs perdem a palavra "Leito" da
   // primeira coluna da tabela e chegam apenas como "601\nNome do paciente".
   const header = /(?:^|\n)(?:(?:Leito|Box)\s*(?:n[º°o]\.?\s*)?[:#-]?\s*([A-Za-z]?\d+[A-Za-z]?)|(\d{3,4}))\s*(?:[:|–—-]\s*|\n\s*(?:Paciente\s*:?\s*)?|\s+)([^\n]+?)\s*(?=\n|$)/gi;
@@ -32,6 +34,7 @@ export function parseSbari(textRaw) {
     const body = text.slice(match.index + match[0].length, matches[index + 1]?.index ?? text.length);
     const numero=String(match[1]||match[2]);
     const cabecalho=clean(match[3]);
+    const vago=/^(?:vag[oa]|livre|sem\s+paciente|sem\s+paciente\s+cadastrado|-+)\s*$/i.test(cabecalho);
     const idade=cabecalho.match(/(?:^|[,;|–—-]\s*|\s)(\d{1,3})\s*(?:anos?\b|a\.?\s*(?:$|[,;|–—-]))/i)?.[1]||"";
     const paciente=clean(cabecalho
       .replace(/\s*(?:[,;|–—-]\s*|\s)\d{1,3}\s*(?:anos?\b|a\.?(?=\s|$))[\s\S]*$/i,"")
@@ -45,7 +48,7 @@ export function parseSbari(textRaw) {
     const plano=planoInicio>=0?body.slice(planoInicio):body;
     return {
       leito:`Leito ${numero.padStart(2,"0")}`,
-      numero, paciente, idadeAnos:idade,
+      numero, paciente:vago?"":paciente, idadeAnos:idade, vago,
       admHospital:clean(adm?.[1]), admUti:clean(adm?.[2]), equipe:field(body, "Equipe"),
       situacao:section(body, "S", ["B", "A", "ATB", "R", "I"]),
       background:section(body, "B", ["A", "ATB", "R", "I"]),
@@ -54,5 +57,5 @@ export function parseSbari(textRaw) {
       antibioticosPrevios:section(body, "Prévio", ["R", "I"]),
       recomendacoes:section(plano, "R", ["I"]), instrucoes:section(plano, "I", []), raw:clean(body)
     };
-  }).filter(p => p.paciente&&/[A-Za-zÀ-ÿ]/.test(p.paciente)&&p.paciente.split(/\s+/).length>=2);
+  }).filter(p => p.vago||(p.paciente&&/[A-Za-zÀ-ÿ]/.test(p.paciente)&&p.paciente.split(/\s+/).length>=2));
 }

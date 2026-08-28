@@ -8011,6 +8011,8 @@ export default function App() {
       const retornos=await Promise.all(links.map(async link=>{const resposta=await fetch("/api/sbari",{method:"POST",headers:{"content-type":"application/json","x-uti-session":sessionStorage.getItem(SESSION_KEY)||""},body:JSON.stringify({url:link.url})});const payload=await resposta.json().catch(()=>({}));if(!resposta.ok)throw new Error(`${link.label||"SBARI"}: ${payload.error||"não foi possível ler o documento"}`);return {...payload,linkLabel:link.label||payload.source?.name||"SBARI"};}));
       const porNomeRecebido=new Map();retornos.flatMap(r=>(r.pacientes||[]).map(p=>({...p,sbariOrigem:r.linkLabel}))).forEach(p=>porNomeRecebido.set(normalizarNomeSbari(p.paciente),p));
       const recebidos=[...porNomeRecebido.values()];
+      const porLeitoVago=new Map();retornos.flatMap(r=>r.leitosVagos||[]).forEach(v=>porLeitoVago.set(normalizarNomeSbari(v.leito),v));
+      const vagosDeclarados=[...porLeitoVago.values()];
       const payload={source:{name:retornos.map(r=>r.linkLabel).join(" + ")}};
       const atuais=leitos.filter(l=>(l.utiId||utis[0]?.id)===utiAtiva.id);
       const ocupados=atuais.filter(l=>l.paciente);
@@ -8036,10 +8038,11 @@ export default function App() {
       }).join("\n"):"— nenhum";
       const listaNovos=novos.length?novos.map(p=>`• ${p.leito} — ${p.paciente}`).join("\n"):"— nenhum";
       const listaAusentes=removidos.length?removidos.map(l=>`• ${l.nome} — ${l.paciente}`).join("\n"):"— nenhum";
+      const listaVagos=vagosDeclarados.length?vagosDeclarados.map(v=>`• ${v.leito}`).join("\n"):"— nenhum informado explicitamente";
       const alerta=(ocupados.length>=5&&(recebidos.length<Math.ceil(ocupados.length*0.5)||removidos.length>ocupados.length*0.6))
         ?"\n\n⚠️ ATENÇÃO: muitos pacientes seriam arquivados. Revise cuidadosamente as listas antes de continuar."
         :"";
-      const resumo=`Atualização do SBARI — ${utiAtiva.nome}\n\nMANTIDOS (${preservados.length}) — dados clínicos preservados\n${listaMantidos}\n\nNOVOS (${novos.length})\n${listaNovos}\n\nAUSENTES (${removidos.length}) — serão arquivados com alta pendente\n${listaAusentes}${alerta}\n\nDeseja aplicar exatamente estas alterações?`;
+      const resumo=`Atualização do SBARI — ${utiAtiva.nome}\n\nMANTIDOS (${preservados.length}) — dados clínicos preservados\n${listaMantidos}\n\nNOVOS (${novos.length})\n${listaNovos}\n\nLEITOS VAGOS NO SBARI (${vagosDeclarados.length})\n${listaVagos}\n\nAUSENTES (${removidos.length}) — serão arquivados com alta pendente\n${listaAusentes}${alerta}\n\nDeseja aplicar exatamente estas alterações?`;
       if(!window.confirm(resumo))return;
       const agora=new Date().toISOString();
       const vagas=atuais.filter(l=>!l.paciente);
@@ -8052,7 +8055,13 @@ export default function App() {
         return {...leitoVazio({id,nome:p.leito}),id,nome:p.leito,utiId:utiAtiva.id,paciente:p.paciente,idadeAnos:p.idadeAnos||"",dataInternacao:dataSbariParaIso(p.admUti),diagnostico:p.situacao||"",equipe:p.equipe||"",patientId:globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${indice}`,admissionId:globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${indice}`,admissionStartedAt:agora,fonteCadastro:"sbari",sbariOrigem:p.sbariOrigem||""};
       });
       const nomesLeitos=new Set(leitosSbari.map(l=>normalizarNomeSbari(l.nome)));
-      const vagasRestantes=vagas.filter(v=>!usados.has(String(v.id))&&!nomesLeitos.has(normalizarNomeSbari(v.nome)));
+      const nomesParaVaga=new Map();
+      [...atuais.map(l=>({leito:l.nome})),...vagosDeclarados].forEach(v=>{const chave=normalizarNomeSbari(v.leito);if(chave&&!nomesLeitos.has(chave))nomesParaVaga.set(chave,v.leito);});
+      const vagasRestantes=[...nomesParaVaga.values()].map((nome,indice)=>{
+        const base=atuais.find(l=>normalizarNomeSbari(l.nome)===normalizarNomeSbari(nome)&&!usados.has(String(l.id)));
+        const id=base?.id||`sbari-vaga-${Date.now()}-${indice}`;usados.add(String(id));
+        return {...leitoVazio({id,nome}),id,nome,utiId:utiAtiva.id};
+      });
       const foraDaUti=leitos.filter(l=>(l.utiId||utis[0]?.id)!==utiAtiva.id);
       const novosLeitos=[...foraDaUti,...leitosSbari,...vagasRestantes];
       const registrosArquivo=removidos.map(l=>({id:globalThis.crypto?.randomUUID?.()||`sbari-alta-${Date.now()}-${l.id}`,dataAlta:"",destino:"",rankinAlta:"",status:"pendente_complementacao",motivoArquivo:`Ausente no SBARI ${payload.source?.name||"da UTI"}`,arquivadoEm:agora,patientId:l.patientId||null,admissionId:l.admissionId||null,utiId:utiAtiva.id,utiNome:utiAtiva.nome,leito:JSON.parse(JSON.stringify(l)),tabelaClinica:JSON.parse(JSON.stringify(tabelaData[l.id]||{})),evolucao:JSON.parse(JSON.stringify(evolPorLeito[l.id]||{})),metas:JSON.parse(JSON.stringify(metasPorLeito[l.id]||[])),historicoDiario:JSON.parse(JSON.stringify(historicoDiario[l.admissionId]?.days||{}))}));

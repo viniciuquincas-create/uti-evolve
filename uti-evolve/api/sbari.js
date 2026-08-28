@@ -94,8 +94,10 @@ export default async function handler(req,res){
     const {url}=req.body||{};
     if(!url||!/^https:\/\/(?:docs|drive)\.google\.com\//i.test(url))return res.status(400).json({error:"Informe um link válido do Google Drive."});
     const file=await downloadDrive(url);
-    const pacientes=parseSbari(file.text);
-    if(!pacientes.length)throw new Error("Nenhum paciente foi identificado no formato Leito XX: Nome.");
-    return res.status(200).json({source:{id:file.id,name:file.name},pacientes});
+    const registros=parseSbari(file.text);
+    const pacientes=registros.filter(p=>!p.vago);
+    const leitosVagos=registros.filter(p=>p.vago).map(p=>({leito:p.leito,numero:p.numero}));
+    if(!registros.length)throw new Error("Nenhum leito foi identificado no formato Leito XX: Nome.");
+    return res.status(200).json({source:{id:file.id,name:file.name},pacientes,leitosVagos});
   }catch(error){return res.status(500).json({error:error?.message||"Falha ao interpretar SBARI."});}
 }

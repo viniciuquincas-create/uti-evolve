@@ -71,3 +71,15 @@ S: Choque`);
   assert.equal(pacientes[1].leito,"Leito 05");
   assert.equal(pacientes[1].paciente,"Aparecida de Cassia Martins Parvo");
 });
+
+test("identifica leitos vagos explícitos ou sem nome",()=>{
+  const registros=parseSbari(`Leito 01: Maria da Silva, 60 anos
+S: Estável
+Leito 02: Vago
+Leito 03:
+Leito 04: sem paciente`);
+  assert.equal(registros.length,4);
+  assert.equal(registros[1].vago,true);
+  assert.equal(registros[2].vago,true);
+  assert.equal(registros[3].vago,true);
+});
