@@ -4,15 +4,29 @@ import { createClient } from "@supabase/supabase-js";
 import { parseSbari } from "../lib/sbari-parser.js";
 
 const b64url = value => Buffer.from(value).toString("base64url");
+function readGoogleCredentials(){
+  let email=String(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL||"").trim();
+  let raw=String(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY||"").trim();
+  if(raw.startsWith("{")&&raw.endsWith("}")){
+    try{const json=JSON.parse(raw);email=email||String(json.client_email||"").trim();raw=String(json.private_key||"").trim();}catch{}
+  }
+  if((raw.startsWith('"')&&raw.endsWith('"'))||(raw.startsWith("'")&&raw.endsWith("'")))raw=raw.slice(1,-1);
+  raw=raw.replace(/\\r/g,"").replace(/\\n/g,"\n").replace(/\r/g,"").trim();
+  if(raw&&!raw.includes("BEGIN PRIVATE KEY")){
+    try{const decoded=Buffer.from(raw,"base64").toString("utf8").trim();if(decoded.includes("BEGIN PRIVATE KEY"))raw=decoded;}catch{}
+  }
+  return {email,privateKey:raw};
+}
 async function serviceToken() {
-  const email=process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey=process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g,"\n");
+  const {email,privateKey}=readGoogleCredentials();
   if(!email||!privateKey)return null;
   const now=Math.floor(Date.now()/1000);
   const head=b64url(JSON.stringify({alg:"RS256",typ:"JWT"}));
   const body=b64url(JSON.stringify({iss:email,scope:"https://www.googleapis.com/auth/drive.readonly",aud:"https://oauth2.googleapis.com/token",iat:now,exp:now+3600}));
   const unsigned=`${head}.${body}`;
-  const signature=crypto.sign("RSA-SHA256",Buffer.from(unsigned),privateKey).toString("base64url");
+  let signature;
+  try{signature=crypto.sign("RSA-SHA256",Buffer.from(unsigned),privateKey).toString("base64url");}
+  catch{throw new Error("A chave privada do Google está em formato inválido. Cole o valor completo de private_key do JSON, incluindo BEGIN e END PRIVATE KEY.");}
   const response=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion:`${unsigned}.${signature}`})});
   if(!response.ok)throw new Error("Não foi possível autenticar no Google Drive.");
   return (await response.json()).access_token;
