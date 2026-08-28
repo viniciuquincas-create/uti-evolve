@@ -44,3 +44,30 @@ S: Pós-operatório`);
   assert.equal(pacientes[1].paciente,"João da Silva");
   assert.equal(pacientes[1].leito,"Leito 602");
 });
+
+test("aceita tabela exportada sem a palavra leito e idade abreviada",()=>{
+  const pacientes=parseSbari(`603
+Ana Maria de Souza, 72 a.
+Adm Hosp: 20/08 Adm UTI: 21/08
+S: Pneumonia
+
+604 - Carlos Alberto Lima 58 anos RH 123456
+Adm Hosp: 22/08 Adm UTI: 23/08
+S: Choque`);
+  assert.equal(pacientes.length,2);
+  assert.equal(pacientes[0].paciente,"Ana Maria de Souza");
+  assert.equal(pacientes[0].idadeAnos,"72");
+  assert.equal(pacientes[1].paciente,"Carlos Alberto Lima");
+});
+
+test("infere leito omitido entre dois cabeçalhos numerados",()=>{
+  const pacientes=parseSbari(`Leito 04: Maria da Rocha, 87a
+S: Observação
+Leito Aparecida de Cassia Martins Parvo, 63 anos
+S: Pós-operatório
+Leito 06: Fabio Laurindo, 46 anos
+S: Choque`);
+  assert.equal(pacientes.length,3);
+  assert.equal(pacientes[1].leito,"Leito 05");
+  assert.equal(pacientes[1].paciente,"Aparecida de Cassia Martins Parvo");
+});

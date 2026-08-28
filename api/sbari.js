@@ -52,12 +52,6 @@ async function downloadDrive(url) {
     return {text,name:"SBARI público",id};
   }
   const headers={authorization:`Bearer ${token}`,...(resourceKey?{"X-Goog-Drive-Resource-Keys":`${id}/${decodeURIComponent(resourceKey)}`}:{})};
-  const docsExport=await fetch(`https://docs.google.com/document/d/${id}/export?format=txt`,{headers,redirect:"follow"});
-  if(docsExport.ok){
-    const buffer=Buffer.from(await docsExport.arrayBuffer());
-    const text=buffer.toString("utf8");
-    if(buffer.length<=10_000_000&&text.trim()&&!/<html[\s>]/i.test(text))return {text,name:"SBARI",id};
-  }
   const metaRes=await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType&supportsAllDrives=true`,{headers});
   if(!metaRes.ok){
     const googleError=await metaRes.json().catch(()=>({}));
@@ -69,6 +63,9 @@ async function downloadDrive(url) {
   }
   const meta=await metaRes.json();
   const native=meta.mimeType==="application/vnd.google-apps.document";
+  // Não use o endpoint /document/.../export em arquivos .docx. Ele pode
+  // responder 200 com apenas uma parte do documento convertido. Primeiro
+  // consultamos o MIME real e baixamos Office pelo Drive para o Mammoth.
   const fileRes=await fetch(native?`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/plain`:`https://www.googleapis.com/drive/v3/files/${id}?alt=media`,{headers});
   if(!fileRes.ok)throw new Error("Não foi possível baixar o SBARI.");
   const buffer=Buffer.from(await fileRes.arrayBuffer());
