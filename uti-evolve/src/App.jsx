@@ -6584,62 +6584,51 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
 // ── FerramentasPanel ──────────────────────────────────────────────────────────
 function FerramentasPanel() {
-  const LINKS = [
-    {
-      emoji:"🔗", cor:"#34d399", bg:"rgba(52,211,153,0.08)", borda:"rgba(52,211,153,0.25)",
-      titulo:"MCBEV — Links e Recursos", desc:"Protocolos, guias e materiais da equipe",
-      href:"https://linktr.ee/mcbev",
-      label:"Abrir Linktree"
-    },
-    {
-      emoji:"🫁", cor:"#38bdf8", bg:"rgba(56,189,248,0.08)", borda:"rgba(56,189,248,0.25)",
-      titulo:"Checklist de IOT", desc:"Passo a passo para intubação e via aérea difícil",
-      href:"https://docs.google.com/forms/d/e/1FAIpQLSdGRgBUwki8uJGM2_IAEo1oFHiNlR-QIIZzt9a3oRKa11lPHw/viewform?usp=send_form",
-      label:"Abrir Checklist"
-    },
-    {
-      emoji:"💊", cor:"#f59e0b", bg:"rgba(245,158,11,0.08)", borda:"rgba(245,158,11,0.25)",
-      titulo:"Profilaxia Antibiótica Cirúrgica", desc:"Hospital São Paulo / UNIFESP — Rev. 2024 · Ortopedia, Neuro, GI, Gineco, Cardíaca, Vascular, Transplante...",
-      href:"/atb_profilaxia.pdf",
-      label:"Abrir PDF"
-    },
-    {
-      emoji:"🫀", cor:"#f87171", bg:"rgba(248,113,113,0.08)", borda:"rgba(248,113,113,0.25)",
-      titulo:"Protocolo Pós-op Transplante Hepático", desc:"Rotina de atendimento, prescrição, monitorização e complicações no pós-operatório",
-      href:"/tx_hepatico.pdf",
-      label:"Abrir PDF"
-    },
-    {
-      emoji:"🧮", cor:"#a78bfa", bg:"rgba(167,139,250,0.08)", borda:"rgba(167,139,250,0.25)",
-      titulo:"MDCalc", desc:"Calculadoras médicas, escores (APACHE, SAPS, SOFA, Glasgow...)",
-      href:"https://www.mdcalc.com/",
-      label:"Abrir Site"
-    },
+  const T=useTheme();
+  const GRUPOS=[
+    {titulo:"Protocolos institucionais do HSP",subtitulo:"Documentos oficiais para consulta assistencial",emoji:"🏥",cor:"#f59e0b",itens:[
+      {emoji:"💊",titulo:"Profilaxia antibiótica cirúrgica",desc:"Hospital São Paulo / UNIFESP — recomendações por especialidade",href:"/atb_profilaxia.pdf",tipo:"PDF"},
+      {emoji:"🫀",titulo:"Pós-operatório de transplante hepático",desc:"Rotina de atendimento, prescrição, monitorização e complicações",href:"/tx_hepatico.pdf",tipo:"PDF"},
+    ]},
+    {titulo:"Recursos institucionais",subtitulo:"Planilhas, contatos e arquivos compartilhados",emoji:"🗂️",cor:"#14b8a6",itens:[
+      {emoji:"🩻",titulo:"Planilha de TC/RM",desc:"Organização e acompanhamento de solicitações de imagem",href:"https://docs.google.com/spreadsheets/d/1Dqg1K3P8EcQVIVHC0avx3pFGQsRk_JCR/edit?gid=377139871#gid=377139871",tipo:"Planilha"},
+      {emoji:"🏠",titulo:"Planilha de altas",desc:"Registro e acompanhamento das altas da unidade",href:"https://docs.google.com/spreadsheets/d/1A5H88kbX7J5x3AekIK6J4aqaoQh61EOe9i4_na45sj0/edit?gid=0#gid=0",tipo:"Planilha"},
+      {emoji:"☎️",titulo:"Lista de ramais",desc:"Ramais e contatos internos do Hospital São Paulo",href:"/lista-ramais-hsp.pdf",tipo:"PDF"},
+      {emoji:"📁",titulo:"Drive DMI",desc:"Pasta institucional compartilhada da DMI",href:"https://drive.google.com/drive/u/4/folders/0AAzMMZ2SYGfSUk9PVA",tipo:"Drive"},
+    ]},
+    {titulo:"Links clínicos",subtitulo:"Ferramentas externas de consulta rápida",emoji:"🔗",cor:"#38bdf8",itens:[
+      {emoji:"🫁",titulo:"Checklist de IOT",desc:"Passo a passo para intubação e via aérea difícil",href:"https://docs.google.com/forms/d/e/1FAIpQLSdGRgBUwki8uJGM2_IAEo1oFHiNlR-QIIZzt9a3oRKa11lPHw/viewform?usp=send_form",tipo:"Checklist"},
+      {emoji:"🧮",titulo:"MDCalc",desc:"Calculadoras médicas e escores clínicos",href:"https://www.mdcalc.com/",tipo:"Site"},
+      {emoji:"📚",titulo:"MCBEV",desc:"Protocolos, guias e materiais da equipe",href:"https://linktr.ee/mcbev",tipo:"Links"},
+    ]},
   ];
 
   return (
-    <div style={{padding:"24px", maxWidth:"800px", margin:"0 auto", width:"100%"}}>
-      <div style={{marginBottom:24}}>
-        <div style={{fontSize:22, fontWeight:700, color:"#e2e8f0", marginBottom:6}}>📚 Links & Protocolos</div>
-        <div style={{fontSize:13, color:"#64748b"}}>Acesso rápido a protocolos, checklists e guias da unidade.</div>
+    <div style={{padding:"24px",maxWidth:1180,margin:"0 auto",width:"100%"}}>
+      <div style={{marginBottom:26}}>
+        <div style={{fontSize:24,fontWeight:800,color:T.text1,marginBottom:6}}>📚 Links & Protocolos</div>
+        <div style={{fontSize:13,color:T.text3}}>Acesso rápido aos documentos institucionais e às ferramentas usadas na rotina da UTI.</div>
       </div>
-      <div style={{display:"flex", flexDirection:"column", gap:12}}>
-        {LINKS.map((l,i)=>(
-          <a key={i} href={l.href} target="_blank" rel="noreferrer" style={{
-            textDecoration:"none", padding:"18px 20px",
-            background:l.bg, border:`1px solid ${l.borda}`, borderRadius:14,
-            color:"#e2e8f0", display:"flex", alignItems:"center", gap:18, transition:"all 0.2s"
-          }}>
-            <div style={{fontSize:36, flexShrink:0}}>{l.emoji}</div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700, color:l.cor, marginBottom:4, fontSize:15}}>{l.titulo}</div>
-              <div style={{fontSize:12, color:"#94a3b8", lineHeight:1.4}}>{l.desc}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:26}}>
+        {GRUPOS.map(grupo=><section key={grupo.titulo} style={{background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:16,padding:"18px 20px",boxShadow:T.shadowCard}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:15,paddingBottom:12,borderBottom:`1px solid ${T.border}`}}>
+            <span style={{fontSize:22}}>{grupo.emoji}</span>
+            <div>
+              <div style={{fontSize:15,fontWeight:800,color:grupo.cor}}>{grupo.titulo}</div>
+              <div style={{fontSize:11,color:T.text3,marginTop:2}}>{grupo.subtitulo}</div>
             </div>
-            <div style={{padding:"8px 16px", borderRadius:8, background:l.bg, border:`1px solid ${l.borda}`, color:l.cor, fontSize:12, fontWeight:700, flexShrink:0}}>
-              {l.label} →
-            </div>
-          </a>
-        ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:12}}>
+            {grupo.itens.map(item=><a key={item.titulo} href={item.href} target="_blank" rel="noreferrer" style={{textDecoration:"none",minHeight:118,padding:"15px 16px",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:12,color:T.text1,display:"flex",flexDirection:"column",gap:8,boxShadow:T.shadow,transition:"border-color .15s, transform .15s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:24}}>{item.emoji}</span>
+                <div style={{fontSize:14,fontWeight:800,color:T.text1,lineHeight:1.25}}>{item.titulo}</div>
+              </div>
+              <div style={{fontSize:11.5,color:T.text2,lineHeight:1.45,flex:1}}>{item.desc}</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",color:grupo.cor,fontSize:10,fontWeight:800,fontFamily:mono,textTransform:"uppercase",letterSpacing:.7}}><span>{item.tipo}</span><span>Abrir ↗</span></div>
+            </a>)}
+          </div>
+        </section>)}
       </div>
     </div>
   );
