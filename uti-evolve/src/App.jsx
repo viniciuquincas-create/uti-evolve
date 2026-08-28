@@ -3129,6 +3129,7 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, on
           <input value={config.sbariLinks?.[utiAtiva?.id]||""} onChange={e=>onChange({...config,sbariLinks:{...(config.sbariLinks||{}),[utiAtiva?.id]:e.target.value}})} placeholder="https://docs.google.com/document/d/…" style={{flex:1,minWidth:260,background:"rgba(255,255,255,.05)",border:"1px solid rgba(56,189,248,.25)",borderRadius:7,padding:"8px 10px",color:"#e2e8f0",fontSize:11}}/>
           <button disabled={sbariSyncing||!config.sbariLinks?.[utiAtiva?.id]} onClick={()=>onSyncSbari?.()} style={{padding:"8px 13px",borderRadius:7,border:"1px solid rgba(56,189,248,.35)",background:"rgba(56,189,248,.12)",color:"#38bdf8",fontWeight:800,cursor:sbariSyncing?"wait":"pointer"}}>{sbariSyncing?"Atualizando…":"↻ Atualizar leitos"}</button>
         </div>
+        {config.sbariStatus?.[utiAtiva?.id]&&<div style={{marginTop:9,fontSize:10,color:"#64748b"}}>Última sincronização: {new Date(config.sbariStatus[utiAtiva.id].at).toLocaleString("pt-BR")} · {config.sbariStatus[utiAtiva.id].preservados} preservado(s), {config.sbariStatus[utiAtiva.id].novos} novo(s), {config.sbariStatus[utiAtiva.id].arquivados} arquivado(s)</div>}
       </div>
 
       {/* Alertas de dispositivos */}
@@ -8026,6 +8027,8 @@ export default function App() {
       ].map(([key,value])=>supabase.from("config").upsert({key,value:JSON.stringify(value)})));
       const falha=resultados.find(r=>r.error);if(falha)throw falha.error;
       setLeitos(novosLeitos);setPacientesArquivados(novoArquivo);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);
+      const novaConfig={...config,sbariStatus:{...(config.sbariStatus||{}),[utiAtiva.id]:{at:agora,source:payload.source?.name||"SBARI",preservados:preservados.length,novos:novos.length,arquivados:removidos.length}}};
+      setConfig(novaConfig);salvarConfig(novaConfig);
       if(leitosSbari.length)setLeitoSelId(leitosSbari[0].id);
       window.alert(`SBARI atualizado: ${preservados.length} preservado(s), ${novos.length} novo(s) e ${removidos.length} arquivado(s).`);
     }catch(e){console.error("Falha ao sincronizar SBARI",e);window.alert(e?.message||"Falha ao atualizar leitos pelo SBARI.");}

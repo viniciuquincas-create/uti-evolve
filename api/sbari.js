@@ -22,7 +22,15 @@ async function downloadDrive(url) {
   const id=url.match(/\/d\/([\w-]+)/)?.[1]||url.match(/[?&]id=([\w-]+)/)?.[1];
   if(!id)throw new Error("Link do Google Drive inválido.");
   const token=await serviceToken();
-  if(!token)throw new Error("Integração Google Drive ainda não configurada no servidor.");
+  if(!token){
+    const publicRes=await fetch(`https://docs.google.com/document/d/${id}/export?format=txt`,{redirect:"follow"});
+    if(!publicRes.ok)throw new Error("O SBARI não está público e a integração Google Drive ainda não foi configurada no servidor.");
+    const buffer=Buffer.from(await publicRes.arrayBuffer());
+    if(buffer.length>10_000_000)throw new Error("O arquivo SBARI excede o limite de 10 MB.");
+    const text=buffer.toString("utf8");
+    if(!text.trim()||/<html[\s>]/i.test(text))throw new Error("O SBARI não está público e a integração Google Drive ainda não foi configurada no servidor.");
+    return {text,name:"SBARI público",id};
+  }
   const headers={authorization:`Bearer ${token}`};
   const metaRes=await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType`,{headers});
   if(!metaRes.ok)throw new Error("O SBARI não foi encontrado ou não foi compartilhado com a conta de integração.");
