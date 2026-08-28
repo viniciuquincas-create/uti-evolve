@@ -4607,6 +4607,15 @@ const EVOLUCAO_VAZIA = {
 };
 
 const normalizarNomeSbari = valor => String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g," ").trim().toLowerCase();
+const nomesCompativeisSbari = (a,b) => {
+  const na=normalizarNomeSbari(a),nb=normalizarNomeSbari(b);if(!na||!nb)return false;if(na===nb)return true;
+  if(Math.min(na.length,nb.length)>=8&&(na.includes(nb)||nb.includes(na)))return true;
+  const ignorar=new Set(["de","da","do","das","dos","e"]);
+  const tokens=n=>n.split(" ").filter(t=>t.length>1&&!ignorar.has(t));
+  const ta=tokens(na),tb=tokens(nb);if(!ta.length||!tb.length||ta[0]!==tb[0])return false;
+  const comuns=ta.filter(t=>tb.includes(t)).length;
+  return comuns>=2&&comuns/Math.min(ta.length,tb.length)>=0.8;
+};
 const dataSbariParaIso = valor => {
   const m=String(valor||"").match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);if(!m)return "";
   let ano=m[3]?Number(m[3]):new Date().getFullYear();if(ano<100)ano+=2000;
@@ -8006,17 +8015,31 @@ export default function App() {
       const atuais=leitos.filter(l=>(l.utiId||utis[0]?.id)===utiAtiva.id);
       const ocupados=atuais.filter(l=>l.paciente);
       const porPaciente=new Map(ocupados.map(l=>[normalizarNomeSbari(l.paciente),l]));
-      const preservados=recebidos.filter(p=>porPaciente.has(normalizarNomeSbari(p.paciente)));
-      const novos=recebidos.filter(p=>!porPaciente.has(normalizarNomeSbari(p.paciente)));
-      const nomesRecebidos=new Set(recebidos.map(p=>normalizarNomeSbari(p.paciente)));
-      const removidos=ocupados.filter(l=>!nomesRecebidos.has(normalizarNomeSbari(l.paciente)));
+      const correspondencias=new Map(),idsCorrespondidos=new Set();
+      recebidos.forEach(p=>{
+        const chave=normalizarNomeSbari(p.paciente);
+        let existente=porPaciente.get(chave);
+        if(existente&&idsCorrespondidos.has(String(existente.id)))existente=null;
+        if(!existente){
+          const candidatos=ocupados.filter(l=>!idsCorrespondidos.has(String(l.id))&&nomesCompativeisSbari(l.paciente,p.paciente));
+          if(candidatos.length===1)existente=candidatos[0];
+        }
+        if(existente){correspondencias.set(chave,existente);idsCorrespondidos.add(String(existente.id));}
+      });
+      const preservados=recebidos.filter(p=>correspondencias.has(normalizarNomeSbari(p.paciente)));
+      const novos=recebidos.filter(p=>!correspondencias.has(normalizarNomeSbari(p.paciente)));
+      const removidos=ocupados.filter(l=>!idsCorrespondidos.has(String(l.id)));
+      if(ocupados.length>=5&&(recebidos.length<Math.ceil(ocupados.length*0.5)||removidos.length>ocupados.length*0.6)){
+        const reconhecidos=recebidos.slice(0,8).map(p=>p.paciente).filter(Boolean).join(", ");
+        throw new Error(`Sincronização interrompida por segurança: o SBARI retornou ${recebidos.length} paciente(s), mas existem ${ocupados.length} leitos ocupados e ${removidos.length} seriam arquivados. Nenhum dado foi alterado.${reconhecidos?` Reconhecidos no documento: ${reconhecidos}.`:""}`);
+      }
       const resumo=`Atualização do SBARI — ${utiAtiva.nome}\n\n${preservados.length} paciente(s) mantido(s), sem alterar dados clínicos\n${novos.length} paciente(s) novo(s)\n${removidos.length} paciente(s) ausente(s), que será(ão) arquivado(s) com alta pendente\n\nContinuar?`;
       if(!window.confirm(resumo))return;
       const agora=new Date().toISOString();
       const vagas=atuais.filter(l=>!l.paciente);
       const usados=new Set();
       const leitosSbari=recebidos.map((p,indice)=>{
-        const existente=porPaciente.get(normalizarNomeSbari(p.paciente));
+        const existente=correspondencias.get(normalizarNomeSbari(p.paciente));
         if(existente){usados.add(String(existente.id));return {...existente,nome:p.leito,utiId:utiAtiva.id};}
         const vaga=vagas.find(v=>!usados.has(String(v.id))&&normalizarNomeSbari(v.nome)===normalizarNomeSbari(p.leito))||vagas.find(v=>!usados.has(String(v.id)));
         const id=vaga?.id||`sbari-${Date.now()}-${indice}`;usados.add(String(id));

@@ -24,3 +24,23 @@ I: Reavaliar amanhã`);
   assert.equal(p.assessment.CV,"Estável");
   assert.equal(p.instrucoes,"Reavaliar amanhã");
 });
+
+test("aceita Box, leito em outra linha e cabeçalho sem vírgula",()=>{
+  const pacientes=parseSbari(`BOX 601 - Maria Aparecida dos Santos 67 anos RH12345
+Adm Hosp: 20/08 Adm UTI: 21/08
+Equipe: Clínica
+S: Sepse
+A:
+N: Glasgow 15
+
+Leito 602
+Paciente: João da Silva - 54 anos - Prontuário 9988
+Adm Hosp: 21/08 Adm UTI: 22/08
+Equipe: Cirurgia
+S: Pós-operatório`);
+  assert.equal(pacientes.length,2);
+  assert.equal(pacientes[0].paciente,"Maria Aparecida dos Santos");
+  assert.equal(pacientes[0].idadeAnos,"67");
+  assert.equal(pacientes[1].paciente,"João da Silva");
+  assert.equal(pacientes[1].leito,"Leito 602");
+});
