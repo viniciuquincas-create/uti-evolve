@@ -6859,10 +6859,16 @@ const G1_LAYOUT={
   "603":{gridColumn:"1 / 2",gridRow:"6"},"602":{gridColumn:"2 / 3",gridRow:"6"},
   "601":{gridColumn:"3 / 4",gridRow:"6"},
 };
+const HSP_PLANILHA_ALTAS="https://docs.google.com/spreadsheets/d/1A5H88kbX7J5x3AekIK6J4aqaoQh61EOe9i4_na45sj0/edit?gid=0#gid=0";
+const normalizarNomeAlta=valor=>String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\b(?:DESC|DESCONHECIDO)\.?\s*/gi,"").replace(/[^A-Z0-9 ]/gi," ").replace(/\s+/g," ").trim().toUpperCase();
 
-function CoordenacaoPanel({uti,leitos,onAbrirLeito,onVoltar}){
+function CoordenacaoPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl}){
   const T=useTheme();
   const ehG1=/\bG1\b/i.test(uti?.nome||"");
+  const [altas,setAltas]=useState([]),[altaLoading,setAltaLoading]=useState(false),[altaErro,setAltaErro]=useState(""),[altaAtualizada,setAltaAtualizada]=useState("");
+  const urlAltas=altaSheetUrl||(hospital?.id==="hsp"?HSP_PLANILHA_ALTAS:"");
+  const atualizarAltas=async(silencioso=false)=>{if(!urlAltas)return;if(!silencioso)setAltaLoading(true);try{const response=await fetch("/api/altas",{method:"POST",headers:{"content-type":"application/json","x-uti-session":sessionStorage.getItem(SESSION_KEY)||""},body:JSON.stringify({url:urlAltas})});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Não foi possível ler a planilha de altas.");setAltas(payload.registros||[]);setAltaErro("");setAltaAtualizada(new Date().toISOString());}catch(error){setAltaErro(error.message||"Falha ao atualizar altas.");}finally{setAltaLoading(false);}};
+  useEffect(()=>{atualizarAltas(true);const timer=setInterval(()=>atualizarAltas(true),300000);return()=>clearInterval(timer);},[urlAltas]);
   const numero=l=>(String(l.nome||"").match(/\d{3}/)||String(l.nome||"").match(/\d+/)||[""])[0];
   // No cadastro histórico da G1 os leitos podem estar salvos como 01–17,
   // enquanto a numeração física exibida na unidade é 601–617.
@@ -6871,15 +6877,19 @@ function CoordenacaoPanel({uti,leitos,onAbrirLeito,onVoltar}){
   return <div style={{height:"100%",overflowY:"auto",background:T.bgPage,padding:"24px clamp(16px,3vw,42px)"}}>
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
       <div><div style={{fontSize:20,fontWeight:850,color:T.text1}}>Coordenação · {uti?.nome}</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>Mapa físico dos leitos · dados compartilhados com o perfil Plantonista</div></div>
-      <button onClick={onVoltar} style={{marginLeft:"auto",padding:"7px 11px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontWeight:700}}>Voltar ao Plantonista</button>
+      {urlAltas&&<button onClick={()=>atualizarAltas(false)} disabled={altaLoading} title="Atualizar situação das altas pela planilha institucional" style={{marginLeft:"auto",padding:"7px 11px",borderRadius:8,border:`1px solid ${altaErro?"#f87171":T.accentBorder}`,background:altaErro?"rgba(248,113,113,.08)":T.accentBg,color:altaErro?"#f87171":T.accent,cursor:altaLoading?"wait":"pointer",fontWeight:700}}>{altaLoading?"Atualizando altas…":"↻ Atualizar altas"}</button>}
+      <button onClick={onVoltar} style={{marginLeft:urlAltas?0:"auto",padding:"7px 11px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontWeight:700}}>Voltar ao Plantonista</button>
     </div>
+    {altaErro&&<div style={{marginBottom:12,padding:"8px 10px",borderRadius:8,border:"1px solid rgba(248,113,113,.35)",background:"rgba(248,113,113,.08)",color:"#f87171",fontSize:10}}>Planilha de altas: {altaErro}</div>}
+    {urlAltas&&!altaErro&&altaAtualizada&&<div style={{margin:"-10px 0 10px",fontSize:9,color:T.text4,textAlign:"right"}}>Altas verificadas às {new Date(altaAtualizada).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})} · atualização automática a cada 5 min</div>}
     <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap",padding:"9px 12px",border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,marginBottom:18,fontSize:10,color:T.text3}}>
-      <b style={{color:T.text2}}>PRECAUÇÕES:</b><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#2563eb",marginRight:5}}/>MDN/NDM</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#dc2626",marginRight:5}}/>KPC/VRE/MTR</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#eab308",marginRight:5}}/>Aguardando cultura</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:T.bgInput,border:`1px solid ${T.borderStrong}`,marginRight:5}}/>Sem precaução</span>
+      <b style={{color:T.text2}}>PRECAUÇÕES:</b><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#2563eb",marginRight:5}}/>MDN/NDM</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#dc2626",marginRight:5}}/>KPC/VRE/MTR</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#eab308",marginRight:5}}/>Aguardando cultura</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:T.bgInput,border:`1px solid ${T.borderStrong}`,marginRight:5}}/>Sem precaução</span><span style={{marginLeft:"auto",borderLeft:`1px solid ${T.border}`,paddingLeft:12}}><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#f59e0b",marginRight:5}}/>Alta aguardando</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#10b981",marginRight:5}}/>Leito cedido</span>
     </div>
     <div style={ehG1?{display:"grid",gridTemplateColumns:"repeat(9,minmax(92px,1fr))",gridTemplateRows:"repeat(6,minmax(92px,1fr))",gap:12,minWidth:980,minHeight:650,padding:18,border:`1px solid ${T.border}`,borderRadius:18,background:T.bgCard,boxShadow:T.shadowCard}:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):{};return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:92,padding:"12px",borderRadius:14,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}`}>
+      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):{},nome=normalizarNomeAlta(l.paciente),alta=nome?altas.find(a=>{const an=normalizarNomeAlta(a.paciente);return an===nome||(an.length>8&&nome.length>8&&(an.includes(nome)||nome.includes(an)));}):null;return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:92,padding:"12px",borderRadius:14,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:alta?.leitoCedido?"0 0 0 3px rgba(16,185,129,.25), 0 5px 14px rgba(15,23,42,.10)":"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}${alta?` · Alta: ${alta.leitoCedido?`leito cedido ${alta.leitoCedido}`:"aguardando leito"}`:""}`}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}><b style={{fontFamily:mono,fontSize:15,color:p?.cor||T.accent}}>{n||l.nome}</b>{p&&<span style={{width:9,height:9,borderRadius:"50%",background:p.cor,flex:"0 0 auto"}}/>}</div>
         <div style={{marginTop:8,fontSize:11,fontWeight:l.paciente?750:500,fontStyle:l.paciente?"normal":"italic",color:l.paciente?T.text1:T.text3,lineHeight:1.35,overflowWrap:"anywhere"}}>{l.paciente||"Vago"}</div>
+        {alta&&<div style={{marginTop:7,padding:"4px 6px",borderRadius:6,background:alta.leitoCedido?"rgba(16,185,129,.15)":"rgba(245,158,11,.13)",border:`1px solid ${alta.leitoCedido?"rgba(16,185,129,.4)":"rgba(245,158,11,.35)"}`,color:alta.leitoCedido?"#059669":"#d97706",fontSize:8.5,fontWeight:850,lineHeight:1.25}}>{alta.leitoCedido?`✓ SAÍDA · leito cedido ${alta.leitoCedido}`:"◷ ALTA · aguardando leito"}</div>}
       </button>})}
       {ehG1&&<div style={{gridColumn:"4 / 7",gridRow:"3 / 5",display:"flex",alignItems:"center",justifyContent:"center",border:`1px dashed ${T.border}`,borderRadius:18,color:T.textDim,fontFamily:mono,fontSize:11,letterSpacing:2}}>ÁREA CENTRAL</div>}
     </div>
@@ -8472,7 +8482,7 @@ export default function App() {
 
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {perfil==="coordenacao" ? (
-            <CoordenacaoPanel uti={utiAtiva} leitos={leitosDaUti} onVoltar={()=>mudarPerfil("plantonista")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");mudarPerfil("plantonista");}}/>
+            <CoordenacaoPanel uti={utiAtiva} hospital={hospitalAtivo} leitos={leitosDaUti} altaSheetUrl={config.altaSheetUrls?.[hospitalAtivo?.id]} onVoltar={()=>mudarPerfil("plantonista")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");mudarPerfil("plantonista");}}/>
           ) : viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : viewGlobal==="pesquisa" ? (
