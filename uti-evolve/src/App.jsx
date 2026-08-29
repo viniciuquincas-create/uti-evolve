@@ -6864,7 +6864,10 @@ function CoordenacaoPanel({uti,leitos,onAbrirLeito,onVoltar}){
   const T=useTheme();
   const ehG1=/\bG1\b/i.test(uti?.nome||"");
   const numero=l=>(String(l.nome||"").match(/\d{3}/)||String(l.nome||"").match(/\d+/)||[""])[0];
-  const ordenados=[...leitos].sort((a,b)=>Number(numero(a))-Number(numero(b)));
+  // No cadastro histórico da G1 os leitos podem estar salvos como 01–17,
+  // enquanto a numeração física exibida na unidade é 601–617.
+  const numeroFisico=l=>{const bruto=numero(l),n=Number(bruto);return ehG1&&n>=1&&n<=17?String(600+n):bruto;};
+  const ordenados=[...leitos].sort((a,b)=>Number(numeroFisico(a))-Number(numeroFisico(b)));
   return <div style={{height:"100%",overflowY:"auto",background:T.bgPage,padding:"24px clamp(16px,3vw,42px)"}}>
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
       <div><div style={{fontSize:20,fontWeight:850,color:T.text1}}>Coordenação · {uti?.nome}</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>Mapa físico dos leitos · dados compartilhados com o perfil Plantonista</div></div>
@@ -6874,7 +6877,7 @@ function CoordenacaoPanel({uti,leitos,onAbrirLeito,onVoltar}){
       <b style={{color:T.text2}}>PRECAUÇÕES:</b><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#2563eb",marginRight:5}}/>MDN/NDM</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#dc2626",marginRight:5}}/>KPC/VRE/MTR</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#eab308",marginRight:5}}/>Aguardando cultura</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:T.bgInput,border:`1px solid ${T.borderStrong}`,marginRight:5}}/>Sem precaução</span>
     </div>
     <div style={ehG1?{display:"grid",gridTemplateColumns:"repeat(9,minmax(92px,1fr))",gridTemplateRows:"repeat(6,minmax(92px,1fr))",gap:12,minWidth:980,minHeight:650,padding:18,border:`1px solid ${T.border}`,borderRadius:18,background:T.bgCard,boxShadow:T.shadowCard}:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-      {ordenados.map(l=>{const n=numero(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):{};return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:92,padding:"12px",borderRadius:14,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}`}>
+      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):{};return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:92,padding:"12px",borderRadius:14,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}`}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}><b style={{fontFamily:mono,fontSize:15,color:p?.cor||T.accent}}>{n||l.nome}</b>{p&&<span style={{width:9,height:9,borderRadius:"50%",background:p.cor,flex:"0 0 auto"}}/>}</div>
         <div style={{marginTop:8,fontSize:11,fontWeight:l.paciente?750:500,fontStyle:l.paciente?"normal":"italic",color:l.paciente?T.text1:T.text3,lineHeight:1.35,overflowWrap:"anywhere"}}>{l.paciente||"Vago"}</div>
       </button>})}
