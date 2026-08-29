@@ -6861,6 +6861,18 @@ const G1_LAYOUT={
 };
 const HSP_PLANILHA_ALTAS="https://docs.google.com/spreadsheets/d/1A5H88kbX7J5x3AekIK6J4aqaoQh61EOe9i4_na45sj0/edit?gid=0#gid=0";
 const normalizarNomeAlta=valor=>String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\b(?:DESC|DESCONHECIDO)\.?\s*/gi,"").replace(/[^A-Z0-9 ]/gi," ").replace(/\s+/g," ").trim().toUpperCase();
+const encontrarAltaDoPaciente=(paciente,altas,leitos)=>{
+  const nome=normalizarNomeAlta(paciente);if(!nome)return null;
+  const exata=altas.find(a=>normalizarNomeAlta(a.paciente)===nome);if(exata)return exata;
+  const parcial=altas.find(a=>{const an=normalizarNomeAlta(a.paciente);return an.length>4&&nome.length>4&&(an.includes(nome)||nome.includes(an));});if(parcial)return parcial;
+  // A planilha frequentemente traz somente o primeiro nome. Para não associar
+  // homônimos ao leito errado, só usamos o primeiro nome quando ele é único
+  // tanto entre os pacientes internados quanto entre as altas da planilha.
+  const primeiro=nome.split(" ")[0];if(primeiro.length<3)return null;
+  const leitosMesmoPrimeiro=leitos.filter(l=>normalizarNomeAlta(l.paciente).split(" ")[0]===primeiro).length;
+  const altasMesmoPrimeiro=altas.filter(a=>normalizarNomeAlta(a.paciente).split(" ")[0]===primeiro);
+  return leitosMesmoPrimeiro===1&&altasMesmoPrimeiro.length===1?altasMesmoPrimeiro[0]:null;
+};
 
 function CoordenacaoPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl}){
   const T=useTheme();
@@ -6886,7 +6898,7 @@ function CoordenacaoPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUr
       <b style={{color:T.text2}}>PRECAUÇÕES:</b><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#2563eb",marginRight:5}}/>MDN/NDM</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#dc2626",marginRight:5}}/>KPC/VRE/MTR</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#eab308",marginRight:5}}/>Aguardando cultura</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:T.bgInput,border:`1px solid ${T.borderStrong}`,marginRight:5}}/>Sem precaução</span><span style={{marginLeft:"auto",borderLeft:`1px solid ${T.border}`,paddingLeft:12}}><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#f59e0b",marginRight:5}}/>Alta aguardando</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#10b981",marginRight:5}}/>Leito cedido</span>
     </div>
     <div style={ehG1?{display:"grid",gridTemplateColumns:"repeat(9,minmax(92px,1fr))",gridTemplateRows:"repeat(6,minmax(92px,1fr))",gap:12,minWidth:980,minHeight:650,padding:18,border:`1px solid ${T.border}`,borderRadius:18,background:T.bgCard,boxShadow:T.shadowCard}:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):{},nome=normalizarNomeAlta(l.paciente),alta=nome?altas.find(a=>{const an=normalizarNomeAlta(a.paciente);return an===nome||(an.length>8&&nome.length>8&&(an.includes(nome)||nome.includes(an)));}):null;return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:92,padding:"12px",borderRadius:14,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:alta?.leitoCedido?"0 0 0 3px rgba(16,185,129,.25), 0 5px 14px rgba(15,23,42,.10)":"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}${alta?` · Alta: ${alta.leitoCedido?`leito cedido ${alta.leitoCedido}`:"aguardando leito"}`:""}`}>
+      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):{},alta=encontrarAltaDoPaciente(l.paciente,altas,leitos);return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:92,padding:"12px",borderRadius:14,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:alta?.leitoCedido?"0 0 0 3px rgba(16,185,129,.25), 0 5px 14px rgba(15,23,42,.10)":"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}${alta?` · Alta: ${alta.leitoCedido?`leito cedido ${alta.leitoCedido}`:"aguardando leito"}`:""}`}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}><b style={{fontFamily:mono,fontSize:15,color:p?.cor||T.accent}}>{n||l.nome}</b>{p&&<span style={{width:9,height:9,borderRadius:"50%",background:p.cor,flex:"0 0 auto"}}/>}</div>
         <div style={{marginTop:8,fontSize:11,fontWeight:l.paciente?750:500,fontStyle:l.paciente?"normal":"italic",color:l.paciente?T.text1:T.text3,lineHeight:1.35,overflowWrap:"anywhere"}}>{l.paciente||"Vago"}</div>
         {alta&&<div style={{marginTop:7,padding:"4px 6px",borderRadius:6,background:alta.leitoCedido?"rgba(16,185,129,.15)":"rgba(245,158,11,.13)",border:`1px solid ${alta.leitoCedido?"rgba(16,185,129,.4)":"rgba(245,158,11,.35)"}`,color:alta.leitoCedido?"#059669":"#d97706",fontSize:8.5,fontWeight:850,lineHeight:1.25}}>{alta.leitoCedido?`✓ SAÍDA · leito cedido ${alta.leitoCedido}`:"◷ ALTA · aguardando leito"}</div>}

@@ -25,7 +25,9 @@ export function parsePlanilhaAltas(csv=""){
   if(headerIndex<0)throw new Error('A coluna "Leito cedido" não foi localizada na planilha.');
   const headers=rows[headerIndex].map(normalizar);
   const idxCedido=acharColuna(headers,["LEITO CEDIDO"]);
-  const idxPaciente=acharColuna(headers,["NOME DO PACIENTE","NOME PACIENTE","PACIENTE","NOME"]);
+  // Nesta planilha institucional, os pacientes não ficam em uma coluna chamada
+  // "Paciente": a lista das quatro UTIs é lançada em "Altas de hoje".
+  const idxPaciente=acharColuna(headers,["ALTAS DE HOJE","NOME DO PACIENTE","NOME PACIENTE","PACIENTE","NOME"]);
   const idxLeito=acharColuna(headers,["LEITO ATUAL","LEITO ORIGEM","LEITO"]);
   const idxDestino=acharColuna(headers,["DESTINO","UNIDADE DESTINO"]);
   const idxData=acharColuna(headers,["DATA DA ALTA","DATA ALTA","DATA"]);
