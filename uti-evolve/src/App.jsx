@@ -1000,7 +1000,7 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   let grauDiurese=0,debitoKgH=null;
   if(diurese!==null&&peso>0){debitoKgH=diurese/peso/24;if(diurese===0||debitoKgH<.3)grauDiurese=3;else if(debitoKgH<.5)grauDiurese=2;}
   const trsTexto=String(campos.rmTRS||"").toLowerCase();
-  const emTRS=/(hemodi|di[aá]lise|\btrs\b|crrt|cvvh)/i.test(trsTexto)&&!/(sem|suspensa|não|nao)\s+(hemodi|di[aá]lise|trs|crrt|cvvh)/i.test(trsTexto);
+  const emTRS=/(hemodi|di[aá]lise|\b(?:trs|tsr)\b|crrt|cvvh)/i.test(trsTexto)&&!/(sem|suspensa|não|nao)\s+(hemodi|di[aá]lise|trs|tsr|crrt|cvvh)/i.test(trsTexto);
   const grau=Math.max(grauCr,grauDiurese,emTRS?3:0);
   const eletrolitos=[];
   const registrarDist=(key,nome,grauDist,v,omitir=false)=>{if(!omitir)eletrolitos.push(`${nome} ${grauDist} (${ABREV[key]||key} ${String(v).replace(".",",")})`);};
@@ -1016,7 +1016,7 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   else if(cai!==null&&cai>1.3)registrarDist("cai","Hipercalcemia iônica",cai>1.6?"grave":cai>1.4?"moderada":"leve",cai);
   if(p!==null&&p<2.5)registrarDist("p","Hipofosfatemia",p<1?"grave":p<2?"moderada":"leve",p);
   else if(p!==null&&p>4.5){const g=p>7?"grave":p>5.5?"moderada":"leve";registrarDist("p","Hiperfosfatemia",g,p,g==="leve");}
-  if(grau>0){const criterios=[];if(emTRS)criterios.push("TRS");if(crAtual!==null)criterios.push(`Cr ${crAtual}${basal!==null?` (basal ${basal}${basalInformada!==null?", informada":""})`:""}`);if(debitoKgH!==null)criterios.push(`DU ${debitoKgH.toFixed(2).replace(".",",")} mL/kg/h`);problemas.push({id:"lra",texto:`Lesão Renal Aguda — KDIGO ${grau}`,detalhe:`estimado: ${criterios.join(" · ")}`,subitens:eletrolitos});}
+  if(grau>0){const criterios=[];if(emTRS)criterios.push("TSR");if(crAtual!==null)criterios.push(`Cr ${crAtual}${basal!==null?` (basal ${basal}${basalInformada!==null?", informada":""})`:""}`);if(debitoKgH!==null)criterios.push(`DU ${debitoKgH.toFixed(2).replace(".",",")} mL/kg/h`);problemas.push({id:"lra",texto:`Lesão Renal Aguda — KDIGO ${grau}`,detalhe:`estimado: ${criterios.join(" · ")}`,subitens:eletrolitos});}
   else if(eletrolitos.length)problemas.push({id:"eletrolitos",texto:"Distúrbios hidroeletrolíticos",subitens:eletrolitos});
   if(dataAtual){
     const acidose=analisarGasometria(gasoAte(dataAtual)).acidoseMetabolica;
@@ -5528,13 +5528,14 @@ function calcPocusDerived(values={},patient={}){
   return {co,pcwp:ee!==null?1.24*ee+1.9:null,papmTacc:tacc!==null?(tacc<120?90-0.62*tacc:79-0.45*tacc):null,papmPsap:psap!==null?psap*0.61+2:null,vci,invasiva};
 }
 
-function SerialMeasurements({title,fieldKey,fields=[],suggestedParams=[],value,onChange,color="#38bdf8",subjective=false,calculator,patient,workflow=false,compactHistory=false}){
+function SerialMeasurements({title,fieldKey,fields=[],suggestedParams=[],value,onChange,color="#38bdf8",subjective=false,calculator,patient,workflow=false,compactHistory=false,latestOnly=false}){
   const T=useTheme();
   const [showParamMenu,setShowParamMenu]=useState(false);
   const [expandedHistory,setExpandedHistory]=useState({});
   const today=new Date().toISOString().slice(0,10);
   const state=value&&typeof value==="object"&&!Array.isArray(value)?value:{entries:[],customParams:[]};
   const entries=Array.isArray(state.entries)?state.entries:[],customParams=Array.isArray(state.customParams)?state.customParams:[];
+  const latestEntryId=entries.reduce((latest,e)=>!latest||`${e.data||""}T${e.hora||"00:00"}`>=`${latest.data||""}T${latest.hora||"00:00"}`?e:latest,null)?.id;
   const allFields=[...(subjective?[{key:"avaliacao",label:"Avaliação subjetiva",wide:true}]:[]),...fields,...customParams.map(p=>({...p,key:p.key,label:p.label}))];
   const emit=next=>onChange({...state,...next});
   const add=()=>emit({entries:[...entries,{id:`sm_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,data:new Date().toISOString().slice(0,10),hora:new Date().toTimeString().slice(0,5),momento:entries.length?"reavaliacao":"avaliacao",interpretacao:"",conduta:"",values:{}}]});
@@ -5546,7 +5547,7 @@ function SerialMeasurements({title,fieldKey,fields=[],suggestedParams=[],value,o
   return <div style={{marginTop:9,border:`1px solid ${color}33`,borderRadius:9,background:`${color}08`,overflow:"hidden"}}>
     <div style={{display:"flex",alignItems:"center",padding:"7px 9px",borderBottom:(entries.length||showParamMenu)?`1px solid ${color}22`:0}}><span style={{fontSize:10,fontFamily:mono,letterSpacing:1.2,color,fontWeight:700}}>{title}</span>{fields.some(f=>f.reference)&&<span title="Faixas usuais de referência; não são alvos terapêuticos e devem ser interpretadas no contexto clínico" style={{fontSize:8,color:T.text4,marginLeft:7,fontFamily:mono}}>refs usuais ⓘ</span>}<button onClick={()=>setShowParamMenu(v=>!v)} style={{marginLeft:"auto",border:0,background:"transparent",color:showParamMenu?color:T.text3,fontSize:10,cursor:"pointer"}}>+ variável</button><button onClick={add} style={{marginLeft:5,padding:"3px 8px",borderRadius:6,border:`1px solid ${color}55`,background:`${color}12`,color,cursor:"pointer",fontSize:10,fontWeight:700}}>+ medida</button></div>
     {showParamMenu&&<div style={{padding:"6px 9px",display:"flex",gap:5,flexWrap:"nowrap",overflowX:"auto",alignItems:"center",borderBottom:entries.length?`1px solid ${T.border}`:0}}>{suggestedParams.filter(p=>!fields.some(f=>f.key===p.key)).map(p=>{const active=customParams.some(f=>f.key===p.key);return <button key={p.key} onClick={()=>addSuggested(p)} title={active?"Clique para remover":"Clique para adicionar"} style={{flex:"0 0 auto",whiteSpace:"nowrap",padding:"3px 8px",borderRadius:12,border:`1px solid ${active?"rgba(248,113,113,.5)":`${color}44`}`,background:active?"rgba(248,113,113,.10)":`${color}10`,color:active?"#f87171":color,fontSize:9,cursor:"pointer"}}>{active?"✕ ":"+ "}{p.label}</button>})}<button onClick={addParam} style={{flex:"0 0 auto",whiteSpace:"nowrap",padding:"3px 8px",borderRadius:12,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,fontSize:9,cursor:"pointer"}}>+ Nome livre</button></div>}
-    {entries.map((e,i)=>{const anterior=i>0?entries[i-1]:null;const historica=compactHistory&&e.data&&e.data!==today;if(historica&&!expandedHistory[e.id]){const preenchidas=Object.values(e.values||{}).filter(v=>String(v??"").trim()).length;return <button key={e.id} onClick={()=>setExpandedHistory(x=>({...x,[e.id]:true}))} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 9px",border:0,borderTop:i?`1px solid ${T.border}`:0,background:T.bgCard,color:T.text2,cursor:"pointer",textAlign:"left"}}><span style={{fontSize:10,fontFamily:mono,color}}>{e.data?new Date(`${e.data}T00:00:00`).toLocaleDateString("pt-BR"):"sem data"}{e.hora?` · ${e.hora}`:""}</span><span style={{fontSize:9,color:T.text3}}>{preenchidas} parâmetro(s){e.interpretacao?" · com interpretação":""}{e.conduta?" · com conduta":""}</span><span style={{marginLeft:"auto",fontSize:10,color:T.text3}}>▾ consultar</span></button>}return <div key={e.id} style={{padding:"8px 9px",borderTop:i?`1px solid ${T.border}`:0}}>
+    {entries.map((e,i)=>{const anterior=i>0?entries[i-1]:null;const historica=(latestOnly&&e.id!==latestEntryId)||(compactHistory&&e.data&&e.data!==today);if(historica&&!expandedHistory[e.id]){const preenchidas=Object.values(e.values||{}).filter(v=>String(v??"").trim()).length;return <button key={e.id} onClick={()=>setExpandedHistory(x=>({...x,[e.id]:true}))} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 9px",border:0,borderTop:i?`1px solid ${T.border}`:0,background:T.bgCard,color:T.text2,cursor:"pointer",textAlign:"left"}}><span style={{fontSize:10,fontFamily:mono,color}}>{e.data?new Date(`${e.data}T00:00:00`).toLocaleDateString("pt-BR"):"sem data"}{e.hora?` · ${e.hora}`:""}</span><span style={{fontSize:9,color:T.text3}}>{preenchidas} parâmetro(s){e.interpretacao?" · com interpretação":""}{e.conduta?" · com conduta":""}</span><span style={{marginLeft:"auto",fontSize:10,color:T.text3}}>▾ consultar</span></button>}return <div key={e.id} style={{padding:"8px 9px",borderTop:i?`1px solid ${T.border}`:0}}>
       {historica&&<button onClick={()=>setExpandedHistory(x=>({...x,[e.id]:false}))} style={{float:"right",marginBottom:5,border:0,background:"transparent",color:T.text3,fontSize:9,cursor:"pointer"}}>▴ minimizar</button>}
       <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:6}}><input type="date" value={e.data||""} onChange={x=>upd(e.id,"data",x.target.value)} style={{width:125,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><input type="time" value={e.hora||""} onChange={x=>upd(e.id,"hora",x.target.value)} style={{width:82,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/>{workflow&&<select value={e.momento||(i?"reavaliacao":"avaliacao")} onChange={x=>upd(e.id,"momento",x.target.value)} style={{background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}><option value="avaliacao">Avaliação</option><option value="pos_intervencao">Após intervenção</option><option value="reavaliacao">Reavaliação</option></select>}<span style={{fontSize:9,color:T.text4}}>#{i+1}</span><button onClick={()=>remove(e.id)} style={{marginLeft:"auto",border:0,background:"transparent",color:"#f87171",cursor:"pointer"}}>✕</button></div>
       <div style={{display:"grid",gridTemplateColumns:fieldKey==="cvPocusSerial"?`repeat(${Math.max(fields.length,1)},minmax(96px,1fr))`:"repeat(auto-fit,minmax(115px,1fr))",gap:5,minWidth:fieldKey==="cvPocusSerial"?`${Math.max(fields.length,1)*101}px`:undefined,overflowX:"auto",paddingBottom:fieldKey==="cvPocusSerial"?2:0}}>{allFields.map(f=>{const atual=numPocus(e.values?.[f.key]),prev=numPocus(anterior?.values?.[f.key]),delta=atual!==null&&prev!==null?atual-prev:null;return <label key={f.key} style={{fontSize:9,color:T.text3,gridColumn:f.wide?"1 / -1":undefined}}><span>{f.label}</span>{f.reference&&<span title="Faixa usual; interpretar no contexto clínico" style={{marginLeft:4,fontSize:8,color:T.text4,whiteSpace:"nowrap"}}>ref. {f.reference}</span>}<div style={{position:"relative"}}><input value={e.values?.[f.key]||""} onChange={x=>updVal(e.id,f.key,x.target.value)} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:`5px ${delta!==null?24:6}px 5px 6px`,color:T.text1,fontSize:10}}/>{delta!==null&&delta!==0&&<span title={`Variação desde #${i}: ${delta>0?"+":""}${delta.toFixed(2)}`} style={{position:"absolute",right:6,top:7,fontSize:9,color:delta>0?"#f59e0b":"#38bdf8"}}>{delta>0?"↑":"↓"}</span>}</div></label>})}</div>
@@ -5584,7 +5585,7 @@ const SERIAL_MONITOR_CONFIG={
   cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",compactHistory:true,fields:[{key:"pvc",label:"PVC"},{key:"paps",label:"PAPs"},{key:"papd",label:"PAPd"},{key:"papm",label:"PAPm"},{key:"pcp",label:"PCP"},{key:"dc",label:"DC"},{key:"ic",label:"IC"},{key:"svo2",label:"SvO₂"},{key:"rvs",label:"RVS"}]},
   cvBiaSerial:{title:"BIA — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"assistencia",label:"Relação de assistência"},{key:"trigger",label:"Trigger"},{key:"augmentacao",label:"Augmentação"},{key:"pasAssistida",label:"PAS assistida"},{key:"pasNaoAssistida",label:"PAS não assistida"},{key:"diastolicaAumentada",label:"Diastólica aumentada"},{key:"pam",label:"PAM"}]},
   reLusSerial:{title:"LUS — AVALIAÇÕES SERIADAS",color:"#38bdf8",subjective:true,workflow:true,compactHistory:true,fields:[{key:"htd",label:"HTD"},{key:"hte",label:"HTE"}]},
-  rmTrsSerial:{title:"TRS — SESSÕES",color:"#34d399",fields:[{key:"modalidade",label:"Modalidade"},{key:"uf",label:"UF"},{key:"duracao",label:"Tempo de duração"},{key:"intercorrencias",label:"Intercorrências"}]},
+  rmTrsSerial:{title:"TSR — SESSÕES",color:"#34d399",latestOnly:true,fields:[{key:"modalidade",label:"Modalidade"},{key:"uf",label:"UF"},{key:"duracao",label:"Tempo de duração"},{key:"intercorrencias",label:"Intercorrências"}]},
   rmPocusSerial:{title:"POCUS RENAL — REGISTROS SERIADOS",color:"#34d399",subjective:true,fields:[{key:"vci",label:"VCI"},{key:"vexus",label:"VExUS / congestão"},{key:"rins",label:"Rins"},{key:"bexiga",label:"Bexiga"}]},
   tgPocusSerial:{title:"POCUS ABDOMINAL — REGISTROS SERIADOS",color:"#fb923c",subjective:true,fields:[{key:"vesicula",label:"Vesícula"},{key:"viasBiliares",label:"Vias biliares"},{key:"alcas",label:"Alças"},{key:"liquidoLivre",label:"Líquido livre"}]},
 };
@@ -5689,7 +5690,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const p=[];
     if(get("rm24h"))  p.push(`- 24h: ${get("rm24h")}`);
     if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
-    if(get("rmTRS"))  p.push(`- TRS: ${get("rmTRS")}`);
+    if(get("rmTRS"))  p.push(`- TSR: ${get("rmTRS")}`);
     if(get("rmObs"))  p.push(`*${get("rmObs")}`);
     return p.join("\n");
   };
@@ -5852,7 +5853,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const cfg=SERIAL_MONITOR_CONFIG[fieldKey]||{};
     const labels=Object.fromEntries([...(cfg.subjective?[{key:"avaliacao",label:"Avaliação subjetiva"}]:[]),...(cfg.fields||[]),...((state.customParams||[]))].map(f=>[f.key,f.label]));
     const somenteHoje=new Set(["cvPerfusaoSerial","cvPocusSerial","cvPiccoSerial","cvSwanSerial","reLusSerial"]).has(fieldKey);
-    return state.entries.filter(entry=>!somenteHoje||entry.data===hoje).map(entry=>{
+    let entradas=state.entries.filter(entry=>!somenteHoje||entry.data===hoje);
+    if(cfg.latestOnly&&entradas.length)entradas=[...entradas].sort((a,b)=>`${a.data||""}T${a.hora||"00:00"}`.localeCompare(`${b.data||""}T${b.hora||"00:00"}`)).slice(-1);
+    return entradas.map(entry=>{
       const date=entry.data?new Date(`${entry.data}T00:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
       const when=[date,entry.hora].filter(Boolean).join(" ");
       const calc=fieldKey==="cvPocusSerial"?calcPocusDerived(entry.values,leito):null;
@@ -5989,8 +5992,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const p=[];
     if(get("rm24h"))  p.push(`- 24h: ${get("rm24h")}`);
     if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
-    if(vis.rmTRS&&get("rmTRS")) p.push(`- TRS: ${get("rmTRS")}`);
-    p.push(...serialLines("rmTrsSerial","TRS"),...serialLines("rmPocusSerial","POCUS renal"));
+    if(vis.rmTRS&&get("rmTRS")&&!campos.rmTrsSerial?.entries?.length) p.push(`- TSR: ${get("rmTRS")}`);
+    p.push(...serialLines("rmTrsSerial","TSR"),...serialLines("rmPocusSerial","POCUS renal"));
     if(vis.rmObs&&get("rmObs")) p.push(`*${get("rmObs")}`);
     p.push(...customLines("reme"));
     if(vis.add_reme_interconsulta){const e=eventText("reme","interconsulta");if(e)p.push(e);}
@@ -6388,7 +6391,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       <SysB id="reme" sigla="== ReMe:" label="Renal / Metabólico" color={"#34d399"} txtFn={txtReMeFull}
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]}
-        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"trs",label:"TRS"},{key:"pocus",label:"POCUS"}]}
+        adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"trs",label:"TSR"},{key:"pocus",label:"POCUS"}]}
         statusFields={[{label:"24h — HD/BH/Dextro",value:campos.rm24h},{label:"Labs renais/metabólicos",value:campos.rmLabs}]} {...customProps("reme")}>
         <ClinicalGroup label="FUNÇÃO RENAL E MONITORIZAÇÃO" color="#34d399">
         {/* Em uso de ATB? — somente leitura, refletindo o bloco Infeccioso (relevante p/ ajuste de dose renal) */}
@@ -6412,7 +6415,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <Row><Col><FL>24h — HD · BH · Dextro</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} sugestao="HD 3000 / BH +1084 > +1508 / Dextro 90–160" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
         <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={1} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
-        {vis["rmTRS"]&&<ClinicalGroup label="TERAPIA RENAL SUBSTITUTIVA" color="#34d399"><Row><Col><FL>TRS (registro anterior)</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
+        {vis["rmTRS"]&&<ClinicalGroup label="TERAPIA RENAL SUBSTITUTIVA" color="#34d399"><Row><Col><FL>TSR (registro anterior)</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
         {vis["add_reme_trs"]&&serialPanel("rmTrsSerial")}
         {vis["add_reme_pocus"]&&serialPanel("rmPocusSerial")}
         {vis["add_reme_interconsulta"]&&eventPanel("reme","interconsulta","#34d399")}
@@ -6844,6 +6847,42 @@ function precaucaoMicrobiologica(culturas=[]) {
   return null;
 }
 
+// ── Perfil Coordenação · mapa físico da unidade ──────────────────────────────
+const G1_LAYOUT={
+  "604":{gridColumn:"1 / 2",gridRow:"1"},"605":{gridColumn:"2 / 3",gridRow:"1"},
+  "606":{gridColumn:"3 / 4",gridRow:"1"},"607":{gridColumn:"4 / 5",gridRow:"1"},
+  "608":{gridColumn:"5 / 6",gridRow:"1"},"609":{gridColumn:"6 / 7",gridRow:"1"},
+  "610":{gridColumn:"7 / 8",gridRow:"1"},"611":{gridColumn:"8 / 9",gridRow:"1"},
+  "612":{gridColumn:"9 / 10",gridRow:"1"},"613":{gridColumn:"9 / 10",gridRow:"3"},
+  "614":{gridColumn:"9 / 10",gridRow:"4"},"615":{gridColumn:"9 / 10",gridRow:"6"},
+  "616":{gridColumn:"8 / 9",gridRow:"6"},"617":{gridColumn:"7 / 8",gridRow:"6"},
+  "603":{gridColumn:"1 / 2",gridRow:"6"},"602":{gridColumn:"2 / 3",gridRow:"6"},
+  "601":{gridColumn:"3 / 4",gridRow:"6"},
+};
+
+function CoordenacaoPanel({uti,leitos,onAbrirLeito,onVoltar}){
+  const T=useTheme();
+  const ehG1=/\bG1\b/i.test(uti?.nome||"");
+  const numero=l=>(String(l.nome||"").match(/\d{3}/)||String(l.nome||"").match(/\d+/)||[""])[0];
+  const ordenados=[...leitos].sort((a,b)=>Number(numero(a))-Number(numero(b)));
+  return <div style={{height:"100%",overflowY:"auto",background:T.bgPage,padding:"24px clamp(16px,3vw,42px)"}}>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
+      <div><div style={{fontSize:20,fontWeight:850,color:T.text1}}>Coordenação · {uti?.nome}</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>Mapa físico dos leitos · dados compartilhados com o perfil Plantonista</div></div>
+      <button onClick={onVoltar} style={{marginLeft:"auto",padding:"7px 11px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontWeight:700}}>Voltar ao Plantonista</button>
+    </div>
+    <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap",padding:"9px 12px",border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,marginBottom:18,fontSize:10,color:T.text3}}>
+      <b style={{color:T.text2}}>PRECAUÇÕES:</b><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#2563eb",marginRight:5}}/>MDN/NDM</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#dc2626",marginRight:5}}/>KPC/VRE/MTR</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:"#eab308",marginRight:5}}/>Aguardando cultura</span><span><i style={{display:"inline-block",width:9,height:9,borderRadius:3,background:T.bgInput,border:`1px solid ${T.borderStrong}`,marginRight:5}}/>Sem precaução</span>
+    </div>
+    <div style={ehG1?{display:"grid",gridTemplateColumns:"repeat(9,minmax(92px,1fr))",gridTemplateRows:"repeat(6,minmax(92px,1fr))",gap:12,minWidth:980,minHeight:650,padding:18,border:`1px solid ${T.border}`,borderRadius:18,background:T.bgCard,boxShadow:T.shadowCard}:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
+      {ordenados.map(l=>{const n=numero(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):{};return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:92,padding:"12px",borderRadius:14,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}`}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}><b style={{fontFamily:mono,fontSize:15,color:p?.cor||T.accent}}>{n||l.nome}</b>{p&&<span style={{width:9,height:9,borderRadius:"50%",background:p.cor,flex:"0 0 auto"}}/>}</div>
+        <div style={{marginTop:8,fontSize:11,fontWeight:l.paciente?750:500,fontStyle:l.paciente?"normal":"italic",color:l.paciente?T.text1:T.text3,lineHeight:1.35,overflowWrap:"anywhere"}}>{l.paciente||"Vago"}</div>
+      </button>})}
+      {ehG1&&<div style={{gridColumn:"4 / 7",gridRow:"3 / 5",display:"flex",alignItems:"center",justifyContent:"center",border:`1px dashed ${T.border}`,borderRadius:18,color:T.textDim,fontFamily:mono,fontSize:11,letterSpacing:2}}>ÁREA CENTRAL</div>}
+    </div>
+  </div>;
+}
+
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
 function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePrioridade }) {
   const T=useTheme();
@@ -7035,7 +7074,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
     "NEUROLÓGICO":       [{k:"nEF",l:"EF Neuro"},{k:"nSeda",l:"Sedação"},{k:"nAnalg",l:"Analgesia"},{k:"nPsiq",l:"Psiquiatria"},{k:"nObs",l:"Obs"}],
     "CARDIOVASCULAR":    [{k:"cvEF",l:"EF CV"},{k:"cv24h",l:"24h CV"},{k:"cvDVA",l:"Vasoativas"},{k:"cvMed",l:"Medicações"},{k:"cvPerf",l:"Perfusão"},{k:"cvObs",l:"Obs"}],
     "RESPIRATÓRIO":      [{k:"reVM",l:"VM"},{k:"reEF",l:"EF Resp"},{k:"re24h",l:"24h Resp"},{k:"reGaso",l:"Gasometria"},{k:"rePocus",l:"POCUS"},{k:"reObs",l:"Obs"}],
-    "RENAL / METABÓLICO":[{k:"rm24h",l:"24h Renal"},{k:"rmLabs",l:"Labs"},{k:"rmTRS",l:"TRS"},{k:"rmObs",l:"Obs"}],
+    "RENAL / METABÓLICO":[{k:"rm24h",l:"24h Renal"},{k:"rmLabs",l:"Labs"},{k:"rmTRS",l:"TSR"},{k:"rmObs",l:"Obs"}],
     "HEMATOLÓGICO":      [{k:"heLabs",l:"Labs Hema"},{k:"heMed",l:"Medicações"},{k:"heProf",l:"Profilaxia TEV"},{k:"heObs",l:"Obs"}],
     "INFECCIOSO":        [{k:"heTemp",l:"Temperatura"},{k:"heAtb",l:"Antibióticos"}],
     "TGI":               [{k:"tgEF",l:"EF TGI"},{k:"tg24h",l:"24h TGI"},{k:"tgLabs",l:"Labs TGI"},{k:"tgObs",l:"Obs"}],
@@ -7173,7 +7212,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
           const diureseKgH = (h.c24_diur && l.peso) ? (parseFloat(h.c24_diur)/parseFloat(l.peso)/24).toFixed(1) : null;
           const l1 = diureseKgH ? `Diurese ${diureseKgH}mL/kg/h` : null;
           const l2 = [h.cr?`Cr ${h.cr}`:null, clcr?`TFG ${clcr}`:null].filter(Boolean).join(" · ") || null;
-          const trs = h.c24_hd ? `TRS ${h.c24_hd}mL` : null;
+          const trs = h.c24_hd ? `TSR ${h.c24_hd}mL` : null;
           const lines = [l1,l2,trs].filter(Boolean);
           if (!lines.length) return null;
           const cor = clcr!==null ? (clcr<30?"#f87171":clcr<60?"#fbbf24":"#34d399") : "#34d399";
@@ -7718,8 +7757,10 @@ export default function App() {
   const [authed,     setAuthed]     = useState(false);
   const [appReady,   setAppReady]   = useState(false);
   const [leitos,     setLeitos]     = useState(LEITOS_INICIAIS);
-  const [utis,setUtis]=useState([{id:"uti-principal",nome:"UTI G1"}]);
+  const [hospitais,setHospitais]=useState([{id:"hsp",nome:"Hospital São Paulo",sigla:"HSP"}]);
+  const [utis,setUtis]=useState([{id:"uti-principal",nome:"UTI G1",hospitalId:"hsp"}]);
   const [utiAtivaId,setUtiAtivaId]=useState(()=>sessionStorage.getItem("uti_ativa_id")||"");
+  const [perfil,setPerfil]=useState(()=>sessionStorage.getItem("uti_perfil")||"plantonista");
   const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
   const [aba,        setAba]        = useState("evolucao");
   const [dadosIA,    setDadosIA]    = useState(null);
@@ -7760,8 +7801,12 @@ export default function App() {
     let leitoAtualId = LEITOS_INICIAIS[0].id;
     let utiPadrao="uti-principal";
     try{
+      const {data:hd}=await supabase.from("config").select("value").eq("key","hospitais_data").single();
+      if(hd?.value){const parsed=JSON.parse(hd.value);if(Array.isArray(parsed)&&parsed.length)setHospitais(parsed);}
+    }catch{}
+    try{
       const {data:ud}=await supabase.from("config").select("value").eq("key","utis_data").single();
-      if(ud?.value){const parsed=JSON.parse(ud.value);if(Array.isArray(parsed)&&parsed.length){const migradas=parsed.map(u=>u.id==="uti-principal"&&u.nome==="UTI Principal"?{...u,nome:"UTI G1"}:u);setUtis(migradas);utiPadrao=migradas[0].id;if(JSON.stringify(migradas)!==JSON.stringify(parsed))await supabase.from("config").upsert({key:"utis_data",value:JSON.stringify(migradas)});}}
+      if(ud?.value){const parsed=JSON.parse(ud.value);if(Array.isArray(parsed)&&parsed.length){const migradas=parsed.map(u=>({...u,nome:u.id==="uti-principal"&&u.nome==="UTI Principal"?"UTI G1":u.nome,hospitalId:u.hospitalId||"hsp"}));setUtis(migradas);utiPadrao=migradas[0].id;if(JSON.stringify(migradas)!==JSON.stringify(parsed))await supabase.from("config").upsert({key:"utis_data",value:JSON.stringify(migradas)});}}
     }catch{}
     try {
       const { data: ld } = await supabase.from("config").select("value").eq("key","leitos_data").single();
@@ -7974,6 +8019,7 @@ export default function App() {
   },[leitos,tabelaData,historicoDiario,dataLoaded]);
 
   const utiAtiva=utis.find(u=>u.id===utiAtivaId)||utis[0];
+  const hospitalAtivo=hospitais.find(h=>h.id===utiAtiva?.hospitalId)||hospitais[0];
   const leitosDaUti=leitos.filter(l=>(l.utiId||utis[0]?.id)===utiAtiva?.id);
   const leito = leitos.find(l=>l.id===leitoSelId)||leitosDaUti[0]||leitos[0];
   const selecionarUti=id=>{
@@ -7982,15 +8028,24 @@ export default function App() {
     if(lista.length)setLeitoSelId(lista[0].id);
     setAba("evolucao");setViewGlobal("leitos");setDadosIA(null);
   };
-  const criarUti=async()=>{
+  const criarUti=async(hospitalId=undefined)=>{
     const nome=window.prompt("Nome da nova UTI:","")?.trim();if(!nome)return;
     const id=`uti-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
-    const novas=[...utis,{id,nome}];setUtis(novas);
+    const novas=[...utis,{id,nome,hospitalId:hospitalId||hospitalAtivo?.id||hospitais[0]?.id||"hsp"}];setUtis(novas);
     try{await supabase.from("config").upsert({key:"utis_data",value:JSON.stringify(novas)});}catch{}
     const novoLeito={id:Date.now()+1,utiId:id,nome:"Leito 01",paciente:"",diagnostico:"",dataInternacao:"",rankinAdmissao:"",peso:"",altura:"",sexo:"M",acompanhantes:[],procedimentos:[],dispositivos:{}};
     const todos=[...leitos,novoLeito];setLeitos(todos);salvarLeitos(todos);
     setUtiAtivaId(id);sessionStorage.setItem("uti_ativa_id",id);setLeitoSelId(novoLeito.id);setAba("evolucao");setViewGlobal("leitos");
   };
+  const criarHospital=async()=>{
+    const nome=window.prompt("Nome do hospital:","")?.trim();if(!nome)return;
+    const sigla=window.prompt("Sigla do hospital (opcional):","")?.trim()||nome.slice(0,4).toUpperCase();
+    const hospital={id:`hospital-${Date.now()}-${Math.random().toString(36).slice(2,5)}`,nome,sigla};
+    const novos=[...hospitais,hospital];setHospitais(novos);
+    try{await supabase.from("config").upsert({key:"hospitais_data",value:JSON.stringify(novos)});}catch{}
+    await criarUti(hospital.id);
+  };
+  const mudarPerfil=proximo=>{setPerfil(proximo);sessionStorage.setItem("uti_perfil",proximo);if(proximo==="plantonista")setViewGlobal("leitos");};
   const sincronizarSbari=async()=>{
     const raw=config.sbariLinks?.[utiAtiva?.id];
     const links=(Array.isArray(raw)?raw:(raw?[{label:"SBARI",url:raw}]:[])).filter(x=>x?.url);
@@ -8289,13 +8344,13 @@ export default function App() {
           else { setSidebarCollapsed(c=>{ const next=!c; localStorage.setItem("uti_sidebar_collapsed", next?"1":"0"); return next; }); }
         }} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:14}} title={railMode?"Expandir sidebar":"Recolher sidebar"}>{railMode?"»":"☰"}</button>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <BrainLogo size={32}/>
+          <button onClick={()=>mudarPerfil(perfil==="plantonista"?"coordenacao":"plantonista")} title={perfil==="plantonista"?"Abrir perfil Coordenação":"Voltar ao perfil Plantonista"} style={{border:0,background:"transparent",padding:0,cursor:"pointer",display:"flex",alignItems:"center"}}><BrainLogo size={32}/></button>
           <div>
             <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5,color:T.text1}}>UTI Evolve</div>
-            <div style={{fontSize:9,color:T.accent,fontFamily:mono,letterSpacing:2}}>ASSISTENTE DE EVOLUÇÃO</div>
+            <div style={{fontSize:9,color:T.accent,fontFamily:mono,letterSpacing:2}}>{perfil==="coordenacao"?"PERFIL COORDENAÇÃO":"PERFIL PLANTONISTA"}</div>
           </div>
         </div>
-        <button onClick={()=>{sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} title="Trocar de unidade" style={{marginLeft:16,padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>🏥 {utiAtiva?.nome||"Selecionar UTI"} ▾</button>
+        <button onClick={()=>{sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} title="Trocar de hospital ou UTI" style={{marginLeft:16,padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>🏥 {hospitalAtivo?.sigla||hospitalAtivo?.nome} · {utiAtiva?.nome||"Selecionar UTI"} ▾</button>
         {(Array.isArray(config.sbariLinks?.[utiAtiva?.id])?config.sbariLinks[utiAtiva.id].some(x=>x?.url):!!config.sbariLinks?.[utiAtiva?.id])&&<button onClick={sincronizarSbari} disabled={sbariSyncing} title="Atualizar ocupação por todos os SBARIs desta UTI" style={{marginLeft:8,padding:"5px 9px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:"transparent",color:T.accent,fontSize:10,fontWeight:800,cursor:sbariSyncing?"wait":"pointer",whiteSpace:"nowrap"}}>{sbariSyncing?"Atualizando…":"↻ SBARI"}</button>}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
@@ -8314,7 +8369,7 @@ export default function App() {
       </div>
 
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
-        {(!isMobile || showSidebar) && <div className="app-sidebar" style={{width:railMode?64:228,borderRight:`1px solid ${T.borderAccent}`,padding:railMode?"20px 8px":"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0,transition:"width 0.18s ease"}}>
+        {perfil==="plantonista"&&(!isMobile || showSidebar) && <div className="app-sidebar" style={{width:railMode?64:228,borderRight:`1px solid ${T.borderAccent}`,padding:railMode?"20px 8px":"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0,transition:"width 0.18s ease"}}>
           {railMode ? (
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
               {leitosOrdenados.map(l=>{
@@ -8413,7 +8468,9 @@ export default function App() {
         </div>}
 
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {viewGlobal==="ferramentas" ? (
+          {perfil==="coordenacao" ? (
+            <CoordenacaoPanel uti={utiAtiva} leitos={leitosDaUti} onVoltar={()=>mudarPerfil("plantonista")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");mudarPerfil("plantonista");}}/>
+          ) : viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : viewGlobal==="pesquisa" ? (
             <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><AnalysisErrorBoundary><PesquisaPanel historico={historicoDiario} arquivos={pacientesArquivados} leitos={leitos} utis={utis}/></AnalysisErrorBoundary></div>
@@ -8759,11 +8816,11 @@ ${linha}`:linha}));
         </div>
       </div>
       {!utiAtivaId&&authed&&<div style={{position:"fixed",inset:0,zIndex:3000,background:T.bgPage,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-        <div style={{width:"min(520px,96vw)",padding:24,border:`1px solid ${T.borderStrong}`,borderRadius:16,background:T.bgCard,boxShadow:T.shadowCard}}>
-          <div style={{fontSize:20,fontWeight:800,color:T.text1}}>Em qual UTI você está?</div>
-          <div style={{fontSize:12,color:T.text3,margin:"6px 0 18px"}}>Selecione uma unidade para visualizar somente os leitos correspondentes.</div>
-          <div style={{display:"grid",gap:8}}>{utis.map(u=><button key={u.id} onClick={()=>selecionarUti(u.id)} style={{padding:"13px 14px",textAlign:"left",borderRadius:10,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.text1,fontSize:13,fontWeight:700,cursor:"pointer"}}>🏥 {u.nome}<span style={{float:"right",color:T.text3,fontSize:11}}>{leitos.filter(l=>(l.utiId||utis[0]?.id)===u.id).length} leito(s) ›</span></button>)}</div>
-          <button onClick={criarUti} style={{width:"100%",marginTop:12,padding:"11px",borderRadius:10,border:"1px solid rgba(52,211,153,.35)",background:"rgba(52,211,153,.08)",color:"#34d399",fontSize:12,fontWeight:750,cursor:"pointer"}}>＋ Criar nova UTI</button>
+        <div style={{width:"min(650px,96vw)",maxHeight:"90vh",overflowY:"auto",padding:24,border:`1px solid ${T.borderStrong}`,borderRadius:16,background:T.bgCard,boxShadow:T.shadowCard}}>
+          <div style={{fontSize:20,fontWeight:800,color:T.text1}}>Selecione o hospital e a UTI</div>
+          <div style={{fontSize:12,color:T.text3,margin:"6px 0 18px"}}>Cada hospital mantém suas unidades, configurações e particularidades assistenciais organizadas separadamente.</div>
+          <div style={{display:"grid",gap:14}}>{hospitais.map(h=><section key={h.id} style={{padding:12,borderRadius:12,border:`1px solid ${T.border}`,background:T.bgInput}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}><div><b style={{fontSize:13,color:T.text1}}>{h.nome}</b>{h.sigla&&<span style={{fontSize:9,color:T.text3,marginLeft:7,fontFamily:mono}}>{h.sigla}</span>}</div><button onClick={()=>criarUti(h.id)} style={{marginLeft:"auto",padding:"5px 8px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:10,fontWeight:750,cursor:"pointer"}}>＋ UTI</button></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:7}}>{utis.filter(u=>(u.hospitalId||"hsp")===h.id).map(u=><button key={u.id} onClick={()=>selecionarUti(u.id)} style={{padding:"11px 12px",textAlign:"left",borderRadius:9,border:`1px solid ${T.accentBorder}`,background:T.bgCard,color:T.text1,fontSize:12,fontWeight:700,cursor:"pointer"}}>🏥 {u.nome}<span style={{float:"right",color:T.text3,fontSize:10}}>{leitos.filter(l=>(l.utiId||utis[0]?.id)===u.id).length} leitos ›</span></button>)}</div></section>)}</div>
+          <button onClick={criarHospital} style={{width:"100%",marginTop:14,padding:"11px",borderRadius:10,border:"1px solid rgba(52,211,153,.35)",background:"rgba(52,211,153,.08)",color:"#34d399",fontSize:12,fontWeight:750,cursor:"pointer"}}>＋ Adicionar outro hospital</button>
         </div>
       </div>}
       {altaEditor&&<div onMouseDown={e=>{if(e.target===e.currentTarget)setAltaEditor(null);}} style={{position:"fixed",inset:0,zIndex:1800,background:"rgba(2,6,23,.78)",backdropFilter:"blur(3px)",display:"flex",alignItems:"center",justifyContent:"center",padding:18}}><div style={{width:"min(560px,96vw)",background:T.bgCard,border:`1px solid ${T.borderStrong}`,borderRadius:14,padding:20,boxShadow:"0 24px 70px rgba(0,0,0,.5)"}}>
