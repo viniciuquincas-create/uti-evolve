@@ -6874,6 +6874,50 @@ const encontrarAltaDoPaciente=(paciente,altas,leitos)=>{
   return leitosMesmoPrimeiro===1&&altasMesmoPrimeiro.length===1?altasMesmoPrimeiro[0]:null;
 };
 
+function ColetaPlantaoPanel({uti,leitos,onAplicar}){
+  const T=useTheme();
+  const ocupados=leitos.filter(l=>l.paciente);
+  const [selecionados,setSelecionados]=useState(()=>ocupados.map(l=>l.id));
+  const [arquivo,setArquivo]=useState(null),[preview,setPreview]=useState(""),[loading,setLoading]=useState(false),[erro,setErro]=useState(""),[resultado,setResultado]=useState(null),[aplicados,setAplicados]=useState([]);
+  const fileRef=useRef(null);
+  useEffect(()=>setSelecionados(s=>s.filter(id=>ocupados.some(l=>l.id===id))),[leitos]);
+  const escolhidos=ocupados.filter(l=>selecionados.includes(l.id));
+  const toggle=id=>setSelecionados(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
+  const analisar=async()=>{if(!arquivo)return;setLoading(true);setErro("");setResultado(null);try{const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(",")[1]);r.onerror=reject;r.readAsDataURL(arquivo);});const response=await fetch("/api/coleta",{method:"POST",headers:{"content-type":"application/json","x-uti-session":sessionStorage.getItem(SESSION_KEY)||""},body:JSON.stringify({imageBase64:base64,mimeType:arquivo.type||"image/jpeg"})});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Não foi possível analisar a folha.");setResultado(payload);setAplicados((payload.leitos||[]).map((_,i)=>i));}catch(e){setErro(e.message||"Falha ao analisar a foto.");}finally{setLoading(false);}};
+  const escolherArquivo=file=>{if(!file)return;setArquivo(file);setPreview(URL.createObjectURL(file));setResultado(null);setErro("");};
+  const linha=(titulo,texto)=><div style={{minHeight:25,borderBottom:"1px solid #94a3b8",padding:"3px 4px",fontSize:8,color:"#334155"}}><b>{titulo}</b>{texto?` ${texto}`:""}</div>;
+  return <div style={{height:"100%",overflowY:"auto",padding:"18px 24px",background:T.bgPage}}>
+    <style>{`@media print{body *{visibility:hidden!important}.coleta-print,.coleta-print *{visibility:visible!important}.coleta-print{position:absolute!important;inset:0!important;background:#fff!important;padding:8mm!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:5mm!important}.coleta-tools{display:none!important}.coleta-card{break-inside:avoid;page-break-inside:avoid;height:88mm!important;box-shadow:none!important}}@page{size:A4 landscape;margin:5mm}`}</style>
+    <div className="coleta-tools" style={{display:"flex",alignItems:"flex-start",gap:14,flexWrap:"wrap",marginBottom:14}}>
+      <div><div style={{fontSize:19,fontWeight:850,color:T.text1}}>Folha de coleta · {uti?.nome}</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>Escolha os leitos, imprima, preencha à mão e depois fotografe a folha.</div></div>
+      <button onClick={()=>window.print()} disabled={!escolhidos.length} style={{marginLeft:"auto",padding:"8px 13px",borderRadius:8,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontWeight:800,cursor:"pointer"}}>🖨️ Imprimir {escolhidos.length} leito(s)</button>
+    </div>
+    <div className="coleta-tools" style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:14}}>
+      <button onClick={()=>setSelecionados(ocupados.map(l=>l.id))} style={{padding:"5px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer"}}>Todos</button>
+      <button onClick={()=>setSelecionados([])} style={{padding:"5px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer"}}>Nenhum</button>
+      {ocupados.map(l=><label key={l.id} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:7,border:`1px solid ${selecionados.includes(l.id)?T.accentBorder:T.border}`,background:selecionados.includes(l.id)?T.accentBg:T.bgCard,color:selecionados.includes(l.id)?T.accent:T.text2,fontSize:10,cursor:"pointer"}}><input type="checkbox" checked={selecionados.includes(l.id)} onChange={()=>toggle(l.id)}/>{l.nome}</label>)}
+    </div>
+    <div className="coleta-print" style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(340px,1fr))",gap:12}}>
+      {escolhidos.map(l=><div className="coleta-card" key={l.id} style={{height:330,border:"1.5px solid #475569",borderRadius:9,padding:9,background:"#fff",color:"#0f172a",overflow:"hidden"}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:8,borderBottom:"2px solid #334155",paddingBottom:5,marginBottom:3}}><b style={{fontSize:13}}>{l.nome} · {l.paciente}</b><span style={{fontSize:9}}>Data: ____/____ &nbsp; Hora: ____</span></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 8px"}}>
+          <div>{linha("CONTROLES:","T ____ FC ____ PAM ____ FR ____ Sat ____")} {linha("BALANÇO:","DU ____ BH ____ Dextro ____")}</div>
+          <div>{linha("GASO:","pH ____ pCO₂ ____ pO₂ ____ HCO₃ ____ Lact ____")}{linha("HEMO:","Hb ____ Leuco ____ Plaq ____ PCR ____")}</div>
+        </div>
+        {linha("RENAL/METAB:","Cr ____ Ur ____ Na ____ K ____ Mg ____ Cai ____ P ____")}
+        {linha("NEURO:")}{linha("CARDIOVASCULAR:")}{linha("RESPIRATÓRIO / VENTILAÇÃO:")}{linha("TGI / NUTRIÇÃO:")}{linha("INFECCIOSO:")}{linha("CONDUTAS / OBSERVAÇÕES:")}
+      </div>)}
+    </div>
+    <div className="coleta-tools" style={{marginTop:18,padding:14,border:`1px solid ${T.border}`,borderRadius:12,background:T.bgCard}}>
+      <div style={{fontSize:14,fontWeight:800,color:T.text1}}>📷 Importar a folha preenchida</div><div style={{fontSize:10,color:T.text3,margin:"4px 0 10px"}}>A IA separa os dados pelo número do leito. Revise os pacientes reconhecidos antes de aplicar.</div>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>escolherArquivo(e.target.files?.[0])}/>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><button onClick={()=>fileRef.current?.click()} style={{padding:"8px 12px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,cursor:"pointer"}}>Selecionar foto</button>{arquivo&&<span style={{fontSize:10,color:T.text3}}>{arquivo.name}</span>}<button onClick={analisar} disabled={!arquivo||loading} style={{padding:"8px 12px",borderRadius:8,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontWeight:800,cursor:"pointer"}}>{loading?"Analisando…":"Ler dados da foto"}</button></div>
+      {preview&&<img src={preview} alt="Folha preenchida" style={{marginTop:10,maxWidth:260,maxHeight:160,objectFit:"contain",borderRadius:8,border:`1px solid ${T.border}`}}/>}{erro&&<div style={{marginTop:9,color:"#f87171",fontSize:11}}>{erro}</div>}
+      {resultado&&<div style={{marginTop:12}}><div style={{fontSize:11,color:T.text2,fontWeight:700,marginBottom:7}}>Reconhecidos: {(resultado.leitos||[]).length} quadro(s){resultado.data?` · ${resultado.data}`:""}</div>{(resultado.leitos||[]).map((r,i)=><label key={i} style={{display:"block",padding:"8px 10px",marginBottom:6,border:`1px solid ${T.border}`,borderRadius:8,background:T.bgInput,color:T.text2,fontSize:10}}><div style={{display:"flex",gap:7,alignItems:"center"}}><input type="checkbox" checked={aplicados.includes(i)} onChange={()=>setAplicados(a=>a.includes(i)?a.filter(x=>x!==i):[...a,i])}/><b>{r.leito||"Leito não identificado"}</b><span>· {r.paciente||"paciente não lido"}</span></div><div style={{marginTop:4,color:T.text3}}>{[...Object.entries(r.labs||{}),...Object.entries(r.controles||{})].filter(([,v])=>v).map(([k,v])=>`${k} ${v}`).join(" · ")||"Somente anotações clínicas"}</div></label>)}<button onClick={()=>onAplicar({...resultado,leitos:(resultado.leitos||[]).filter((_,i)=>aplicados.includes(i))})} disabled={!aplicados.length} style={{width:"100%",marginTop:4,padding:9,borderRadius:8,border:"none",background:"#0284c7",color:"#fff",fontWeight:850,cursor:"pointer"}}>Confirmar e lançar nos leitos selecionados</button></div>}
+    </div>
+  </div>;
+}
+
 function CoordenacaoPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl}){
   const T=useTheme();
   const ehG1=/\bG1\b/i.test(uti?.nome||"");
@@ -8295,6 +8339,17 @@ export default function App() {
   const diasHistorico = leito?.admissionId?Object.keys(historicoDiario[leito.admissionId]?.days||{}).sort():[];
   const numeroLeito=l=>{const n=String(l.nome||"").match(/\d+/);return n?parseInt(n[0],10):Number.MAX_SAFE_INTEGER;};
   const leitosOrdenados=[...leitosDaUti].sort((a,b)=>Number(!!b.prioritario)-Number(!!a.prioritario)||numeroLeito(a)-numeroLeito(b)||String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR"));
+  const aplicarFolhaColeta=resultado=>{
+    const hoje=new Date().toISOString().split("T")[0],data=/^\d{4}-\d{2}-\d{2}$/.test(resultado?.data||"")?resultado.data:hoje;
+    const normal=v=>String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/gi,"").toLowerCase();
+    const encontrar=r=>{const nr=String(r.leito||"").match(/\d+/)?.[0];let l=nr?leitosDaUti.find(x=>String(x.nome||"").match(/\d+/)?.[0]?.replace(/^0+/,"")===nr.replace(/^0+/,"")):null;if(!l&&r.paciente){const n=normal(r.paciente);l=leitosDaUti.find(x=>{const p=normal(x.paciente);return n&&p&&(n===p||(Math.min(n.length,p.length)>4&&(n.includes(p)||p.includes(n))));});}return l;};
+    const reconhecidos=(resultado?.leitos||[]).map(r=>({r,l:encontrar(r)})),validos=reconhecidos.filter(x=>x.l);
+    if(!validos.length){window.alert("Nenhum dos leitos reconhecidos corresponde aos pacientes desta UTI.");return;}
+    setTabelaData(prev=>{const novo={...prev};validos.forEach(({r,l})=>{const valores={};Object.entries({...r.labs,...r.controles}).forEach(([k,v])=>{if(v!==""&&v!=null)valores[k]=String(v);});novo[l.id]={...(novo[l.id]||{}),[data]:{...(novo[l.id]?.[data]||{}),...valores}};});salvarTabela(novo);return novo;});
+    setEvolPorLeito(prev=>{const novo={...prev};validos.forEach(({r,l})=>{const atual={...EVOLUCAO_VAZIA,...(novo[l.id]||{})},ev=r.evolucao||{};Object.entries(ev).forEach(([k,v])=>{if(v)atual[k]=atual[k]?`${atual[k]}\n${v}`:v;});if(r.observacoes)atual.impressao=atual.impressao?`${atual.impressao}\n${r.observacoes}`:r.observacoes;atual._datas={...(atual._datas||{})};[...Object.keys(ev),...(r.observacoes?["impressao"]:[])].forEach(k=>{if(ev[k]||k==="impressao")atual._datas[k]=data;});novo[l.id]=atual;});salvarEvol(novo);return novo;});
+    const atualSel=validos.find(x=>x.l.id===leitoSelId);if(atualSel)setEvolCampos(c=>{const n={...c};Object.entries(atualSel.r.evolucao||{}).forEach(([k,v])=>{if(v)n[k]=n[k]?`${n[k]}\n${v}`:v;});if(atualSel.r.observacoes)n.impressao=n.impressao?`${n.impressao}\n${atualSel.r.observacoes}`:atualSel.r.observacoes;return n;});
+    window.alert(`${validos.length} leito(s) atualizado(s).${validos.length<reconhecidos.length?` ${reconhecidos.length-validos.length} não foi/foram associado(s).`:""}`);
+  };
 
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
@@ -8374,6 +8429,7 @@ export default function App() {
         </div>
         <button onClick={()=>{sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} title="Trocar de hospital ou UTI" style={{marginLeft:16,padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>🏥 {hospitalAtivo?.sigla||hospitalAtivo?.nome} · {utiAtiva?.nome||"Selecionar UTI"} ▾</button>
         {(Array.isArray(config.sbariLinks?.[utiAtiva?.id])?config.sbariLinks[utiAtiva.id].some(x=>x?.url):!!config.sbariLinks?.[utiAtiva?.id])&&<button onClick={sincronizarSbari} disabled={sbariSyncing} title="Atualizar ocupação por todos os SBARIs desta UTI" style={{marginLeft:8,padding:"5px 9px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:"transparent",color:T.accent,fontSize:10,fontWeight:800,cursor:sbariSyncing?"wait":"pointer",whiteSpace:"nowrap"}}>{sbariSyncing?"Atualizando…":"↻ SBARI"}</button>}
+        {perfil==="plantonista"&&<button onClick={()=>setViewGlobal(v=>v==="coleta"?"leitos":"coleta")} title="Gerar folha de coleta e importar foto preenchida" style={{marginLeft:8,padding:"5px 9px",borderRadius:7,border:`1px solid ${viewGlobal==="coleta"?"rgba(168,85,247,.5)":T.border}`,background:viewGlobal==="coleta"?"rgba(168,85,247,.12)":"transparent",color:viewGlobal==="coleta"?"#a855f7":T.text3,fontSize:10,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>📝 Coleta</button>}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":T.accent}}/>
@@ -8492,6 +8548,8 @@ export default function App() {
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {perfil==="coordenacao" ? (
             <CoordenacaoPanel uti={utiAtiva} hospital={hospitalAtivo} leitos={leitosDaUti} altaSheetUrl={config.altaSheetUrls?.[hospitalAtivo?.id]} onVoltar={()=>mudarPerfil("plantonista")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");mudarPerfil("plantonista");}}/>
+          ) : viewGlobal==="coleta" ? (
+            <ColetaPlantaoPanel uti={utiAtiva} leitos={leitosDaUti} onAplicar={aplicarFolhaColeta}/>
           ) : viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : viewGlobal==="pesquisa" ? (
