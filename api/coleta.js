@@ -8,11 +8,11 @@ async function authorize(req){
   if(error||!data?.value)return false;const a=Buffer.from(session),b=Buffer.from(String(data.value));return a.length===b.length&&crypto.timingSafeEqual(a,b);
 }
 
-const prompt=`Você receberá uma foto de uma FOLHA DE COLETA manuscrita da UTI Evolve, dividida em quadros identificados por LEITO e PACIENTE.
+const prompt=`Você receberá uma foto de uma FOLHA DE COLETA manuscrita da UTI Evolve em formato de TABELA: cada coluna corresponde a um LEITO/PACIENTE e os nomes dos parâmetros ficam nas linhas à esquerda.
 Transcreva somente o que estiver legível. Não invente nem complete valores. Preserve sinais negativos e casas decimais.
 Retorne APENAS JSON válido, sem markdown, nesta estrutura:
 {"data":"AAAA-MM-DD ou vazio","leitos":[{"leito":"","paciente":"","labs":{"hb":"","ht":"","leuco":"","plaq":"","cr":"","ur":"","na":"","k":"","mg":"","cai":"","p":"","pcr":"","ph":"","pco2":"","po2":"","hco3":"","be":"","lact":""},"controles":{"c24_temp":"","c24_fc":"","c24_fr":"","c24_sat":"","c24_pam":"","c24_dextro":"","c24_diur":"","c24_bh":""},"evolucao":{"nEF":"","cvEF":"","reEF":"","rm24h":"","tgEF":"","heLabs":""},"observacoes":""}]}
-Inclua apenas quadros que tenham algum dado manuscrito. Use o número impresso do leito para separar corretamente os pacientes.`;
+Inclua apenas colunas que tenham algum dado manuscrito. Siga verticalmente cada coluna e use o número impresso do leito para não misturar dados entre pacientes.`;
 
 export default async function handler(req,res){
   if(req.method!=="POST")return res.status(405).json({error:"Método não permitido"});

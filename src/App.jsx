@@ -6885,11 +6885,20 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   const toggle=id=>setSelecionados(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
   const analisar=async()=>{if(!arquivo)return;setLoading(true);setErro("");setResultado(null);try{const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(",")[1]);r.onerror=reject;r.readAsDataURL(arquivo);});const response=await fetch("/api/coleta",{method:"POST",headers:{"content-type":"application/json","x-uti-session":sessionStorage.getItem(SESSION_KEY)||""},body:JSON.stringify({imageBase64:base64,mimeType:arquivo.type||"image/jpeg"})});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Não foi possível analisar a folha.");setResultado(payload);setAplicados((payload.leitos||[]).map((_,i)=>i));}catch(e){setErro(e.message||"Falha ao analisar a foto.");}finally{setLoading(false);}};
   const escolherArquivo=file=>{if(!file)return;setArquivo(file);setPreview(URL.createObjectURL(file));setResultado(null);setErro("");};
-  const linha=(titulo,texto)=><div style={{minHeight:25,borderBottom:"1px solid #94a3b8",padding:"3px 4px",fontSize:8,color:"#334155"}}><b>{titulo}</b>{texto?` ${texto}`:""}</div>;
   const resumo=(valor,limite=150)=>{const texto=String(valor||"").replace(/\s+/g," ").trim();return texto.length>limite?`${texto.slice(0,limite-1)}…`:texto;};
   const dataCurta=valor=>{const m=String(valor||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}`:valor;};
+  const paginas=[];for(let i=0;i<escolhidos.length;i+=4)paginas.push(escolhidos.slice(i,i+4));
+  const vmInvasiva=l=>["vm_psv","vm_pcv","vm_vcv","vm_aprv"].includes(l.vm_modo);
+  const camposFolha=[
+    ["CONTROLES","T ____  FC ____  PAM ____  FR ____  Sat ____",45],
+    ["BALANÇO","DU ______  BH ______  Dextro ______",38],
+    ["HEMOGRAMA","Hb ____  Leuco ______  Plaq ______  PCR ____",38],
+    ["RENAL / METAB.","Cr ____  Ur ____  Na ____  K ____  Mg ____  Cai ____  P ____",40],
+    ["GASOMETRIA","pH ____  pCO₂ ____  pO₂ ____  HCO₃ ____  BE ____  Lact ____",40],
+    ["NEURO","",44],["CARDIOVASCULAR","",44],["RESPIRATÓRIO","",44],["TGI / NUTRIÇÃO","",38],["INFECCIOSO","",38],["CONDUTAS / OBS.","",55],
+  ];
   return <div style={{height:"100%",overflowY:"auto",padding:"18px 24px",background:T.bgPage}}>
-    <style>{`@media print{body *{visibility:hidden!important}.coleta-print,.coleta-print *{visibility:visible!important}.coleta-print{position:absolute!important;inset:0!important;background:#fff!important;padding:8mm!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:5mm!important}.coleta-tools{display:none!important}.coleta-card{break-inside:avoid;page-break-inside:avoid;height:88mm!important;box-shadow:none!important}}@page{size:A4 landscape;margin:5mm}`}</style>
+    <style>{`@media print{body *{visibility:hidden!important}.coleta-print,.coleta-print *{visibility:visible!important}.coleta-print{position:absolute!important;inset:0!important;background:#fff!important;padding:0!important}.coleta-tools{display:none!important}.coleta-page{width:287mm!important;height:200mm!important;margin:0!important;padding:3mm!important;box-shadow:none!important;border:0!important;break-after:page;page-break-after:always}.coleta-page:last-child{break-after:auto;page-break-after:auto}}@page{size:A4 landscape;margin:5mm}`}</style>
     <div className="coleta-tools" style={{display:"flex",alignItems:"flex-start",gap:14,flexWrap:"wrap",marginBottom:14}}>
       <div><div style={{fontSize:19,fontWeight:850,color:T.text1}}>Folha de coleta · {uti?.nome}</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>Escolha os leitos, imprima, preencha à mão e depois fotografe a folha.</div></div>
       <button onClick={()=>window.print()} disabled={!escolhidos.length} style={{marginLeft:"auto",padding:"8px 13px",borderRadius:8,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontWeight:800,cursor:"pointer"}}>🖨️ Imprimir {escolhidos.length} leito(s)</button>
@@ -6899,20 +6908,14 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
       <button onClick={()=>setSelecionados([])} style={{padding:"5px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer"}}>Nenhum</button>
       {ocupados.map(l=><label key={l.id} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:7,border:`1px solid ${selecionados.includes(l.id)?T.accentBorder:T.border}`,background:selecionados.includes(l.id)?T.accentBg:T.bgCard,color:selecionados.includes(l.id)?T.accent:T.text2,fontSize:10,cursor:"pointer"}}><input type="checkbox" checked={selecionados.includes(l.id)} onChange={()=>toggle(l.id)}/>{l.nome}</label>)}
     </div>
-    <div className="coleta-print" style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(340px,1fr))",gap:12}}>
-      {escolhidos.map(l=><div className="coleta-card" key={l.id} style={{height:330,border:"1.5px solid #475569",borderRadius:9,padding:9,background:"#fff",color:"#0f172a",overflow:"hidden"}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:8,borderBottom:"2px solid #334155",paddingBottom:5,marginBottom:3}}><b style={{fontSize:13}}>{l.nome} · {l.paciente}</b><span style={{fontSize:9}}>Data: ____/____ &nbsp; Hora: ____</span></div>
-        <div style={{padding:"3px 5px",marginBottom:3,borderRadius:5,background:"#f1f5f9",color:"#64748b",fontSize:7.5,lineHeight:1.3}}>
-          <div><b style={{color:"#475569"}}>Dx:</b> {resumo(l.diagnostico)||"—"}</div>
-          {(l.procedimentos||[]).length>0&&<div><b style={{color:"#475569"}}>Proced.:</b> {resumo((l.procedimentos||[]).map(p=>[p.nome,p.data&&`(${dataCurta(p.data)})`].filter(Boolean).join(" ")).join(" · "))}</div>}
-          {(l.doencasPrevias||evolPorLeito?.[l.id]?.hda)&&<div><b style={{color:"#475569"}}>História:</b> {resumo([l.doencasPrevias,evolPorLeito?.[l.id]?.hda].filter(Boolean).join(" · "),180)}</div>}
+    <div className="coleta-print">
+      {paginas.map((grupo,pagina)=><div className="coleta-page" key={pagina} style={{marginBottom:16,padding:10,border:"1px solid #94a3b8",borderRadius:8,background:"#fff",color:"#0f172a",boxShadow:"0 8px 24px rgba(15,23,42,.08)",overflow:"hidden"}}>
+        <div style={{display:"grid",gridTemplateColumns:`92px repeat(${grupo.length},minmax(0,1fr))`,borderTop:"1px solid #475569",borderLeft:"1px solid #475569"}}>
+          <div style={{padding:6,borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:8,fontWeight:800}}>DATA ____/____<br/>HORA ____</div>
+          {grupo.map(l=><div key={l.id} style={{padding:6,borderRight:"1px solid #475569",borderBottom:"1px solid #475569",minHeight:70}}><div style={{fontSize:11,fontWeight:850}}>{l.nome} · {l.paciente}</div><div style={{marginTop:3,color:"#64748b",fontSize:6.8,lineHeight:1.25}}><b>Dx:</b> {resumo(l.diagnostico,95)||"—"}<br/>{(l.procedimentos||[]).length>0&&<><b>Proced.:</b> {resumo((l.procedimentos||[]).map(p=>[p.nome,p.data&&`(${dataCurta(p.data)})`].filter(Boolean).join(" ")).join(" · "),95)}<br/></>}<b>Hist.:</b> {resumo([l.doencasPrevias,evolPorLeito?.[l.id]?.hda].filter(Boolean).join(" · "),105)||"—"}</div></div>)}
+          {camposFolha.flatMap(([titulo,guia,altura])=>[<div key={`${titulo}-rotulo`} style={{height:altura,padding:"5px 4px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7,fontWeight:850,color:"#334155"}}>{titulo}</div>,...grupo.map(l=><div key={`${titulo}-${l.id}`} style={{height:altura,padding:"4px 5px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:6.8,color:"#64748b"}}>{guia}</div>)])}
+          {grupo.some(vmInvasiva)&&<><div style={{height:40,padding:"5px 4px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7,fontWeight:850,color:"#334155"}}>VENTILAÇÃO</div>{grupo.map(l=><div key={`vm-${l.id}`} style={{height:40,padding:"4px 5px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:6.8,color:vmInvasiva(l)?"#475569":"#cbd5e1",background:vmInvasiva(l)?"#fff":"#f8fafc"}}>{vmInvasiva(l)?"Modo ____  PS/Pins ____  PEEP ____  FiO₂ ____  FR ____  VC ____  Pplat ____  DP ____":"— sem VMI —"}</div>)}</>}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 8px"}}>
-          <div>{linha("CONTROLES:","T ____ FC ____ PAM ____ FR ____ Sat ____")} {linha("BALANÇO:","DU ____ BH ____ Dextro ____")}</div>
-          <div>{linha("GASO:","pH ____ pCO₂ ____ pO₂ ____ HCO₃ ____ Lact ____")}{linha("HEMO:","Hb ____ Leuco ____ Plaq ____ PCR ____")}</div>
-        </div>
-        {linha("RENAL/METAB:","Cr ____ Ur ____ Na ____ K ____ Mg ____ Cai ____ P ____")}
-        {linha("NEURO:")}{linha("CARDIOVASCULAR:")}{linha("RESPIRATÓRIO / VENTILAÇÃO:")}{linha("TGI / NUTRIÇÃO:")}{linha("INFECCIOSO:")}{linha("CONDUTAS / OBSERVAÇÕES:")}
       </div>)}
     </div>
     <div className="coleta-tools" style={{marginTop:18,padding:14,border:`1px solid ${T.border}`,borderRadius:12,background:T.bgCard}}>
