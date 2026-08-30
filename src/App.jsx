@@ -4629,8 +4629,20 @@ const evolucaoInicialSbari = p => ({...EVOLUCAO_VAZIA,
   nEF:p.assessment?.N||"",cvEF:p.assessment?.CV||"",reEF:p.assessment?.R||"",
   tgEF:p.assessment?.TGI||"",rm24h:p.assessment?.["R/M"]||"",heLabs:p.assessment?.["H/I"]||"",
   heAtb:[p.antibioticos,p.antibioticosPrevios&&`Prévios: ${p.antibioticosPrevios}`].filter(Boolean).join("\n"),
-  probAtivos:p.recomendacoes||"",impressao:p.instrucoes||"",
+  nRASS:p.clinical?.rass||"",
+  rmTRS:p.clinical?.trs?[p.clinical.trs.modalidade,p.clinical.trs.data&&`início ${p.clinical.trs.data.split("-").reverse().join("/")}`].filter(Boolean).join(" — "):"",
+  impressao:p.clinical?.impression||[p.recomendacoes,p.instrucoes].filter(Boolean).join("\n"),
 });
+
+const mergeSbariSemSobrescrever=(base={},incoming={})=>Object.fromEntries([...new Set([...Object.keys(base||{}),...Object.keys(incoming||{})])].map(k=>[k,(base?.[k]!==undefined&&base?.[k]!==null&&String(base[k]).trim()!=="")?base[k]:incoming?.[k]]));
+const mergeListaSbari=(base=[],incoming=[],chave="nome")=>[...(base||[]),...(incoming||[]).filter(n=>!(base||[]).some(b=>normalizarNomeSbari(b?.[chave]||b)===normalizarNomeSbari(n?.[chave]||n)))];
+const enriquecerLeitoComSbari=(base,p,stamp="")=>{
+  const c=p?.clinical||{};
+  const diagnosticos=mergeListaSbari(base.diagnosticos||[],p.diagnosticos||[]);
+  const procedimentos=mergeListaSbari(base.procedimentos||[],(p.procedimentos||[]).map((x,i)=>({...x,id:x.id||`sbari-proc-${stamp}-${i}`,fonte:"sbari"})));
+  const antibioticos=mergeListaSbari(base.antibioticos||[],(c.antibiotics||[]).map((x,i)=>({id:`sbari-atb-${stamp}-${i}`,nome:x.nome,dataInicio:x.dataInicio||"",dataFim:x.dataFim||"",via:"",dose:"",fonte:"sbari"})));
+  return {...base,diagnosticos,diagnostico:diagnosticos.join(" · "),procedimentos,antibioticos,equipeAssistente:base.equipeAssistente||p.equipe||"",equipe:base.equipe||p.equipe||"",drogasVazao:mergeSbariSemSobrescrever(base.drogasVazao,c.pumps),...mergeSbariSemSobrescrever(Object.fromEntries(Object.entries(base).filter(([k])=>k.startsWith("vm_"))),c.ventilation),sbariNoradrenalinaConcentrada:base.sbariNoradrenalinaConcentrada||c.concentratedNoradrenaline||false};
+};
 
 function aplicarIA(dadosIA) {
   if (!dadosIA?.sistemas) return {};
@@ -8211,12 +8223,12 @@ export default function App() {
       const usados=new Set();
       const leitosSbari=recebidos.map((p,indice)=>{
         const existente=correspondencias.get(normalizarNomeSbari(p.paciente));
-        if(existente){usados.add(String(existente.id));return {...existente,nome:p.leito,utiId:utiAtiva.id};}
+        if(existente){usados.add(String(existente.id));return enriquecerLeitoComSbari({...existente,nome:p.leito,utiId:utiAtiva.id},p,`${Date.now()}-${indice}`);}
         const vaga=vagas.find(v=>!usados.has(String(v.id))&&normalizarNomeSbari(v.nome)===normalizarNomeSbari(p.leito))||vagas.find(v=>!usados.has(String(v.id)));
         const id=vaga?.id||`sbari-${Date.now()}-${indice}`;usados.add(String(id));
         const diagnosticos=Array.isArray(p.diagnosticos)&&p.diagnosticos.length?p.diagnosticos:(p.situacao?[p.situacao]:[]);
         const procedimentos=(p.procedimentos||[]).map((proc,j)=>({id:`sbari-proc-${Date.now()}-${indice}-${j}`,nome:proc.nome,data:proc.data||"",fonte:"sbari"}));
-        return {...leitoVazio({id,nome:p.leito}),id,nome:p.leito,utiId:utiAtiva.id,paciente:p.paciente,idadeAnos:p.idadeAnos||"",dataInternacao:dataSbariParaIso(p.admUti),diagnosticos,diagnostico:diagnosticos.join(" · "),equipeAssistente:p.equipe||"",equipe:p.equipe||"",procedimentos,patientId:globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${indice}`,admissionId:globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${indice}`,admissionStartedAt:agora,fonteCadastro:"sbari",sbariOrigem:p.sbariOrigem||""};
+        return enriquecerLeitoComSbari({...leitoVazio({id,nome:p.leito}),id,nome:p.leito,utiId:utiAtiva.id,paciente:p.paciente,idadeAnos:p.idadeAnos||"",dataInternacao:dataSbariParaIso(p.admUti),diagnosticos,diagnostico:diagnosticos.join(" · "),equipeAssistente:p.equipe||"",equipe:p.equipe||"",procedimentos,patientId:globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${indice}`,admissionId:globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${indice}`,admissionStartedAt:agora,fonteCadastro:"sbari",sbariOrigem:p.sbariOrigem||""},p,`${Date.now()}-${indice}`);
       });
       const nomesLeitos=new Set(leitosSbari.map(l=>normalizarNomeSbari(l.nome)));
       const nomesParaVaga=new Map();
@@ -8232,7 +8244,20 @@ export default function App() {
       const novoArquivo=[...pacientesArquivados,...registrosArquivo];
       const novaTabela={...tabelaData},novaEvol={...evolPorLeito},novasMetas={...metasPorLeito},novoHistorico={...historicoDiario};
       removidos.forEach(l=>{delete novaTabela[l.id];delete novaEvol[l.id];delete novasMetas[l.id];if(l.admissionId)novoHistorico[l.admissionId]={...(novoHistorico[l.admissionId]||{}),status:"archived-pending-discharge",archivedAt:agora,days:{...(novoHistorico[l.admissionId]?.days||{})}};});
-      leitosSbari.filter(l=>l.fonteCadastro==="sbari").forEach(l=>{const p=recebidos.find(x=>normalizarNomeSbari(x.paciente)===normalizarNomeSbari(l.paciente));novaEvol[l.id]=evolucaoInicialSbari(p);});
+      const ontem=new Date();ontem.setDate(ontem.getDate()-1);const dataAnterior=ontem.toISOString().slice(0,10),stampAnterior=`${dataAnterior}T12:00:00.000Z`;
+      leitosSbari.forEach(l=>{
+        const p=recebidos.find(x=>normalizarNomeSbari(x.paciente)===normalizarNomeSbari(l.paciente));if(!p)return;
+        const c=p.clinical||{},rowAnterior=novaTabela[l.id]?.[dataAnterior]||{};
+        const labs=Object.fromEntries(Object.entries(c.labs||{}).filter(([,v])=>v!==""&&v!=null));
+        let row=mergeSbariSemSobrescrever(rowAnterior,labs);
+        const gaso=Object.fromEntries(Object.entries(c.gasometry||{}).filter(([,v])=>v!==""&&v!=null));
+        if(Object.keys(gaso).length){let gasos=[];try{gasos=JSON.parse(row._gasos||"[]");}catch{}const duplicada=gasos.some(g=>["ph","pco2","hco3","lact"].every(k=>!gaso[k]||String(g?.[k]||"")===String(gaso[k])));if(!duplicada)gasos.push({id:`sbari-gaso-${Date.now()}-${l.id}`,data:dataAnterior,horario:"",...gaso});row={...row,_gasos:JSON.stringify(gasos)};}
+        novaTabela[l.id]={...(novaTabela[l.id]||{}),[dataAnterior]:row};
+        const baseE=novaEvol[l.id]||EVOLUCAO_VAZIA,importada=evolucaoInicialSbari(p),merged=mergeSbariSemSobrescrever(baseE,importada);
+        if(importada.impressao&&baseE.impressao&&!baseE.impressao.includes(importada.impressao))merged.impressao=`${baseE.impressao}\n${importada.impressao}`;
+        const camposImportados=Object.keys(importada).filter(k=>!k.startsWith("_")&&importada[k]&&(!baseE[k]||k==="impressao"));merged._datas={...(baseE._datas||{}),...Object.fromEntries(camposImportados.map(k=>[k,stampAnterior]))};novaEvol[l.id]=merged;
+        if(l.admissionId)novoHistorico[l.admissionId]={...(novoHistorico[l.admissionId]||{}),admissionId:l.admissionId,patientId:l.patientId,status:"active",days:{...(novoHistorico[l.admissionId]?.days||{}),[dataAnterior]:{...(novoHistorico[l.admissionId]?.days?.[dataAnterior]||{}),source:"sbari",clinicalTable:row,bedside:{...(novoHistorico[l.admissionId]?.days?.[dataAnterior]?.bedside||{}),...c.ventilation,drogasVazao:mergeSbariSemSobrescrever(novoHistorico[l.admissionId]?.days?.[dataAnterior]?.bedside?.drogasVazao,c.pumps)},evolution:merged}}};
+      });
       const resultados=await Promise.all([
         ["leitos_data",novosLeitos],["pacientes_arquivados",novoArquivo],["tabela_data",novaTabela],["evolucao_data",novaEvol],["metas_data",novasMetas],["historico_diario",novoHistorico]
       ].map(([key,value])=>supabase.from("config").upsert({key,value:JSON.stringify(value)})));

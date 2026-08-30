@@ -20,17 +20,39 @@ function clinicalLines(value){return clean(value).split(/\n|\s*[•▪●]\s*|\s
 function extractProcedures(...sources){
   const out=[];
   for(const line of sources.flatMap(clinicalLines)){
-    const po=line.match(/\b(POI|PO)\s*(\d+)?\b\s*[:\-–—]?\s*(.*)/i);
+    const po=line.match(/\b(POI|PO)\b\s*(?:\(\s*(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*\)|(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)|(\d+))?\s*[:\-–—]?\s*(.*)/i);
     const explicitly=/^\s*(?:procedimentos?|cirurgias?)\s*:/i.test(line);
     if(!po&&!explicitly&&!procedureWords.test(line))continue;
-    let nome=clean(po?.[3]||line.replace(/^\s*(?:procedimentos?|cirurgias?)\s*:\s*/i,""));
+    let nome=clean(po?.[5]||line.replace(/^\s*(?:procedimentos?|cirurgias?)\s*:\s*/i,""));
     nome=clean(nome.replace(/^\d+\s*(?:d|dias?)?\s*[:\-–—]?\s*/i,""));
     if(!nome||!/[A-Za-zÀ-ÿ]/.test(nome))continue;
-    const day=po?.[1]?.toUpperCase()==="POI"?0:(po?.[2]?Number(po[2]):null);
-    let data="";if(Number.isInteger(day)){const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-day);data=d.toISOString().slice(0,10);}
+    const explicitDate=po?.[2]||po?.[3]||"";
+    const day=explicitDate?null:(po?.[1]?.toUpperCase()==="POI"?0:(po?.[4]?Number(po[4]):null));
+    let data=toIsoDate(explicitDate);if(!data&&Number.isInteger(day)){const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-day);data=d.toISOString().slice(0,10);}
     if(!out.some(p=>p.nome.toLowerCase()===nome.toLowerCase()))out.push({nome,data,poDia:day});
   }
   return out;
+}
+
+function toIsoDate(value){const m=String(value||"").match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);if(!m)return "";let y=m[3]?Number(m[3]):new Date().getFullYear();if(y<100)y+=2000;return `${y}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;}
+const captured=(text,re)=>clean(text.match(re)?.[1]);
+const expandedThousands=value=>/k$/i.test(value)?String(Number(value.replace(/k/i,""))*1000):value;
+function parseDrug(text,names){const m=text.match(new RegExp(`(?:^|[+|,;\\s\\[])(?:${names})\\s*(\\d+(?:[.,]\\d+)?)?`,`i`));return m?(m[1]?.replace(",",".")||"?"):"";}
+function parseAntibiotics(text){
+  return String(text||"").split(/\s*\+\s*|\s*,\s*/).map(part=>{const m=part.match(/([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s/-]*?)(?:\s*\((\d{1,2}\/\d{1,2})\s*-\s*(\d{1,2}\/\d{1,2})?\))?(?:\s|$)/);return m?{nome:clean(m[1].replace(/\b(?:profil[aá]ticos?|por orienta[cç][aã]o.*)$/i,"")),dataInicio:toIsoDate(m[2]),dataFim:toIsoDate(m[3])}:null;}).filter(x=>x?.nome&&!/^(?:---?|pr[eé]vios?)$/i.test(x.nome));
+}
+function parseClinical(systems,situacao,recomendacoes,instrucoes,atb){
+  const neuro=systems.N||"",cv=systems.CV||"",resp=systems.R||"",rm=systems["R/M"]||"",hi=systems["H/I"]||"",all=`${rm} ${hi}`;
+  const lab=(re,thousands=false)=>{const v=captured(all,re).replace(",",".").replace(/[.,]+$/g,"");return v?(thousands?expandedThousands(v):v):"";};
+  const labs={cr:lab(/\bCr\s*([\d.,]+)/i),ur:lab(/\bUr\s*([\d.,]+)/i),na:lab(/\bNa\s*([\d.,]+)/i),k:lab(/(?:^|[,;\s])K\s*([\d.,]+)/i),cai:lab(/\bCa[ií]\s*([\d.,]+)/i),hb:lab(/\bHb\s*([\d.,]+)/i),plaq:lab(/\b(?:Plqts?|Plaq)\s*([\d.,]+k?)/i,true),leuco:lab(/\bLeuco\s*([\d.,]+k?)/i,true),fibri:lab(/\bFib\s*([\d.,]+)/i),rni:lab(/\bTP\s*([\d.,]+)/i),ttpa:lab(/\bTTPa\s*([\d.,]+)/i),_extra_cpk:lab(/\b(?:CK|CPK)\s*([\d.,]+)/i)};
+  const gasometry={ph:lab(/\bpH\s*([\d.,]+)/i),pco2:lab(/\bpCO2\s*([\d.,]+)/i),po2:lab(/\bpO2\s*([\d.,]+)/i),hco3:lab(/\bHCO3\s*([\d.,]+)/i),be:lab(/\bBE\s*([+-]?[\d.,]+)/i),lact:captured(cv,/\bLac\s*([\d.,]+)/i).replace(",",".")};
+  const pumps={propofol:parseDrug(neuro,"PPF|Propofol"),midazolam:parseDrug(neuro,"Mida(?:zolam)?"),fentanil:parseDrug(neuro,"Fenta(?:nil)?"),noradrenalina:parseDrug(cv,"Nora(?:drenalina)?"),vasopressina:parseDrug(cv,"Vaso(?:pressina)?")};
+  const concentratedNoradrenaline=/\[\s*Nora[^\]]*\]/i.test(cv);
+  const mode=resp.match(/\b(?:IOT\s*\+?\s*)?VM\s+(PCV|VCV|PSV)\b/i)?.[1]?.toUpperCase()||"";
+  const ventilation=mode?{vm_modo:`vm_${mode.toLowerCase()}`,vm_fio2:captured(resp,/\bFiO2\s*([\d.,]+)/i),vm_peep:captured(resp,/\bPEEP\s*([\d.,]+)/i),vm_pf_ratio:captured(resp,/\bPF\s*([\d.,]+)/i)}:{};
+  if(mode==="PCV")ventilation.vm_pins=captured(resp,/\bPCV\s*([\d.,]+)/i);if(mode==="VCV")ventilation.vm_vc=captured(resp,/\bVCV\s*([\d.,]+)/i);
+  const trsText=`${situacao} ${rm} ${recomendacoes}`;const trs=trsText.match(/\b(CVVHDF|CVVHD|CVVH|HD|hemodi[aá]lise)\b[^\n]*?(\d{1,2}\/\d{1,2})?/i);
+  return {labs,gasometry,pumps,concentratedNoradrenaline,ventilation,rass:captured(neuro,/\bRASS\s*([+-]?\d+)/i),trs:trs?{modalidade:trs[1].toUpperCase(),data:toIsoDate(trs[2])}:null,antibiotics:parseAntibiotics(atb),impression:[recomendacoes,instrucoes].filter(Boolean).join("\n")};
 }
 
 export function parseSbari(textRaw) {
@@ -72,15 +94,16 @@ export function parseSbari(textRaw) {
     const procedimentos=extractProcedures(situacao,background);
     const linhasProcedimento=new Set(procedimentos.map(p=>p.nome.toLowerCase()));
     const diagnosticos=clinicalLines(situacao).filter(x=>!linhasProcedimento.has(x.replace(/\b(?:POI|PO)\s*\d*\s*[:\-–—]?\s*/i,"").trim().toLowerCase())&&!/^\s*(?:POI|PO)\b/i.test(x)&&!procedureWords.test(x));
+    const antibioticos=section(body, "ATB", ["Prévio", "R", "I"]),recomendacoes=section(plano, "R", ["I"]),instrucoes=section(plano, "I", []);
     return {
       leito:`Leito ${numero.padStart(2,"0")}`,
       numero, paciente:vago?"":paciente, idadeAnos:idade, vago,
       admHospital:clean(adm?.[1]), admUti:clean(adm?.[2]), equipe:field(body, "Equipe"),
       situacao,background,diagnosticos,procedimentos,
       assessment:systems,
-      antibioticos:section(body, "ATB", ["Prévio", "R", "I"]),
+      antibioticos,
       antibioticosPrevios:section(body, "Prévio", ["R", "I"]),
-      recomendacoes:section(plano, "R", ["I"]), instrucoes:section(plano, "I", []), raw:clean(body)
+      recomendacoes,instrucoes,clinical:parseClinical(systems,situacao,recomendacoes,instrucoes,antibioticos),raw:clean(body)
     };
   }).filter(p => p.vago||(p.paciente&&/[A-Za-zÀ-ÿ]/.test(p.paciente)&&p.paciente.split(/\s+/).length>=2));
 }

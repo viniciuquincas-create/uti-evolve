@@ -98,3 +98,36 @@ B: HAS`);
   assert.deepEqual(p.procedimentos.map(x=>x.nome),["Transplante hepático","Traqueostomia"]);
   assert.match(p.procedimentos[0].data,/^\d{4}-\d{2}-\d{2}$/);
 });
+
+test("estrutura dados clínicos do SBARI para lançamento no dia anterior",()=>{
+  const [p]=parseSbari(`Leito 02: Emanoel Inacio Cavalcante, 49 anos
+Adm Hosp: 27/08 Adm UTI: 27/08
+Equipe: Vascular
+S:
+- POI 27/08 Correção de pseudoaneurisma de ilíaca interna E
+- Fechamento a. radial E (trombose distal)
+- LRA isquêmica → CVVHDF 28/08
+A:
+N: RASS -5 | PPF 08 Mida 15 Fenta 3
+CV: [Nora 14] + Vaso 6, Lac 4.6 mmol
+R: IOT VM PCV 16 FiO2 50% PEEP 10 PF 187
+R/M: CVVHDF, CK 4641, Cr 4.96, Ur 117, Na 139, K 5, pH 7.38, pCO2 36, HCO3 20
+H/I: Hb 8.8, Plqts 78k, Leuco 22k, Fib 561, TP 1.6, TTPa 0.91
+ATB: Cefuroxima (27/08-)
+R:
+- Nefro acompanha - início de HD 28/08
+- Vigiar perfusão mão E`);
+  assert.equal(p.procedimentos[0].data,`${new Date().getFullYear()}-08-27`);
+  assert.ok(p.diagnosticos.some(x=>/Fechamento a\. radial/i.test(x)));
+  assert.deepEqual(p.clinical.pumps,{propofol:"08",midazolam:"15",fentanil:"3",noradrenalina:"14",vasopressina:"6"});
+  assert.equal(p.clinical.concentratedNoradrenaline,true);
+  assert.equal(p.clinical.rass,"-5");
+  assert.equal(p.clinical.ventilation.vm_modo,"vm_pcv");
+  assert.equal(p.clinical.ventilation.vm_pins,"16");
+  assert.equal(p.clinical.labs.cr,"4.96");
+  assert.equal(p.clinical.labs.plaq,"78000");
+  assert.equal(p.clinical.labs.leuco,"22000");
+  assert.equal(p.clinical.gasometry.lact,"4.6");
+  assert.equal(p.clinical.antibiotics[0].nome,"Cefuroxima");
+  assert.match(p.clinical.impression,/Vigiar perfusão/);
+});
