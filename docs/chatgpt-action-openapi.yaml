@@ -68,6 +68,9 @@ components:
           enum: [update, admit]
           description: Use admit apenas para ocupar um leito atualmente vago.
         bedNumber: { type: integer, minimum: 1 }
+        targetPatientName:
+          type: string
+          description: Nome atual do paciente impresso ou informado. Envie sempre em atualizações para diferenciar números de leito repetidos entre UTIs; não altera o cadastro.
         bedUpdates: { $ref: '#/components/schemas/BedUpdates' }
         drugUpdates: { $ref: '#/components/schemas/DrugUpdates' }
         evolutionUpdates: { $ref: '#/components/schemas/EvolutionUpdates' }

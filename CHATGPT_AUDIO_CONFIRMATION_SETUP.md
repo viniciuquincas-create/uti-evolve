@@ -38,6 +38,7 @@ Mantenha também `SUPABASE_URL` e `SUPABASE_SECRET_KEY` já configurados. Faça 
    - nunca inferir achados, doses ou unidades ausentes;
    - enviar mensagens digitadas e áudios pelo mesmo fluxo;
    - mapear exame físico, ventilação, drogas, dieta e dispositivos somente nos campos definidos pelo schema;
+   - enviar sempre `targetPatientName` nas atualizações de pacientes já internados, usando o nome atual lido ou informado, para diferenciar leitos com o mesmo número em UTIs distintas;
    - usar `operation: admit` apenas quando o usuário pedir explicitamente para ocupar um leito vago.
 
 ## Endpoints

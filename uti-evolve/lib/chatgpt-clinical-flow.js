@@ -41,11 +41,12 @@ export function parseClinicalRequest(body={}) {
       if (!Object.keys(legacy.updates||{}).length) return {error:"Não identifiquei dados clínicos. Envie clinicalData estruturado.",transcript};
       return {transcript,command:{operation:"update",bedNumber:legacy.bedNumber,bedUpdates:legacy.updates,legacyUnknown:legacy.unknown||[]}};
     }
-    const unknownTop=Object.keys(structured).filter(k=>!["operation","bedNumber","bedUpdates","drugUpdates","evolutionUpdates","dietUpdates","deviceOperations"].includes(k));
+    const unknownTop=Object.keys(structured).filter(k=>!["operation","bedNumber","targetPatientName","bedUpdates","drugUpdates","evolutionUpdates","dietUpdates","deviceOperations"].includes(k));
     if (unknownTop.length) throw new Error(`Campos não permitidos em clinicalData: ${unknownTop.join(", ")}`);
     const bedNumber=Number(structured.bedNumber);
     if (!Number.isInteger(bedNumber)||bedNumber<1) throw new Error("clinicalData.bedNumber inválido");
     const operation=structured.operation==="admit"?"admit":"update";
+    const targetPatientName=cleanString(structured.targetPatientName,300);
     const bedUpdates={...pick(structured.bedUpdates,[...BED_FIELDS,...VM_FIELDS],"bedUpdates")};
     const drugs=pick(structured.drugUpdates,DRUG_FIELDS,"drugUpdates");
     if (Object.keys(drugs).length) bedUpdates.drogasVazao=drugs;
@@ -59,7 +60,7 @@ export function parseClinicalRequest(body={}) {
     const hasChanges=[bedUpdates,evolutionUpdates,dietRaw].some(x=>Object.keys(x).length)||deviceOperations.length;
     if (!hasChanges) throw new Error("Nenhuma alteração clínica estruturada foi informada");
     if (operation==="admit"&&!bedUpdates.paciente) throw new Error("Admissão exige o nome do paciente em bedUpdates.paciente");
-    return {transcript,command:{operation,bedNumber,bedUpdates,evolutionUpdates,dietUpdates:dietRaw,deviceOperations}};
+    return {transcript,command:{operation,bedNumber,targetPatientName,bedUpdates,evolutionUpdates,dietUpdates:dietRaw,deviceOperations}};
   } catch(error) { return {error:error.message,transcript}; }
 }
 
@@ -96,7 +97,7 @@ function findUpdateBed(leitos,bedNumber,transcript="",patientHint="") {
 
 export function buildPreview(leitos,parsed,evolutions={}) {
   const cmd=parsed.command;
-  const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findUpdateBed(leitos,cmd.bedNumber,parsed.transcript,cmd.bedUpdates?.paciente);
+  const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findUpdateBed(leitos,cmd.bedNumber,parsed.transcript,cmd.targetPatientName||cmd.bedUpdates?.paciente);
   if (found.error) return {error:found.error};
   if (cmd.operation==="admit"&&found.bed.paciente) return {error:`${found.bed.nome} já está ocupado por ${found.bed.paciente}`};
   for (const op of cmd.deviceOperations||[]) {
@@ -136,7 +137,7 @@ function applyDevices(current,operations) {
 
 export function applyConfirmedPreview(leitos,evolutions,pending) {
   const cmd=pending.command;
-  const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findUpdateBed(leitos,cmd.bedNumber,pending.transcript,cmd.bedUpdates?.paciente);
+  const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findUpdateBed(leitos,cmd.bedNumber,pending.transcript,cmd.targetPatientName||cmd.bedUpdates?.paciente);
   if (found.error) return found;
   const expected=pending.preview.patientName;
   if (found.bed.id!==pending.preview.bedId || (cmd.operation==="update"&&found.bed.paciente!==expected) || (cmd.operation==="admit"&&found.bed.paciente)) return {error:"O paciente do leito mudou desde a prévia; gere uma nova prévia"};

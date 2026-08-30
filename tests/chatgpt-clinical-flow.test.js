@@ -36,6 +36,17 @@ test("rejeita campo não autorizado",()=>{
   assert.match(parsed.error,/não permitidos/);
 });
 
+test("diferencia leitos repetidos pelo nome-alvo do paciente",()=>{
+  const repetidos=[
+    {id:"g1-01",nome:"Leito 01",paciente:"Outro Paciente",drogasVazao:{},dieta:{},dispositivos:{}},
+    {id:"g2-01",nome:"Leito 01",paciente:"Lineu Matos Junior",drogasVazao:{},dieta:{},dispositivos:{}},
+  ];
+  const parsed=parseClinicalRequest({transcript:"Dados da folha do leito 01",clinicalData:{bedNumber:1,targetPatientName:"Lineu Matos Junior",evolutionUpdates:{nRASS:"0"}}});
+  const preview=buildPreview(repetidos,parsed,{});
+  assert.equal(preview.bedId,"g2-01");
+  assert.equal(preview.patientName,"Lineu Matos Junior");
+});
+
 test("bloqueia confirmação se paciente mudou",()=>{
   const parsed=parseClinicalRequest({transcript:"teste",clinicalData:{bedNumber:1,evolutionUpdates:{nEF:"alerta"}}});
   const preview=buildPreview(leitos,parsed,{});
