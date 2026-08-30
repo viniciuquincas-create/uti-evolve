@@ -6602,6 +6602,8 @@ function FerramentasPanel() {
       {emoji:"☎️",titulo:"Lista de ramais",desc:"Ramais e contatos internos do Hospital São Paulo",href:"/lista-ramais-hsp.pdf",tipo:"PDF"},
       {emoji:"📁",titulo:"Drive DMI",desc:"Pasta institucional compartilhada da DMI",href:"https://drive.google.com/drive/u/4/folders/0AAzMMZ2SYGfSUk9PVA",tipo:"Drive"},
       {emoji:"💊",titulo:"Farmácia HSP",desc:"Portal institucional da Farmácia do Hospital São Paulo",href:"https://sites.google.com/huhsp.org.br/farmciahsp/p%C3%A1gina-inicial",tipo:"Site institucional"},
+      {emoji:"🩻",titulo:"ePACS — Exames de imagem",desc:"Acesso institucional aos exames e laudos de imagem",href:"https://app.epacs.com.br/router/login/",tipo:"Sistema"},
+      {emoji:"🧪",titulo:"Laboratório HSP",desc:"Consulta institucional de exames e laudos laboratoriais",href:"https://laboratorio.huhsp.org.br/arWebLaudo/login",tipo:"Sistema"},
     ]},
     {titulo:"Links clínicos",subtitulo:"Ferramentas externas de consulta rápida",emoji:"🔗",cor:"#38bdf8",itens:[
       {emoji:"🫁",titulo:"Checklist de IOT",desc:"Passo a passo para intubação e via aérea difícil",href:"https://docs.google.com/forms/d/e/1FAIpQLSdGRgBUwki8uJGM2_IAEo1oFHiNlR-QIIZzt9a3oRKa11lPHw/viewform?usp=send_form",tipo:"Checklist"},
