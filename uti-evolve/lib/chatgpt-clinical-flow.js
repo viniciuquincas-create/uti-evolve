@@ -15,6 +15,7 @@ export const EVOLUTION_FIELDS = [
 export const DRUG_FIELDS = ["noradrenalina","vasopressina","adrenalina","dobutamina","nitroprussiato","nitroglicerina","propofol","midazolam","fentanil","remifentanil","dexmedetomidina","cetamina","rocuronio","cisatracurio","insulina"];
 export const DIET_FIELDS = ["tipo","catalogId","formula","vazao","volume24h","obs"];
 export const DIET_META_FIELDS = ["modo","kcalKg","ptnKg","kcalTotal","ptnTotal"];
+export const TABLE_FIELDS = ["hb","ht","leuco","plaq","rni","ttpa","cr","ur","na","k","mg","cai","p","bttot","btdir","btind","pcr","ph","pco2","po2","hco3","be","lact","c24_temp","c24_fc","c24_fr","c24_sat","c24_pam","c24_dextro","c24_diur","c24_bh"];
 export const DEVICE_TYPES = ["tot","tqt","svd","pai","sng","cvc","dialise","dreno"];
 const MULTIPLE_DEVICES = new Set(["cvc","dialise","dreno"]);
 const VM_MODES = new Set(["ar_ambiente","cn","ms","mnr","venturi","cnaf","vni","vm_psv","vm_pcv","vm_vcv","vm_aprv"]);
@@ -41,7 +42,7 @@ export function parseClinicalRequest(body={}) {
       if (!Object.keys(legacy.updates||{}).length) return {error:"Não identifiquei dados clínicos. Envie clinicalData estruturado.",transcript};
       return {transcript,command:{operation:"update",bedNumber:legacy.bedNumber,bedUpdates:legacy.updates,legacyUnknown:legacy.unknown||[]}};
     }
-    const unknownTop=Object.keys(structured).filter(k=>!["operation","bedNumber","targetPatientName","bedUpdates","drugUpdates","evolutionUpdates","dietUpdates","deviceOperations"].includes(k));
+    const unknownTop=Object.keys(structured).filter(k=>!["operation","bedNumber","targetPatientName","tableDate","tableUpdates","bedUpdates","drugUpdates","evolutionUpdates","dietUpdates","deviceOperations"].includes(k));
     if (unknownTop.length) throw new Error(`Campos não permitidos em clinicalData: ${unknownTop.join(", ")}`);
     const bedNumber=Number(structured.bedNumber);
     if (!Number.isInteger(bedNumber)||bedNumber<1) throw new Error("clinicalData.bedNumber inválido");
@@ -57,11 +58,28 @@ export function parseClinicalRequest(body={}) {
     if (dietRaw.tipo && !DIET_TYPES.has(dietRaw.tipo)) throw new Error("Tipo de dieta inválido");
     if (bedUpdates.vm_modo && !VM_MODES.has(bedUpdates.vm_modo)) throw new Error("Modo ventilatório inválido");
     const deviceOperations=validateDeviceOperations(structured.deviceOperations);
-    const hasChanges=[bedUpdates,evolutionUpdates,dietRaw].some(x=>Object.keys(x).length)||deviceOperations.length;
+    const tableUpdates=pick(structured.tableUpdates,TABLE_FIELDS,"tableUpdates");
+    const tableDate=cleanString(structured.tableDate,10)||new Date().toISOString().slice(0,10);
+    if (Object.keys(tableUpdates).length&&!/^\d{4}-\d{2}-\d{2}$/.test(tableDate)) throw new Error("tableDate deve estar em YYYY-MM-DD");
+    const hasChanges=[bedUpdates,evolutionUpdates,dietRaw,tableUpdates].some(x=>Object.keys(x).length)||deviceOperations.length;
     if (!hasChanges) throw new Error("Nenhuma alteração clínica estruturada foi informada");
     if (operation==="admit"&&!bedUpdates.paciente) throw new Error("Admissão exige o nome do paciente em bedUpdates.paciente");
-    return {transcript,command:{operation,bedNumber,targetPatientName,bedUpdates,evolutionUpdates,dietUpdates:dietRaw,deviceOperations}};
+    return {transcript,command:{operation,bedNumber,targetPatientName,tableDate,tableUpdates,bedUpdates,evolutionUpdates,dietUpdates:dietRaw,deviceOperations}};
   } catch(error) { return {error:error.message,transcript}; }
+}
+
+export function parseClinicalRequests(body={}) {
+  const transcript=cleanString(body.transcript,20000);
+  const list=Array.isArray(body.clinicalDataList)?body.clinicalDataList:(isObject(body.clinicalData)?[body.clinicalData]:[]);
+  if (!list.length) return {error:"Envie clinicalData ou clinicalDataList com pelo menos um paciente",transcript};
+  if (list.length>30) return {error:"A folha pode conter no máximo 30 pacientes",transcript};
+  const items=[];
+  for (let i=0;i<list.length;i++) {
+    const parsed=parseClinicalRequest({transcript,clinicalData:list[i]});
+    if (parsed.error) return {error:`Paciente ${i+1}: ${parsed.error}`,transcript};
+    items.push(parsed);
+  }
+  return {transcript,items};
 }
 
 function validateDeviceOperations(value) {
@@ -110,12 +128,27 @@ export function buildPreview(leitos,parsed,evolutions={}) {
   return {operation:cmd.operation,bedId:found.bed.id,bedName:found.bed.nome,patientName:cmd.operation==="admit"?cmd.bedUpdates.paciente:found.bed.paciente,updates:cmd,updateLabels:labels,ignoredSegments:cmd.legacyUnknown||[],currentEvolution:evolutions[found.bed.id]?true:false};
 }
 
+export function buildBatchPreview(leitos,parsedBatch,evolutions={}) {
+  const previews=[];
+  for (let i=0;i<parsedBatch.items.length;i++) {
+    const preview=buildPreview(leitos,parsedBatch.items[i],evolutions);
+    if (preview.error) {
+      const cmd=parsedBatch.items[i].command;
+      return {error:`Leito ${String(cmd.bedNumber).padStart(2,"0")}${cmd.targetPatientName?` — ${cmd.targetPatientName}`:""}: ${preview.error}`};
+    }
+    if (previews.some(p=>p.bedId===preview.bedId)) return {error:`O mesmo leito foi informado mais de uma vez: ${preview.bedName}`};
+    previews.push(preview);
+  }
+  return {batch:true,count:previews.length,patients:previews};
+}
+
 const FIELD_LABELS={paciente:"Paciente",diagnostico:"Diagnóstico",dataInternacao:"Data de internação",idadeAnos:"Idade",peso:"Peso",altura:"Altura",sexo:"Sexo",bhPrevio:"BH prévio",vm_modo:"Modo ventilatório",vm_fio2:"FiO₂",vm_peep:"PEEP",vm_ps:"PS",vm_fr:"FR",vm_vt:"VC",vm_sato2:"SatO₂",nEF:"Neurológico — exame físico",cvEF:"Cardiovascular — exame físico",reEF:"Respiratório — exame físico",rmObs:"Renal/metabólico",tgEF:"Gastrointestinal — exame físico",heObs:"Hematológico/infeccioso",probAtivos:"Problemas ativos",impressao:"Impressão"};
 function describeCommand(cmd) {
   const out=[];
   Object.entries(cmd.bedUpdates||{}).forEach(([k,v])=>k==="drogasVazao"?Object.entries(v).forEach(([d,x])=>out.push(`Droga — ${d}: ${x}`)):out.push(`${FIELD_LABELS[k]||k}: ${v}`));
   Object.entries(cmd.evolutionUpdates||{}).forEach(([k,v])=>out.push(`${FIELD_LABELS[k]||k}: ${v}`));
   Object.entries(cmd.dietUpdates||{}).forEach(([k,v])=>out.push(`Dieta — ${k}: ${isObject(v)?JSON.stringify(v):v}`));
+  Object.entries(cmd.tableUpdates||{}).forEach(([k,v])=>out.push(`Tabela ${cmd.tableDate} — ${k}: ${v}`));
   (cmd.deviceOperations||[]).forEach(d=>out.push(`Dispositivo — ${d.action} ${d.type}${d.site?` (${d.site})`:""}`));
   return out;
 }
@@ -135,7 +168,7 @@ function applyDevices(current,operations) {
   return devices;
 }
 
-export function applyConfirmedPreview(leitos,evolutions,pending) {
+export function applyConfirmedPreview(leitos,evolutions,pending,tables={}) {
   const cmd=pending.command;
   const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findUpdateBed(leitos,cmd.bedNumber,pending.transcript,cmd.targetPatientName||cmd.bedUpdates?.paciente);
   if (found.error) return found;
@@ -148,7 +181,21 @@ export function applyConfirmedPreview(leitos,evolutions,pending) {
   const stamp=new Date().toISOString();
   const dates={...(previous._datas||{})}; Object.keys(cmd.evolutionUpdates||{}).forEach(k=>dates[k]=stamp);
   const updatedEvolutions={...evolutions,[found.bed.id]:{...previous,...(cmd.evolutionUpdates||{}),_datas:dates}};
-  return {updatedLeitos,updatedEvolutions,updatedBed};
+  const existingPatientTable=tables[found.bed.id]||{};
+  const updatedTables=Object.keys(cmd.tableUpdates||{}).length?{...tables,[found.bed.id]:{...existingPatientTable,[cmd.tableDate]:{...(existingPatientTable[cmd.tableDate]||{}),...cmd.tableUpdates}}}:tables;
+  return {updatedLeitos,updatedEvolutions,updatedTables,updatedBed};
+}
+
+export function applyConfirmedBatch(leitos,evolutions,tables,pending) {
+  let updatedLeitos=leitos,updatedEvolutions=evolutions,updatedTables=tables;
+  const updatedBeds=[];
+  for (let i=0;i<pending.commands.length;i++) {
+    const result=applyConfirmedPreview(updatedLeitos,updatedEvolutions,{transcript:pending.transcript,command:pending.commands[i],preview:pending.preview.patients[i]},updatedTables);
+    if (result.error) return {error:result.error};
+    updatedLeitos=result.updatedLeitos; updatedEvolutions=result.updatedEvolutions; updatedTables=result.updatedTables;
+    updatedBeds.push(result.updatedBed);
+  }
+  return {updatedLeitos,updatedEvolutions,updatedTables,updatedBeds};
 }
 
 export const newConfirmationToken=()=>crypto.randomBytes(32).toString("base64url");

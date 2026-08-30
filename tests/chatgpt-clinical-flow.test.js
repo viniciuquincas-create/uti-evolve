@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyConfirmedPreview, buildPreview, parseClinicalRequest, safeTokenEqual, tokenDigest } from "../lib/chatgpt-clinical-flow.js";
+import { applyConfirmedBatch, applyConfirmedPreview, buildBatchPreview, buildPreview, parseClinicalRequest, parseClinicalRequests, safeTokenEqual, tokenDigest } from "../lib/chatgpt-clinical-flow.js";
 
 const leitos=[{id:1,nome:"Leito 01",paciente:"Paciente Teste",drogasVazao:{fentanil:"2"},dieta:{tipo:"enteral",meta:{modo:"kg"}},dispositivos:{}}];
 
@@ -58,4 +58,22 @@ test("token de confirmação é verificável por HMAC",()=>{
   const digest=tokenDigest("token-unico","chave-servidor");
   assert.equal(safeTokenEqual("token-unico",digest,"chave-servidor"),true);
   assert.equal(safeTokenEqual("errado",digest,"chave-servidor"),false);
+});
+
+test("folha com vários pacientes gera uma prévia única e grava todos",()=>{
+  const beds=[
+    {id:"g2-01",nome:"Leito 01",paciente:"Lineu Matos Junior",drogasVazao:{},dieta:{},dispositivos:{}},
+    {id:"g2-02",nome:"Leito 02",paciente:"Paciente Dois",drogasVazao:{},dieta:{},dispositivos:{}},
+  ];
+  const parsed=parseClinicalRequests({transcript:"Folha com leitos 1 e 2",clinicalDataList:[
+    {bedNumber:1,targetPatientName:"Lineu Matos Junior",tableDate:"2026-08-30",tableUpdates:{hb:"8,3",cr:"1,4",c24_fc:"120"},evolutionUpdates:{nRASS:"0"}},
+    {bedNumber:2,targetPatientName:"Paciente Dois",tableDate:"2026-08-30",tableUpdates:{na:"140",lact:"2,1"},evolutionUpdates:{cvEF:"RCR 2T"}},
+  ]});
+  const preview=buildBatchPreview(beds,parsed,{});
+  assert.equal(preview.count,2);
+  const result=applyConfirmedBatch(beds,{}, {},{transcript:parsed.transcript,commands:parsed.items.map(x=>x.command),preview});
+  assert.equal(result.updatedEvolutions["g2-01"].nRASS,"0");
+  assert.equal(result.updatedEvolutions["g2-02"].cvEF,"RCR 2T");
+  assert.equal(result.updatedTables["g2-01"]["2026-08-30"].hb,"8,3");
+  assert.equal(result.updatedTables["g2-02"]["2026-08-30"].lact,"2,1");
 });

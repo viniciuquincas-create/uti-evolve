@@ -1,4 +1,4 @@
-import { applyConfirmedPreview, safeTokenEqual } from "../lib/chatgpt-clinical-flow.js";
+import { applyConfirmedBatch, applyConfirmedPreview, safeTokenEqual } from "../lib/chatgpt-clinical-flow.js";
 import { json, readConfig, requireApiKey, supabaseAdmin, writeConfig } from "../lib/chatgpt-api.js";
 
 export default async function handler(req,res) {
@@ -19,12 +19,15 @@ export default async function handler(req,res) {
 
     const leitos=JSON.parse(await readConfig(admin,"leitos_data") || "[]");
     const evolutions=JSON.parse(await readConfig(admin,"evolucao_data") || "{}");
-    const result=applyConfirmedPreview(leitos,evolutions,pending);
+    const tables=JSON.parse(await readConfig(admin,"tabela_data") || "{}");
+    const result=Array.isArray(pending.commands)?applyConfirmedBatch(leitos,evolutions,tables,pending):applyConfirmedPreview(leitos,evolutions,pending,tables);
     if (result.error) return json(res,422,{ok:false,error:result.error});
     await writeConfig(admin,"leitos_data",result.updatedLeitos);
     await writeConfig(admin,"evolucao_data",result.updatedEvolutions);
+    await writeConfig(admin,"tabela_data",result.updatedTables);
     await writeConfig(admin,pendingKey,{...pending,status:"confirmed",confirmedAt:new Date().toISOString(),confirmationDigest:"used"});
-    return json(res,200,{ok:true,confirmed:true,previewId:pending.previewId,bed:{id:result.updatedBed.id,name:result.updatedBed.nome,patientName:result.updatedBed.paciente},updates:pending.preview.updateLabels});
+    const beds=result.updatedBeds||[result.updatedBed];
+    return json(res,200,{ok:true,confirmed:true,previewId:pending.previewId,beds:beds.map(b=>({id:b.id,name:b.nome,patientName:b.paciente})),updates:pending.preview.patients?.flatMap(p=>p.updateLabels)||pending.preview.updateLabels});
   } catch(error) {
     console.error("ChatGPT confirm error",error?.message || error);
     return json(res,500,{ok:false,error:"Falha ao confirmar lançamento"});

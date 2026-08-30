@@ -39,11 +39,14 @@ Mantenha também `SUPABASE_URL` e `SUPABASE_SECRET_KEY` já configurados. Faça 
    - enviar mensagens digitadas e áudios pelo mesmo fluxo;
    - mapear exame físico, ventilação, drogas, dieta e dispositivos somente nos campos definidos pelo schema;
    - enviar sempre `targetPatientName` nas atualizações de pacientes já internados, usando o nome atual lido ou informado, para diferenciar leitos com o mesmo número em UTIs distintas;
+   - em fotos da folha de coleta, ler todas as colunas preenchidas e enviá-las juntas em `clinicalDataList`; cada coluna preenchida é um item e colunas vazias devem ser omitidas;
+   - incluir `tableDate` e `tableUpdates` para controles, laboratoriais e gasometria legíveis, sem completar valores por suposição;
+   - apresentar uma única prévia consolidada e confirmar todos os pacientes preenchidos em uma única confirmação explícita;
    - usar `operation: admit` apenas quando o usuário pedir explicitamente para ocupar um leito vago.
 
 ## Endpoints
 
-- `POST /api/chatgpt-preview`: recebe `transcript` e `clinicalData`; cria prévia com validade de 10 minutos.
+- `POST /api/chatgpt-preview`: recebe `transcript` e `clinicalDataList`; cria uma prévia conjunta com validade de 10 minutos.
 - `POST /api/chatgpt-confirm`: recebe `{ "previewId":"...", "confirmationToken":"...", "confirm":true }`; grava uma única vez.
 
 ## Segurança aplicada

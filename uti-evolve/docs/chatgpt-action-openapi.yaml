@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: UTI Evolve Clinical Confirmation API
-  version: 2.0.0
-  description: Recebe texto ou transcrição feita pelo ChatGPT, gera prévia e só grava após confirmação explícita.
+  version: 3.0.0
+  description: Recebe uma ou várias colunas preenchidas da folha de coleta, gera prévia conjunta e só grava após confirmação explícita.
 servers:
   - url: https://uti-evolve.vercel.app
 paths:
@@ -17,13 +17,19 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [transcript, clinicalData]
+              required: [transcript, clinicalDataList]
               properties:
                 transcript:
                   type: string
                   description: Mensagem textual original ou transcrição literal do áudio.
                 clinicalData:
                   $ref: '#/components/schemas/ClinicalData'
+                clinicalDataList:
+                  type: array
+                  minItems: 1
+                  maxItems: 30
+                  description: Envie TODOS os leitos preenchidos na folha em uma única chamada. Não envie colunas vazias.
+                  items: { $ref: '#/components/schemas/ClinicalData' }
       responses:
         '200':
           description: Prévia aguardando confirmação
@@ -71,6 +77,8 @@ components:
         targetPatientName:
           type: string
           description: Nome atual do paciente impresso ou informado. Envie sempre em atualizações para diferenciar números de leito repetidos entre UTIs; não altera o cadastro.
+        tableDate: { type: string, description: Data dos dados em YYYY-MM-DD. }
+        tableUpdates: { $ref: '#/components/schemas/TableUpdates' }
         bedUpdates: { $ref: '#/components/schemas/BedUpdates' }
         drugUpdates: { $ref: '#/components/schemas/DrugUpdates' }
         evolutionUpdates: { $ref: '#/components/schemas/EvolutionUpdates' }
@@ -115,6 +123,42 @@ components:
         vm_tlow: { type: number }
         vm_cuff: { type: number }
         vm_sato2: { type: number }
+    TableUpdates:
+      type: object
+      additionalProperties: false
+      description: Controles, laboratoriais e gasometria manuscritos. Omitir campos vazios ou ilegíveis.
+      properties:
+        hb: { type: string }
+        ht: { type: string }
+        leuco: { type: string }
+        plaq: { type: string }
+        rni: { type: string }
+        ttpa: { type: string }
+        cr: { type: string }
+        ur: { type: string }
+        na: { type: string }
+        k: { type: string }
+        mg: { type: string }
+        cai: { type: string }
+        p: { type: string }
+        bttot: { type: string }
+        btdir: { type: string }
+        btind: { type: string }
+        pcr: { type: string }
+        ph: { type: string }
+        pco2: { type: string }
+        po2: { type: string }
+        hco3: { type: string }
+        be: { type: string }
+        lact: { type: string }
+        c24_temp: { type: string }
+        c24_fc: { type: string }
+        c24_fr: { type: string }
+        c24_sat: { type: string }
+        c24_pam: { type: string }
+        c24_dextro: { type: string }
+        c24_diur: { type: string }
+        c24_bh: { type: string }
     DrugUpdates:
       type: object
       additionalProperties: false
