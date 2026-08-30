@@ -7827,6 +7827,7 @@ export default function App() {
   const [utis,setUtis]=useState([{id:"uti-principal",nome:"UTI G1",hospitalId:"hsp"}]);
   const [utiAtivaId,setUtiAtivaId]=useState(()=>sessionStorage.getItem("uti_ativa_id")||"");
   const [perfil,setPerfil]=useState(()=>sessionStorage.getItem("uti_perfil")||"plantonista");
+  const [utiMenu,setUtiMenu]=useState(null);
   const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
   const [aba,        setAba]        = useState("evolucao");
   const [dadosIA,    setDadosIA]    = useState(null);
@@ -8427,9 +8428,11 @@ export default function App() {
             <div style={{fontSize:9,color:T.accent,fontFamily:mono,letterSpacing:2}}>{perfil==="coordenacao"?"PERFIL COORDENAÇÃO":"PERFIL PLANTONISTA"}</div>
           </div>
         </div>
-        <button onClick={()=>{sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} title="Trocar de hospital ou UTI" style={{marginLeft:16,padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>🏥 {hospitalAtivo?.sigla||hospitalAtivo?.nome} · {utiAtiva?.nome||"Selecionar UTI"} ▾</button>
-        {(Array.isArray(config.sbariLinks?.[utiAtiva?.id])?config.sbariLinks[utiAtiva.id].some(x=>x?.url):!!config.sbariLinks?.[utiAtiva?.id])&&<button onClick={sincronizarSbari} disabled={sbariSyncing} title="Atualizar ocupação por todos os SBARIs desta UTI" style={{marginLeft:8,padding:"5px 9px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:"transparent",color:T.accent,fontSize:10,fontWeight:800,cursor:sbariSyncing?"wait":"pointer",whiteSpace:"nowrap"}}>{sbariSyncing?"Atualizando…":"↻ SBARI"}</button>}
-        {perfil==="plantonista"&&<button onClick={()=>setViewGlobal(v=>v==="coleta"?"leitos":"coleta")} title="Gerar folha de coleta e importar foto preenchida" style={{marginLeft:8,padding:"5px 9px",borderRadius:7,border:`1px solid ${viewGlobal==="coleta"?"rgba(168,85,247,.5)":T.border}`,background:viewGlobal==="coleta"?"rgba(168,85,247,.12)":"transparent",color:viewGlobal==="coleta"?"#a855f7":T.text3,fontSize:10,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>📝 Coleta</button>}
+        <button onClick={()=>{sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} onContextMenu={e=>{e.preventDefault();setUtiMenu({x:e.clientX,y:e.clientY});}} title="Clique para trocar de UTI · botão direito para SBARI e folha de coleta" style={{marginLeft:16,padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>🏥 {hospitalAtivo?.sigla||hospitalAtivo?.nome} · {utiAtiva?.nome||"Selecionar UTI"} ▾</button>
+        {utiMenu&&<div onMouseDown={()=>setUtiMenu(null)} onContextMenu={e=>{e.preventDefault();setUtiMenu(null);}} style={{position:"fixed",inset:0,zIndex:19990}}><div onMouseDown={e=>e.stopPropagation()} style={{position:"fixed",left:Math.min(utiMenu.x,window.innerWidth-230),top:Math.min(utiMenu.y,window.innerHeight-130),width:220,padding:5,borderRadius:9,border:`1px solid ${T.borderStrong}`,background:T.bgPicker,boxShadow:"0 14px 38px rgba(0,0,0,.35)",zIndex:19991}}>
+          {(Array.isArray(config.sbariLinks?.[utiAtiva?.id])?config.sbariLinks[utiAtiva.id].some(x=>x?.url):!!config.sbariLinks?.[utiAtiva?.id])&&<button onClick={()=>{setUtiMenu(null);sincronizarSbari();}} disabled={sbariSyncing} style={{width:"100%",padding:"9px 10px",border:0,borderRadius:6,background:"transparent",color:T.text2,textAlign:"left",cursor:sbariSyncing?"wait":"pointer",fontSize:11,fontWeight:700}}>{sbariSyncing?"⏳ Atualizando SBARI…":"↻ Atualizar leitos pelo SBARI"}</button>}
+          <button onClick={()=>{setUtiMenu(null);if(perfil!=="plantonista")mudarPerfil("plantonista");setViewGlobal("coleta");}} style={{width:"100%",padding:"9px 10px",border:0,borderRadius:6,background:viewGlobal==="coleta"?"rgba(168,85,247,.12)":"transparent",color:viewGlobal==="coleta"?"#a855f7":T.text2,textAlign:"left",cursor:"pointer",fontSize:11,fontWeight:700}}>📝 Folha de coleta dos leitos</button>
+        </div></div>}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":T.accent}}/>
