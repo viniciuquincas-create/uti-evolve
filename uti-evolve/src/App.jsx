@@ -6901,36 +6901,34 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
       ["T","temp"],["FC","fc"],["PAM","pam"],["FR","fr"],["Sat","sat"],["DU","du"],["BH","bh"],["Dextro","dextro"],["(____________)","outro24"],
     ].map(([label,key])=>campoPapel(<span dangerouslySetInnerHTML={{__html:label}}/>,key))}</div>,
     "LAB":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gridTemplateRows:"repeat(5,1fr)",columnGap:7,rowGap:2,alignItems:"center"}}>{[
-      ["Hb","hb"],["Leuco","leuco"],["Plaq","plaq"],["RNI","rni"],
+      ["Hb","hb"],["Le","leuco"],["Plaq","plaq"],["RNI","rni"],
       ["TTPA","ttpa"],["Cr","cr"],["Ur","ur"],["Na","na"],
       ["K","k"],["Mg","mg"],["Cai","cai"],["P","p"],
       ["BT","bt"],["BD","bd"],["BI","bi"],["(________)","lab1"],
       ["(________)","lab2"],["(________)","lab3"],["(________)","lab4"],["(________)","lab5"],
     ].map(([label,key])=>campoPapel(label,key))}</div>,
     "Gaso":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gridTemplateRows:"repeat(2,1fr)",columnGap:9,rowGap:4,alignItems:"center"}}>{[["pH","ph"],["pCO₂","pco2"],["pO₂","po2"],["HCO₃","hco3"],["BE","be"],["Lact","lact"]].map(([label,key])=>campoPapel(label,key))}</div>,
-    "Neuro":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(5,1fr)",rowGap:3,alignItems:"center"}}>
+    "Neuro":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(4,1fr)",rowGap:3,alignItems:"center"}}>
       {linhaPapel(<>{campoPapel("RASS","rass")}{campoPapel("GCS: AO","ao")}{campoPapel("RV","rv")}{campoPapel("RM","rm")}{campoPapel("BPS","bps")}</>,"n1")}
       {campoPapel("EF","nef")}
       {linhaPapel(<>{[["Pro","propofol"],["Pre","precedex"],["Mi","midazolam"],["Fe","fentanil"],["Ce","cetamina"]].map(([sigla,key])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.4}}>{bomba(l,sigla,key)}</span>)}</>,"n3")}
-      {linhaPapel(<>{campoPapel("(____________)","nd1")}{campoPapel("(____________)","nd2")}</>,"n5")}
       {campoPapel("Med","nmed")}
     </div>,
-    "CV":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(5,1fr)",rowGap:3,alignItems:"center"}}>
+    "CV":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(4,1fr)",rowGap:3,alignItems:"center"}}>
       {linhaPapel(<>{campoPapel("TEC","tec")}{campoPapel("Cardioscopia","cardioscopia")}</>,"c1")}
       {linhaPapel(<>{[["Na","noradrenalina"],["Va","vasopressina"],["Ad","adrenalina"],["Da","dobutamina"]].map(([sigla,key])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.9}}>{bomba(l,sigla,key)}</span>)}</>,"c2")}
-      {linhaPapel(<>{campoPapel("(____________)","cvd1")}{campoPapel("(____________)","cvd2")}</>,"c4")}
       {campoPapel("POCUS","pocus")}
       {campoPapel("Med","cvmed")}
     </div>,
     "Resp":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(3,1fr)",rowGap:4,alignItems:"center"}}>{campoPapel("EF","ref")}{campoPapel("LUS: HTE","hte")}{campoPapel("LUS: HTD","htd")}</div>,
     "Re/Me":<div style={{height:"100%",display:"flex",alignItems:"center",gap:8}}>{campoPapel("HD ____/____","hd")}{campoPapel("ou (________)","remeoutro")}</div>,
     "Vent":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gridTemplateRows:"repeat(2,1fr)",columnGap:8,rowGap:4,alignItems:"center"}}>{[["Modo","modo"],["ΔP","dpin"],["PEEP","peep"],["FiO₂","fio2"],["FR","vfr"],["VC","vc"],["Pplat","pplat"],["DP","dp"]].map(([label,key])=>campoPapel(label,key))}</div>,
-    "TGI":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(3,1fr)",rowGap:4,alignItems:"center"}}>{linhaPapel(<>{campoPapel("Dieta (____________)","dieta")}{campoPapel("Evac ___/___/___","evac")}</>,"t1")}{campoPapel("Abdome","abdome")}{campoPapel("Med","tgmed")}</div>,
-    "Infec":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(3,1fr)",rowGap:4,alignItems:"center"}}>{[1,2,3].map(i=>linhaPapel(<>{campoPapel("(____________)",`atb${i}`)}{campoPapel("in ____/____/____",`atbd${i}`)}</>,`i${i}`))}</div>,
+    "TGI":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(3,1fr)",rowGap:4,alignItems:"center"}}>{linhaPapel(<>{campoPapel("Dieta (____________)","dieta")}{campoPapel("Evac ______/______","evac")}</>,"t1")}{campoPapel("Abdome","abdome")}{campoPapel("Med","tgmed")}</div>,
+    "Infec":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(3,1fr)",rowGap:4,alignItems:"center"}}>{[1,2,3].map(i=>linhaPapel(<>{campoPapel("(____________)",`atb${i}`)}{campoPapel("in ______/______",`atbd${i}`)}</>,`i${i}`))}</div>,
     "Check":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gridTemplateRows:"repeat(2,1fr)",columnGap:8,rowGap:2,alignItems:"center"}}>{["○ LAMG","○ TEV","○ Córnea","○ Higiene","○ (____________)"].map((x,i)=>campoPapel(x,`check${i}`))}</div>,
   }[titulo]||"");
   const camposFolha=[
-    ["24H","CONTROLES 24H","12mm"],["LAB","LABORATORIAIS","18mm"],["Gaso","GASOMETRIA","12mm"],["Neuro","NEUROLÓGICO","25mm"],["CV","CARDIOVASCULAR","25mm"],["Resp","RESPIRATÓRIO","16mm"],
+    ["24H","CONTROLES 24H","12mm"],["LAB","LABORATORIAIS","28mm"],["Gaso","GASOMETRIA","12mm"],["Neuro","NEUROLÓGICO","20mm"],["CV","CARDIOVASCULAR","20mm"],["Resp","RESPIRATÓRIO","16mm"],
     ["Vent","VENTILAÇÃO","13mm"],["Re/Me","RENAL / METABÓLICO","10mm"],["TGI","TGI / NUTRIÇÃO","16mm"],["Infec","INFECCIOSO","16mm"],["Check","CHECKLIST","9mm"],
   ];
   return <div style={{height:"100%",overflowY:"auto",padding:"18px 24px",background:T.bgPage}}>
