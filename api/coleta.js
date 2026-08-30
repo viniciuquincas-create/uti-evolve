@@ -11,7 +11,7 @@ async function authorize(req){
 const prompt=`Você receberá uma foto de uma FOLHA DE COLETA manuscrita da UTI Evolve em formato de TABELA: cada coluna corresponde a um LEITO/PACIENTE e os nomes dos parâmetros ficam nas linhas à esquerda.
 Transcreva somente o que estiver legível. Não invente nem complete valores. Preserve sinais negativos e casas decimais.
 Retorne APENAS JSON válido, sem markdown, nesta estrutura:
-{"data":"AAAA-MM-DD ou vazio","leitos":[{"leito":"","paciente":"","labs":{"hb":"","ht":"","leuco":"","plaq":"","cr":"","ur":"","na":"","k":"","mg":"","cai":"","p":"","pcr":"","ph":"","pco2":"","po2":"","hco3":"","be":"","lact":""},"controles":{"c24_temp":"","c24_fc":"","c24_fr":"","c24_sat":"","c24_pam":"","c24_dextro":"","c24_diur":"","c24_bh":""},"evolucao":{"nEF":"","cvEF":"","reEF":"","rm24h":"","tgEF":"","heLabs":""},"observacoes":""}]}
+{"data":"AAAA-MM-DD ou vazio","leitos":[{"leito":"","paciente":"","labs":{"hb":"","ht":"","leuco":"","plaq":"","rni":"","ttpa":"","cr":"","ur":"","na":"","k":"","mg":"","cai":"","p":"","bttot":"","btdir":"","btind":"","pcr":"","ph":"","pco2":"","po2":"","hco3":"","be":"","lact":""},"controles":{"c24_temp":"","c24_fc":"","c24_fr":"","c24_sat":"","c24_pam":"","c24_dextro":"","c24_diur":"","c24_bh":""},"bombas":{"propofol":"","precedex":"","midazolam":"","fentanil":"","cetamina":"","noradrenalina":"","noradrenalina_concentrada":"","vasopressina":"","adrenalina":"","dobutamina":""},"evolucao":{"nEF":"","cvEF":"","reEF":"","rm24h":"","tgEF":"","heLabs":""},"observacoes":""}]}
 Inclua apenas colunas que tenham algum dado manuscrito. Siga verticalmente cada coluna e use o número impresso do leito para não misturar dados entre pacientes.`;
 
 export default async function handler(req,res){

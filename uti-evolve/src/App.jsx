@@ -6889,12 +6889,24 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   const dataCurta=valor=>{const m=String(valor||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}`:valor;};
   const paginas=[];for(let i=0;i<escolhidos.length;i+=4)paginas.push(escolhidos.slice(i,i+4));
   const vmInvasiva=l=>["vm_psv","vm_pcv","vm_vcv","vm_aprv"].includes(l.vm_modo);
+  const vazao=(l,key)=>{const v=l.drogasVazao?.[key];return v!==undefined&&v!==null&&String(v).trim()!==""?`${v} mL/h`:"_____";};
+  const bomba=(l,sigla,key,extra="")=><><span style={{color:"#111827"}}>({sigla}{extra})</span> {vazao(l,key)}</>;
+  const guiaFolha=(titulo,l)=>({
+    "24H":<>T __________ &nbsp; FC __________ &nbsp; PAM __________<br/>FR __________ &nbsp; Sat __________ &nbsp; DU __________<br/>BH __________ &nbsp; Dextro __________ (&nbsp;&nbsp;&nbsp;&nbsp;) __________</>,
+    "LAB":<>Hb ________ &nbsp; Leuco __________ &nbsp; Plaq __________ &nbsp; RNI _____<br/>TTPA _____ &nbsp; Cr _____ &nbsp; Ur _____ &nbsp; Na _____ &nbsp; K _____<br/>Mg _____ &nbsp; Cai _____ &nbsp; P _____ &nbsp; BT _____ &nbsp; BD _____ &nbsp; BI _____<br/>(&nbsp;&nbsp;&nbsp;&nbsp;) ______ &nbsp; (&nbsp;&nbsp;&nbsp;&nbsp;) ______ &nbsp; (&nbsp;&nbsp;&nbsp;&nbsp;) ______ &nbsp; (&nbsp;&nbsp;&nbsp;&nbsp;) ______</>,
+    "Gaso":<>pH __________ &nbsp; pCO₂ __________ &nbsp; pO₂ __________<br/>HCO₃ __________ &nbsp; BE __________ &nbsp; Lact __________</>,
+    "Neuro":<>RASS ____ &nbsp; GCS: AO____ RV____ RM____ &nbsp; BPS____<br/>EF ______________________________________________<br/>{bomba(l,"Pro","propofol")} &nbsp; {bomba(l,"Pre","precedex")} &nbsp; {bomba(l,"Mi","midazolam")}<br/>{bomba(l,"Fe","fentanil")} &nbsp; {bomba(l,"Ce","cetamina")}<br/>Med:</>,
+    "CV":<>TEC_____ &nbsp; Cardioscopia__________________<br/>{bomba(l,"Na","noradrenalina")} &nbsp; {bomba(l,"Na","noradrenalina_concentrada"," [__]")}<br/>{bomba(l,"Va","vasopressina")} &nbsp; {bomba(l,"Ad","adrenalina")} &nbsp; {bomba(l,"Da","dobutamina")}<br/>POCUS __________________________________________<br/>Med:</>,
+    "Resp":<>EF:<br/>LUS: HTE________________________________<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;HTD________________________________</>,
+    "Re/Me":<>HD ____/____: ______ ou (&nbsp;&nbsp;&nbsp;&nbsp;) __________</>,
+    "Vent":<>Modo ______ &nbsp; ΔP ______ &nbsp; PEEP ______ &nbsp; FiO₂ ______<br/>FR ______ &nbsp; VC ______ &nbsp; Pplat ______ &nbsp; DP ______</>,
+    "TGI":<>Dieta (&nbsp;&nbsp;&nbsp;&nbsp;) __________ &nbsp; Evac ___/___/___<br/>Abdome<br/>Med:</>,
+    "Infec":<>(&nbsp;&nbsp;&nbsp;&nbsp;) __________________ in ____/____/____<br/>(&nbsp;&nbsp;&nbsp;&nbsp;) __________________ in ____/____/____<br/>(&nbsp;&nbsp;&nbsp;&nbsp;) __________________ in ____/____/____</>,
+    "Check":<>● LAMG ______ &nbsp; ● TEV ______ &nbsp; ● Córnea ______<br/>________ &nbsp; ● Higiene ______ &nbsp; ● (&nbsp;&nbsp;&nbsp;&nbsp;) ______</>,
+  }[titulo]||"");
   const camposFolha=[
-    ["CONTROLES / BH",<>T ________ &nbsp; FC ________ &nbsp; PAM ________<br/>FR ________ &nbsp; Sat ________ &nbsp; DU ________<br/>BH ________ &nbsp; Dextro ________</>,48],
-    ["HEMOGRAMA",<>Hb ________ &nbsp; Leuco __________ &nbsp; Plaq __________<br/>PCR ________</>,36],
-    ["RENAL / METAB.",<>Cr ________ &nbsp; Ur ________ &nbsp; Na ________ &nbsp; K ________<br/>Mg ________ &nbsp; Cai ________ &nbsp; P ________</>,42],
-    ["GASOMETRIA",<>pH ________ &nbsp; pCO₂ ________ &nbsp; pO₂ ________<br/>HCO₃ ________ &nbsp; BE ________ &nbsp; Lact ________</>,42],
-    ["NEURO","",44],["CARDIOVASCULAR","",44],["RESPIRATÓRIO","",44],["TGI / NUTRIÇÃO","",38],["INFECCIOSO","",38],["CONDUTAS / OBS.","",55],
+    ["24H",40],["LAB",58],["Gaso",38],["Neuro",58],["CV",58],["Resp",44],
+    ["Re/Me",30],["Vent",38],["TGI",50],["Infec",58],["Check",38],
   ];
   return <div style={{height:"100%",overflowY:"auto",padding:"18px 24px",background:T.bgPage}}>
     <style>{`@media print{body *{visibility:hidden!important}.coleta-print,.coleta-print *{visibility:visible!important}.coleta-print{position:absolute!important;inset:0!important;background:#fff!important;padding:0!important}.coleta-tools{display:none!important}.coleta-page{width:287mm!important;height:200mm!important;margin:0!important;padding:3mm!important;box-shadow:none!important;border:0!important;break-after:page;page-break-after:always}.coleta-page:last-child{break-after:auto;page-break-after:auto}}@page{size:A4 landscape;margin:5mm}`}</style>
@@ -6912,8 +6924,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
         <div style={{display:"grid",gridTemplateColumns:`92px repeat(${grupo.length},minmax(0,1fr))`,borderTop:"1px solid #475569",borderLeft:"1px solid #475569"}}>
           <div style={{padding:6,borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:8,fontWeight:800}}>DATA ____/____<br/>HORA ____</div>
           {grupo.map(l=><div key={l.id} style={{padding:6,borderRight:"1px solid #475569",borderBottom:"1px solid #475569",minHeight:70}}><div style={{fontSize:11,fontWeight:850}}>{l.nome} · {l.paciente}</div><div style={{marginTop:3,color:"#64748b",fontSize:6.8,lineHeight:1.25}}><b>Dx:</b> {resumo(l.diagnostico,95)||"—"}<br/>{(l.procedimentos||[]).length>0&&<><b>Proced.:</b> {resumo((l.procedimentos||[]).map(p=>[p.nome,p.data&&`(${dataCurta(p.data)})`].filter(Boolean).join(" ")).join(" · "),95)}<br/></>}<b>Hist.:</b> {resumo([l.doencasPrevias,evolPorLeito?.[l.id]?.hda].filter(Boolean).join(" · "),105)||"—"}</div></div>)}
-          {camposFolha.flatMap(([titulo,guia,altura])=>[<div key={`${titulo}-rotulo`} style={{height:altura,padding:"5px 4px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7,fontWeight:850,color:"#334155"}}>{titulo}</div>,...grupo.map(l=><div key={`${titulo}-${l.id}`} style={{height:altura,padding:"4px 5px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:6.8,color:"#64748b"}}>{guia}</div>)])}
-          {grupo.some(vmInvasiva)&&<><div style={{height:40,padding:"5px 4px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7,fontWeight:850,color:"#334155"}}>VENTILAÇÃO</div>{grupo.map(l=><div key={`vm-${l.id}`} style={{height:40,padding:"4px 5px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:6.8,color:vmInvasiva(l)?"#475569":"#cbd5e1",background:vmInvasiva(l)?"#fff":"#f8fafc"}}>{vmInvasiva(l)?"Modo ____  PS/Pins ____  PEEP ____  FiO₂ ____  FR ____  VC ____  Pplat ____  DP ____":"— sem VMI —"}</div>)}</>}
+          {camposFolha.flatMap(([titulo,altura])=>[<div key={`${titulo}-rotulo`} style={{height:altura,padding:"5px 4px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7,fontWeight:850,color:"#334155",background:"#f1f5f9"}}>{titulo}</div>,...grupo.map(l=><div key={`${titulo}-${l.id}`} style={{height:altura,padding:"4px 5px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:6.5,lineHeight:1.34,color:"#475569",background:titulo==="Vent"&&!vmInvasiva(l)?"#f8fafc":"#fff"}}>{guiaFolha(titulo,l)}</div>)])}
         </div>
       </div>)}
     </div>
@@ -8356,6 +8367,7 @@ export default function App() {
     const reconhecidos=(resultado?.leitos||[]).map(r=>({r,l:encontrar(r)})),validos=reconhecidos.filter(x=>x.l);
     if(!validos.length){window.alert("Nenhum dos leitos reconhecidos corresponde aos pacientes desta UTI.");return;}
     setTabelaData(prev=>{const novo={...prev};validos.forEach(({r,l})=>{const valores={};Object.entries({...r.labs,...r.controles}).forEach(([k,v])=>{if(v!==""&&v!=null)valores[k]=String(v);});novo[l.id]={...(novo[l.id]||{}),[data]:{...(novo[l.id]?.[data]||{}),...valores}};});salvarTabela(novo);return novo;});
+    setLeitos(prev=>{let mudou=false;const novo=prev.map(l=>{const item=validos.find(x=>String(x.l.id)===String(l.id));if(!item)return l;const bombas=Object.fromEntries(Object.entries(item.r.bombas||{}).filter(([,v])=>v!==""&&v!=null).map(([k,v])=>[k,String(v).replace(/\s*mL\/?h\s*$/i,"").trim()]));if(!Object.keys(bombas).length)return l;mudou=true;return {...l,drogasVazao:{...(l.drogasVazao||{}),...bombas}};});if(mudou)salvarLeitos(novo);return novo;});
     setEvolPorLeito(prev=>{const novo={...prev};validos.forEach(({r,l})=>{const atual={...EVOLUCAO_VAZIA,...(novo[l.id]||{})},ev=r.evolucao||{};Object.entries(ev).forEach(([k,v])=>{if(v)atual[k]=atual[k]?`${atual[k]}\n${v}`:v;});if(r.observacoes)atual.impressao=atual.impressao?`${atual.impressao}\n${r.observacoes}`:r.observacoes;atual._datas={...(atual._datas||{})};[...Object.keys(ev),...(r.observacoes?["impressao"]:[])].forEach(k=>{if(ev[k]||k==="impressao")atual._datas[k]=data;});novo[l.id]=atual;});salvarEvol(novo);return novo;});
     const atualSel=validos.find(x=>x.l.id===leitoSelId);if(atualSel)setEvolCampos(c=>{const n={...c};Object.entries(atualSel.r.evolucao||{}).forEach(([k,v])=>{if(v)n[k]=n[k]?`${n[k]}\n${v}`:v;});if(atualSel.r.observacoes)n.impressao=n.impressao?`${n.impressao}\n${atualSel.r.observacoes}`:atualSel.r.observacoes;return n;});
     window.alert(`${validos.length} leito(s) atualizado(s).${validos.length<reconhecidos.length?` ${reconhecidos.length-validos.length} não foi/foram associado(s).`:""}`);
