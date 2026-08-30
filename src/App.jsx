@@ -6925,7 +6925,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
     "Vent":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gridTemplateRows:"repeat(2,1fr)",columnGap:8,rowGap:4,alignItems:"center"}}>{[["Modo","modo"],["ΔP","dpin"],["PEEP","peep"],["FiO₂","fio2"],["FR","vfr"],["VC","vc"],["Pplat","pplat"],["DP","dp"]].map(([label,key])=>campoPapel(label,key))}</div>,
     "TGI":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(3,1fr)",rowGap:4,alignItems:"center"}}>{linhaPapel(<>{campoPapel("Dieta (____________)","dieta")}{campoPapel("Evac ______/______","evac")}</>,"t1")}{campoPapel("Abdome","abdome")}{campoPapel("Med","tgmed")}</div>,
     "Infec":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(3,1fr)",rowGap:4,alignItems:"center"}}>{[1,2,3].map(i=>linhaPapel(<>{campoPapel("(____________)",`atb${i}`)}{campoPapel("in ______/______",`atbd${i}`)}</>,`i${i}`))}</div>,
-    "Check":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gridTemplateRows:"repeat(2,1fr)",columnGap:12,rowGap:2,alignItems:"center"}}>{["LAMG (O/P)","TEV (E)","○ Córnea","○ Higiene"].map((x,i)=>campoPapel(x,`check${i}`))}</div>,
+    "Check":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gridTemplateRows:"repeat(2,1fr)",columnGap:12,rowGap:2,alignItems:"center"}}>{["○ LAMG","○ TEV","○ Córnea","○ Higiene"].map((x,i)=>campoPapel(x,`check${i}`))}</div>,
   }[titulo]||"");
   const camposFolha=[
     ["24H","CONTROLES 24H","12mm"],["LAB","LABORATORIAIS","28mm"],["Gaso","GASOMETRIA","12mm"],["Neuro","NEUROLÓGICO","20mm"],["CV","CARDIOVASCULAR","20mm"],["Resp","RESPIRATÓRIO","16mm"],
