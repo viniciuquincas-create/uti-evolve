@@ -6908,7 +6908,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
     "Neuro":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(5,1fr)",rowGap:3,alignItems:"center"}}>
       {linhaPapel(<>{campoPapel("RASS","rass")}{campoPapel("GCS: AO","ao")}{campoPapel("RV","rv")}{campoPapel("RM","rm")}{campoPapel("BPS","bps")}</>,"n1")}
       {campoPapel("EF","nef")}
-      {linhaPapel(<>{[["Pro","propofol"],["Pre","precedex"],["Mi","midazolam"],["Fe","fentanil"]].map(([sigla,key])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.9}}>{bomba(l,sigla,key)}</span>)}</>,"n3")}
+      {linhaPapel(<>{[["Pro","propofol"],["Pre","precedex"],["Mi","midazolam"],["Fe","fentanil"],["Ce","cetamina"]].map(([sigla,key])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.4}}>{bomba(l,sigla,key)}</span>)}</>,"n3")}
       {linhaPapel(<>{campoPapel("(____________)","nd1")}{campoPapel("(____________)","nd2")}</>,"n5")}
       {campoPapel("Med","nmed")}
     </div>,
