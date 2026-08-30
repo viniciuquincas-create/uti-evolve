@@ -6891,9 +6891,18 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   const vmInvasiva=l=>["vm_psv","vm_pcv","vm_vcv","vm_aprv"].includes(l.vm_modo);
   const vazao=(l,key)=>{const v=l.drogasVazao?.[key];return v!==undefined&&v!==null&&String(v).trim()!==""?`${v} mL/h`:"________";};
   const bomba=(l,sigla,key,extra="")=><><span style={{color:"#111827"}}>({sigla}{extra})</span> {vazao(l,key)}</>;
+  const campoPapel=(label,key,largura="1fr")=><span key={key||label} style={{display:"flex",alignItems:"flex-end",gap:3,minWidth:0,width:largura,fontSize:7.5,whiteSpace:"nowrap"}}><b style={{fontWeight:500}}>{label}</b><i style={{display:"block",flex:1,minWidth:18,borderBottom:"1px solid #64748b",height:8}}/></span>;
   const guiaFolha=(titulo,l)=>({
-    "24H":<>T __________ &nbsp; FC __________ &nbsp; PAM __________<br/>FR __________ &nbsp; Sat __________ &nbsp; DU __________<br/>BH __________ &nbsp; Dextro __________ (&nbsp;&nbsp;&nbsp;&nbsp;) __________</>,
-    "LAB":<>Hb ________ &nbsp; Leuco __________ &nbsp; Plaq __________ &nbsp; RNI _____<br/>TTPA _____ &nbsp; Cr _____ &nbsp; Ur _____ &nbsp; Na _____ &nbsp; K _____<br/>Mg _____ &nbsp; Cai _____ &nbsp; P _____ &nbsp; BT _____ &nbsp; BD _____ &nbsp; BI _____<br/>(&nbsp;&nbsp;&nbsp;&nbsp;) ______ &nbsp; (&nbsp;&nbsp;&nbsp;&nbsp;) ______ &nbsp; (&nbsp;&nbsp;&nbsp;&nbsp;) ______ &nbsp; (&nbsp;&nbsp;&nbsp;&nbsp;) ______</>,
+    "24H":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gridTemplateRows:"repeat(3,1fr)",columnGap:8,rowGap:3,alignItems:"center"}}>{[
+      ["T","temp"],["FC","fc"],["PAM","pam"],["FR","fr"],["Sat","sat"],["DU","du"],["BH","bh"],["Dextro","dextro"],["(&nbsp;&nbsp;&nbsp;&nbsp;)","outro24"],
+    ].map(([label,key])=>campoPapel(<span dangerouslySetInnerHTML={{__html:label}}/>,key))}</div>,
+    "LAB":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gridTemplateRows:"repeat(5,1fr)",columnGap:7,rowGap:2,alignItems:"center"}}>{[
+      ["Hb","hb"],["Leuco","leuco"],["Plaq","plaq"],["RNI","rni"],
+      ["TTPA","ttpa"],["Cr","cr"],["Ur","ur"],["Na","na"],
+      ["K","k"],["Mg","mg"],["Cai","cai"],["P","p"],
+      ["BT","bt"],["BD","bd"],["BI","bi"],["(________)","lab1"],
+      ["(________)","lab2"],["(________)","lab3"],["(________)","lab4"],["(________)","lab5"],
+    ].map(([label,key])=>campoPapel(label,key))}</div>,
     "Gaso":<>pH __________ &nbsp; pCO₂ __________ &nbsp; pO₂ __________<br/>HCO₃ __________ &nbsp; BE __________ &nbsp; Lact __________</>,
     "Neuro":<>RASS ____ &nbsp; GCS: AO____ RV____ RM____ &nbsp; BPS____<br/>EF ______________________________________________<br/>{bomba(l,"Pro","propofol")} &nbsp; {bomba(l,"Pre","precedex")} &nbsp; {bomba(l,"Mi","midazolam")}<br/>{bomba(l,"Fe","fentanil")} &nbsp; {bomba(l,"Ce","cetamina")}<br/>(____________) ____________ &nbsp; (____________) ____________<br/>Med: ___________________________________________</>,
     "CV":<>TEC_____ &nbsp; Cardioscopia__________________<br/>{bomba(l,"Na","noradrenalina")} &nbsp; {bomba(l,"Na","noradrenalina_concentrada"," [__]")}<br/>{bomba(l,"Va","vasopressina")} &nbsp; {bomba(l,"Ad","adrenalina")} &nbsp; {bomba(l,"Da","dobutamina")}<br/>(____________) ____________ &nbsp; (____________) ____________<br/>POCUS __________________________________________<br/>Med: ___________________________________________</>,
@@ -6924,7 +6933,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
         <div style={{display:"grid",gridTemplateColumns:`92px repeat(${grupo.length},minmax(0,1fr))`,borderTop:"1px solid #475569",borderLeft:"1px solid #475569"}}>
           <div style={{padding:6,borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:8,fontWeight:800}}>DATA ____/____<br/>HORA ____</div>
           {grupo.map(l=><div key={l.id} style={{padding:6,borderRight:"1px solid #475569",borderBottom:"1px solid #475569",height:"22mm"}}><div style={{fontSize:11,fontWeight:850}}>{l.nome} · {l.paciente}</div><div style={{marginTop:3,color:"#64748b",fontSize:6.8,lineHeight:1.25}}><b>Dx:</b> {resumo(l.diagnostico,95)||"—"}<br/>{(l.procedimentos||[]).length>0&&<><b>Proced.:</b> {resumo((l.procedimentos||[]).map(p=>[p.nome,p.data&&`(${dataCurta(p.data)})`].filter(Boolean).join(" ")).join(" · "),95)}<br/></>}<b>Hist.:</b> {resumo([l.doencasPrevias,evolPorLeito?.[l.id]?.hda].filter(Boolean).join(" · "),105)||"—"}</div></div>)}
-          {camposFolha.flatMap(([titulo,altura])=>[<div key={`${titulo}-rotulo`} style={{height:altura,padding:"5px 4px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7.2,fontWeight:850,color:"#334155",background:"#f1f5f9"}}>{titulo}</div>,...grupo.map(l=><div key={`${titulo}-${l.id}`} style={{height:altura,padding:"4px 5px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7,lineHeight:1.42,color:"#475569",background:titulo==="Vent"&&!vmInvasiva(l)?"#f8fafc":"#fff",overflow:"hidden"}}>{guiaFolha(titulo,l)}</div>)])}
+          {camposFolha.flatMap(([titulo,altura])=>[<div key={`${titulo}-rotulo`} style={{height:altura,padding:"5px 4px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7.2,fontWeight:850,color:"#334155",background:"#f1f5f9"}}>{titulo}</div>,...grupo.map(l=><div key={`${titulo}-${l.id}`} style={{height:altura,padding:["24H","LAB"].includes(titulo)?"3px 6px":"4px 5px",borderRight:"1px solid #475569",borderBottom:"1px solid #475569",fontSize:7,lineHeight:1.42,color:"#475569",background:titulo==="Vent"&&!vmInvasiva(l)?"#f8fafc":"#fff",overflow:"hidden"}}>{guiaFolha(titulo,l)}</div>)])}
         </div>
       </div>)}
     </div>
