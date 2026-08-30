@@ -6905,18 +6905,16 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
       ["(________)","lab2"],["(________)","lab3"],["(________)","lab4"],["(________)","lab5"],
     ].map(([label,key])=>campoPapel(label,key))}</div>,
     "Gaso":<div style={{height:"100%",display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gridTemplateRows:"repeat(2,1fr)",columnGap:9,rowGap:4,alignItems:"center"}}>{[["pH","ph"],["pCO₂","pco2"],["pO₂","po2"],["HCO₃","hco3"],["BE","be"],["Lact","lact"]].map(([label,key])=>campoPapel(label,key))}</div>,
-    "Neuro":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(6,1fr)",rowGap:2,alignItems:"center"}}>
+    "Neuro":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(5,1fr)",rowGap:3,alignItems:"center"}}>
       {linhaPapel(<>{campoPapel("RASS","rass")}{campoPapel("GCS: AO","ao")}{campoPapel("RV","rv")}{campoPapel("RM","rm")}{campoPapel("BPS","bps")}</>,"n1")}
       {campoPapel("EF","nef")}
-      {linhaPapel(<>{[["Pro","propofol"],["Pre","precedex"],["Mi","midazolam"]].map(([sigla,key])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.9}}>{bomba(l,sigla,key)}</span>)}</>,"n3")}
-      {linhaPapel(<>{[["Fe","fentanil"],["Ce","cetamina"]].map(([sigla,key])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.9}}>{bomba(l,sigla,key)}</span>)}</>,"n4")}
+      {linhaPapel(<>{[["Pro","propofol"],["Pre","precedex"],["Mi","midazolam"],["Fe","fentanil"]].map(([sigla,key])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.9}}>{bomba(l,sigla,key)}</span>)}</>,"n3")}
       {linhaPapel(<>{campoPapel("(____________)","nd1")}{campoPapel("(____________)","nd2")}</>,"n5")}
       {campoPapel("Med","nmed")}
     </div>,
-    "CV":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(6,1fr)",rowGap:2,alignItems:"center"}}>
+    "CV":<div style={{height:"100%",display:"grid",gridTemplateRows:"repeat(5,1fr)",rowGap:3,alignItems:"center"}}>
       {linhaPapel(<>{campoPapel("TEC","tec")}{campoPapel("Cardioscopia","cardioscopia")}</>,"c1")}
-      {linhaPapel(<>{[["Na","noradrenalina",""],["Na","noradrenalina_concentrada"," [__]" ]].map(([sigla,key,extra])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.9}}>{bomba(l,sigla,key,extra)}</span>)}</>,"c2")}
-      {linhaPapel(<>{[["Va","vasopressina",""],["Ad","adrenalina",""],["Da","dobutamina",""]].map(([sigla,key,extra])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.9}}>{bomba(l,sigla,key,extra)}</span>)}</>,"c3")}
+      {linhaPapel(<>{[["Na","noradrenalina"],["Va","vasopressina"],["Ad","adrenalina"],["Da","dobutamina"]].map(([sigla,key])=><span key={key} style={{flex:"1 1 0",minWidth:0,whiteSpace:"nowrap",fontSize:6.9}}>{bomba(l,sigla,key)}</span>)}</>,"c2")}
       {linhaPapel(<>{campoPapel("(____________)","cvd1")}{campoPapel("(____________)","cvd2")}</>,"c4")}
       {campoPapel("POCUS","pocus")}
       {campoPapel("Med","cvmed")}
