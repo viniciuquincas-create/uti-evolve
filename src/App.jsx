@@ -6890,11 +6890,11 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   const paginas=[];for(let i=0;i<escolhidos.length;i+=4)paginas.push(escolhidos.slice(i,i+4));
   const vmInvasiva=l=>["vm_psv","vm_pcv","vm_vcv","vm_aprv"].includes(l.vm_modo);
   const camposFolha=[
-    ["CONTROLES","T ____  FC ____  PAM ____  FR ____  Sat ____",45],
-    ["BALANÇO","DU ______  BH ______  Dextro ______",38],
-    ["HEMOGRAMA","Hb ____  Leuco ______  Plaq ______  PCR ____",38],
-    ["RENAL / METAB.","Cr ____  Ur ____  Na ____  K ____  Mg ____  Cai ____  P ____",40],
-    ["GASOMETRIA","pH ____  pCO₂ ____  pO₂ ____  HCO₃ ____  BE ____  Lact ____",40],
+    ["CONTROLES","T ____  FC ____  PAM ____  FR ____  Sat ____",62],
+    ["BALANÇO","DU ______  BH ______  Dextro ______",52],
+    ["HEMOGRAMA","Hb ____  Leuco ______  Plaq ______  PCR ____",52],
+    ["RENAL / METAB.","Cr ____  Ur ____  Na ____  K ____  Mg ____  Cai ____  P ____",58],
+    ["GASOMETRIA","pH ____  pCO₂ ____  pO₂ ____  HCO₃ ____  BE ____  Lact ____",58],
     ["NEURO","",44],["CARDIOVASCULAR","",44],["RESPIRATÓRIO","",44],["TGI / NUTRIÇÃO","",38],["INFECCIOSO","",38],["CONDUTAS / OBS.","",55],
   ];
   return <div style={{height:"100%",overflowY:"auto",padding:"18px 24px",background:T.bgPage}}>
