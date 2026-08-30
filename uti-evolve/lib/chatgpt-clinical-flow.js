@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { findBed, parseWhatsappCommand } from "./whatsapp-command.js";
+import { parseWhatsappCommand } from "./whatsapp-command.js";
 
 export const PREVIEW_TTL_MS = 10 * 60 * 1000;
 
@@ -81,9 +81,22 @@ function findAnyBed(leitos,bedNumber) {
   return matches.length===1?{bed:matches[0]}:{error:matches.length?"Leito ambíguo":"Leito não encontrado"};
 }
 
+const normalizeMatch=value=>String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/gi,"").toLowerCase();
+function findUpdateBed(leitos,bedNumber,transcript="",patientHint="") {
+  const matches=(leitos||[]).filter(l=>Number(l.id)===bedNumber||Number(String(l.nome||"").match(/\d+/)?.[0])===bedNumber);
+  if(matches.length===1)return {bed:matches[0]};
+  if(!matches.length)return {error:"Leito não encontrado"};
+  const transcriptNorm=normalizeMatch(transcript),hintNorm=normalizeMatch(patientHint);
+  const byPatient=matches.filter(l=>{
+    const patient=normalizeMatch(l.paciente);
+    return patient.length>3&&((hintNorm&&(patient===hintNorm||patient.includes(hintNorm)||hintNorm.includes(patient)))||transcriptNorm.includes(patient));
+  });
+  return byPatient.length===1?{bed:byPatient[0]}:{error:"Leito ambíguo"};
+}
+
 export function buildPreview(leitos,parsed,evolutions={}) {
   const cmd=parsed.command;
-  const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findBed(leitos,cmd.bedNumber);
+  const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findUpdateBed(leitos,cmd.bedNumber,parsed.transcript,cmd.bedUpdates?.paciente);
   if (found.error) return {error:found.error};
   if (cmd.operation==="admit"&&found.bed.paciente) return {error:`${found.bed.nome} já está ocupado por ${found.bed.paciente}`};
   for (const op of cmd.deviceOperations||[]) {
@@ -123,7 +136,7 @@ function applyDevices(current,operations) {
 
 export function applyConfirmedPreview(leitos,evolutions,pending) {
   const cmd=pending.command;
-  const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findBed(leitos,cmd.bedNumber);
+  const found=cmd.operation==="admit"?findAnyBed(leitos,cmd.bedNumber):findUpdateBed(leitos,cmd.bedNumber,pending.transcript,cmd.bedUpdates?.paciente);
   if (found.error) return found;
   const expected=pending.preview.patientName;
   if (found.bed.id!==pending.preview.bedId || (cmd.operation==="update"&&found.bed.paciente!==expected) || (cmd.operation==="admit"&&found.bed.paciente)) return {error:"O paciente do leito mudou desde a prévia; gere uma nova prévia"};
