@@ -222,6 +222,14 @@
           "bhPrevio": {
             "type": "number"
           },
+          "vm_cuidado_cornea": {
+            "type": "boolean",
+            "description": "Marcação de profilaxia ocular/córnea."
+          },
+          "vm_higiene_oral": {
+            "type": "boolean",
+            "description": "Marcação de higiene oral."
+          },
           "vm_modo": {
             "type": "string",
             "enum": [
@@ -598,7 +606,8 @@
             "type": "string"
           },
           "tgLAMG": {
-            "type": "string"
+            "type": "string",
+            "description": "Expandir O para Omeprazol e P para Pantoprazol. Exemplo manuscrito O 40mg = Omeprazol 40mg."
           },
           "heTemp": {
             "type": "string"
@@ -613,7 +622,8 @@
             "type": "string"
           },
           "heProf": {
-            "type": "string"
+            "type": "string",
+            "description": "Profilaxia TEV. Expandir E para Enoxaparina; exemplo E 40mg = Enoxaparina 40mg 1x/d."
           },
           "heObs": {
             "type": "string",

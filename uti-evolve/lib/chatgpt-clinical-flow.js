@@ -3,7 +3,7 @@ import { parseWhatsappCommand } from "./whatsapp-command.js";
 
 export const PREVIEW_TTL_MS = 10 * 60 * 1000;
 
-export const BED_FIELDS = ["paciente","diagnostico","dataInternacao","dataNascimento","idadeAnos","peso","altura","sexo","bhPrevio"];
+export const BED_FIELDS = ["paciente","diagnostico","dataInternacao","dataNascimento","idadeAnos","peso","altura","sexo","bhPrevio","vm_cuidado_cornea","vm_higiene_oral"];
 export const VM_FIELDS = ["vm_modo","vm_o2","vm_flow","vm_fio2","vm_ipap","vm_epap","vm_br","vm_ps","vm_peep","vm_fr","vm_vt","vm_p01","vm_pocc","vm_pmusc","vm_pins","vm_pplat","vm_ppico","vm_phigh","vm_plow","vm_thigh","vm_tlow","vm_cuff","vm_sato2"];
 export const EVOLUTION_FIELDS = [
   "hda","nRASS","nGlasgow","nPupilas","nDor","nEF","nEFExtra","nSeda","nAnalg","nPsiq","nObs",
@@ -51,6 +51,7 @@ export function parseClinicalRequest(body={}) {
     const targetUtiId=cleanString(structured.targetUtiId,200);
     const targetBedId=cleanString(structured.targetBedId,200);
     const bedUpdates={...pick(structured.bedUpdates,[...BED_FIELDS,...VM_FIELDS],"bedUpdates")};
+    for(const key of ["vm_cuidado_cornea","vm_higiene_oral"])if(Object.prototype.hasOwnProperty.call(structured.bedUpdates||{},key))bedUpdates[key]=structured.bedUpdates[key]===true||String(structured.bedUpdates[key]).toLowerCase()==="true";
     const drugs=pick(structured.drugUpdates,DRUG_FIELDS,"drugUpdates");
     if (Object.keys(drugs).length) bedUpdates.drogasVazao=drugs;
     const evolutionUpdates=pick(structured.evolutionUpdates,EVOLUTION_FIELDS,"evolutionUpdates");

@@ -106,6 +106,8 @@ components:
         altura: { type: number }
         sexo: { type: string, enum: [M, F] }
         bhPrevio: { type: number }
+        vm_cuidado_cornea: { type: boolean, description: Marcação de profilaxia ocular/córnea. }
+        vm_higiene_oral: { type: boolean, description: Marcação de higiene oral. }
         vm_modo: { type: string, enum: [ar_ambiente, cn, ms, mnr, venturi, cnaf, vni, vm_psv, vm_pcv, vm_vcv, vm_aprv] }
         vm_o2: { type: number }
         vm_flow: { type: number }
@@ -233,12 +235,12 @@ components:
         tgPocus: { type: string }
         tgObs: { type: string }
         tgUltEvac: { type: string }
-        tgLAMG: { type: string }
+        tgLAMG: { type: string, description: Expandir O para Omeprazol e P para Pantoprazol. Exemplo manuscrito O 40mg = Omeprazol 40mg. }
         heTemp: { type: string }
         heLabs: { type: string }
         heMed: { type: string }
         heAtb: { type: string }
-        heProf: { type: string }
+        heProf: { type: string, description: Profilaxia TEV. Expandir E para Enoxaparina; exemplo E 40mg = Enoxaparina 40mg 1x/d. }
         heObs: { type: string, description: Exame/observações hematológico-infecciosas }
         heCulturas: { type: string }
         probAtivos: { type: string }

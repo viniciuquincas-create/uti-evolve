@@ -42,6 +42,9 @@ Mantenha também `SUPABASE_URL` e `SUPABASE_SECRET_KEY` já configurados. Faça 
    - em fotos da folha de coleta, ler todas as colunas preenchidas e enviá-las juntas em `clinicalDataList`; cada coluna preenchida é um item e colunas vazias devem ser omitidas;
    - copiar literalmente `UTI-ID` para `targetUtiId` e `LEITO-ID` para `targetBedId` em cada coluna; esses identificadores têm prioridade sobre nome e número do leito;
    - incluir `tableDate` e `tableUpdates` para controles, laboratoriais e gasometria legíveis, sem completar valores por suposição;
+   - em PROFILAXIAS, interpretar LAMG `O` como Omeprazol e `P` como Pantoprazol; por exemplo, `O 40mg` vira `tgLAMG: Omeprazol 40mg`;
+   - em TEV, interpretar `E` como Enoxaparina e acrescentar a frequência padronizada 1x/d; por exemplo, `E 40mg` vira `heProf: Enoxaparina 40mg 1x/d`;
+   - marcações de Córnea e Higiene devem ser enviadas em `bedUpdates.vm_cuidado_cornea` e `bedUpdates.vm_higiene_oral` como booleanos;
    - apresentar uma única prévia consolidada e confirmar todos os pacientes preenchidos em uma única confirmação explícita;
    - usar `operation: admit` apenas quando o usuário pedir explicitamente para ocupar um leito vago.
 
