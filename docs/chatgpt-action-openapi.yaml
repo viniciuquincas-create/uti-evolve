@@ -149,10 +149,13 @@ components:
         mg: { type: string }
         cai: { type: string }
         p: { type: string }
+        tgo: { type: string, description: TGO/AST manuscrita no campo laboratorial livre. }
+        tgp: { type: string, description: TGP/ALT manuscrita no campo laboratorial livre. }
         bttot: { type: string }
         btdir: { type: string }
         btind: { type: string }
         pcr: { type: string }
+        _extra_vancocinemia: { type: string, description: VANCO ou vancocinemia manuscrita no campo laboratorial livre; representa nível sérico, não dose de vancomicina. }
         ph: { type: string }
         pco2: { type: string }
         po2: { type: string }
@@ -170,7 +173,7 @@ components:
     DrugUpdates:
       type: object
       additionalProperties: false
-      description: Valores/vazões conforme ditados; não converter unidades.
+      description: Valores/vazões conforme manuscritos; não converter unidades. Na folha, Pro=propofol, Pre=Precedex/dexmedetomidina, Mi=midazolam, Fe=fentanil, Ce=cetamina, Na=noradrenalina, Va=vasopressina, Ad=adrenalina e Da=dobutamina.
       properties:
         noradrenalina: { type: number }
         vasopressina: { type: number }
@@ -178,12 +181,12 @@ components:
         dobutamina: { type: number }
         nitroprussiato: { type: number }
         nitroglicerina: { type: number }
-        propofol: { type: number }
-        midazolam: { type: number }
-        fentanil: { type: number }
+        propofol: { type: number, description: Campo Pro da folha. }
+        midazolam: { type: number, description: Campo Mi da folha. }
+        fentanil: { type: number, description: Campo Fe da folha. }
         remifentanil: { type: number }
-        dexmedetomidina: { type: number }
-        cetamina: { type: number }
+        dexmedetomidina: { type: number, description: Campo Pre/Precedex da folha. }
+        cetamina: { type: number, description: Campo Ce da folha. }
         rocuronio: { type: number }
         cisatracurio: { type: number }
         insulina: { type: number }
@@ -209,7 +212,7 @@ components:
         cvEF: { type: string, description: Exame físico cardiovascular }
         cv24h: { type: string }
         cvDVA: { type: string }
-        cvMed: { type: string }
+        cvMed: { type: string, description: Medicações cardiovasculares; expandir Hidral para Hidralazina e q6h para 6/6h. }
         cvTEC: { type: string }
         cvLact: { type: string }
         cvDeltaCO2: { type: string }
@@ -222,8 +225,8 @@ components:
         reEF: { type: string, description: Exame físico respiratório }
         re24h: { type: string }
         reGaso: { type: string }
-        rePocus: { type: string }
-        reLUS: { type: string }
+        rePocus: { type: string, description: POCUS; VTI significa integral velocidade-tempo e é um parâmetro válido. Preserve VE, VD e VTI. }
+        reLUS: { type: string, description: LUS; HTE/HTD e DP (derrame pleural) são abreviações válidas. Exemplo HTE DP moderado. }
         reObs: { type: string }
         rm24h: { type: string }
         rmLabs: { type: string }

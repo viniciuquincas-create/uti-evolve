@@ -45,6 +45,11 @@ Mantenha também `SUPABASE_URL` e `SUPABASE_SECRET_KEY` já configurados. Faça 
    - em PROFILAXIAS, interpretar LAMG `O` como Omeprazol e `P` como Pantoprazol; por exemplo, `O 40mg` vira `tgLAMG: Omeprazol 40mg`;
    - em TEV, interpretar `E` como Enoxaparina e acrescentar a frequência padronizada 1x/d; por exemplo, `E 40mg` vira `heProf: Enoxaparina 40mg 1x/d`;
    - marcações de Córnea e Higiene devem ser enviadas em `bedUpdates.vm_cuidado_cornea` e `bedUpdates.vm_higiene_oral` como booleanos;
+   - reconhecer as siglas fixas das bombas impressas: `Pro`=propofol, `Pre`=Precedex/dexmedetomidina, `Mi`=midazolam, `Fe`=fentanil, `Ce`=cetamina, `Na`=noradrenalina, `Va`=vasopressina, `Ad`=adrenalina e `Da`=dobutamina;
+   - em laboratoriais livres, `VANCO` significa vancocinemia e deve ir para `tableUpdates._extra_vancocinemia`; `TGO` e `TGP` vão para os campos homônimos;
+   - expandir `Hidral` para Hidralazina e `q6h` para 6/6h quando estiverem legíveis;
+   - considerar válidos, sem pedir confirmação apenas pela sigla, `VTI` no POCUS e `DP` (derrame pleural), HTE e HTD no LUS;
+   - não adivinhar qual fármaco de LAMG foi usado quando houver somente dose; exigir `O` (omeprazol) ou `P` (pantoprazol), ou pedir confirmação ao usuário;
    - apresentar uma única prévia consolidada e confirmar todos os pacientes preenchidos em uma única confirmação explícita;
    - usar `operation: admit` apenas quando o usuário pedir explicitamente para ocupar um leito vago.
 

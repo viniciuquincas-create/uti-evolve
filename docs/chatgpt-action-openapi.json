@@ -358,6 +358,14 @@
           "p": {
             "type": "string"
           },
+          "tgo": {
+            "type": "string",
+            "description": "TGO/AST manuscrita no campo laboratorial livre."
+          },
+          "tgp": {
+            "type": "string",
+            "description": "TGP/ALT manuscrita no campo laboratorial livre."
+          },
           "bttot": {
             "type": "string"
           },
@@ -369,6 +377,11 @@
           },
           "pcr": {
             "type": "string"
+          },
+          "_extra_vancocinemia": {
+            "type": "string",
+            "description": "VANCO ou vancocinemia manuscrita no campo laboratorial livre; representa nível sérico",
+            "não dose de vancomicina.": null
           },
           "ph": {
             "type": "string"
@@ -417,7 +430,7 @@
       "DrugUpdates": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Valores/vazões conforme ditados; não converter unidades.",
+        "description": "Valores/vazões conforme manuscritos; não converter unidades. Na folha, Pro=propofol, Pre=Precedex/dexmedetomidina, Mi=midazolam, Fe=fentanil, Ce=cetamina, Na=noradrenalina, Va=vasopressina, Ad=adrenalina e Da=dobutamina.",
         "properties": {
           "noradrenalina": {
             "type": "number"
@@ -438,22 +451,27 @@
             "type": "number"
           },
           "propofol": {
-            "type": "number"
+            "type": "number",
+            "description": "Campo Pro da folha."
           },
           "midazolam": {
-            "type": "number"
+            "type": "number",
+            "description": "Campo Mi da folha."
           },
           "fentanil": {
-            "type": "number"
+            "type": "number",
+            "description": "Campo Fe da folha."
           },
           "remifentanil": {
             "type": "number"
           },
           "dexmedetomidina": {
-            "type": "number"
+            "type": "number",
+            "description": "Campo Pre/Precedex da folha."
           },
           "cetamina": {
-            "type": "number"
+            "type": "number",
+            "description": "Campo Ce da folha."
           },
           "rocuronio": {
             "type": "number"
@@ -525,7 +543,8 @@
             "type": "string"
           },
           "cvMed": {
-            "type": "string"
+            "type": "string",
+            "description": "Medicações cardiovasculares; expandir Hidral para Hidralazina e q6h para 6/6h."
           },
           "cvTEC": {
             "type": "string"
@@ -565,10 +584,13 @@
             "type": "string"
           },
           "rePocus": {
-            "type": "string"
+            "type": "string",
+            "description": "POCUS; VTI significa integral velocidade-tempo e é um parâmetro válido. Preserve VE",
+            "VD e VTI.": null
           },
           "reLUS": {
-            "type": "string"
+            "type": "string",
+            "description": "LUS; HTE/HTD e DP (derrame pleural) são abreviações válidas. Exemplo HTE DP moderado."
           },
           "reObs": {
             "type": "string"
