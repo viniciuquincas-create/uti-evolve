@@ -64,7 +64,7 @@ const LEITOS_INICIAIS = [
 ];
 
 const leitoVazio = (leito) => ({
-  id:leito.id,nome:leito.nome,utiId:leito.utiId,paciente:"",diagnostico:"",dataInternacao:"",dataNascimento:"",idadeAnos:"",rankinAdmissao:"",
+  id:leito.id,nome:leito.nome,utiId:leito.utiId,paciente:"",diagnostico:"",diagnosticos:[],equipeAssistente:"",dataInternacao:"",dataNascimento:"",idadeAnos:"",rankinAdmissao:"",
   peso:"",altura:"",sexo:"M",bhPrevio:"",acompanhantes:[],procedimentos:[],dispositivos:{},antibioticos:[],culturas:[],
   drogasVazao:{},dieta:{},vm_modo:"",
 });
@@ -2459,14 +2459,17 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   const volUrina = parseFloat(diureseHoje) || 0;
   const diurese  = (volUrina && dados.peso)
     ? (volUrina / (24 * parseFloat(dados.peso))).toFixed(2) : null;
+  const diagnosticos=(Array.isArray(dados.diagnosticos)&&dados.diagnosticos.length?dados.diagnosticos:[dados.diagnostico||""]).filter((x,i,a)=>x||a.length===1);
+  const atualizarDiagnosticos=lista=>onChange({...dados,diagnosticos:lista,diagnostico:lista.filter(Boolean).join(" · ")});
 
   return (
     <div>
       <SecTitle>DADOS DO PACIENTE</SecTitle>
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
         <Field label="NOME / ID"   value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuário" style={{flex:2,minWidth:200}}/>
-        <Field label="DIAGNÓSTICO" value={dados.diagnostico} onChange={v=>onChange({...dados,diagnostico:v})} placeholder="Diagnóstico principal" style={{flex:3,minWidth:200}}/>
+        <Field label="EQUIPE ASSISTENTE" value={dados.equipeAssistente||dados.equipe||""} onChange={v=>onChange({...dados,equipeAssistente:v,equipe:v})} placeholder="Ex: Cirurgia do Fígado" style={{flex:2,minWidth:200}}/>
       </div>
+      <div style={{marginBottom:12,padding:"10px 12px",border:"1px solid rgba(56,189,248,.16)",borderRadius:9,background:"rgba(56,189,248,.025)"}}><div style={{display:"flex",alignItems:"center",marginBottom:7}}><b style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1}}>DIAGNÓSTICOS</b><button onClick={()=>atualizarDiagnosticos([...diagnosticos,""])} style={{marginLeft:"auto",padding:"4px 8px",borderRadius:6,border:"1px solid rgba(56,189,248,.3)",background:"rgba(56,189,248,.08)",color:"#38bdf8",fontSize:9,fontWeight:700,cursor:"pointer"}}>＋ Adicionar diagnóstico</button></div><div style={{display:"grid",gap:6}}>{diagnosticos.map((d,i)=><div key={i} style={{display:"flex",gap:6}}><input value={d} onChange={e=>atualizarDiagnosticos(diagnosticos.map((x,j)=>j===i?e.target.value:x))} placeholder={`Diagnóstico ${i+1}`} style={{flex:1,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:7,padding:"8px 10px",color:"#e2e8f0",fontSize:12}}/><button disabled={diagnosticos.length===1} onClick={()=>atualizarDiagnosticos(diagnosticos.filter((_,j)=>j!==i))} title="Remover diagnóstico" style={{width:32,borderRadius:7,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:diagnosticos.length===1?"not-allowed":"pointer",opacity:diagnosticos.length===1 ? .35 : 1}}>✕</button></div>)}</div></div>
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, alignItems:"flex-end" }}>
         <Field label="DATA INTERNAÇÃO"   value={dados.dataInternacao}    onChange={v=>onChange({...dados,dataInternacao:v})}  type="date" style={{minWidth:150}}/>
         <Field label="IDADE (ANOS)"   value={dados.idadeAnos||""} onChange={v=>onChange({...dados,idadeAnos:v})} type="number" placeholder="Ex: 68" style={{minWidth:100}}/>
@@ -7926,7 +7929,7 @@ export default function App() {
         const p = JSON.parse(ld.value);
         if (Array.isArray(p) && p.length) {
           const agora=new Date().toISOString();
-          const normalizados=p.map(l=>({...l,utiId:l.utiId||utiPadrao,...(!l.paciente?{}:{patientId:l.patientId||(globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${l.id}`),admissionId:l.admissionId||(globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${l.id}`),admissionStartedAt:l.admissionStartedAt||agora})}));
+          const normalizados=p.map(l=>({...l,utiId:l.utiId||utiPadrao,diagnosticos:Array.isArray(l.diagnosticos)?l.diagnosticos:(l.diagnostico?[l.diagnostico]:[]),equipeAssistente:l.equipeAssistente||l.equipe||"",...(!l.paciente?{}:{patientId:l.patientId||(globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${l.id}`),admissionId:l.admissionId||(globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${l.id}`),admissionStartedAt:l.admissionStartedAt||agora})}));
           setLeitos(normalizados);
           leitoAtualId = normalizados[0].id;
           setLeitoSelId(normalizados[0].id);
@@ -8208,7 +8211,9 @@ export default function App() {
         if(existente){usados.add(String(existente.id));return {...existente,nome:p.leito,utiId:utiAtiva.id};}
         const vaga=vagas.find(v=>!usados.has(String(v.id))&&normalizarNomeSbari(v.nome)===normalizarNomeSbari(p.leito))||vagas.find(v=>!usados.has(String(v.id)));
         const id=vaga?.id||`sbari-${Date.now()}-${indice}`;usados.add(String(id));
-        return {...leitoVazio({id,nome:p.leito}),id,nome:p.leito,utiId:utiAtiva.id,paciente:p.paciente,idadeAnos:p.idadeAnos||"",dataInternacao:dataSbariParaIso(p.admUti),diagnostico:p.situacao||"",equipe:p.equipe||"",patientId:globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${indice}`,admissionId:globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${indice}`,admissionStartedAt:agora,fonteCadastro:"sbari",sbariOrigem:p.sbariOrigem||""};
+        const diagnosticos=Array.isArray(p.diagnosticos)&&p.diagnosticos.length?p.diagnosticos:(p.situacao?[p.situacao]:[]);
+        const procedimentos=(p.procedimentos||[]).map((proc,j)=>({id:`sbari-proc-${Date.now()}-${indice}-${j}`,nome:proc.nome,data:proc.data||"",fonte:"sbari"}));
+        return {...leitoVazio({id,nome:p.leito}),id,nome:p.leito,utiId:utiAtiva.id,paciente:p.paciente,idadeAnos:p.idadeAnos||"",dataInternacao:dataSbariParaIso(p.admUti),diagnosticos,diagnostico:diagnosticos.join(" · "),equipeAssistente:p.equipe||"",equipe:p.equipe||"",procedimentos,patientId:globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${indice}`,admissionId:globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${indice}`,admissionStartedAt:agora,fonteCadastro:"sbari",sbariOrigem:p.sbariOrigem||""};
       });
       const nomesLeitos=new Set(leitosSbari.map(l=>normalizarNomeSbari(l.nome)));
       const nomesParaVaga=new Map();

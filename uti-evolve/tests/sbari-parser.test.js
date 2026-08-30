@@ -83,3 +83,18 @@ Leito 04: sem paciente`);
   assert.equal(registros[2].vago,true);
   assert.equal(registros[3].vago,true);
 });
+
+test("extrai múltiplos diagnósticos, equipe e procedimentos com ou sem PO",()=>{
+  const [p]=parseSbari(`Leito 12: Ana Maria da Silva, 55 anos
+Equipe: Cirurgia do Fígado
+S:
+- Choque séptico
+- Insuficiência respiratória
+- POI Transplante hepático
+- Traqueostomia
+B: HAS`);
+  assert.deepEqual(p.diagnosticos,["Choque séptico","Insuficiência respiratória"]);
+  assert.equal(p.equipe,"Cirurgia do Fígado");
+  assert.deepEqual(p.procedimentos.map(x=>x.nome),["Transplante hepático","Traqueostomia"]);
+  assert.match(p.procedimentos[0].data,/^\d{4}-\d{2}-\d{2}$/);
+});
