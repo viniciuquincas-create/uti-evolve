@@ -6878,6 +6878,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   const T=useTheme();
   const ocupados=leitos.filter(l=>l.paciente);
   const [selecionados,setSelecionados]=useState(()=>ocupados.map(l=>l.id));
+  const [leitosPorPagina,setLeitosPorPagina]=useState(2);
   const [arquivo,setArquivo]=useState(null),[preview,setPreview]=useState(""),[loading,setLoading]=useState(false),[erro,setErro]=useState(""),[resultado,setResultado]=useState(null),[aplicados,setAplicados]=useState([]),[jsonInput,setJsonInput]=useState("");
   const fileRef=useRef(null);
   useEffect(()=>setSelecionados(s=>s.filter(id=>ocupados.some(l=>l.id===id))),[leitos]);
@@ -6889,7 +6890,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   const copiarModeloJson=async()=>{const modelo={data:new Date().toISOString().slice(0,10),leitos:[{leito:"601",paciente:"",labs:{hb:"",leuco:"",plaq:"",cr:"",ur:"",na:"",k:"",mg:"",cai:"",p:"",ph:"",pco2:"",po2:"",hco3:"",be:"",lact:""},controles:{c24_temp:"",c24_fc:"",c24_fr:"",c24_sat:"",c24_pam:"",c24_dextro:"",c24_diur:"",c24_bh:""},bombas:{propofol:"",precedex:"",midazolam:"",fentanil:"",cetamina:"",noradrenalina:"",vasopressina:"",adrenalina:"",dobutamina:""},evolucao:{nEF:"",cvEF:"",reEF:"",rm24h:"",tgEF:"",heLabs:""},observacoes:""}]};try{await navigator.clipboard.writeText(JSON.stringify(modelo,null,2));}catch{setJsonInput(JSON.stringify(modelo,null,2));}};
   const resumo=(valor,limite=150)=>{const texto=String(valor||"").replace(/\s+/g," ").trim();return texto.length>limite?`${texto.slice(0,limite-1)}…`:texto;};
   const dataCurta=valor=>{const m=String(valor||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}`:valor;};
-  const paginas=[];for(let i=0;i<escolhidos.length;i+=4)paginas.push(escolhidos.slice(i,i+4));
+  const paginas=[];for(let i=0;i<escolhidos.length;i+=leitosPorPagina)paginas.push(escolhidos.slice(i,i+leitosPorPagina));
   const vmInvasiva=l=>["vm_psv","vm_pcv","vm_vcv","vm_aprv"].includes(l.vm_modo);
   const vazao=(l,key)=>{const v=l.drogasVazao?.[key];return v!==undefined&&v!==null&&String(v).trim()!==""?`${v} mL/h`:"________";};
   const bomba=(l,sigla,key,extra="")=><><span style={{color:"#111827"}}>({sigla}{extra})</span> {vazao(l,key)}</>;
@@ -6943,6 +6944,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
       <button onClick={()=>setSelecionados([])} style={{padding:"5px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer"}}>Nenhum</button>
       {ocupados.map(l=><label key={l.id} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:7,border:`1px solid ${selecionados.includes(l.id)?T.accentBorder:T.border}`,background:selecionados.includes(l.id)?T.accentBg:T.bgCard,color:selecionados.includes(l.id)?T.accent:T.text2,fontSize:10,cursor:"pointer"}}><input type="checkbox" checked={selecionados.includes(l.id)} onChange={()=>toggle(l.id)}/>{l.nome}</label>)}
     </div>
+    <div className="coleta-tools" style={{display:"flex",alignItems:"center",gap:7,marginBottom:12,padding:"8px 10px",border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard}}><b style={{fontSize:10,color:T.text2}}>Formato da impressão:</b><button onClick={()=>setLeitosPorPagina(2)} style={{padding:"5px 9px",borderRadius:6,border:`1px solid ${leitosPorPagina===2?T.accentBorder:T.border}`,background:leitosPorPagina===2?T.accentBg:T.bgInput,color:leitosPorPagina===2?T.accent:T.text3,fontSize:9,fontWeight:750,cursor:"pointer"}}>2 leitos/página · melhor leitura pela IA</button><button onClick={()=>setLeitosPorPagina(4)} style={{padding:"5px 9px",borderRadius:6,border:`1px solid ${leitosPorPagina===4?T.accentBorder:T.border}`,background:leitosPorPagina===4?T.accentBg:T.bgInput,color:leitosPorPagina===4?T.accent:T.text3,fontSize:9,fontWeight:750,cursor:"pointer"}}>4 leitos/página · compacto</button></div>
     <div className="coleta-print">
       {paginas.map((grupo,pagina)=><div className="coleta-page" key={pagina} style={{marginBottom:16,padding:10,border:"1px solid #94a3b8",borderRadius:8,background:"#fff",color:"#0f172a",boxShadow:"0 8px 24px rgba(15,23,42,.08)",overflow:"hidden"}}>
         <div style={{display:"grid",gridTemplateColumns:`92px repeat(${grupo.length},minmax(0,1fr))`,borderTop:"1px solid #475569",borderLeft:"1px solid #475569"}}>
@@ -6953,7 +6955,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
       </div>)}
     </div>
     <div className="coleta-tools" style={{marginTop:18,padding:14,border:`1px solid ${T.border}`,borderRadius:12,background:T.bgCard}}>
-      <div style={{fontSize:14,fontWeight:800,color:T.text1}}>📷 Importar a folha preenchida</div><div style={{fontSize:10,color:T.text3,margin:"4px 0 10px"}}>A IA separa os dados pelo número do leito. Revise os pacientes reconhecidos antes de aplicar.</div>
+      <div style={{fontSize:14,fontWeight:800,color:T.text1}}>📷 Importar a folha preenchida</div><div style={{fontSize:10,color:T.text3,margin:"4px 0 6px"}}>A IA separa os dados pelos identificadores impressos. Revise os pacientes reconhecidos antes de aplicar.</div><div style={{fontSize:9,color:T.text4,marginBottom:10}}>Para maior precisão: fotografe cada página separadamente, na vertical correta, de frente, sem inclinação, preenchendo quase toda a imagem e com boa iluminação. O formato de 2 leitos por página é o recomendado.</div>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>escolherArquivo(e.target.files?.[0])}/>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><button onClick={()=>fileRef.current?.click()} style={{padding:"8px 12px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,cursor:"pointer"}}>Selecionar foto</button>{arquivo&&<span style={{fontSize:10,color:T.text3}}>{arquivo.name}</span>}<button onClick={analisar} disabled={!arquivo||loading} style={{padding:"8px 12px",borderRadius:8,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontWeight:800,cursor:"pointer"}}>{loading?"Analisando…":"Ler dados da foto"}</button></div>
       {preview&&<img src={preview} alt="Folha preenchida" style={{marginTop:10,maxWidth:260,maxHeight:160,objectFit:"contain",borderRadius:8,border:`1px solid ${T.border}`}}/>}{erro&&<div style={{marginTop:9,color:"#f87171",fontSize:11}}>{erro}</div>}
