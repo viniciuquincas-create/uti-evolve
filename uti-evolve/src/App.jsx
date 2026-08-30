@@ -6874,7 +6874,7 @@ const encontrarAltaDoPaciente=(paciente,altas,leitos)=>{
   return leitosMesmoPrimeiro===1&&altasMesmoPrimeiro.length===1?altasMesmoPrimeiro[0]:null;
 };
 
-function ColetaPlantaoPanel({uti,leitos,onAplicar}){
+function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   const T=useTheme();
   const ocupados=leitos.filter(l=>l.paciente);
   const [selecionados,setSelecionados]=useState(()=>ocupados.map(l=>l.id));
@@ -6886,6 +6886,8 @@ function ColetaPlantaoPanel({uti,leitos,onAplicar}){
   const analisar=async()=>{if(!arquivo)return;setLoading(true);setErro("");setResultado(null);try{const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(",")[1]);r.onerror=reject;r.readAsDataURL(arquivo);});const response=await fetch("/api/coleta",{method:"POST",headers:{"content-type":"application/json","x-uti-session":sessionStorage.getItem(SESSION_KEY)||""},body:JSON.stringify({imageBase64:base64,mimeType:arquivo.type||"image/jpeg"})});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Não foi possível analisar a folha.");setResultado(payload);setAplicados((payload.leitos||[]).map((_,i)=>i));}catch(e){setErro(e.message||"Falha ao analisar a foto.");}finally{setLoading(false);}};
   const escolherArquivo=file=>{if(!file)return;setArquivo(file);setPreview(URL.createObjectURL(file));setResultado(null);setErro("");};
   const linha=(titulo,texto)=><div style={{minHeight:25,borderBottom:"1px solid #94a3b8",padding:"3px 4px",fontSize:8,color:"#334155"}}><b>{titulo}</b>{texto?` ${texto}`:""}</div>;
+  const resumo=(valor,limite=150)=>{const texto=String(valor||"").replace(/\s+/g," ").trim();return texto.length>limite?`${texto.slice(0,limite-1)}…`:texto;};
+  const dataCurta=valor=>{const m=String(valor||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}`:valor;};
   return <div style={{height:"100%",overflowY:"auto",padding:"18px 24px",background:T.bgPage}}>
     <style>{`@media print{body *{visibility:hidden!important}.coleta-print,.coleta-print *{visibility:visible!important}.coleta-print{position:absolute!important;inset:0!important;background:#fff!important;padding:8mm!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:5mm!important}.coleta-tools{display:none!important}.coleta-card{break-inside:avoid;page-break-inside:avoid;height:88mm!important;box-shadow:none!important}}@page{size:A4 landscape;margin:5mm}`}</style>
     <div className="coleta-tools" style={{display:"flex",alignItems:"flex-start",gap:14,flexWrap:"wrap",marginBottom:14}}>
@@ -6900,6 +6902,11 @@ function ColetaPlantaoPanel({uti,leitos,onAplicar}){
     <div className="coleta-print" style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(340px,1fr))",gap:12}}>
       {escolhidos.map(l=><div className="coleta-card" key={l.id} style={{height:330,border:"1.5px solid #475569",borderRadius:9,padding:9,background:"#fff",color:"#0f172a",overflow:"hidden"}}>
         <div style={{display:"flex",justifyContent:"space-between",gap:8,borderBottom:"2px solid #334155",paddingBottom:5,marginBottom:3}}><b style={{fontSize:13}}>{l.nome} · {l.paciente}</b><span style={{fontSize:9}}>Data: ____/____ &nbsp; Hora: ____</span></div>
+        <div style={{padding:"3px 5px",marginBottom:3,borderRadius:5,background:"#f1f5f9",color:"#64748b",fontSize:7.5,lineHeight:1.3}}>
+          <div><b style={{color:"#475569"}}>Dx:</b> {resumo(l.diagnostico)||"—"}</div>
+          {(l.procedimentos||[]).length>0&&<div><b style={{color:"#475569"}}>Proced.:</b> {resumo((l.procedimentos||[]).map(p=>[p.nome,p.data&&`(${dataCurta(p.data)})`].filter(Boolean).join(" ")).join(" · "))}</div>}
+          {(l.doencasPrevias||evolPorLeito?.[l.id]?.hda)&&<div><b style={{color:"#475569"}}>História:</b> {resumo([l.doencasPrevias,evolPorLeito?.[l.id]?.hda].filter(Boolean).join(" · "),180)}</div>}
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 8px"}}>
           <div>{linha("CONTROLES:","T ____ FC ____ PAM ____ FR ____ Sat ____")} {linha("BALANÇO:","DU ____ BH ____ Dextro ____")}</div>
           <div>{linha("GASO:","pH ____ pCO₂ ____ pO₂ ____ HCO₃ ____ Lact ____")}{linha("HEMO:","Hb ____ Leuco ____ Plaq ____ PCR ____")}</div>
@@ -8552,7 +8559,7 @@ export default function App() {
           {perfil==="coordenacao" ? (
             <CoordenacaoPanel uti={utiAtiva} hospital={hospitalAtivo} leitos={leitosDaUti} altaSheetUrl={config.altaSheetUrls?.[hospitalAtivo?.id]} onVoltar={()=>mudarPerfil("plantonista")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");mudarPerfil("plantonista");}}/>
           ) : viewGlobal==="coleta" ? (
-            <ColetaPlantaoPanel uti={utiAtiva} leitos={leitosDaUti} onAplicar={aplicarFolhaColeta}/>
+            <ColetaPlantaoPanel uti={utiAtiva} leitos={leitosDaUti} evolPorLeito={evolPorLeito} onAplicar={aplicarFolhaColeta}/>
           ) : viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : viewGlobal==="pesquisa" ? (
