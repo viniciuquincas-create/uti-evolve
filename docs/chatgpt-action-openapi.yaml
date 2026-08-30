@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: UTI Evolve Clinical Confirmation API
   version: 3.0.0
@@ -77,6 +77,12 @@ components:
         targetPatientName:
           type: string
           description: Nome atual do paciente impresso ou informado. Envie sempre em atualizações para diferenciar números de leito repetidos entre UTIs; não altera o cadastro.
+        targetUtiId:
+          type: string
+          description: Valor exato impresso após UTI-ID na folha de coleta.
+        targetBedId:
+          type: string
+          description: Valor exato impresso após LEITO-ID na folha. Envie sempre que estiver visível; é o identificador prioritário e elimina ambiguidades.
         tableDate: { type: string, description: Data dos dados em YYYY-MM-DD. }
         tableUpdates: { $ref: '#/components/schemas/TableUpdates' }
         bedUpdates: { $ref: '#/components/schemas/BedUpdates' }

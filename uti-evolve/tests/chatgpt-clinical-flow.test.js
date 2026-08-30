@@ -77,3 +77,13 @@ test("folha com vários pacientes gera uma prévia única e grava todos",()=>{
   assert.equal(result.updatedTables["g2-01"]["2026-08-30"].hb,"8,3");
   assert.equal(result.updatedTables["g2-02"]["2026-08-30"].lact,"2,1");
 });
+
+test("identificador impresso do leito elimina ambiguidade entre UTIs",()=>{
+  const repetidos=[
+    {id:"g1-01",utiId:"uti-g1",nome:"Leito 01",paciente:"Lineu Mattoso Junior",drogasVazao:{},dieta:{},dispositivos:{}},
+    {id:"g2-01",utiId:"uti-g2",nome:"Leito 01",paciente:"Lineu Matoso Junior",drogasVazao:{},dieta:{},dispositivos:{}},
+  ];
+  const parsed=parseClinicalRequest({transcript:"Folha HSP UTI G2",clinicalData:{bedNumber:1,targetPatientName:"Lineu Matoso Junior",targetUtiId:"uti-g2",targetBedId:"g2-01",evolutionUpdates:{nRASS:"0"}}});
+  const preview=buildPreview(repetidos,parsed,{});
+  assert.equal(preview.bedId,"g2-01");
+});
