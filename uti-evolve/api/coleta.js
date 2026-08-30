@@ -21,9 +21,10 @@ export default async function handler(req,res){
     const image=String(req.body?.imageBase64||""),mimeType=String(req.body?.mimeType||"image/jpeg");
     if(!image)return res.status(400).json({error:"Imagem não fornecida."});
     const key=process.env.GEMINI_API_KEY;if(!key)throw new Error("A análise de imagem não foi configurada no servidor.");
-    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:mimeType,data:image}}]}],generationConfig:{temperature:0,maxOutputTokens:5000,responseMimeType:"application/json"}})});
+    const model=process.env.GEMINI_COLETA_MODEL||"gemini-3.6-flash";
+    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${key}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({model,input:[{type:"text",text:prompt},{type:"image",data:image,mime_type:mimeType}],response_format:{type:"text",mime_type:"application/json"},generation_config:{max_output_tokens:5000},store:false})});
     const payload=await response.json();if(!response.ok||payload.error)throw new Error(payload.error?.message||"Não foi possível analisar a folha.");
-    const raw=payload.candidates?.[0]?.content?.parts?.[0]?.text||"";let parsed;
+    const raw=(payload.steps||[]).filter(s=>s?.type==="model_output").flatMap(s=>s.content||[]).filter(c=>c?.type==="text").map(c=>c.text||"").join("\n")||payload.output_text||"";let parsed;
     try{parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());}catch{throw new Error("A imagem foi lida, mas os dados não puderam ser estruturados. Tente uma foto mais nítida.");}
     return res.status(200).json({data:parsed.data||"",leitos:Array.isArray(parsed.leitos)?parsed.leitos:[]});
   }catch(error){return res.status(500).json({error:error?.message||"Falha ao analisar a folha de coleta."});}
