@@ -5622,6 +5622,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const dataEdicao = campos._datas?.[fieldName];
     return dataEdicao && dataEdicao < hoje;
   };
+  // Exames e controles são dados estritamente diários. Permanecem guardados na
+  // tabela/histórico, mas nunca "sobram" no beira-leito do dia seguinte.
+  const camposDiarios=new Set(["n24h","cv24h","re24h","reGaso","rm24h","rmLabs","tg24h","tgLabs","heLabs","heTemp"]);
+  const valorDiario=fieldName=>camposDiarios.has(fieldName)&&isAntigo(fieldName)?"":(campos[fieldName]||"");
   const salvar = onCampoEdit || (()=>{});
   const peso = parseFloat(leito.peso) || null;
   const pp   = pesoPredito(leito.altura, leito.sexo);
@@ -5850,7 +5854,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     return extraRefs.current[key];
   };
   const getExtra = (key) => extraRefs.current[key]?.current?.value?.trim() || campos[key] || "";
-  const get = k => refs[k]?.current?.value || campos[k] || "";
+  const get = k => camposDiarios.has(k)&&isAntigo(k)?"":(refs[k]?.current?.value || campos[k] || "");
   const customMap = campos._customFields || {};
   const customLines = id => (customMap[id]||[]).filter(f=>f.label&&String(f.value||"").trim()).map(f=>`- ${f.label}: ${String(f.value).trim()}`);
   const addCustomField = id => {
@@ -6247,7 +6251,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           </Col>
         </Row>
         </ClinicalGroup>
-        {(vis["n24h"]||campos.n24h)&&<ClinicalGroup label="CONTROLES DE 24H" color="#a78bfa"><Row><Col><TA fieldRef={refs.n24h} defaultValue={campos.n24h} isAntigo={isAntigo("n24h")} sugestao="PIC 8-15 mmHg / DVE 120 mL / PPC 56-89 mmHg" rows={1} fieldName="n24h" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
+        {(vis["n24h"]||valorDiario("n24h"))&&<ClinicalGroup label="CONTROLES DE 24H" color="#a78bfa"><Row><Col><TA fieldRef={refs.n24h} defaultValue={valorDiario("n24h")} sugestao="PIC 8-15 mmHg / DVE 120 mL / PPC 56-89 mmHg" rows={1} fieldName="n24h" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
           <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
@@ -6303,7 +6307,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </ClinicalGroup>
         <ClinicalGroup label="MONITORIZAÇÃO · 24H" color="#f87171">
         <Row>
-          <Col><FL>24h — FC · PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={campos.cv24h} isAntigo={isAntigo("cv24h")} rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — FC · PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={valorDiario("cv24h")} rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
         </Row>
         <Row>
         <Col><FL>Perfusão — TEC</FL>
@@ -6379,9 +6383,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#38bdf8">
         <Row>
           <Col><FL>EF — Ausculta</FL><TA fieldRef={refs.reEF} defaultValue={campos.reEF} isAntigo={isAntigo("reEF")} sugestao="MV + bilateralmente c/ roncos" rows={1} fieldName="reEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — FR / Sat (mín-máx)</FL><TA fieldRef={refs.re24h} defaultValue={campos.re24h} isAntigo={isAntigo("re24h")} sugestao="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — FR / Sat (mín-máx)</FL><TA fieldRef={refs.re24h} defaultValue={valorDiario("re24h")} sugestao="FR 41 - 20 / Sat 96 - 92" rows={1} fieldName="re24h" onBlurSave={salvar}/></Col>
         </Row>
-        <Row><Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={campos.reGaso||(()=>{
+        <Row><Col><FL>Gasometria</FL><TA fieldRef={refs.reGaso} defaultValue={valorDiario("reGaso")||(()=>{
             try {
               const raw=tabelaHoje?._gasos;
               const gasos=raw?(typeof raw==="string"?JSON.parse(raw):raw):[];
@@ -6393,7 +6397,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
                 return h+parts;
               }).join("\n");
             } catch { return ""; }
-          })()} isAntigo={isAntigo("reGaso")} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
+          })()} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
         {vis["rePocus"]&&<Row><Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} sugestao="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col></Row>}
         {vis["add_res_lus"]&&serialPanel("reLusSerial")}
@@ -6427,8 +6431,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             </Col></Row>
           );
         })()}
-        <Row><Col><FL>24h — HD · BH · Dextro</FL><TA fieldRef={refs.rm24h} defaultValue={campos.rm24h} isAntigo={isAntigo("rm24h")} sugestao="HD 3000 / BH +1084 > +1508 / Dextro 90–160" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
-        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={campos.rmLabs} isAntigo={isAntigo("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={1} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>24h — HD · BH · Dextro</FL><TA fieldRef={refs.rm24h} defaultValue={valorDiario("rm24h")} sugestao="HD 3000 / BH +1084 > +1508 / Dextro 90–160" rows={1} fieldName="rm24h" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs — Cr · Ur · K · Na · Cai · Mg · P</FL><TA fieldRef={refs.rmLabs} defaultValue={valorDiario("rmLabs")} sugestao="Cr 1,56 > 1,27 / Ur 66 > 47 / K 4,2 > 4,1 / Na 143 > 141" rows={1} fieldName="rmLabs" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
         {vis["rmTRS"]&&<ClinicalGroup label="TERAPIA RENAL SUBSTITUTIVA" color="#34d399"><Row><Col><FL>TSR (registro anterior)</FL><TA fieldRef={refs.rmTRS} defaultValue={campos.rmTRS} isAntigo={isAntigo("rmTRS")} rows={1} fieldName="rmTRS" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
         {vis["add_reme_trs"]&&serialPanel("rmTrsSerial")}
@@ -6460,9 +6464,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         </Row>
 <Row>
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
-          <Col><FL>24h — Evacuação · Drenos digestivos</FL><TA fieldRef={refs.tg24h} defaultValue={campos.tg24h} isAntigo={isAntigo("tg24h")} sugestao="Evacuações 2x / dreno abdominal 120 mL" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
+          <Col><FL>24h — Evacuação · Drenos digestivos</FL><TA fieldRef={refs.tg24h} defaultValue={valorDiario("tg24h")} sugestao="Evacuações 2x / dreno abdominal 120 mL" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
         </Row>
-        {(vis["tgLabs"]||campos.tgLabs)&&<Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={campos.tgLabs} isAntigo={isAntigo("tgLabs")} sugestao="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>}
+        {(vis["tgLabs"]||valorDiario("tgLabs"))&&<Row><Col><FL>Labs — TGO · TGP · Bili · FA · GGT · Alb</FL><TA fieldRef={refs.tgLabs} defaultValue={valorDiario("tgLabs")} sugestao="TGO 45 / TGP 32 / BT 1.2 / Alb 2.8" rows={1} fieldName="tgLabs" onBlurSave={salvar}/></Col></Row>}
         </div>
         </ClinicalGroup>
         {vis["add_tgi_interconsulta"]&&eventPanel("tgi","interconsulta","#fb923c")}
@@ -6475,9 +6479,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
-        statusFields={[{label:"Labs hematológicos",value:campos.heLabs},{label:"Profilaxia TEV",value:campos.heProf}]} {...customProps("he")}>
+        statusFields={[{label:"Labs hematológicos",value:valorDiario("heLabs")},{label:"Profilaxia TEV",value:campos.heProf}]} {...customProps("he")}>
         <ClinicalGroup label="AVALIAÇÃO E MONITORIZAÇÃO" color="#f59e0b">
-        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={campos.heLabs} isAntigo={isAntigo("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={1} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Labs — Hb · Leuco · Bastões · Plaq</FL><TA fieldRef={refs.heLabs} defaultValue={valorDiario("heLabs")} sugestao="7,6 > 7,5 / Leuco 21k > 14k / Bastões 5% > 4% / Plaq 191k > 251k" rows={1} fieldName="heLabs" onBlurSave={salvar}/></Col></Row>
         </ClinicalGroup>
         <ClinicalGroup label="PROFILAXIA TEV" color="#f59e0b"><Row><Col><PickField label="Modalidade" options={["Sem profilaxia TEV","HNF","Enoxaparina 40mg","Enoxaparina 20mg"]} value={campos.heProf||""} onChange={v=>onCampoEdit("heProf",v)} rows={1} placeholder="Digite outra modalidade..."/></Col></Row></ClinicalGroup>
         {vis["add_he_interconsulta"]&&eventPanel("he","interconsulta","#f59e0b")}
@@ -6493,7 +6497,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[{key:"inProf",label:"Profilaxias"},{key:"inObs",label:"Obs"}]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."}]}
-        statusFields={[{label:"Temperatura",value:campos.heTemp},{label:"Antibióticos/Culturas",value:((leito.antibioticos||[]).length>0||(leito.culturas||[]).length>0)?"1":""}]} {...customProps("in")}>
+        statusFields={[{label:"Temperatura",value:valorDiario("heTemp")},{label:"Antibióticos/Culturas",value:((leito.antibioticos||[]).length>0||(leito.culturas||[]).length>0)?"1":""}]} {...customProps("in")}>
 
         <ClinicalGroup label="ANTIMICROBIANOS E TRATAMENTO" color="#94a3b8">
         {vis["inProf"]&&<Row><Col><FL>Profilaxias / Outros medicamentos</FL><TA fieldRef={refs.heMed} defaultValue={campos.heMed} isAntigo={isAntigo("heMed")} sugestao="Bactrim + Ác fólico / Eritropoietina 4000 UI 48/48h" rows={2} fieldName="heMed" onBlurSave={salvar}/></Col></Row>}
@@ -6540,7 +6544,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         )}
         </ClinicalGroup>
         <ClinicalGroup label="MICROBIOLOGIA E VIGILÂNCIA" color="#94a3b8">
-        <Row><Col><FL>Temperatura nas últimas 24h — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={campos.heTemp} isAntigo={isAntigo("heTemp")} rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col></Row>
+        <Row><Col><FL>Temperatura nas últimas 24h — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={valorDiario("heTemp")} rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col></Row>
         <Row><Col>
           <FL>🧫 Culturas</FL>
           {(leito.culturas||[]).length>0 ? (
