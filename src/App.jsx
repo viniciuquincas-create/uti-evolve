@@ -6,7 +6,7 @@ import { supabase } from './supabase.js';
 // UTI Evolve — build 2026-06-04T20:46:10 2026-05-28T18:31:01 //2026-05-28T18:12:42
 
 // ── Logo SVG — Cérebro com sensor Brain for Care ──────────────────────────────
-const BrainLogo = ({ size = 32 }) => (
+const LegacyBrainLogo = ({ size = 32 }) => (
   <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
     {/* glow aura */}
     <ellipse cx="50" cy="50" rx="28" ry="26" fill="#0ea5e9" opacity="0.05"/>
@@ -45,6 +45,18 @@ const BrainLogo = ({ size = 32 }) => (
     {/* conector */}
     <rect x="82" y="8" width="6" height="4" rx="1.5" fill="#0ea5e9" opacity="0.75"/>
   </svg>
+);
+
+// Identidade atual — o SVG anterior permanece preservado acima para eventual restauração.
+const BrainLogo = ({ size = 32 }) => (
+  <img
+    src="/icons/uti-evolve-brain-monitor-192.png"
+    alt=""
+    aria-hidden="true"
+    width={size}
+    height={size}
+    style={{display:"block",width:size,height:size,objectFit:"contain",borderRadius:"50%"}}
+  />
 );
 
 const SISTEMAS = [
@@ -7093,47 +7105,47 @@ function LoginScreen({ onLogin }) {
   };
 
   if (mode === null) return (
-    <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"#edf4fb",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
       <div style={{color:"#38bdf8"}}>Carregando…</div>
     </div>
   );
 
   return (
-    <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora','DM Sans',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}input{outline:none;color-scheme:dark}`}</style>
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#f8fbff 0%,#edf4fb 100%)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora','DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}input{outline:none;color-scheme:light}`}</style>
       <div style={{width:"100%",maxWidth:380,padding:32}}>
         <div style={{textAlign:"center",marginBottom:36}}>
-          <div style={{display:"flex",justifyContent:"center",margin:"0 auto 16px"}}><BrainLogo size={72}/></div>
-          <div style={{fontSize:22,fontWeight:700,color:"#e2e8f0",letterSpacing:0.3}}>UTI Evolve</div>
-          <div style={{fontSize:11,color:"#475569",fontFamily:"'DM Mono',monospace",letterSpacing:2,marginTop:4}}>ASSISTENTE DE EVOLUÇÃO</div>
+          <div style={{display:"flex",justifyContent:"center",margin:"0 auto 16px"}}><BrainLogo size={84}/></div>
+          <div style={{fontSize:22,fontWeight:700,color:"#0f172a",letterSpacing:0.3}}>UTI Evolve</div>
+          <div style={{fontSize:11,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:2,marginTop:4}}>ASSISTENTE DE EVOLUÇÃO</div>
         </div>
-        <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:28}}>
-          <div style={{fontSize:14,fontWeight:600,color:"#cbd5e1",marginBottom:20,textAlign:"center"}}>
+        <div style={{background:"#ffffff",border:"1px solid #cbd5e1",borderRadius:18,padding:28,boxShadow:"0 18px 50px rgba(15,23,42,.10)"}}>
+          <div style={{fontSize:14,fontWeight:600,color:"#334155",marginBottom:20,textAlign:"center"}}>
             {mode==="setup" ? "🔐 Criar senha de acesso" : "🔒 Acesso restrito"}
           </div>
           <div style={{marginBottom:14}}>
-            <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:5}}>SENHA</div>
+            <div style={{fontSize:10,color:"#475569",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:5}}>SENHA</div>
             <input type="password" value={senha} onChange={e=>setSenha(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&(mode==="setup"?handleSetup():handleLogin())}
               placeholder="••••••••" autoFocus
-              style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 14px",color:"#e2e8f0",fontSize:14,fontFamily:"inherit"}}/>
+              style={{width:"100%",background:"#f8fafc",border:"1px solid #94a3b8",borderRadius:9,padding:"10px 14px",color:"#0f172a",fontSize:14,fontFamily:"inherit"}}/>
           </div>
           {mode==="setup" && (
             <div style={{marginBottom:14}}>
-              <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:5}}>CONFIRMAR SENHA</div>
+              <div style={{fontSize:10,color:"#475569",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:5}}>CONFIRMAR SENHA</div>
               <input type="password" value={confirma} onChange={e=>setConfirma(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&handleSetup()} placeholder="••••••••"
-                style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 14px",color:"#e2e8f0",fontSize:14,fontFamily:"inherit"}}/>
+                style={{width:"100%",background:"#f8fafc",border:"1px solid #94a3b8",borderRadius:9,padding:"10px 14px",color:"#0f172a",fontSize:14,fontFamily:"inherit"}}/>
             </div>
           )}
-          {erro && <div style={{padding:"8px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.25)",borderRadius:8,fontSize:12,color:"#f87171",marginBottom:14}}>{erro}</div>}
+          {erro && <div style={{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#b91c1c",marginBottom:14}}>{erro}</div>}
           <button onClick={mode==="setup"?handleSetup:handleLogin} disabled={loading||!senha}
-            style={{width:"100%",padding:"11px",background:loading||!senha?"rgba(56,189,248,0.1)":"linear-gradient(135deg,#0ea5e9,#0284c7)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:8,color:loading||!senha?"#475569":"white",fontWeight:700,fontSize:14,cursor:loading||!senha?"not-allowed":"pointer",fontFamily:"inherit"}}>
+            style={{width:"100%",padding:"11px",background:loading||!senha?"#e2e8f0":"linear-gradient(135deg,#0ea5e9,#0284c7)",border:"1px solid #7dd3fc",borderRadius:9,color:loading||!senha?"#64748b":"white",fontWeight:700,fontSize:14,cursor:loading||!senha?"not-allowed":"pointer",fontFamily:"inherit"}}>
             {loading?"Verificando…":mode==="setup"?"Criar senha e entrar":"Entrar"}
           </button>
         </div>
-        {mode==="setup"&&<div style={{marginTop:16,padding:"10px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,fontSize:12,color:"#fcd34d",lineHeight:1.6}}>
+        {mode==="setup"&&<div style={{marginTop:16,padding:"10px 14px",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,fontSize:12,color:"#92400e",lineHeight:1.6}}>
           🔐 A senha é salva de forma criptografada no banco de dados. Funciona em qualquer dispositivo.
         </div>}
       </div>
