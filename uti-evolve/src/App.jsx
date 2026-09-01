@@ -7918,7 +7918,7 @@ export default function App() {
   const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("uti_sidebar_collapsed") === "1");
   const [viewGlobal, setViewGlobal]   = useState("leitos");
-  const [theme, setTheme] = useState(() => localStorage.getItem("uti_theme") || "dark");
+  const [theme, setTheme] = useState(() => localStorage.getItem("uti_theme") || "light");
   const T = theme === "light" ? LIGHT : DARK;
   const toggleTheme = () => setTheme(t => { const next = t==="dark"?"light":"dark"; localStorage.setItem("uti_theme",next); return next; });
   const saveTimer   = useRef(null);
