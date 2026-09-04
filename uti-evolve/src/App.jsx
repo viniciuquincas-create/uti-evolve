@@ -50,7 +50,7 @@ const LegacyBrainLogo = ({ size = 32 }) => (
 // Identidade atual — o SVG anterior permanece preservado acima para eventual restauração.
 const BrainLogo = ({ size = 32 }) => (
   <img
-    src="/icons/uti-evolve-brain-monitor-192.png"
+    src="/icons/uti-evolve-command-center-192.png"
     alt=""
     aria-hidden="true"
     width={size}
