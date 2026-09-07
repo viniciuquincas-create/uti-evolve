@@ -6925,6 +6925,32 @@ const G1_LAYOUT={
   "603":{gridColumn:"1 / 2",gridRow:"6"},"602":{gridColumn:"2 / 3",gridRow:"6"},
   "601":{gridColumn:"3 / 4",gridRow:"6"},
 };
+// UTI G3 — disposição física conforme o croqui: 01–03 na parede superior,
+// 04–06 descendo pela direita e 07–09 retornando pela parede inferior.
+const G3_LAYOUT={
+  "1":{gridColumn:"2 / 3",gridRow:"1"},
+  "2":{gridColumn:"3 / 4",gridRow:"1"},
+  "3":{gridColumn:"4 / 5",gridRow:"1"},
+  "4":{gridColumn:"4 / 5",gridRow:"2"},
+  "5":{gridColumn:"4 / 5",gridRow:"3"},
+  "6":{gridColumn:"4 / 5",gridRow:"4"},
+  "7":{gridColumn:"3 / 4",gridRow:"4"},
+  "8":{gridColumn:"2 / 3",gridRow:"4"},
+  "9":{gridColumn:"1 / 2",gridRow:"4"},
+};
+// UTI G2 — formato em U aberto para a direita: 01–04 na parede inferior,
+// 05–07 subindo pela esquerda e 08–09 na parede superior.
+const G2_LAYOUT={
+  "1":{gridColumn:"4 / 5",gridRow:"4"},
+  "2":{gridColumn:"3 / 4",gridRow:"4"},
+  "3":{gridColumn:"2 / 3",gridRow:"4"},
+  "4":{gridColumn:"1 / 2",gridRow:"4"},
+  "5":{gridColumn:"1 / 2",gridRow:"3"},
+  "6":{gridColumn:"1 / 2",gridRow:"2"},
+  "7":{gridColumn:"1 / 2",gridRow:"1"},
+  "8":{gridColumn:"2 / 3",gridRow:"1"},
+  "9":{gridColumn:"3 / 4",gridRow:"1"},
+};
 const HSP_PLANILHA_ALTAS="https://docs.google.com/spreadsheets/d/1A5H88kbX7J5x3AekIK6J4aqaoQh61EOe9i4_na45sj0/edit?gid=0#gid=0";
 const normalizarNomeAlta=valor=>String(valor||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\b(?:DESC|DESCONHECIDO)\.?\s*/gi,"").replace(/[^A-Z0-9 ]/gi," ").replace(/\s+/g," ").trim().toUpperCase();
 const encontrarAltaDoPaciente=(paciente,altas,leitos)=>{
@@ -7031,7 +7057,11 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
 
 function CoordenacaoPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl}){
   const T=useTheme();
-  const ehG1=/\bG1\b/i.test(uti?.nome||"");
+  const ehHsp=hospital?.id===HSP_HOSPITAL_ID||/hospital s[aã]o paulo|\bhsp\b/i.test(`${hospital?.nome||""} ${hospital?.sigla||""}`);
+  const ehG1=ehHsp&&/\bG1\b/i.test(uti?.nome||"");
+  const ehG2=ehHsp&&/\bG2\b/i.test(uti?.nome||"");
+  const ehG3=ehHsp&&/\bG3\b/i.test(uti?.nome||"");
+  const temMapaFisico=ehG1||ehG2||ehG3;
   const [altas,setAltas]=useState([]),[altaLoading,setAltaLoading]=useState(false),[altaErro,setAltaErro]=useState(""),[altaAtualizada,setAltaAtualizada]=useState("");
   const urlAltas=altaSheetUrl||(hospital?.id==="hsp"?HSP_PLANILHA_ALTAS:"");
   const atualizarAltas=async(silencioso=false)=>{if(!urlAltas)return;if(!silencioso)setAltaLoading(true);try{const response=await fetch("/api/altas",{method:"POST",headers:{"content-type":"application/json","x-uti-session":sessionStorage.getItem(SESSION_KEY)||""},body:JSON.stringify({url:urlAltas})});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Não foi possível ler a planilha de altas.");setAltas(payload.registros||[]);setAltaErro("");setAltaAtualizada(new Date().toISOString());}catch(error){setAltaErro(error.message||"Falha ao atualizar altas.");}finally{setAltaLoading(false);}};
@@ -7049,13 +7079,15 @@ function CoordenacaoPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUr
     </div>
     {altaErro&&<div style={{marginBottom:12,padding:"8px 10px",borderRadius:8,border:"1px solid rgba(248,113,113,.35)",background:"rgba(248,113,113,.08)",color:"#f87171",fontSize:10}}>Planilha de altas: {altaErro}</div>}
     {urlAltas&&!altaErro&&altaAtualizada&&<div style={{margin:"-10px 0 10px",fontSize:9,color:T.text4,textAlign:"right"}}>Altas verificadas às {new Date(altaAtualizada).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})} · atualização automática a cada 5 min</div>}
-    <div style={ehG1?{display:"grid",gridTemplateColumns:"repeat(9,minmax(0,1fr))",gridTemplateRows:"repeat(6,minmax(58px,1fr))",gap:8,width:"100%",height:"calc(100vh - 150px)",minHeight:430,padding:12,boxSizing:"border-box",border:`1px solid ${T.border}`,borderRadius:16,background:T.bgCard,boxShadow:T.shadowCard}:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):{},alta=encontrarAltaDoPaciente(l.paciente,altas,leitos);return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:58,padding:"8px",borderRadius:11,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:alta?.leitoCedido?"0 0 0 3px rgba(16,185,129,.25), 0 5px 14px rgba(15,23,42,.10)":"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}${alta?` · Alta: ${alta.leitoCedido?`leito cedido ${alta.leitoCedido}`:"aguardando leito"}`:""}`}>
+    <div style={temMapaFisico?{display:"grid",gridTemplateColumns:ehG1?"repeat(9,minmax(0,1fr))":"repeat(4,minmax(110px,1fr))",gridTemplateRows:ehG1?"repeat(6,minmax(58px,1fr))":"repeat(4,minmax(76px,1fr))",gap:8,width:"100%",height:"calc(100vh - 150px)",minHeight:430,padding:12,boxSizing:"border-box",border:`1px solid ${T.border}`,borderRadius:16,background:T.bgCard,boxShadow:T.shadowCard}:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
+      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):ehG2?(G2_LAYOUT[String(Number(n))]||{}):ehG3?(G3_LAYOUT[String(Number(n))]||{}):{},alta=encontrarAltaDoPaciente(l.paciente,altas,leitos);return <button key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:58,padding:"8px",borderRadius:11,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||T.bgInput,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:alta?.leitoCedido?"0 0 0 3px rgba(16,185,129,.25), 0 5px 14px rgba(15,23,42,.10)":"0 5px 14px rgba(15,23,42,.10)",overflow:"hidden"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}${alta?` · Alta: ${alta.leitoCedido?`leito cedido ${alta.leitoCedido}`:"aguardando leito"}`:""}`}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}><b style={{fontFamily:mono,fontSize:13,color:p?.cor||T.accent}}>{n||l.nome}</b>{p&&<span style={{width:9,height:9,borderRadius:"50%",background:p.cor,flex:"0 0 auto"}}/>}</div>
         <div style={{marginTop:5,fontSize:10,fontWeight:l.paciente?750:500,fontStyle:l.paciente?"normal":"italic",color:l.paciente?T.text1:T.text3,lineHeight:1.35,overflowWrap:"anywhere"}}>{l.paciente||"Vago"}</div>
         {alta&&<div style={{marginTop:4,padding:"3px 5px",borderRadius:6,background:alta.leitoCedido?"rgba(16,185,129,.15)":"rgba(245,158,11,.13)",border:`1px solid ${alta.leitoCedido?"rgba(16,185,129,.4)":"rgba(245,158,11,.35)"}`,color:alta.leitoCedido?"#059669":"#d97706",fontSize:8.5,fontWeight:850,lineHeight:1.25}}>{alta.leitoCedido?`✓ SAÍDA · leito cedido ${alta.leitoCedido}`:"◷ ALTA · aguardando leito"}</div>}
       </button>})}
       {ehG1&&<div style={{gridColumn:"4 / 7",gridRow:"3 / 5",display:"flex",alignItems:"center",justifyContent:"center",border:`1px dashed ${T.border}`,borderRadius:18,color:T.textDim,fontFamily:mono,fontSize:11,letterSpacing:2}}>ÁREA CENTRAL</div>}
+      {ehG2&&<><div style={{gridColumn:"2 / 4",gridRow:"2 / 4",display:"flex",alignItems:"center",justifyContent:"center",border:`1px dashed ${T.border}`,borderRadius:18,color:T.textDim,fontFamily:mono,fontSize:11,letterSpacing:2}}>ÁREA CENTRAL</div><div style={{gridColumn:"4 / 5",gridRow:"2 / 4",display:"flex",alignItems:"center",justifyContent:"center",color:T.textDim,fontFamily:mono,fontSize:10,letterSpacing:1.5}}>← ENTRADA</div></>}
+      {ehG3&&<><div style={{gridColumn:"1 / 2",gridRow:"2 / 4",display:"flex",alignItems:"center",justifyContent:"center",color:T.textDim,fontFamily:mono,fontSize:10,letterSpacing:1.5}}>ENTRADA →</div><div style={{gridColumn:"2 / 4",gridRow:"2 / 4",display:"flex",alignItems:"center",justifyContent:"center",border:`1px dashed ${T.border}`,borderRadius:18,color:T.textDim,fontFamily:mono,fontSize:11,letterSpacing:2}}>ÁREA CENTRAL</div></>}
     </div>
   </div>;
 }
