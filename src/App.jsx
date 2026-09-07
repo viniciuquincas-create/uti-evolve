@@ -4680,10 +4680,15 @@ const evolucaoInicialSbari = p => ({...EVOLUCAO_VAZIA,
 
 const mergeSbariSemSobrescrever=(base={},incoming={})=>Object.fromEntries([...new Set([...Object.keys(base||{}),...Object.keys(incoming||{})])].map(k=>[k,(base?.[k]!==undefined&&base?.[k]!==null&&String(base[k]).trim()!=="")?base[k]:incoming?.[k]]));
 const mergeListaSbari=(base=[],incoming=[],chave="nome")=>[...(base||[]),...(incoming||[]).filter(n=>!(base||[]).some(b=>normalizarNomeSbari(b?.[chave]||b)===normalizarNomeSbari(n?.[chave]||n)))];
+const sbariEhPosOperatorio=valor=>/^\s*[-–—]?\s*(?:POI|PO)\b/i.test(String(valor||""));
+const sbariEhHistoricoOncologico=valor=>{const texto=String(valor||"");return /\b(?:ca\.?\s|c[aâ]ncer|carcinoma|neoplas|tumor|met[aá]sta|linfoma|leucemia|sarcoma|radioterapia|quimioterapia|\bRT\b|\bQT\b)\b/i.test(texto)&&(/^\s*[-–—]?\s*Ca\b/i.test(texto)||/\bpr[eé]vi[oa]s?\b|\bRT\b|\bQT\b/i.test(texto));};
 const enriquecerLeitoComSbari=(base,p,stamp="")=>{
   const c=p?.clinical||{};
-  const diagnosticos=mergeListaSbari(base.diagnosticos||[],p.diagnosticos||[]);
-  const procedimentos=mergeListaSbari(base.procedimentos||[],(p.procedimentos||[]).map((x,i)=>({...x,id:x.id||`sbari-proc-${stamp}-${i}`,fonte:"sbari"})));
+  const procedimentosLegados=(base.procedimentos||[]).filter(x=>x?.fonte==="sbari"&&sbariEhHistoricoOncologico(x.nome));
+  const diagnosticosBase=(base.diagnosticos||[]).filter(x=>!sbariEhPosOperatorio(x));
+  const diagnosticos=mergeListaSbari(diagnosticosBase,[...procedimentosLegados.map(x=>x.nome),...(p.diagnosticos||[]).filter(x=>!sbariEhPosOperatorio(x))]);
+  const procedimentosEntrada=(p.procedimentos||[]).filter(x=>!sbariEhHistoricoOncologico(x.nome)).map((x,i)=>({...x,id:x.id||`sbari-proc-${stamp}-${i}`,fonte:"sbari"}));
+  const procedimentos=mergeListaSbari((base.procedimentos||[]).filter(x=>!procedimentosLegados.includes(x)),procedimentosEntrada);
   const antibioticos=mergeListaSbari(base.antibioticos||[],(c.antibiotics||[]).map((x,i)=>({id:`sbari-atb-${stamp}-${i}`,nome:x.nome,dataInicio:x.dataInicio||"",dataFim:x.dataFim||"",via:"",dose:"",fonte:"sbari"})));
   return {...base,diagnosticos,diagnostico:diagnosticos.join(" · "),procedimentos,antibioticos,equipeAssistente:base.equipeAssistente||p.equipe||"",equipe:base.equipe||p.equipe||"",drogasVazao:mergeSbariSemSobrescrever(base.drogasVazao,c.pumps),...mergeSbariSemSobrescrever(Object.fromEntries(Object.entries(base).filter(([k])=>k.startsWith("vm_"))),c.ventilation),sbariNoradrenalinaConcentrada:base.sbariNoradrenalinaConcentrada||c.concentratedNoradrenaline||false};
 };

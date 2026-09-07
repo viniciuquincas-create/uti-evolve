@@ -16,6 +16,7 @@ function section(text, start, ends) {
 }
 
 const procedureWords=/\b(?:procedimento|cirurgia|laparotomia|relaparotomia|craniotomia|transplante|traqueostomia|toracotomia|drenagem|amputa[cç][aã]o|fasciotomia|embolectomia|bypass|revasculariza[cç][aã]o|angioplastia|cateterismo|endoscopia|broncoscopia|artrodese|fixa[cç][aã]o|implante|retirada|troca\s+valvar)\b|\b\w+(?:ectomia|plastia|tomia)\b/i;
+const oncologicHistory=/\b(?:ca\.?\s|c[aâ]ncer|carcinoma|neoplas|tumor|met[aá]sta|linfoma|leucemia|sarcoma|radioterapia|quimioterapia|\bRT\b|\bQT\b)\b/i;
 function clinicalLines(value){return clean(value).split(/\n|\s*[•▪●]\s*|\s+[-–—]\s+(?=[A-ZÀ-Ý])/).map(x=>clean(x.replace(/^[-–—*]+\s*/,""))).filter(Boolean);}
 function extractProcedures(...sources){
   const out=[];
@@ -23,6 +24,10 @@ function extractProcedures(...sources){
     const po=line.match(/\b(POI|PO)\b\s*(?:\(\s*(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*\)|(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)|(\d+))?\s*[:\-–—]?\s*(.*)/i);
     const explicitly=/^\s*(?:procedimentos?|cirurgias?)\s*:/i.test(line);
     if(!po&&!explicitly&&!procedureWords.test(line))continue;
+    // Linhas compostas de antecedente oncológico podem mencionar uma cirurgia
+    // prévia (ex.: "Ca renal ... / nefrectomia prévia / RT e QT prévias").
+    // Nesse contexto o conjunto é diagnóstico/história, não um procedimento novo.
+    if(!po&&!explicitly&&oncologicHistory.test(line)&&/\bpr[eé]vi[oa]s?\b/i.test(line))continue;
     let nome=clean(po?.[5]||line.replace(/^\s*(?:procedimentos?|cirurgias?)\s*:\s*/i,""));
     nome=clean(nome.replace(/^\d+\s*(?:d|dias?)?\s*[:\-–—]?\s*/i,""));
     if(!nome||!/[A-Za-zÀ-ÿ]/.test(nome))continue;
@@ -93,7 +98,12 @@ export function parseSbari(textRaw) {
     const background=section(body, "B", ["A", "ATB", "R", "I"]);
     const procedimentos=extractProcedures(situacao,background);
     const linhasProcedimento=new Set(procedimentos.map(p=>p.nome.toLowerCase()));
-    const diagnosticos=clinicalLines(situacao).filter(x=>!linhasProcedimento.has(x.replace(/\b(?:POI|PO)\s*\d*\s*[:\-–—]?\s*/i,"").trim().toLowerCase())&&!/^\s*(?:POI|PO)\b/i.test(x)&&!procedureWords.test(x));
+    const semProcedimentos=valor=>clinicalLines(valor).filter(x=>{
+      const semPo=x.replace(/^\s*(?:POI|PO)\b\s*(?:\(\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s*\)|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d+)?\s*[:\-–—]?\s*/i,"").trim().toLowerCase();
+      return !/^\s*(?:POI|PO)\b/i.test(x)&&!linhasProcedimento.has(semPo)&&!procedureWords.test(x);
+    });
+    const diagnosticos=[...semProcedimentos(situacao),...clinicalLines(background).filter(x=>oncologicHistory.test(x))]
+      .filter((x,i,a)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i);
     const antibioticos=section(body, "ATB", ["Prévio", "R", "I"]),recomendacoes=section(plano, "R", ["I"]),instrucoes=section(plano, "I", []);
     return {
       leito:`Leito ${numero.padStart(2,"0")}`,

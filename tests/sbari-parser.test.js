@@ -131,3 +131,15 @@ R:
   assert.equal(p.clinical.antibiotics[0].nome,"Cefuroxima");
   assert.match(p.clinical.impression,/Vigiar perfusão/);
 });
+
+test("separa pós-operatório de diagnóstico oncológico com cirurgia prévia",()=>{
+  const [p]=parseSbari(`Leito 03: Teresinha de Sousa Ferreira, 58 anos
+Equipe: Ortopedia
+S:
+- PO (29/08) artrodese de coluna lombar por metástases ósseas + sd compressão medular com perda sensitivo-motora
+B:
+- Ca renal céls. claras com meta hepática + metástases ósseas / Nefrectomia parcial prévia / RT e QT prévias /`);
+  assert.deepEqual(p.procedimentos.map(x=>x.nome),["artrodese de coluna lombar por metástases ósseas + sd compressão medular com perda sensitivo-motora"]);
+  assert.equal(p.procedimentos[0].data,`${new Date().getFullYear()}-08-29`);
+  assert.deepEqual(p.diagnosticos,["Ca renal céls. claras com meta hepática + metástases ósseas / Nefrectomia parcial prévia / RT e QT prévias /"]);
+});
