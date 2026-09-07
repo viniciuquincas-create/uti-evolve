@@ -8099,10 +8099,12 @@ export default function App() {
   // ── Favicon + título ──────────────────────────────────────────────────────────
   useEffect(()=>{
     document.title = "UTI Evolve";
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none'><rect width='100' height='100' rx='20' fill='%230d1117'/><path d='M50 22 Q68 18 76 32 Q84 46 80 60 Q76 72 62 76 Q56 78 50 77 Q44 78 38 76 Q24 72 20 60 Q16 46 24 32 Q32 18 50 22Z' fill='none' stroke='%237dd3fc' stroke-width='5' stroke-linecap='round'/><path d='M50 22 Q51 40 50 77' fill='none' stroke='%230ea5e9' stroke-width='2' stroke-dasharray='5 6' opacity='0.45'/><path d='M57 26 Q60 38 58 52' fill='none' stroke='%2393c5fd' stroke-width='3' stroke-linecap='round' opacity='0.6'/><path d='M43 26 Q40 38 42 52' fill='none' stroke='%2393c5fd' stroke-width='3' stroke-linecap='round' opacity='0.6'/><path d='M60 52 Q70 50 76 55' fill='none' stroke='%237dd3fc' stroke-width='3' stroke-linecap='round' opacity='0.65'/><path d='M40 52 Q30 50 24 55' fill='none' stroke='%237dd3fc' stroke-width='3' stroke-linecap='round' opacity='0.65'/><path d='M45 77 Q45 85 50 87 Q55 85 55 77' fill='none' stroke='%237dd3fc' stroke-width='3.5' stroke-linecap='round' opacity='0.65'/><path d='M28 21 Q50 13 72 21' fill='none' stroke='%2338bdf8' stroke-width='4.5' stroke-linecap='round'/><rect x='40' y='6' width='20' height='9' rx='4' fill='%230ea5e9' opacity='0.9'/><path d='M72 21 Q80 17 85 12' fill='none' stroke='%230ea5e9' stroke-width='3' stroke-linecap='round' opacity='0.8'/><rect x='83' y='8' width='8' height='5' rx='2' fill='%230ea5e9' opacity='0.8'/></svg>`;
-    let link = document.querySelector("link[rel~='icon']");
-    if (!link) { link = document.createElement('link'); link.rel = 'icon'; link.type = 'image/svg+xml'; document.head.appendChild(link); }
-    link.href = `data:image/svg+xml,${svg}`;
+    // O HTML já declara os PNGs atuais. Não substituir por SVG inline aqui:
+    // esse código antigo fazia a aba voltar ao símbolo anterior após o React montar.
+    const href="/icons/uti-evolve-command-center-32.png?v=ue-command-20260906-2";
+    document.querySelectorAll("link[rel~='icon']").forEach(link=>{
+      link.href=href;link.type="image/png";link.sizes="32x32";
+    });
   },[]);
 
   const onLogin = async () => { await loadData(); setAuthed(true); };
