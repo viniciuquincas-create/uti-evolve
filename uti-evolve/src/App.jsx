@@ -823,11 +823,28 @@ const DIETAS_DEFAULT = [
     kcalML:1.05, ptnML:0.072, choML:0.100, lipML:0.040 },
 ];
 
-function getDietasCatalogo(config) {
-  const custom = config?.dietasCatalogo || [];
+const HSP_HOSPITAL_ID = "hsp";
+const LAMG_DEFAULT_HSP = ["Sem profilaxia","Omeprazol 40mg EV 1x/d","Esomeprazol 40mg SNE 1x/d","Omeprazol 80mg EV 1x/d","Pantoprazol 40mg EV 1x/d"];
+const CUIDADOS_VM_DEFAULT_HSP = {corneaLabel:"Úlcera de córnea",corneaProduto:"Dextrano",higieneLabel:"Higiene oral",higieneProduto:"Clorexidina"};
+
+function getHospitalConfig(config={}, hospitalId) {
+  const id=hospitalId||config.__hospitalId||HSP_HOSPITAL_ID;
+  const scoped=config.hospitalConfigs?.[id]||{};
+  return {
+    hospitalId:id,
+    incluirDietasHsp:id===HSP_HOSPITAL_ID||scoped.incluirDietasHsp===true,
+    dietasCatalogo:Array.isArray(scoped.dietasCatalogo)?scoped.dietasCatalogo:(id===HSP_HOSPITAL_ID?(config.dietasCatalogo||[]):[]),
+    lamgOpcoes:Array.isArray(scoped.lamgOpcoes)?scoped.lamgOpcoes:(id===HSP_HOSPITAL_ID?LAMG_DEFAULT_HSP:[]),
+    cuidadosVm:{...(id===HSP_HOSPITAL_ID?CUIDADOS_VM_DEFAULT_HSP:{}),...(scoped.cuidadosVm||{})},
+  };
+}
+
+function getDietasCatalogo(config, hospitalId) {
+  const hospital=getHospitalConfig(config,hospitalId);
+  const custom = hospital.dietasCatalogo;
   // Merge: custom pode sobrescrever ou adicionar
   const ids = new Set(custom.map(d=>d.id));
-  return [...DIETAS_DEFAULT.filter(d=>!ids.has(d.id)), ...custom];
+  return [...(hospital.incluirDietasHsp?DIETAS_DEFAULT.filter(d=>!ids.has(d.id)):[]), ...custom];
 }
 
 // ── Utilitários de nutrição ────────────────────────────────────────────────────
@@ -1801,7 +1818,7 @@ const VM_SNAPSHOT_KEYS=["vm_modo","vm_sato2","vm_pf","vm_o2","vm_flow","vm_fio2"
 const snapshotVM=(leito)=>Object.fromEntries(VM_SNAPSHOT_KEYS.filter(k=>leito[k]!==undefined&&leito[k]!=="").map(k=>[k,leito[k]]));
 const resumoSnapshotVM=(snap={})=>snap.vm_modo?gerarTextoVM({...snap}).split("\n")[0]:"Suporte não definido";
 
-function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}, glasgowNeurologico="" }) {
+function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}, glasgowNeurologico="", config={} }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const [busca, setBusca] = useState("");
@@ -1938,8 +1955,8 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
       {VM_INVASIVA_MODOS.includes(leito.vm_modo)&&<div style={{margin:"-2px 0 12px",padding:"8px 11px",border:`1px solid ${T.border}`,borderRadius:9,background:T.bgInput}}>
         <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.2,fontWeight:700,marginBottom:6}}>CUIDADOS EM VENTILAÇÃO MECÂNICA</div>
         <div style={{display:"flex",alignItems:"center",gap:"7px 16px",flexWrap:"wrap",fontSize:11,color:T.text2}}>
-          <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_cuidado_cornea} onChange={e=>set("vm_cuidado_cornea",e.target.checked)}/><span>Úlcera de córnea: <b>Dextrano</b></span></label>
-          <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_higiene_oral} onChange={e=>set("vm_higiene_oral",e.target.checked)}/><span>Higiene oral: <b>Clorexidina</b></span></label>
+          {getHospitalConfig(config).cuidadosVm.corneaLabel&&<label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_cuidado_cornea} onChange={e=>set("vm_cuidado_cornea",e.target.checked)}/><span>{getHospitalConfig(config).cuidadosVm.corneaLabel}: <b>{getHospitalConfig(config).cuidadosVm.corneaProduto||"conforme protocolo"}</b></span></label>}
+          {getHospitalConfig(config).cuidadosVm.higieneLabel&&<label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_higiene_oral} onChange={e=>set("vm_higiene_oral",e.target.checked)}/><span>{getHospitalConfig(config).cuidadosVm.higieneLabel}: <b>{getHospitalConfig(config).cuidadosVm.higieneProduto||"conforme protocolo"}</b></span></label>}
           <span style={{color:T.text3,fontFamily:mono,fontSize:9}}>SIALORREIA:</span>
           <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_sialo_propantelina} onChange={e=>set("vm_sialo_propantelina",e.target.checked)}/>Propantelina</label>
           <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={!!leito.vm_sialo_atropina} onChange={e=>set("vm_sialo_atropina",e.target.checked)}/>Atropina</label>
@@ -3093,32 +3110,35 @@ const DISP_CONFIG_ITEMS = [
   { key:"alertaDreno",  label:"Dreno",                     icone:"🏥" },
 ];
 
-function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, onSyncSbari, sbariSyncing=false }) {
+function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, hospitalAtivo, onSyncSbari, sbariSyncing=false }) {
   const upd = (key, val) => onChange({...config, [key]: parseInt(val)||0});
   const sbariRaw=config.sbariLinks?.[utiAtiva?.id];
   const sbariLinks=Array.isArray(sbariRaw)?sbariRaw:(sbariRaw?[{id:"legacy",label:"SBARI",url:sbariRaw}]:[]);
   const alterarSbari=(links)=>onChange({...config,sbariLinks:{...(config.sbariLinks||{}),[utiAtiva?.id]:links}});
   const [showAddDieta, setShowAddDieta] = useState(false);
   const [novaDieta, setNovaDieta] = useState({ nome:"", tipo:"enteral", kcalML:"", ptnML:"", choML:"", lipML:"" });
-  const catalogo = getDietasCatalogo(config);
+  const hospitalId=hospitalAtivo?.id||HSP_HOSPITAL_ID;
+  const hospitalConfig=getHospitalConfig(config,hospitalId);
+  const alterarHospitalConfig=patch=>onChange({...config,hospitalConfigs:{...(config.hospitalConfigs||{}),[hospitalId]:{...(config.hospitalConfigs?.[hospitalId]||{}),...patch}}});
+  const catalogo = getDietasCatalogo(config,hospitalId);
 
   const salvarNovaDieta = () => {
     if (!novaDieta.nome.trim() || !novaDieta.kcalML) return;
     const id = `custom_${Date.now()}`;
-    const custom = [...(config.dietasCatalogo||[]), {
+    const custom = [...hospitalConfig.dietasCatalogo, {
       ...novaDieta, id,
       kcalML: parseFloat(novaDieta.kcalML)||0,
       ptnML:  parseFloat(novaDieta.ptnML)||0,
       choML:  parseFloat(novaDieta.choML)||0,
       lipML:  parseFloat(novaDieta.lipML)||0,
     }];
-    onChange({...config, dietasCatalogo: custom});
+    alterarHospitalConfig({dietasCatalogo:custom});
     setNovaDieta({ nome:"", tipo:"enteral", kcalML:"", ptnML:"", choML:"", lipML:"" });
     setShowAddDieta(false);
   };
 
   const removerDietaCustom = (id) => {
-    onChange({...config, dietasCatalogo: (config.dietasCatalogo||[]).filter(d=>d.id!==id)});
+    alterarHospitalConfig({dietasCatalogo:hospitalConfig.dietasCatalogo.filter(d=>d.id!==id)});
   };
 
   return (
@@ -3127,7 +3147,7 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, on
         <button onClick={onVoltar} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",cursor:"pointer",fontSize:12,padding:"6px 12px"}}>← Voltar</button>
         <div>
           <div style={{fontSize:15,fontWeight:700}}>⚙️ Configurações</div>
-          <div style={{fontSize:12,color:"#64748b"}}>Dispositivos, drogas e catálogo de dietas</div>
+          <div style={{fontSize:12,color:"#64748b"}}>Configurações de {hospitalAtivo?.nome||"Hospital São Paulo"}</div>
         </div>
       </div>
 
@@ -3190,12 +3210,17 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, on
         <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontSize:11,color:"#fb923c",fontFamily:mono,letterSpacing:2}}>CATÁLOGO DE DIETAS</div>
-            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>Fórmulas disponíveis para seleção nos pacientes</div>
+            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>Fórmulas exclusivas de {hospitalAtivo?.sigla||hospitalAtivo?.nome||"HSP"}</div>
           </div>
           <button onClick={()=>setShowAddDieta(s=>!s)} style={{padding:"5px 12px",background:showAddDieta?"rgba(167,139,250,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${showAddDieta?"#a78bfa":"rgba(255,255,255,0.1)"}`,borderRadius:7,color:showAddDieta?"#c4b5fd":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             {showAddDieta?"✕ Fechar":"+ Nova dieta"}
           </button>
         </div>
+
+        {hospitalId!==HSP_HOSPITAL_ID&&<label style={{display:"flex",gap:8,alignItems:"center",padding:"10px 16px",fontSize:11,color:"#64748b",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+          <input type="checkbox" checked={hospitalConfig.incluirDietasHsp} onChange={e=>alterarHospitalConfig({incluirDietasHsp:e.target.checked})}/>
+          Incluir temporariamente também o catálogo do Hospital São Paulo
+        </label>}
 
         {/* Formulário de nova dieta */}
         {showAddDieta && (
@@ -3243,7 +3268,7 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, on
         {/* Lista: padrão + custom */}
         <div style={{maxHeight:320,overflowY:"auto"}}>
           {/* Custom primeiro */}
-          {(config.dietasCatalogo||[]).map(d=>(
+          {hospitalConfig.dietasCatalogo.map(d=>(
             <div key={d.id} style={{display:"flex",alignItems:"center",padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",background:"rgba(167,139,250,0.04)"}}>
               <span style={{fontSize:10,color:"#c4b5fd",fontFamily:mono,marginRight:8,flexShrink:0}}>★</span>
               <div style={{flex:1}}>
@@ -3254,7 +3279,7 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, on
             </div>
           ))}
           {/* Padrões */}
-          {DIETAS_DEFAULT.map(d=>(
+          {hospitalConfig.incluirDietasHsp&&DIETAS_DEFAULT.map(d=>(
             <div key={d.id} style={{display:"flex",alignItems:"center",padding:"9px 16px",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
               <div style={{flex:1}}>
                 <div style={{fontSize:12,color:"#cbd5e1",lineHeight:1.4}}>{d.nome}</div>
@@ -3266,6 +3291,13 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, on
             </div>
           ))}
         </div>
+      </div>
+
+      <div style={{marginTop:20,padding:"14px 16px",background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.07)",borderRadius:12}}>
+        <div style={{fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5,fontWeight:700}}>PROTOCOLOS ASSISTENCIAIS — {hospitalAtivo?.sigla||"HSP"}</div>
+        <div style={{fontSize:11,color:"#64748b",margin:"4px 0 12px"}}>Cada hospital mantém suas próprias opções. Campos vazios não aparecem no atendimento.</div>
+        {[['corneaLabel','Nome da profilaxia de córnea'],['corneaProduto','Produto/conduta para córnea'],['higieneLabel','Nome do cuidado em VM'],['higieneProduto','Produto/conduta em VM']].map(([key,label])=><label key={key} style={{display:"block",fontSize:10,color:"#64748b",marginTop:8}}>{label}<input value={hospitalConfig.cuidadosVm[key]||""} onChange={e=>alterarHospitalConfig({cuidadosVm:{...hospitalConfig.cuidadosVm,[key]:e.target.value}})} placeholder="Ainda não definido" style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:3,padding:"8px 9px",borderRadius:7,border:"1px solid rgba(56,189,248,.22)",background:"rgba(255,255,255,.05)",color:"inherit"}}/></label>)}
+        <label style={{display:"block",fontSize:10,color:"#64748b",marginTop:10}}>Opções de profilaxia LAMG (uma por linha)<textarea value={hospitalConfig.lamgOpcoes.join("\n")} onChange={e=>alterarHospitalConfig({lamgOpcoes:e.target.value.split("\n").map(x=>x.trim()).filter(Boolean)})} placeholder="Ainda não definidas" rows={5} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:3,padding:"8px 9px",borderRadius:7,border:"1px solid rgba(56,189,248,.22)",background:"rgba(255,255,255,.05)",color:"inherit",resize:"vertical"}}/></label>
       </div>
     </div>
   );
@@ -6380,7 +6412,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]} {...customProps("res")}>
         {/* ── Suporte Ventilatório ── */}
         <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
-        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated tabelaDataLeito={tabelaDataLeito} glasgowNeurologico={campos.nGlasgow}/>}
+        {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated tabelaDataLeito={tabelaDataLeito} glasgowNeurologico={campos.nGlasgow} config={config}/>}
         {!onLeitoChange&&leito.vm_modo&&(()=>{
           const vm2=VM_MODOS.find(m=>m.id===leito.vm_modo);
           return vm2?<div style={{padding:"6px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.1)",borderRadius:7,marginBottom:8,fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>
@@ -6472,7 +6504,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <Row>
           <Col><FL>Última evacuação</FL><div style={{position:"relative"}}><input type="date" value={campos.tgUltEvac||""} onChange={e=>onCampoEdit("tgUltEvac",e.target.value)} style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/>{campos.tgUltEvac&&<span style={{position:"absolute",right:36,top:10,fontSize:9,color:T.text3,fontFamily:mono,pointerEvents:"none"}}>{Math.floor((new Date()-new Date(campos.tgUltEvac+"T00:00:00"))/86400000)}d</span>}</div></Col>
           <Col><FL>Laxativos</FL><CompactMultiSelect value={campos.tgLaxativos||""} onChange={v=>onCampoEdit("tgLaxativos",v)} placeholder="Sem laxativos ou esquema…" options={["Sem laxativos","Lactulose","Macrogol","Bisacodil","Enema"]}/></Col>
-          <Col><FL>Profilaxia LAMG</FL><input list="tgi-lamg" value={campos.tgLAMG||""} onChange={e=>onCampoEdit("tgLAMG",e.target.value)} placeholder="Sem profilaxia ou esquema…" style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/><datalist id="tgi-lamg">{["Sem profilaxia","Omeprazol 40mg EV 1x/d","Esomeprazol 40mg SNE 1x/d","Omeprazol 80mg EV 1x/d","Pantoprazol 40mg EV 1x/d"].map(x=><option key={x} value={x}/>)}</datalist></Col>
+          <Col><FL>Profilaxia LAMG</FL><input list="tgi-lamg" value={campos.tgLAMG||""} onChange={e=>onCampoEdit("tgLAMG",e.target.value)} placeholder="Sem profilaxia ou esquema…" style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/><datalist id="tgi-lamg">{getHospitalConfig(config).lamgOpcoes.map(x=><option key={x} value={x}/>)}</datalist></Col>
         </Row>
 <Row>
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
@@ -8166,6 +8198,7 @@ export default function App() {
 
   const utiAtiva=utis.find(u=>u.id===utiAtivaId)||utis[0];
   const hospitalAtivo=hospitais.find(h=>h.id===utiAtiva?.hospitalId)||hospitais[0];
+  const configAtivo={...config,__hospitalId:hospitalAtivo?.id||HSP_HOSPITAL_ID};
   const leitosDaUti=leitos.filter(l=>(l.utiId||utis[0]?.id)===utiAtiva?.id);
   const leito = leitos.find(l=>l.id===leitoSelId)||leitosDaUti[0]||leitos[0];
   const selecionarUti=id=>{
@@ -8712,13 +8745,13 @@ export default function App() {
 
           <div className={leito.paciente&&ABAS.some(a=>a.id===aba)?"patient-content-with-problems":""} style={{flex:1,overflowY:"auto",padding:"28px 32px",background:T.bgPage}}>
             {aba==="config" ? (
-              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("evolucao")} onAbrirPesquisa={()=>setViewGlobal("pesquisa")} utiAtiva={utiAtiva} onSyncSbari={sincronizarSbari} sbariSyncing={sbariSyncing}/>
+              <ConfigPanel config={config} onChange={c=>{setConfig(c);salvarConfig(c);}} onVoltar={()=>setAba("evolucao")} onAbrirPesquisa={()=>setViewGlobal("pesquisa")} utiAtiva={utiAtiva} hospitalAtivo={hospitalAtivo} onSyncSbari={sincronizarSbari} sbariSyncing={sbariSyncing}/>
             ) : aba==="dadosclinicos_legacy" ? (
               <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start"}}>
                 {/* Coluna esquerda: Ventilatório + Nutricional */}
                 <div style={{flex:2,minWidth:320}}>
-                  <VentilacaoPanel leito={leito} onChange={atualizar}/>
-                  <DietaPanel dados={leito} config={config} onChange={atualizar}
+                  <VentilacaoPanel leito={leito} onChange={atualizar} config={configAtivo}/>
+                  <DietaPanel dados={leito} config={configAtivo} onChange={atualizar}
                     diureseHojeVol={(()=>{const tb=tabelaData[leitoSelId]||{};const ds=Object.keys(tb).sort().reverse();for(const d of ds)if(tb[d]?.c24_diet_vol)return tb[d].c24_diet_vol;return "";})()}/>
                 </div>
                 {/* Coluna direita: Drogas → ATB → Dispositivos */}
@@ -8952,7 +8985,7 @@ ${linha}`:linha}));
                     onMetaChange={(novas)=>{
                       setMetasPorLeito(mp=>{const novo={...mp,[leitoSelId]:novas};salvarMetas(novo);return novo;});
                     }}
-                    config={config}
+                    config={configAtivo}
                     tabelaHoje={(()=>{
                       const tb = tabelaData[leitoSelId]||{};
                       const datas = Object.keys(tb).sort().reverse();
