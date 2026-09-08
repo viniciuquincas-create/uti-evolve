@@ -1126,6 +1126,41 @@ function avaliarRealimentacao(dados={}, tabelaDataLeito={}) {
   return {alto,aspen,suspeitaClinica,gravidade,quedaMax,eletrólito,criterios,faltantes,imc,inicio,disfuncao,comparacoes};
 }
 
+// Jing et al., Clinical Nutrition 55 (2025) 282–292, Fig. 2.
+// A publicação fornece o nomograma, mas não a equação/regressão completa. Os
+// pontos abaixo reproduzem a escala gráfica (e o exemplo numérico do artigo).
+function avaliarNomogramaRealimentacao(dados={}, tabelaDataLeito={}) {
+  const dieta=dados.dieta||{}, n=dieta.refeeding?.nomograma||{};
+  const inicio=dieta.dataInicio||dieta.refeeding?.dataInicio||"";
+  const rows=Object.entries(tabelaDataLeito||{}).filter(([d,r])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&r).sort(([a],[b])=>b.localeCompare(a));
+  const preRows=inicio?rows.filter(([d])=>d<=inicio):rows;
+  const ultimo=(key)=>{for(const [data,row] of preRows){const v=numClinico(row?.[key]);if(v!==null)return {valor:v,data};}return null;};
+  const albAuto=ultimo("alb"), lactAuto=ultimo("lact");
+  // O UTI Evolve registra albumina em g/dL; o estudo usa o corte de 30 g/L.
+  const albManual=numClinico(n.albumina), alb=albManual!==null?albManual:(albAuto?albAuto.valor*(albAuto.valor<10?10:1):null);
+  const lactManual=numClinico(n.lactato), lact=lactManual!==null?lactManual:lactAuto?.valor??null;
+  const pab=numClinico(n.prealbumina), apache=numClinico(n.apacheII);
+  const apacheCat=apache===null?"":apache<10?"lt10":apache<=20?"10a20":"gt20";
+  const pontos={
+    apache:apacheCat==="lt10"?0:apacheCat==="10a20"?84:apacheCat==="gt20"?5:null,
+    vomitos:n.vomitos==="sim"?66:n.vomitos==="nao"?0:null,
+    cirurgia:n.cirurgia==="sim"?100:n.cirurgia==="nao"?0:null,
+    energia:n.energia==="lt25"?0:n.energia==="padrao"?67:n.energia==="ge25"?94:null,
+    glicose:n.glicoseIV==="sim"?42:n.glicoseIV==="nao"?0:null,
+    albumina:alb===null?null:alb<30?96:0,
+    prealbumina:pab===null?null:pab<150?12:0,
+    lactato:lact===null?null:lact>=1.6?25:0,
+  };
+  const nomes={apache:"APACHE II",vomitos:"vômitos",cirurgia:"cirurgia de grande porte",energia:"aporte energético",glicose:"glicose IV prévia",albumina:"albumina",prealbumina:"pré-albumina",lactato:"lactato"};
+  const faltantes=Object.entries(pontos).filter(([,v])=>v===null).map(([k])=>nomes[k]);
+  const total=Object.values(pontos).reduce((s,v)=>s+(v??0),0);
+  // Limiar aproximado obtido pela projeção do cutoff publicado (p=0,574) na
+  // escala de pontos da Fig. 2. Não exibimos probabilidade: figura e exemplo do
+  // artigo apresentam conversões discordantes (346 pontos descritos como ~89%).
+  const completo=faltantes.length===0, limiarAprox=220;
+  return {pontos,total,completo,faltantes,alto:completo&&total>=limiarAprox,limiarAprox,alb,lact,pab,apache,albAuto,lactAuto};
+}
+
 function avaliarRiscoLAMG(leito={}, tabelaDataLeito={}, campos={}) {
   const rows=Object.entries(tabelaDataLeito||{}).filter(([d,r])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&r).sort(([a],[b])=>b.localeCompare(a));
   const ultimo=(key)=>{for(const [,r] of rows){const v=numClinico(r?.[key]);if(v!==null)return v;}return null;};
@@ -1149,11 +1184,12 @@ function avaliarRiscoLAMG(leito={}, tabelaDataLeito={}, campos={}) {
 function RefeedingRiskBox({ dados={}, tabelaDataLeito={}, onChange }) {
   const T=useTheme();
   const [open,setOpen]=useState(false);
-  const dieta=dados.dieta||{}, rf=avaliarRealimentacao(dados,tabelaDataLeito);
+  const dieta=dados.dieta||{}, rf=avaliarRealimentacao(dados,tabelaDataLeito), nom=avaliarNomogramaRealimentacao(dados,tabelaDataLeito);
   const upd=(field,val)=>onChange&&onChange({...dados,dieta:{...dieta,[field]:val}});
   const updRF=(field,val)=>upd("refeeding",{...(dieta.refeeding||{}),[field]:val});
-  const ativo=rf.aspen||rf.alto||rf.suspeitaClinica;
-  const titulo=rf.aspen?`Possível síndrome de realimentação · ${rf.gravidade||"revisar"}`:rf.alto?"Alto risco de realimentação · NICE":rf.suspeitaClinica?"Sinais clínicos após dieta · revisar":"Síndrome de realimentação · avaliar";
+  const updNom=(field,val)=>updRF("nomograma",{...(dieta.refeeding?.nomograma||{}),[field]:val});
+  const ativo=rf.aspen||rf.alto||rf.suspeitaClinica||nom.alto;
+  const titulo=rf.aspen?`Possível síndrome de realimentação · ${rf.gravidade||"revisar"}`:nom.alto?`Alto risco · nomograma (${nom.total} pontos)`:rf.alto?"Alto risco de realimentação · NICE":rf.suspeitaClinica?"Sinais clínicos após dieta · revisar":"Síndrome de realimentação · avaliar";
   return <>
     <button onClick={()=>setOpen(true)} style={{width:"100%",padding:"7px 8px",display:"flex",alignItems:"center",gap:7,textAlign:"left",borderRadius:7,cursor:"pointer",border:`1px solid ${ativo?"rgba(251,146,60,.38)":T.border}`,background:ativo?"rgba(251,146,60,.08)":"rgba(148,163,184,.03)",color:ativo?"#fdba74":T.text3}}>
       <span style={{fontSize:12}}>⚠</span><span style={{fontSize:10,lineHeight:1.35,flex:1}}><b>{titulo}</b>{rf.criterios.length>0&&<small style={{display:"block",color:T.text3,marginTop:2}}>{rf.criterios.join(" · ")}</small>}</span><span style={{fontSize:10}}>›</span>
@@ -1163,6 +1199,17 @@ function RefeedingRiskBox({ dados={}, tabelaDataLeito={}, onChange }) {
       <div style={{padding:10,borderRadius:9,background:rf.aspen?"rgba(248,113,113,.10)":rf.alto?"rgba(251,146,60,.09)":"rgba(56,189,248,.05)",color:rf.aspen?"#fca5a5":rf.alto?"#fdba74":"#7dd3fc",fontSize:12,marginBottom:14}}><b>{rf.aspen?`Alerta pós-dieta ASPEN: ${rf.gravidade||"possível"}`:rf.alto?"Alto risco pelos critérios NICE":rf.suspeitaClinica?"Alterações clínicas temporais exigem revisão":"Critérios automáticos ainda não definem alto risco"}</b>{rf.quedaMax>=10&&<div style={{marginTop:4}}>Maior queda em até 5 dias: {rf.eletrólito} {rf.quedaMax.toFixed(0)}%.</div>}{rf.comparacoes?.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:7}}>{rf.comparacoes.map(c=><span key={c.key} style={{padding:"3px 7px",borderRadius:6,background:"rgba(255,255,255,.05)",fontFamily:"'DM Mono',monospace",fontSize:9}}>{c.key}: {c.base} → {c.valor} ({c.queda>0?"−":"+"}{Math.abs(c.queda).toFixed(0)}%)</span>)}</div>}{rf.faltantes.length>0&&<div style={{marginTop:4,color:T.text3}}>Falta documentar: {rf.faltantes.join(", ")}.</div>}</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>{[['dataInicio','Início/reintrodução da dieta','date'],['perdaPesoPct','Perda involuntária em 3–6 meses (%)','number'],['diasSemIngesta','Dias com pouca ou nenhuma ingestão','number']].map(([k,l,t])=><label key={k} style={{fontSize:10,color:T.text2}}>{l}<input type={t} value={(k==='dataInicio'?dieta.dataInicio:dieta.refeeding?.[k])||""} onChange={e=>k==='dataInicio'?upd('dataInicio',e.target.value):updRF(k,e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>)}</div>
       <div style={{fontSize:10,color:T.text3,fontFamily:"'DM Mono',monospace",letterSpacing:1,margin:"16px 0 8px"}}>CRITÉRIOS COMPLEMENTARES NICE</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:7}}>{[['eletrolitosBaixos','K, P ou Mg baixos antes da dieta'],['alcool','História de uso nocivo de álcool'],['insulina','Insulina'],['quimioterapia','Quimioterapia'],['antiacido','Antiácido'],['diuretico','Diurético']].map(([k,l])=><label key={k} style={{fontSize:11,color:T.text2,display:"flex",gap:7,alignItems:"center"}}><input type="checkbox" checked={!!dieta.refeeding?.[k]} onChange={e=>updRF(k,e.target.checked)}/>{l}</label>)}</div>
+      <div style={{marginTop:16,padding:12,borderRadius:10,border:`1px solid ${nom.alto?"rgba(251,146,60,.45)":T.border}`,background:nom.alto?"rgba(251,146,60,.07)":"rgba(56,189,248,.035)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start",marginBottom:10}}><div><b style={{fontSize:12,color:nom.alto?"#fdba74":T.text1}}>NOMOGRAMA EM ADULTOS CRÍTICOS · JING ET AL.</b><div style={{fontSize:9,color:T.text3,marginTop:3}}>Predição antes/início da realimentação · 8 variáveis · validação temporal unicêntrica.</div></div><div style={{textAlign:"right",whiteSpace:"nowrap"}}><b style={{fontSize:16,color:nom.completo?(nom.alto?"#fb923c":"#38bdf8"):T.text3}}>{nom.completo?`${nom.total} pts`:"incompleto"}</b>{nom.completo&&<small style={{display:"block",fontSize:8,color:T.text3}}>{nom.alto?"acima":"abaixo"} do limiar ≈{nom.limiarAprox}</small>}</div></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(205px,1fr))",gap:9}}>
+          <label style={{fontSize:10,color:T.text2}}>APACHE II<input type="number" min="0" max="71" value={dieta.refeeding?.nomograma?.apacheII||""} onChange={e=>updNom("apacheII",e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>
+          {[['vomitos','Vômitos'],['cirurgia','Cirurgia de grande porte nesta internação'],['glicoseIV','Glicose IV antes da realimentação']].map(([k,l])=><label key={k} style={{fontSize:10,color:T.text2}}>{l}<select value={dieta.refeeding?.nomograma?.[k]||""} onChange={e=>updNom(k,e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}><option value="">— informar —</option><option value="nao">Não</option><option value="sim">Sim</option></select></label>)}
+          <label style={{fontSize:10,color:T.text2}}>Categoria de aporte energético<select value={dieta.refeeding?.nomograma?.energia||""} onChange={e=>updNom("energia",e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}><option value="">— informar —</option><option value="lt25">&lt;25% do padrão</option><option value="padrao">Aporte calórico padrão</option><option value="ge25">≥25% do padrão (categoria do artigo)</option></select></label>
+          {[['albumina','Albumina pré-dieta (g/L)',nom.albAuto?`automático: ${(nom.albAuto.valor*(nom.albAuto.valor<10?10:1)).toFixed(1)} g/L · ${nom.albAuto.data}`:''],['prealbumina','Pré-albumina pré-dieta (mg/L)',''],['lactato','Lactato pré-dieta (mmol/L)',nom.lactAuto?`automático: ${nom.lactAuto.valor} · ${nom.lactAuto.data}`:'']].map(([k,l,h])=><label key={k} style={{fontSize:10,color:T.text2}}>{l}<input type="number" step="any" value={dieta.refeeding?.nomograma?.[k]||""} placeholder={h||""} onChange={e=>updNom(k,e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/>{h&&<small style={{display:"block",fontSize:8,color:T.text3,marginTop:2}}>{h}</small>}</label>)}
+        </div>
+        {nom.faltantes.length>0&&<div style={{fontSize:9,color:T.text3,marginTop:9}}>Falta preencher: {nom.faltantes.join(", ")}.</div>}
+        <div style={{fontSize:9,lineHeight:1.45,color:T.text3,marginTop:9}}>AUC publicada: 0,940 no desenvolvimento e 0,924 na validação temporal; cutoff de probabilidade 0,574 (sensibilidade 89,8%; especificidade 67,6%). A pontuação é reproduzida da Figura 2. A probabilidade percentual não é exibida porque o exemplo numérico e a escala de probabilidade do artigo são discordantes. Não substitui NICE nem julgamento clínico.</div>
+      </div>
       <div style={{fontSize:10,color:T.text3,fontFamily:"'DM Mono',monospace",letterSpacing:1,margin:"16px 0 8px"}}>ALTERAÇÕES CLÍNICAS APÓS DIETA</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:7}}>{[['edema','Edema / sobrecarga volêmica'],['arritmia','Arritmia / instabilidade cardíaca'],['insufResp','Piora ou insuficiência respiratória'],['alteracaoNeuro','Alteração neurológica nova'],['deficienciaTiamina','Suspeita de deficiência de tiamina']].map(([k,l])=><label key={k} style={{fontSize:11,color:T.text2,display:"flex",gap:7,alignItems:"center"}}><input type="checkbox" checked={!!dieta.refeeding?.[k]} onChange={e=>updRF(k,e.target.checked)}/>{l}</label>)}</div>
       <div style={{marginTop:14,fontSize:10,lineHeight:1.5,color:T.text3}}>NICE: alto risco se ≥1 critério maior ou ≥2 menores. ASPEN: queda de P/K/Mg em até 5 dias (10–20% leve; 20–30% moderada; &gt;30% ou disfunção por distúrbio/tiamina grave).</div>
     </div></div>, document.body)}
