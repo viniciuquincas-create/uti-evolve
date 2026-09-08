@@ -1139,7 +1139,8 @@ function avaliarNomogramaRealimentacao(dados={}, tabelaDataLeito={}) {
   // O UTI Evolve registra albumina em g/dL; o estudo usa o corte de 30 g/L.
   const albManual=numClinico(n.albumina), alb=albManual!==null?albManual:(albAuto?albAuto.valor*(albAuto.valor<10?10:1):null);
   const lactManual=numClinico(n.lactato), lact=lactManual!==null?lactManual:lactAuto?.valor??null;
-  const pab=numClinico(n.prealbumina), apache=numClinico(n.apacheII);
+  const pab=numClinico(n.prealbumina), apacheCalculado=calcularApacheII(dados).completo?calcularApacheII(dados).total:null;
+  const apache=apacheCalculado??numClinico(n.apacheII);
   const apacheCat=apache===null?"":apache<10?"lt10":apache<=20?"10a20":"gt20";
   const pontos={
     apache:apacheCat==="lt10"?0:apacheCat==="10a20"?84:apacheCat==="gt20"?5:null,
@@ -1158,7 +1159,61 @@ function avaliarNomogramaRealimentacao(dados={}, tabelaDataLeito={}) {
   // escala de pontos da Fig. 2. Não exibimos probabilidade: figura e exemplo do
   // artigo apresentam conversões discordantes (346 pontos descritos como ~89%).
   const completo=faltantes.length===0, limiarAprox=220;
-  return {pontos,total,completo,faltantes,alto:completo&&total>=limiarAprox,limiarAprox,alb,lact,pab,apache,albAuto,lactAuto};
+  return {pontos,total,completo,faltantes,alto:completo&&total>=limiarAprox,limiarAprox,alb,lact,pab,apache,apacheCalculado,albAuto,lactAuto};
+}
+
+const faixaPontos=(v,faixas)=>{if(v===null)return null;for(const [teste,p] of faixas)if(teste(v))return p;return 0;};
+function calcularApacheII(dados={}){
+  const a=dados.escoresAdmissao||{}, idade=numClinico(dados.idadeAnos??idadeDoLeito(dados));
+  const vals={temp:numClinico(a.temp),pam:numClinico(a.pam),fc:numClinico(a.fc),fr:numClinico(a.fr),fio2:numClinico(a.fio2),pao2:numClinico(a.pao2),aado2:numClinico(a.aado2),ph:numClinico(a.ph),hco3:numClinico(a.hco3),na:numClinico(a.na),k:numClinico(a.k),cr:numClinico(a.cr),ht:numClinico(a.ht),leuco:numClinico(a.leuco),gcs:numClinico(a.gcs)};
+  const ox=vals.fio2===null?null:(vals.fio2>1?vals.fio2/100:vals.fio2)>=.5
+    ?faixaPontos(vals.aado2,[[v=>v>=500,4],[v=>v>=350,3],[v=>v>=200,2],[()=>true,0]])
+    :faixaPontos(vals.pao2,[[v=>v<55,4],[v=>v<=60,3],[v=>v<=70,1],[()=>true,0]]);
+  const p={
+    temp:faixaPontos(vals.temp,[[v=>v>=41||v<=29.9,4],[v=>v>=39||v<=31.9,3],[v=>v<=33.9,2],[v=>v>=38.5||v<=35.9,1],[()=>true,0]]),
+    pam:faixaPontos(vals.pam,[[v=>v>=160||v<=49,4],[v=>v>=130,3],[v=>v>=110||v<=69,2],[()=>true,0]]),
+    fc:faixaPontos(vals.fc,[[v=>v>=180||v<=39,4],[v=>v>=140||v<=54,3],[v=>v>=110||v<=69,2],[()=>true,0]]),
+    fr:faixaPontos(vals.fr,[[v=>v>=50||v<=5,4],[v=>v>=35,3],[v=>v<=9,2],[v=>v>=25||v<=11,1],[()=>true,0]]),ox,
+    acido:vals.ph!==null?faixaPontos(vals.ph,[[v=>v>=7.7||v<7.15,4],[v=>v>=7.6||v<7.25,3],[v=>v<7.33,2],[v=>v>=7.5,1],[()=>true,0]]):faixaPontos(vals.hco3,[[v=>v>=52||v<15,4],[v=>v>=41||v<18,3],[v=>v<22,2],[v=>v>=32,1],[()=>true,0]]),
+    na:faixaPontos(vals.na,[[v=>v>=180||v<=110,4],[v=>v>=160||v<=119,3],[v=>v>=155||v<=129,2],[v=>v>=150,1],[()=>true,0]]),
+    k:faixaPontos(vals.k,[[v=>v>=7||v<2.5,4],[v=>v>=6,3],[v=>v<3,2],[v=>v>=5.5||v<3.5,1],[()=>true,0]]),
+    cr:faixaPontos(vals.cr,[[v=>v>=3.5,4],[v=>v>=2,3],[v=>v>=1.5||v<.6,2],[()=>true,0]]),
+    ht:faixaPontos(vals.ht,[[v=>v>=60||v<20,4],[v=>v<30,2],[v=>v>=50,2],[v=>v>=46,1],[()=>true,0]]),
+    leuco:faixaPontos(vals.leuco,[[v=>v>=40||v<1,4],[v=>v<3,2],[v=>v>=20,2],[v=>v>=15,1],[()=>true,0]]),
+    gcs:vals.gcs===null?null:15-Math.max(3,Math.min(15,vals.gcs)),
+  };
+  if(a.iraAguda&&p.cr>0)p.cr*=2;
+  const fisiologia=Object.values(p).reduce((s,v)=>s+(v??0),0);
+  const idadePts=idade===null?null:idade>=75?6:idade>=65?5:idade>=55?3:idade>=45?2:0;
+  const cronico=a.cronico==="eletiva"?2:a.cronico==="nao_eletiva"?5:a.cronico==="nenhum"?0:null;
+  const faltantes=Object.entries(p).filter(([,v])=>v===null).map(([k])=>k).concat(idadePts===null?["idade"]:[],cronico===null?["condição crônica"]:[]);
+  return {total:fisiologia+(idadePts??0)+(cronico??0),fisiologia,idadePts,cronico,pontos:p,faltantes,completo:faltantes.length===0};
+}
+
+function calcularSaps3(dados={}){
+  const a=dados.escoresAdmissao||{}, s=a.saps3||{}, idade=numClinico(dados.idadeAnos??idadeDoLeito(dados));
+  const n=k=>numClinico(a[k]); const cat=(v,fs)=>faixaPontos(v,fs);
+  const idadePts=idade===null?null:idade>=80?18:idade>=75?15:idade>=70?13:idade>=60?9:idade>=40?5:0;
+  const com=s.comorbidades||{};
+  const comorb=(comorb.terapiaCancer?3:0)+(comorb.icNyha4?6:0)+(comorb.cancerHematologico?6:0)+(comorb.cirrose?8:0)+(comorb.aids?8:0)+(comorb.cancerMetastatico?11:0);
+  const contextuais=["localAnterior","statusCirurgico","motivo","sitioCirurgia"].filter(k=>s[k]===""||s[k]===undefined);
+  const box1=(idadePts??0)+comorb+(s.diasHospital==="14a27"?6:s.diasHospital==="ge28"?7:0)+(Number(s.localAnterior)||0)+(s.vasoativo?3:0);
+  const box2=16+(s.naoPlanejada?3:0)+(Number(s.statusCirurgico)||0)+(Number(s.motivo)||0)+(Number(s.sitioCirurgia)||0)+(s.infeccaoNosocomial?4:0)+(s.infeccaoRespiratoria?5:0);
+  const fio=n("fio2"), pao2=n("pao2"), mv=!!s.vm, pf=fio&&pao2?pao2/(fio>1?fio/100:fio):null;
+  const phys={
+    gcs:cat(n("gcs"),[[v=>v<=4,15],[v=>v===5,10],[v=>v===6,7],[v=>v<=12,2],[()=>true,0]]),
+    bili:cat(n("bili"),[[v=>v>=6,5],[v=>v>=2,4],[()=>true,0]]),temp:cat(n("temp"),[[v=>v<35,7],[()=>true,0]]),
+    cr:cat(n("cr"),[[v=>v>=3.5,8],[v=>v>=2,7],[v=>v>=1.2,2],[()=>true,0]]),fc:cat(n("fc"),[[v=>v>=160,7],[v=>v>=120,5],[()=>true,0]]),
+    leuco:cat(n("leuco"),[[v=>v>=15,2],[()=>true,0]]),ph:cat(n("ph"),[[v=>v<=7.25,3],[()=>true,0]]),
+    plaq:cat(n("plaq"),[[v=>v<20,13],[v=>v<50,8],[v=>v<100,5],[()=>true,0]]),pas:cat(n("pas"),[[v=>v<40,11],[v=>v<70,8],[v=>v<120,3],[()=>true,0]]),
+    ox:mv?(pf===null?null:(pf<100?11:7)):(pao2===null?null:(pao2<60?5:0)),
+  };
+  const faltantes=Object.entries(phys).filter(([,v])=>v===null).map(([k])=>k).concat(idadePts===null?["idade"]:[],contextuais);
+  const box3=Object.values(phys).reduce((sum,v)=>sum+(v??0),0), total=box1+box2+box3;
+  const logitGlobal=-32.6659+Math.log(total+20.5958)*7.3068;
+  const logitCSA=-64.5990+Math.log(total+71.0599)*13.2322;
+  const prob=x=>100*Math.exp(x)/(1+Math.exp(x));
+  return {total,box1,box2,box3,completo:faltantes.length===0,faltantes,mortalidadeGlobal:prob(logitGlobal),mortalidadeCSA:prob(logitCSA)};
 }
 
 function avaliarRiscoLAMG(leito={}, tabelaDataLeito={}, campos={}) {
