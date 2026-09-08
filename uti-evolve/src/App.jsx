@@ -440,6 +440,27 @@ function Collapsible({ title, defaultOpen=true, children, badge=null }) {
   );
 }
 
+class OptionalClinicalPanelBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error(`Falha no painel clínico opcional: ${this.props.name}`, error, info);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div style={{margin:"16px 0",padding:"11px 13px",border:"1px solid rgba(251,191,36,.28)",borderRadius:9,background:"rgba(251,191,36,.055)",color:"#fbbf24",fontSize:11}}>
+        O painel {this.props.name} não pôde ser carregado para este cadastro. Os demais dados do paciente continuam disponíveis.
+      </div>
+    );
+  }
+}
+
 function Field({ label, value, onChange, type="text", placeholder="", suffix="" }) {
   const T = useTheme();
   return (
@@ -2655,7 +2676,9 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         <Field label="ALTURA (cm)" value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm" style={{minWidth:90}}/>
         <div style={{minWidth:260,flex:2}}><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>RANKIN MODIFICADA — ADMISSÃO</div><select value={dados.rankinAdmissao??""} onChange={e=>onChange({...dados,rankinAdmissao:e.target.value})} style={{width:"100%",height:38,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"0 9px",color:"#e2e8f0",fontSize:11}}><option value="">— selecionar —</option>{RANKIN_OPCOES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>
       </div>
-      <EscoresAdmissaoPanel dados={dados} onChange={onChange}/>
+      <OptionalClinicalPanelBoundary name="APACHE II / SAPS 3">
+        <EscoresAdmissaoPanel dados={dados} onChange={onChange}/>
+      </OptionalClinicalPanelBoundary>
 
       <div style={{margin:"14px 0",padding:"12px 14px",border:"1px solid rgba(56,189,248,.18)",borderRadius:10,background:"rgba(56,189,248,.035)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:(dados.acompanhantes||[]).length?10:0}}>

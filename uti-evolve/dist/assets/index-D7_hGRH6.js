@@ -28101,6 +28101,26 @@ function Collapsible({ title, defaultOpen = true, children, badge = null }) {
     open && children
   ] });
 }
+class OptionalClinicalPanelBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error(`Falha no painel clínico opcional: ${this.props.name}`, error, info);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { margin: "16px 0", padding: "11px 13px", border: "1px solid rgba(251,191,36,.28)", borderRadius: 9, background: "rgba(251,191,36,.055)", color: "#fbbf24", fontSize: 11 }, children: [
+      "O painel ",
+      this.props.name,
+      " não pôde ser carregado para este cadastro. Os demais dados do paciente continuam disponíveis."
+    ] });
+  }
+}
 function Field({ label, value, onChange, type = "text", placeholder = "", suffix = "" }) {
   const T2 = useTheme();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { flex: 1 }, children: [
@@ -31297,7 +31317,7 @@ function PacientePanel({ dados, onChange, config = {}, onLancarDroga, onConfigCh
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(EscoresAdmissaoPanel, { dados, onChange }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(OptionalClinicalPanelBoundary, { name: "APACHE II / SAPS 3", children: /* @__PURE__ */ jsxRuntimeExports.jsx(EscoresAdmissaoPanel, { dados, onChange }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { margin: "14px 0", padding: "12px 14px", border: "1px solid rgba(56,189,248,.18)", borderRadius: 10, background: "rgba(56,189,248,.035)" }, children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: (dados.acompanhantes || []).length ? 10 : 0 }, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
