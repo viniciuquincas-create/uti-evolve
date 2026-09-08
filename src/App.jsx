@@ -1195,7 +1195,7 @@ function calcularSaps3(dados={}){
   const n=k=>numClinico(a[k]); const cat=(v,fs)=>faixaPontos(v,fs);
   const idadePts=idade===null?null:idade>=80?18:idade>=75?15:idade>=70?13:idade>=60?9:idade>=40?5:0;
   const com=s.comorbidades||{};
-  const comorb=(comorb.terapiaCancer?3:0)+(comorb.icNyha4?6:0)+(comorb.cancerHematologico?6:0)+(comorb.cirrose?8:0)+(comorb.aids?8:0)+(comorb.cancerMetastatico?11:0);
+  const comorb=(com.terapiaCancer?3:0)+(com.icNyha4?6:0)+(com.cancerHematologico?6:0)+(com.cirrose?8:0)+(com.aids?8:0)+(com.cancerMetastatico?11:0);
   const contextuais=["localAnterior","statusCirurgico","motivo","sitioCirurgia"].filter(k=>s[k]===""||s[k]===undefined);
   const box1=(idadePts??0)+comorb+(s.diasHospital==="14a27"?6:s.diasHospital==="ge28"?7:0)+(Number(s.localAnterior)||0)+(s.vasoativo?3:0);
   const box2=16+(s.naoPlanejada?3:0)+(Number(s.statusCirurgico)||0)+(Number(s.motivo)||0)+(Number(s.sitioCirurgia)||0)+(s.infeccaoNosocomial?4:0)+(s.infeccaoRespiratoria?5:0);
