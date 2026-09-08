@@ -2649,6 +2649,9 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   const diurese  = (volUrina && dados.peso)
     ? (volUrina / (24 * parseFloat(dados.peso))).toFixed(2) : null;
   const diagnosticos=(Array.isArray(dados.diagnosticos)&&dados.diagnosticos.length?dados.diagnosticos:[dados.diagnostico||""]).filter((x,i,a)=>x||a.length===1);
+  // Compatibilidade com registros antigos que não armazenavam listas nestes campos.
+  const acompanhantes=Array.isArray(dados.acompanhantes)?dados.acompanhantes:[];
+  const procedimentos=Array.isArray(dados.procedimentos)?dados.procedimentos:[];
   const atualizarDiagnosticos=lista=>onChange({...dados,diagnosticos:lista,diagnostico:lista.filter(Boolean).join(" · ")});
 
   return (
@@ -2681,14 +2684,14 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
       </OptionalClinicalPanelBoundary>
 
       <div style={{margin:"14px 0",padding:"12px 14px",border:"1px solid rgba(56,189,248,.18)",borderRadius:10,background:"rgba(56,189,248,.035)"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:(dados.acompanhantes||[]).length?10:0}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:acompanhantes.length?10:0}}>
           <div><div style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1.5,fontWeight:700}}>ACOMPANHANTES / FAMILIARES</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>Nome e vínculo com o paciente</div></div>
-          <button onClick={()=>onChange({...dados,acompanhantes:[...(dados.acompanhantes||[]),{id:`acomp_${Date.now()}`,nome:"",parentesco:""}]})} style={{padding:"5px 9px",borderRadius:7,border:"1px solid rgba(56,189,248,.3)",background:"rgba(56,189,248,.08)",color:"#38bdf8",fontSize:10,fontWeight:700,cursor:"pointer"}}>＋ Adicionar</button>
+          <button onClick={()=>onChange({...dados,acompanhantes:[...acompanhantes,{id:`acomp_${Date.now()}`,nome:"",parentesco:""}]})} style={{padding:"5px 9px",borderRadius:7,border:"1px solid rgba(56,189,248,.3)",background:"rgba(56,189,248,.08)",color:"#38bdf8",fontSize:10,fontWeight:700,cursor:"pointer"}}>＋ Adicionar</button>
         </div>
-        <div style={{display:"grid",gap:8}}>{(dados.acompanhantes||[]).map((a,i)=><div key={a.id||i} style={{display:"grid",gridTemplateColumns:"minmax(180px,2fr) minmax(140px,1fr) 32px",gap:8,alignItems:"end"}}>
-          <Field label="NOME" value={a.nome||""} onChange={v=>onChange({...dados,acompanhantes:(dados.acompanhantes||[]).map((x,j)=>j===i?{...x,nome:v}:x)})} placeholder="Nome do acompanhante"/>
-          <Field label="PARENTESCO / VÍNCULO" value={a.parentesco||""} onChange={v=>onChange({...dados,acompanhantes:(dados.acompanhantes||[]).map((x,j)=>j===i?{...x,parentesco:v}:x)})} placeholder="Ex: filha, esposo, cuidador"/>
-          <button title="Remover acompanhante" onClick={()=>onChange({...dados,acompanhantes:(dados.acompanhantes||[]).filter((_,j)=>j!==i)})} style={{height:38,borderRadius:7,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
+        <div style={{display:"grid",gap:8}}>{acompanhantes.map((a,i)=><div key={a.id||i} style={{display:"grid",gridTemplateColumns:"minmax(180px,2fr) minmax(140px,1fr) 32px",gap:8,alignItems:"end"}}>
+          <Field label="NOME" value={a.nome||""} onChange={v=>onChange({...dados,acompanhantes:acompanhantes.map((x,j)=>j===i?{...x,nome:v}:x)})} placeholder="Nome do acompanhante"/>
+          <Field label="PARENTESCO / VÍNCULO" value={a.parentesco||""} onChange={v=>onChange({...dados,acompanhantes:acompanhantes.map((x,j)=>j===i?{...x,parentesco:v}:x)})} placeholder="Ex: filha, esposo, cuidador"/>
+          <button title="Remover acompanhante" onClick={()=>onChange({...dados,acompanhantes:acompanhantes.filter((_,j)=>j!==i)})} style={{height:38,borderRadius:7,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
         </div>)}</div>
       </div>
 
@@ -2731,7 +2734,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
 
       <Collapsible title="PROCEDIMENTOS" defaultOpen={true}>
       <ProcedimentosPanel
-        procedimentos={dados.procedimentos||[]}
+        procedimentos={procedimentos}
         onChange={procs=>onChange({...dados,procedimentos:procs})}
       />
       </Collapsible>
@@ -9251,13 +9254,13 @@ ${linha}`:linha}));
             <div><div style={{fontSize:14,fontWeight:750,color:T.text1}}>{leito.paciente?`Editar ${leito.paciente}`:"Cadastrar paciente"}</div><div style={{fontSize:10,color:T.text3,marginTop:2}}>Cadastro, histórico clínico e procedimentos do leito</div></div>
             <button onClick={()=>setPacienteEditorAberto(false)} style={{marginLeft:"auto",border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,borderRadius:7,padding:"5px 10px",cursor:"pointer",fontWeight:700}}>✕ Fechar</button>
           </div>
-          <div style={{overflowY:"auto",padding:"20px 22px"}}><PacientePanel
+          <div style={{overflowY:"auto",padding:"20px 22px"}}><OptionalClinicalPanelBoundary name="de edição do paciente"><PacientePanel
             dados={leito} onChange={atualizar} config={config}
             leitosDisponiveis={leitosDaUti.filter(l=>String(l.id)!==String(leito.id)&&!l.paciente)} onTransferir={transferirPaciente}
             onConfigChange={c=>{setConfig(c);salvarConfig(c);}}
             diureseHoje={(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort().reverse();for(const d of datas)if(tb[d]?.c24_diur)return tb[d].c24_diur;return "";})()}
             tabelaHoje={(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort().reverse();for(const d of datas)if(tb[d]?.c24_diet_vol)return tb[d];return tb[datas[0]]||{};})()}
-            onLancarDroga={(linha,campo)=>{setEvolCamposComPersistencia(c=>({...c,[campo]:c[campo]?`${c[campo]}\n${linha}`:linha}));setEvolVersion(v=>v+1);}}/>
+            onLancarDroga={(linha,campo)=>{setEvolCamposComPersistencia(c=>({...c,[campo]:c[campo]?`${c[campo]}\n${linha}`:linha}));setEvolVersion(v=>v+1);}}/></OptionalClinicalPanelBoundary>
           </div>
         </div>
       </div>}
