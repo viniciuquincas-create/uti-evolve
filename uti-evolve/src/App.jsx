@@ -1139,7 +1139,8 @@ function avaliarNomogramaRealimentacao(dados={}, tabelaDataLeito={}) {
   // O UTI Evolve registra albumina em g/dL; o estudo usa o corte de 30 g/L.
   const albManual=numClinico(n.albumina), alb=albManual!==null?albManual:(albAuto?albAuto.valor*(albAuto.valor<10?10:1):null);
   const lactManual=numClinico(n.lactato), lact=lactManual!==null?lactManual:lactAuto?.valor??null;
-  const pab=numClinico(n.prealbumina), apache=numClinico(n.apacheII);
+  const pab=numClinico(n.prealbumina), apacheCalculado=calcularApacheII(dados).completo?calcularApacheII(dados).total:null;
+  const apache=apacheCalculado??numClinico(n.apacheII);
   const apacheCat=apache===null?"":apache<10?"lt10":apache<=20?"10a20":"gt20";
   const pontos={
     apache:apacheCat==="lt10"?0:apacheCat==="10a20"?84:apacheCat==="gt20"?5:null,
@@ -1158,7 +1159,61 @@ function avaliarNomogramaRealimentacao(dados={}, tabelaDataLeito={}) {
   // escala de pontos da Fig. 2. Não exibimos probabilidade: figura e exemplo do
   // artigo apresentam conversões discordantes (346 pontos descritos como ~89%).
   const completo=faltantes.length===0, limiarAprox=220;
-  return {pontos,total,completo,faltantes,alto:completo&&total>=limiarAprox,limiarAprox,alb,lact,pab,apache,albAuto,lactAuto};
+  return {pontos,total,completo,faltantes,alto:completo&&total>=limiarAprox,limiarAprox,alb,lact,pab,apache,apacheCalculado,albAuto,lactAuto};
+}
+
+const faixaPontos=(v,faixas)=>{if(v===null)return null;for(const [teste,p] of faixas)if(teste(v))return p;return 0;};
+function calcularApacheII(dados={}){
+  const a=dados.escoresAdmissao||{}, idade=numClinico(dados.idadeAnos??idadeDoLeito(dados));
+  const vals={temp:numClinico(a.temp),pam:numClinico(a.pam),fc:numClinico(a.fc),fr:numClinico(a.fr),fio2:numClinico(a.fio2),pao2:numClinico(a.pao2),aado2:numClinico(a.aado2),ph:numClinico(a.ph),hco3:numClinico(a.hco3),na:numClinico(a.na),k:numClinico(a.k),cr:numClinico(a.cr),ht:numClinico(a.ht),leuco:numClinico(a.leuco),gcs:numClinico(a.gcs)};
+  const ox=vals.fio2===null?null:(vals.fio2>1?vals.fio2/100:vals.fio2)>=.5
+    ?faixaPontos(vals.aado2,[[v=>v>=500,4],[v=>v>=350,3],[v=>v>=200,2],[()=>true,0]])
+    :faixaPontos(vals.pao2,[[v=>v<55,4],[v=>v<=60,3],[v=>v<=70,1],[()=>true,0]]);
+  const p={
+    temp:faixaPontos(vals.temp,[[v=>v>=41||v<=29.9,4],[v=>v>=39||v<=31.9,3],[v=>v<=33.9,2],[v=>v>=38.5||v<=35.9,1],[()=>true,0]]),
+    pam:faixaPontos(vals.pam,[[v=>v>=160||v<=49,4],[v=>v>=130,3],[v=>v>=110||v<=69,2],[()=>true,0]]),
+    fc:faixaPontos(vals.fc,[[v=>v>=180||v<=39,4],[v=>v>=140||v<=54,3],[v=>v>=110||v<=69,2],[()=>true,0]]),
+    fr:faixaPontos(vals.fr,[[v=>v>=50||v<=5,4],[v=>v>=35,3],[v=>v<=9,2],[v=>v>=25||v<=11,1],[()=>true,0]]),ox,
+    acido:vals.ph!==null?faixaPontos(vals.ph,[[v=>v>=7.7||v<7.15,4],[v=>v>=7.6||v<7.25,3],[v=>v<7.33,2],[v=>v>=7.5,1],[()=>true,0]]):faixaPontos(vals.hco3,[[v=>v>=52||v<15,4],[v=>v>=41||v<18,3],[v=>v<22,2],[v=>v>=32,1],[()=>true,0]]),
+    na:faixaPontos(vals.na,[[v=>v>=180||v<=110,4],[v=>v>=160||v<=119,3],[v=>v>=155||v<=129,2],[v=>v>=150,1],[()=>true,0]]),
+    k:faixaPontos(vals.k,[[v=>v>=7||v<2.5,4],[v=>v>=6,3],[v=>v<3,2],[v=>v>=5.5||v<3.5,1],[()=>true,0]]),
+    cr:faixaPontos(vals.cr,[[v=>v>=3.5,4],[v=>v>=2,3],[v=>v>=1.5||v<.6,2],[()=>true,0]]),
+    ht:faixaPontos(vals.ht,[[v=>v>=60||v<20,4],[v=>v<30,2],[v=>v>=50,2],[v=>v>=46,1],[()=>true,0]]),
+    leuco:faixaPontos(vals.leuco,[[v=>v>=40||v<1,4],[v=>v<3,2],[v=>v>=20,2],[v=>v>=15,1],[()=>true,0]]),
+    gcs:vals.gcs===null?null:15-Math.max(3,Math.min(15,vals.gcs)),
+  };
+  if(a.iraAguda&&p.cr>0)p.cr*=2;
+  const fisiologia=Object.values(p).reduce((s,v)=>s+(v??0),0);
+  const idadePts=idade===null?null:idade>=75?6:idade>=65?5:idade>=55?3:idade>=45?2:0;
+  const cronico=a.cronico==="eletiva"?2:a.cronico==="nao_eletiva"?5:a.cronico==="nenhum"?0:null;
+  const faltantes=Object.entries(p).filter(([,v])=>v===null).map(([k])=>k).concat(idadePts===null?["idade"]:[],cronico===null?["condição crônica"]:[]);
+  return {total:fisiologia+(idadePts??0)+(cronico??0),fisiologia,idadePts,cronico,pontos:p,faltantes,completo:faltantes.length===0};
+}
+
+function calcularSaps3(dados={}){
+  const a=dados.escoresAdmissao||{}, s=a.saps3||{}, idade=numClinico(dados.idadeAnos??idadeDoLeito(dados));
+  const n=k=>numClinico(a[k]); const cat=(v,fs)=>faixaPontos(v,fs);
+  const idadePts=idade===null?null:idade>=80?18:idade>=75?15:idade>=70?13:idade>=60?9:idade>=40?5:0;
+  const com=s.comorbidades||{};
+  const comorb=(comorb.terapiaCancer?3:0)+(comorb.icNyha4?6:0)+(comorb.cancerHematologico?6:0)+(comorb.cirrose?8:0)+(comorb.aids?8:0)+(comorb.cancerMetastatico?11:0);
+  const contextuais=["localAnterior","statusCirurgico","motivo","sitioCirurgia"].filter(k=>s[k]===""||s[k]===undefined);
+  const box1=(idadePts??0)+comorb+(s.diasHospital==="14a27"?6:s.diasHospital==="ge28"?7:0)+(Number(s.localAnterior)||0)+(s.vasoativo?3:0);
+  const box2=16+(s.naoPlanejada?3:0)+(Number(s.statusCirurgico)||0)+(Number(s.motivo)||0)+(Number(s.sitioCirurgia)||0)+(s.infeccaoNosocomial?4:0)+(s.infeccaoRespiratoria?5:0);
+  const fio=n("fio2"), pao2=n("pao2"), mv=!!s.vm, pf=fio&&pao2?pao2/(fio>1?fio/100:fio):null;
+  const phys={
+    gcs:cat(n("gcs"),[[v=>v<=4,15],[v=>v===5,10],[v=>v===6,7],[v=>v<=12,2],[()=>true,0]]),
+    bili:cat(n("bili"),[[v=>v>=6,5],[v=>v>=2,4],[()=>true,0]]),temp:cat(n("temp"),[[v=>v<35,7],[()=>true,0]]),
+    cr:cat(n("cr"),[[v=>v>=3.5,8],[v=>v>=2,7],[v=>v>=1.2,2],[()=>true,0]]),fc:cat(n("fc"),[[v=>v>=160,7],[v=>v>=120,5],[()=>true,0]]),
+    leuco:cat(n("leuco"),[[v=>v>=15,2],[()=>true,0]]),ph:cat(n("ph"),[[v=>v<=7.25,3],[()=>true,0]]),
+    plaq:cat(n("plaq"),[[v=>v<20,13],[v=>v<50,8],[v=>v<100,5],[()=>true,0]]),pas:cat(n("pas"),[[v=>v<40,11],[v=>v<70,8],[v=>v<120,3],[()=>true,0]]),
+    ox:mv?(pf===null?null:(pf<100?11:7)):(pao2===null?null:(pao2<60?5:0)),
+  };
+  const faltantes=Object.entries(phys).filter(([,v])=>v===null).map(([k])=>k).concat(idadePts===null?["idade"]:[],contextuais);
+  const box3=Object.values(phys).reduce((sum,v)=>sum+(v??0),0), total=box1+box2+box3;
+  const logitGlobal=-32.6659+Math.log(total+20.5958)*7.3068;
+  const logitCSA=-64.5990+Math.log(total+71.0599)*13.2322;
+  const prob=x=>100*Math.exp(x)/(1+Math.exp(x));
+  return {total,box1,box2,box3,completo:faltantes.length===0,faltantes,mortalidadeGlobal:prob(logitGlobal),mortalidadeCSA:prob(logitCSA)};
 }
 
 function avaliarRiscoLAMG(leito={}, tabelaDataLeito={}, campos={}) {
@@ -1202,7 +1257,7 @@ function RefeedingRiskBox({ dados={}, tabelaDataLeito={}, onChange }) {
       <div style={{marginTop:16,padding:12,borderRadius:10,border:`1px solid ${nom.alto?"rgba(251,146,60,.45)":T.border}`,background:nom.alto?"rgba(251,146,60,.07)":"rgba(56,189,248,.035)"}}>
         <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start",marginBottom:10}}><div><b style={{fontSize:12,color:nom.alto?"#fdba74":T.text1}}>NOMOGRAMA EM ADULTOS CRÍTICOS · JING ET AL.</b><div style={{fontSize:9,color:T.text3,marginTop:3}}>Predição antes/início da realimentação · 8 variáveis · validação temporal unicêntrica.</div></div><div style={{textAlign:"right",whiteSpace:"nowrap"}}><b style={{fontSize:16,color:nom.completo?(nom.alto?"#fb923c":"#38bdf8"):T.text3}}>{nom.completo?`${nom.total} pts`:"incompleto"}</b>{nom.completo&&<small style={{display:"block",fontSize:8,color:T.text3}}>{nom.alto?"acima":"abaixo"} do limiar ≈{nom.limiarAprox}</small>}</div></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(205px,1fr))",gap:9}}>
-          <label style={{fontSize:10,color:T.text2}}>APACHE II<input type="number" min="0" max="71" value={dieta.refeeding?.nomograma?.apacheII||""} onChange={e=>updNom("apacheII",e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>
+          <label style={{fontSize:10,color:T.text2}}>APACHE II {nom.apacheCalculado!==null?"(calculado na admissão)":"(manual enquanto incompleto)"}<input type="number" min="0" max="71" disabled={nom.apacheCalculado!==null} value={nom.apacheCalculado??dieta.refeeding?.nomograma?.apacheII??""} onChange={e=>updNom("apacheII",e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,opacity:nom.apacheCalculado!==null ? .72 : 1}}/></label>
           {[['vomitos','Vômitos'],['cirurgia','Cirurgia de grande porte nesta internação'],['glicoseIV','Glicose IV antes da realimentação']].map(([k,l])=><label key={k} style={{fontSize:10,color:T.text2}}>{l}<select value={dieta.refeeding?.nomograma?.[k]||""} onChange={e=>updNom(k,e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}><option value="">— informar —</option><option value="nao">Não</option><option value="sim">Sim</option></select></label>)}
           <label style={{fontSize:10,color:T.text2}}>Categoria de aporte energético<select value={dieta.refeeding?.nomograma?.energia||""} onChange={e=>updNom("energia",e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}><option value="">— informar —</option><option value="lt25">&lt;25% do padrão</option><option value="padrao">Aporte calórico padrão</option><option value="ge25">≥25% do padrão (categoria do artigo)</option></select></label>
           {[['albumina','Albumina pré-dieta (g/L)',nom.albAuto?`automático: ${(nom.albAuto.valor*(nom.albAuto.valor<10?10:1)).toFixed(1)} g/L · ${nom.albAuto.data}`:''],['prealbumina','Pré-albumina pré-dieta (mg/L)',''],['lactato','Lactato pré-dieta (mmol/L)',nom.lactAuto?`automático: ${nom.lactAuto.valor} · ${nom.lactAuto.data}`:'']].map(([k,l,h])=><label key={k} style={{fontSize:10,color:T.text2}}>{l}<input type="number" step="any" value={dieta.refeeding?.nomograma?.[k]||""} placeholder={h||""} onChange={e=>updNom(k,e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/>{h&&<small style={{display:"block",fontSize:8,color:T.text3,marginTop:2}}>{h}</small>}</label>)}
@@ -2521,6 +2576,43 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
     </div>
   );
 }
+function EscoresAdmissaoPanel({dados,onChange}){
+  const a=dados.escoresAdmissao||{}, s=a.saps3||{}, apache=calcularApacheII(dados), saps=calcularSaps3(dados);
+  const upd=(k,v)=>onChange({...dados,escoresAdmissao:{...a,[k]:v}});
+  const updS=(k,v)=>upd("saps3",{...s,[k]:v});
+  const inp={width:"100%",height:34,marginTop:3,borderRadius:7,border:"1px solid rgba(56,189,248,.18)",background:"rgba(255,255,255,.04)",color:"#e2e8f0",padding:"0 8px",boxSizing:"border-box"};
+  const L=({t,children})=><label style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:.4}}>{t}{children}</label>;
+  const Num=({k,t,step="any"})=><L t={t}><input type="number" step={step} value={a[k]??""} onChange={e=>upd(k,e.target.value)} style={inp}/></L>;
+  const Sel=({k,t,opts,sapsField=false})=><L t={t}><select value={(sapsField?s[k]:a[k])??""} onChange={e=>(sapsField?updS:upd)(k,e.target.value)} style={inp}><option value="">— informar —</option>{opts.map(([v,l])=><option key={String(v)} value={v}>{l}</option>)}</select></L>;
+  const Check=({k,t,group="saps3"})=><label style={{fontSize:10,color:"#94a3b8",display:"flex",gap:5,alignItems:"center"}}><input type="checkbox" checked={!!(group==="saps3"?s[k]:a[k])} onChange={e=>group==="saps3"?updS(k,e.target.checked):upd(k,e.target.checked)}/>{t}</label>;
+  const comuns=[["temp","Temperatura (°C)"],["pam","PAM mínima/pior"],["pas","PAS mínima"],["fc","FC máxima/pior"],["fr","FR máxima/pior"],["fio2","FiO₂ (%)"],["pao2","PaO₂ (mmHg)"],["aado2","Gradiente A–a (se FiO₂ ≥50%)"],["ph","pH arterial mínimo"],["hco3","HCO₃ (se sem gasometria)"],["na","Na"],["k","K"],["cr","Creatinina (mg/dL)"],["ht","Hematócrito (%)"],["leuco","Leucócitos (mil/mm³)"],["gcs","Glasgow mínimo"],["bili","Bilirrubina total (mg/dL)"],["plaq","Plaquetas (mil/mm³)"]];
+  return <Collapsible title="ESCORES PROGNÓSTICOS DA ADMISSÃO" defaultOpen={false}>
+    <div style={{fontSize:9,color:"#64748b",lineHeight:1.4,marginBottom:10}}>APACHE II: piores valores das primeiras 24 h. SAPS 3: dados de 1 h antes até 1 h após a admissão na UTI. Não misture as janelas temporais; revise os valores importados.</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:8}}>{comuns.map(([k,t])=><Num key={k} k={k} t={t}/>)}</div>
+    <div style={{display:"flex",gap:14,flexWrap:"wrap",marginTop:9}}><Check group="apache" k="iraAguda" t="IRA aguda (dobra pontos da creatinina no APACHE)"/><Check k="vm" t="Ventilação mecânica na janela SAPS 3"/></div>
+    <div style={{marginTop:12,padding:10,borderRadius:9,border:"1px solid rgba(167,139,250,.22)",background:"rgba(167,139,250,.04)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><b style={{fontSize:11,color:"#c4b5fd"}}>APACHE II</b><b style={{fontSize:16,color:apache.completo?"#a78bfa":"#64748b"}}>{apache.completo?apache.total:"incompleto"}</b></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:8,marginTop:8}}><Sel k="cronico" t="Insuficiência orgânica crônica/imunossupressão" opts={[["nenhum","Ausente"],["eletiva","Pós-operatório eletivo (2 pts)"],["nao_eletiva","Clínico ou pós-operatório de urgência (5 pts)"]]}/></div>
+      <div style={{fontSize:9,color:"#64748b",marginTop:7}}>Fisiologia {apache.fisiologia} + idade {apache.idadePts??"?"} + condição crônica {apache.cronico??"?"}.{!apache.completo&&<> Faltam: {apache.faltantes.join(", ")}.</>}</div>
+      {apache.completo&&<div style={{fontSize:9,color:"#34d399",marginTop:5}}>Este valor ({apache.total}) será usado automaticamente pelo nomograma de realimentação.</div>}
+    </div>
+    <div style={{marginTop:12,padding:10,borderRadius:9,border:"1px solid rgba(56,189,248,.22)",background:"rgba(56,189,248,.04)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><b style={{fontSize:11,color:"#7dd3fc"}}>SAPS 3</b><div style={{textAlign:"right"}}><b style={{fontSize:16,color:saps.completo?"#38bdf8":"#64748b"}}>{saps.completo?saps.total:"incompleto"}</b>{saps.completo&&<small style={{display:"block",fontSize:8,color:"#64748b"}}>mortalidade hospitalar CSA {saps.mortalidadeCSA.toFixed(1)}%</small>}</div></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(205px,1fr))",gap:8,marginTop:8}}>
+        <Sel sapsField k="diasHospital" t="Tempo no hospital antes da UTI" opts={[["lt14","<14 dias"],["14a27","14–27 dias"],["ge28","≥28 dias"]]}/>
+        <Sel sapsField k="localAnterior" t="Local anterior" opts={[[0,"Centro cirúrgico/outro não pontuado"],[5,"Pronto-socorro"],[7,"Outra UTI"],[8,"Enfermaria/outro"]]}/>
+        <Sel sapsField k="statusCirurgico" t="Situação cirúrgica" opts={[[0,"Cirurgia programada"],[5,"Sem cirurgia"],[6,"Cirurgia de emergência"]]}/>
+        <Sel sapsField k="motivo" t="Motivo principal da admissão" opts={[[-5,"Arritmia cardiovascular"],[-4,"Convulsões"],[3,"Choque hipovolêmico/abdome agudo"],[4,"Alteração de consciência"],[5,"Choque séptico/anafilático/misto"],[6,"Insuficiência hepática"],[7,"Déficit neurológico focal"],[9,"Pancreatite grave"],[10,"Efeito de massa intracraniano"],[0,"Outros"]]}/>
+        <Sel sapsField k="sitioCirurgia" t="Sítio/tipo cirúrgico" opts={[[-11,"Transplante"],[-8,"Trauma isolado ou múltiplo"],[-6,"CRM sem reparo valvar"],[5,"Neurocirurgia por AVC"],[0,"Outros/sem cirurgia"]]}/>
+      </div>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:9}}><Check k="vasoativo" t="Vasoativo antes da UTI"/><Check k="naoPlanejada" t="Admissão não planejada"/><Check k="infeccaoNosocomial" t="Infecção hospitalar"/><Check k="infeccaoRespiratoria" t="Infecção respiratória"/></div>
+      <div style={{fontSize:9,color:"#64748b",fontFamily:mono,margin:"10px 0 5px"}}>COMORBIDADES (ADITIVAS)</div><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{[["terapiaCancer","Terapia para câncer"],["icNyha4","IC NYHA IV"],["cancerHematologico","Câncer hematológico"],["cirrose","Cirrose"],["aids","AIDS"],["cancerMetastatico","Câncer metastático"]].map(([k,t])=><label key={k} style={{fontSize:10,color:"#94a3b8",display:"flex",gap:5}}><input type="checkbox" checked={!!s.comorbidades?.[k]} onChange={e=>updS("comorbidades",{...(s.comorbidades||{}),[k]:e.target.checked})}/>{t}</label>)}</div>
+      <div style={{fontSize:9,color:"#64748b",marginTop:8}}>Box I {saps.box1} · Box II {saps.box2} · Box III {saps.box3}.{!saps.completo&&<> Faltam: {saps.faltantes.join(", ")}.</>}</div>
+      {saps.completo&&<div style={{fontSize:8,color:"#64748b",marginTop:5}}>Equação regional para América Central/Sul. Estimativa populacional para avaliação prognóstica, não para decisões individuais.</div>}
+    </div>
+  </Collapsible>;
+}
+
 // ── PacientePanel ─────────────────────────────────────────────────────────────
 function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={}, leitosDisponiveis=[], onTransferir }) {
   const [destinoLeito,setDestinoLeito]=useState("");
@@ -2563,6 +2655,7 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
         <Field label="ALTURA (cm)" value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm" style={{minWidth:90}}/>
         <div style={{minWidth:260,flex:2}}><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>RANKIN MODIFICADA — ADMISSÃO</div><select value={dados.rankinAdmissao??""} onChange={e=>onChange({...dados,rankinAdmissao:e.target.value})} style={{width:"100%",height:38,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"0 9px",color:"#e2e8f0",fontSize:11}}><option value="">— selecionar —</option>{RANKIN_OPCOES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>
       </div>
+      <EscoresAdmissaoPanel dados={dados} onChange={onChange}/>
 
       <div style={{margin:"14px 0",padding:"12px 14px",border:"1px solid rgba(56,189,248,.18)",borderRadius:10,background:"rgba(56,189,248,.035)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:(dados.acompanhantes||[]).length?10:0}}>
