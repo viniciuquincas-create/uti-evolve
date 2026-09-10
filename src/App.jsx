@@ -5758,6 +5758,67 @@ function calcPocusDerived(values={},patient={}){
   return {co,pcwp:ee!==null?1.24*ee+1.9:null,papmTacc:tacc!==null?(tacc<120?90-0.62*tacc:79-0.45*tacc):null,papmPsap:psap!==null?psap*0.61+2:null,vci,invasiva};
 }
 
+
+function latestSerialValues(serial){
+  const entries=Array.isArray(serial?.entries)?serial.entries:[];
+  return entries.reduce((latest,e)=>!latest||`${e.data||""}T${e.hora||"00:00"}`>=`${latest.data||""}T${latest.hora||"00:00"}`?e:latest,null);
+}
+function calcVentriculoArterial(values={},patient={}){
+  const pas=numPocus(values.pas),pad=numPocus(values.pad),pam=numPocus(values.pam),fc=numPocus(values.fc);
+  const pes=pas!==null?0.9*pas:null;
+  const vsInformado=numPocus(values.vs);
+  const eco=calcPocusCardiacOutput(values,patient);
+  let vs=vsInformado;
+  if(vs===null&&eco?.vs)vs=eco.vs;
+  const dc=numPocus(values.dc),ic=numPocus(values.ic);
+  const peso=numPocus(patient.peso),altura=numPocus(patient.altura);
+  const sc=[peso,altura].every(n=>n!==null&&n>0)?Math.sqrt((peso*altura)/3600):null;
+  if(vs===null&&fc&&dc)vs=dc*1000/fc;
+  if(vs===null&&fc&&ic&&sc)vs=ic*sc*1000/fc;
+  const eaPes=pes!==null&&vs>0?pes/vs:null;
+  const eaPam=pam!==null&&vs>0?pam/vs:null;
+  const vpp=numPocus(values.vpp),vvs=numPocus(values.vvs);
+  const eaDyn=vpp!==null&&vvs!==null&&vvs!==0?vpp/vvs:null;
+  const vsf=numPocus(values.vsf);
+  const eesSimplificado=pes!==null&&vsf>0?pes/vsf:null;
+  const feRaw=numPocus(values.feve),fe=feRaw!==null?(feRaw>1?feRaw/100:feRaw):null;
+  const tnd=numPocus(values.tnd);
+  let endAvg=null,endEst=null,eesChen=null;
+  if(tnd!==null){endAvg=.35695-7.2266*tnd+74.249*tnd**2-307.39*tnd**3+684.54*tnd**4-856.92*tnd**5+571.95*tnd**6-159.1*tnd**7;}
+  if(endAvg!==null&&fe!==null&&pad!==null&&pes>0)endEst=.0275-.165*fe+.3656*(pad/pes)+.515*endAvg;
+  if(endEst!==null&&endEst>0&&vs>0)eesChen=(pad-endEst*pes)/(vs*endEst);
+  return {pas,pad,pam,pes,fc,vs,eaPes,eaPam,eaDyn,eesSimplificado,eesChen,endAvg,endEst,
+    vacChenPes:eaPes!==null&&eesChen>0?eaPes/eesChen:null,
+    vacChenPam:eaPam!==null&&eesChen>0?eaPam/eesChen:null,
+    vacSimplificadoPes:eaPes!==null&&eesSimplificado>0?eaPes/eesSimplificado:null};
+}
+function VACComparisonPanel({campos={},patient={}}){
+  const T=useTheme();
+  const sources=[
+    ["POCUS",latestSerialValues(campos.cvPocusSerial),"Ecocardiografia"],
+    ["PiCCO",latestSerialValues(campos.cvPiccoSerial),"Termodiluição/contorno de pulso"],
+    ["Swan-Ganz",latestSerialValues(campos.cvSwanSerial),"Termodiluição/Fick"],
+  ].filter(([,e])=>e);
+  if(!sources.length)return null;
+  const pocus=sources.find(([n])=>n==="POCUS")?.[1];
+  const eesEco=pocus?calcVentriculoArterial(pocus.values||{},patient):null;
+  const rows=sources.map(([name,e,method])=>{
+    const own=calcVentriculoArterial(e.values||{},patient);
+    const ees=own.eesChen??eesEco?.eesChen??null;
+    return {name,e,method,...own,eesUsado:ees,vacPes:own.eaPes!==null&&ees>0?own.eaPes/ees:null,vacPam:own.eaPam!==null&&ees>0?own.eaPam/ees:null};
+  });
+  const any=rows.some(r=>r.eaPes!==null||r.eaPam!==null||r.eesChen!==null||r.eesSimplificado!==null);
+  const fmt=v=>v===null||!Number.isFinite(v)?"—":v.toFixed(2);
+  return <Collapsible title="Ea · Ees · ACOPLAMENTO VENTRÍCULO-ARTERIAL (VAC)" defaultOpen={any} badge={any?"cálculo comparativo":"dados insuficientes"}>
+    <div style={{border:`1px solid ${T.border}`,borderRadius:9,overflow:"hidden",background:T.bgCard}}>
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:10,minWidth:760}}><thead><tr style={{background:T.bgInput,color:T.text2}}>{["Fonte do VS","VS (mL)","Ea 0,9×PAS/VS","Ea PAM/VS","Ea din VPP/VVS","Ees Chen","Ees 0,9×PAS/VSF","VAC principal","VAC por PAM"].map(h=><th key={h} style={{padding:"7px 8px",textAlign:"left",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.name} style={{color:T.text1}}><td style={{padding:"7px 8px",borderBottom:`1px solid ${T.border}`}}><b>{r.name}</b><small style={{display:"block",color:T.text3}}>{r.method}</small></td>{[fmt(r.vs),fmt(r.eaPes),fmt(r.eaPam),fmt(r.eaDyn),fmt(r.eesChen??eesEco?.eesChen??null),fmt(r.eesSimplificado),fmt(r.vacPes),fmt(r.vacPam)].map((v,i)=><td key={i} style={{padding:"7px 8px",borderBottom:`1px solid ${T.border}`,fontFamily:mono,color:i>=6&&v!=="—"&&parseFloat(v)>1.36?"#f87171":T.text1}}>{v}</td>)}</tr>)}</tbody></table></div>
+      <div style={{padding:"8px 10px",fontSize:9,lineHeight:1.55,color:T.text3}}>
+        <b style={{color:T.text2}}>Comparação para avaliação clínica e pesquisa.</b> Ea principal = 0,9 × PAS/VS; as variantes PAM/VS e Ea din = VPP/VVS são exibidas em paralelo. Ees de Chen usa PAS, PAD, FEVE, VS e tNd do POCUS; quando disponível, pode compor um VAC híbrido com VS do PiCCO ou Swan-Ganz. Ees simplificado assume V₀ = 0. VAC = Ea/Ees; próximo de 1 sugere acoplamento, e &gt;1,36 foi usado como desacoplamento nos estudos de choque séptico. Não há Ees validado calculado exclusivamente por PiCCO ou Swan-Ganz.
+      </div>
+    </div>
+  </Collapsible>;
+}
+
 function SerialMeasurements({title,fieldKey,fields=[],suggestedParams=[],value,onChange,color="#38bdf8",subjective=false,calculator,patient,workflow=false,compactHistory=false,latestOnly=false}){
   const T=useTheme();
   const [showParamMenu,setShowParamMenu]=useState(false);
@@ -5809,10 +5870,10 @@ function ClinicalEvents({kind="interconsulta",value,onChange,color="#38bdf8",leg
 
 const SERIAL_MONITOR_CONFIG={
   nDTC:{title:"DTC — REGISTROS SERIADOS",color:"#a78bfa",fields:[{key:"bnoD",label:"Bainha do nervo óptico D"},{key:"bnoE",label:"Bainha do nervo óptico E"},{key:"acmIP",label:"ACM IP"},{key:"acmFVd",label:"ACM FVd"},{key:"lindegaard",label:"Lindegaard"}]},
-  cvPocusSerial:{title:"POCUS — CICLO HEMODINÂMICO",color:"#f87171",subjective:true,calculator:"pocus-co",workflow:true,compactHistory:true,fields:[{key:"vciMax",label:"VCI maior (cm)",reference:"≤2,1"},{key:"vciMin",label:"VCI menor (cm)"},{key:"lvotDiam",label:"Diâmetro VSVE (cm)"},{key:"vtiVE",label:"VTI VE (cm)",reference:"18–22"},{key:"fc",label:"FC (bpm)"},{key:"vtiVD",label:"VTI VD (cm)",reference:">18"},{key:"ea",label:"E/A",reference:"0,8–2"},{key:"ee",label:"E/e'",reference:"<8; >14 alto"}],suggestedParams:[{key:"mapse",label:"MAPSE (mm)",reference:">10"},{key:"epss",label:"EPSS (mm)",reference:"≤7"},{key:"tacc",label:"TAcc (ms)",reference:">130"},{key:"fac",label:"FAC (%)",reference:"≥35%"},{key:"tapse",label:"TAPSE (mm)",reference:"≥17"},{key:"psap",label:"PSAP (mmHg)",reference:"≤35"}]},
-  cvPiccoSerial:{title:"PiCCO — CICLO HEMODINÂMICO",color:"#f87171",workflow:true,compactHistory:true,fields:[{key:"pvc",label:"PVC",reference:"2–6 mmHg"},{key:"ic",label:"IC",reference:"3–5 L/min/m²"},{key:"gedi",label:"GEDI",reference:"680–800 mL/m²"},{key:"elwi",label:"ELWI",reference:"3–7 mL/kg"},{key:"pvpi",label:"PVPI",reference:"1–3"},{key:"svri",label:"SVRI",reference:"1700–2400"},{key:"vvs",label:"VVS",reference:"<10–13%"},{key:"tdci",label:"tdCI",reference:"3–5 L/min/m²"},{key:"gef",label:"GEF",reference:"25–35%"}]},
+  cvPocusSerial:{title:"POCUS — CICLO HEMODINÂMICO",color:"#f87171",subjective:true,calculator:"pocus-co",workflow:true,compactHistory:true,fields:[{key:"vciMax",label:"VCI maior (cm)",reference:"≤2,1"},{key:"vciMin",label:"VCI menor (cm)"},{key:"lvotDiam",label:"Diâmetro VSVE (cm)"},{key:"vtiVE",label:"VTI VE (cm)",reference:"18–22"},{key:"fc",label:"FC (bpm)"},{key:"vtiVD",label:"VTI VD (cm)",reference:">18"},{key:"ea",label:"E/A",reference:"0,8–2"},{key:"ee",label:"E/e'",reference:"<8; >14 alto"}],suggestedParams:[{key:"pas",label:"PAS (mmHg)"},{key:"pad",label:"PAD (mmHg)"},{key:"pam",label:"PAM (mmHg)"},{key:"feve",label:"FEVE (%)"},{key:"tnd",label:"tNd"},{key:"vsf",label:"VSF (mL)"},{key:"mapse",label:"MAPSE (mm)",reference:">10"},{key:"epss",label:"EPSS (mm)",reference:"≤7"},{key:"tacc",label:"TAcc (ms)",reference:">130"},{key:"fac",label:"FAC (%)",reference:"≥35%"},{key:"tapse",label:"TAPSE (mm)",reference:"≥17"},{key:"psap",label:"PSAP (mmHg)",reference:"≤35"}]},
+  cvPiccoSerial:{title:"PiCCO — CICLO HEMODINÂMICO",color:"#f87171",workflow:true,compactHistory:true,fields:[{key:"pvc",label:"PVC",reference:"2–6 mmHg"},{key:"ic",label:"IC",reference:"3–5 L/min/m²"},{key:"gedi",label:"GEDI",reference:"680–800 mL/m²"},{key:"elwi",label:"ELWI",reference:"3–7 mL/kg"},{key:"pvpi",label:"PVPI",reference:"1–3"},{key:"svri",label:"SVRI",reference:"1700–2400"},{key:"vvs",label:"VVS",reference:"<10–13%"},{key:"tdci",label:"tdCI",reference:"3–5 L/min/m²"},{key:"gef",label:"GEF",reference:"25–35%"}],suggestedParams:[{key:"pas",label:"PAS (mmHg)"},{key:"pam",label:"PAM (mmHg)"},{key:"fc",label:"FC (bpm)"},{key:"vs",label:"VS (mL)"},{key:"dc",label:"DC (L/min)"},{key:"vpp",label:"VPP (%)"}]},
   cvPerfusaoSerial:{title:"PERFUSÃO — ΔCO₂ / ΔPP · CICLO HEMODINÂMICO",color:"#f87171",workflow:true,compactHistory:true,fields:[{key:"deltaCO2",label:"ΔCO₂ (mmHg)",reference:"<6"},{key:"deltaPP",label:"ΔPP (%)",reference:"<10%; >13 sugere resposta"},{key:"lactato",label:"Lactato",reference:"<2 mmol/L"},{key:"svcO2",label:"ScvO₂ (%)",reference:"70–80%"}]},
-  cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",compactHistory:true,fields:[{key:"pvc",label:"PVC"},{key:"paps",label:"PAPs"},{key:"papd",label:"PAPd"},{key:"papm",label:"PAPm"},{key:"pcp",label:"PCP"},{key:"dc",label:"DC"},{key:"ic",label:"IC"},{key:"svo2",label:"SvO₂"},{key:"rvs",label:"RVS"}]},
+  cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",compactHistory:true,fields:[{key:"pvc",label:"PVC"},{key:"paps",label:"PAPs"},{key:"papd",label:"PAPd"},{key:"papm",label:"PAPm"},{key:"pcp",label:"PCP"},{key:"dc",label:"DC"},{key:"ic",label:"IC"},{key:"svo2",label:"SvO₂"},{key:"rvs",label:"RVS"}],suggestedParams:[{key:"pas",label:"PAS (mmHg)"},{key:"pam",label:"PAM (mmHg)"},{key:"fc",label:"FC (bpm)"},{key:"vs",label:"VS (mL)"}]},
   cvBiaSerial:{title:"BIA — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"assistencia",label:"Relação de assistência"},{key:"trigger",label:"Trigger"},{key:"augmentacao",label:"Augmentação"},{key:"pasAssistida",label:"PAS assistida"},{key:"pasNaoAssistida",label:"PAS não assistida"},{key:"diastolicaAumentada",label:"Diastólica aumentada"},{key:"pam",label:"PAM"}]},
   reLusSerial:{title:"LUS — AVALIAÇÕES SERIADAS",color:"#38bdf8",subjective:true,workflow:true,compactHistory:true,fields:[{key:"htd",label:"HTD"},{key:"hte",label:"HTE"}]},
   rmTrsSerial:{title:"TSR — SESSÕES",color:"#34d399",latestOnly:true,fields:[{key:"modalidade",label:"Modalidade"},{key:"uf",label:"UF"},{key:"duracao",label:"Tempo de duração"},{key:"intercorrencias",label:"Intercorrências"}]},
@@ -6572,6 +6633,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {vis["add_cv_pocus"]&&serialPanel("cvPocusSerial")}
         {vis["add_cv_picco"]&&serialPanel("cvPiccoSerial")}
         {vis["add_cv_swan"]&&serialPanel("cvSwanSerial")}
+        {(vis["add_cv_pocus"]||vis["add_cv_picco"]||vis["add_cv_swan"])&&<VACComparisonPanel campos={campos} patient={leito}/>}
         {vis["add_cv_bia"]&&serialPanel("cvBiaSerial")}
         {vis["cvObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.cvObs} defaultValue={campos.cvObs} isAntigo={isAntigo("cvObs")} sugestao="Eco beira-leito amanhã" rows={1} fieldName="cvObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
