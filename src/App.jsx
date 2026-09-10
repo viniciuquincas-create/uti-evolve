@@ -5792,6 +5792,34 @@ function calcVentriculoArterial(values={},patient={}){
     vacChenPam:eaPam!==null&&eesChen>0?eaPam/eesChen:null,
     vacSimplificadoPes:eaPes!==null&&eesSimplificado>0?eaPes/eesSimplificado:null};
 }
+function VACDiagram({row,pocusEntry}){
+  const T=useTheme(),pv=pocusEntry?.values||{};
+  const feRaw=numPocus(pv.feve),fe=feRaw!==null?(feRaw>1?feRaw/100:feRaw):null;
+  if(!row||!row.vs||!row.pes||!row.eesUsado||!fe||fe<=0||fe>=1)return <div style={{padding:"14px 12px",fontSize:10,color:T.text4,textAlign:"center",borderTop:`1px solid ${T.border}`}}>Para desenhar o diagrama, informe FEVE e os dados necessários para Ea/Ees. O VSF pode ser derivado de VS e FEVE.</div>;
+  const vs=row.vs,edv=vs/fe,esv=edv-vs,ees=row.eesUsado,ea=row.eaPes;
+  const v0=esv-row.pes/ees;
+  const minV=Math.min(0,v0)*1.12,maxV=edv*1.16,maxP=Math.max(row.pes*1.28,140);
+  const W=620,H=310,L=54,R=24,Tp=22,B=42;
+  const x=v=>L+(v-minV)/(maxV-minV)*(W-L-R),y=p=>H-B-p/maxP*(H-Tp-B);
+  const x0=x(0),y0=y(0),xesv=x(esv),xedv=x(edv),ypes=y(row.pes),xv0=x(v0);
+  const loop=`M ${xedv} ${y(Math.max(4,(row.pad||8)*.35))} C ${xedv+4} ${y(row.pes*.55)}, ${xedv-8} ${y(row.pes*.93)}, ${xesv} ${ypes} L ${xesv} ${y(Math.max(4,(row.pad||8)*.45))} C ${x(esv+vs*.22)} ${y(2)}, ${x(edv-vs*.18)} ${y(3)}, ${xedv} ${y(Math.max(4,(row.pad||8)*.35))} Z`;
+  const vac=row.vacPes;
+  return <div style={{borderTop:`1px solid ${T.border}`,padding:"10px 10px 8px"}}>
+    <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"baseline",marginBottom:5}}><b style={{fontSize:10,color:T.text2}}>DIAGRAMA PRESSÃO–VOLUME DERIVADO · {row.name}</b><span style={{fontSize:9,color:T.text3}}>VAC {vac?.toFixed(2)??"—"}</span></div>
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Diagrama derivado de acoplamento ventrículo-arterial por ${row.name}`} style={{display:"block",width:"100%",maxHeight:330,background:T.bgInput,borderRadius:8}}>
+      <line x1={x0} y1={Tp} x2={x0} y2={y0} stroke={T.text3} strokeWidth="1.4"/><line x1={x0} y1={y0} x2={W-R} y2={y0} stroke={T.text3} strokeWidth="1.4"/>
+      {[0,Math.round(maxP/2),Math.round(maxP)].map(q=><g key={q}><line x1={x0-4} y1={y(q)} x2={x0} y2={y(q)} stroke={T.text3}/><text x={x0-8} y={y(q)+3} textAnchor="end" fill={T.text4} fontSize="9">{q}</text></g>)}
+      <path d={loop} fill="rgba(56,189,248,.13)" stroke="#38bdf8" strokeWidth="1.7"/>
+      <line x1={xedv} y1={y0} x2={xesv} y2={ypes} stroke="#f59e0b" strokeWidth="2.4"/><line x1={xv0} y1={y0} x2={xesv} y2={ypes} stroke="#a78bfa" strokeWidth="2.4"/>
+      <line x1={xesv} y1={ypes} x2={xesv} y2={y0} stroke={T.text4} strokeDasharray="4 4"/><circle cx={xesv} cy={ypes} r="4" fill="#f8fafc" stroke="#f87171" strokeWidth="2"/>
+      <text x={(xedv+xesv)/2+7} y={(y0+ypes)/2} fill="#f59e0b" fontSize="11" fontWeight="700">Ea</text><text x={(xv0+xesv)/2-7} y={(y0+ypes)/2-15} fill="#a78bfa" fontSize="11" fontWeight="700">Ees</text>
+      <text x={xesv} y={y0+15} textAnchor="middle" fill={T.text3} fontSize="9">VSF {esv.toFixed(0)}</text><text x={xedv} y={y0+15} textAnchor="middle" fill={T.text3} fontSize="9">VDF {edv.toFixed(0)}</text><text x={xv0} y={y0+29} textAnchor="middle" fill={T.text4} fontSize="9">V₀ {v0.toFixed(0)}</text>
+      <text x={14} y={(Tp+y0)/2} transform={`rotate(-90 14 ${(Tp+y0)/2})`} textAnchor="middle" fill={T.text3} fontSize="10">Pressão (mmHg)</text><text x={(x0+W-R)/2} y={H-7} textAnchor="middle" fill={T.text3} fontSize="10">Volume VE (mL)</text>
+    </svg>
+    <div style={{fontSize:8.5,color:T.text4,lineHeight:1.45,marginTop:5}}>VDF e VSF derivados de VS/FEVE; V₀ derivado da Ees usada. A curva azul é apenas uma representação geométrica para contextualizar as retas — não reproduz uma alça pressão-volume invasiva nem calcula trabalho sistólico.</div>
+  </div>;
+}
+
 function VACComparisonPanel({campos={},patient={}}){
   const T=useTheme();
   const sources=[
@@ -5812,6 +5840,7 @@ function VACComparisonPanel({campos={},patient={}}){
   return <Collapsible title="Ea · Ees · ACOPLAMENTO VENTRÍCULO-ARTERIAL (VAC)" defaultOpen={any} badge={any?"cálculo comparativo":"dados insuficientes"}>
     <div style={{border:`1px solid ${T.border}`,borderRadius:9,overflow:"hidden",background:T.bgCard}}>
       <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:10,minWidth:760}}><thead><tr style={{background:T.bgInput,color:T.text2}}>{["Fonte do VS","VS (mL)","Ea 0,9×PAS/VS","Ea PAM/VS","Ea din VPP/VVS","Ees Chen","Ees 0,9×PAS/VSF","VAC principal","VAC por PAM"].map(h=><th key={h} style={{padding:"7px 8px",textAlign:"left",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.name} style={{color:T.text1}}><td style={{padding:"7px 8px",borderBottom:`1px solid ${T.border}`}}><b>{r.name}</b><small style={{display:"block",color:T.text3}}>{r.method}</small></td>{[fmt(r.vs),fmt(r.eaPes),fmt(r.eaPam),fmt(r.eaDyn),fmt(r.eesChen??eesEco?.eesChen??null),fmt(r.eesSimplificado),fmt(r.vacPes),fmt(r.vacPam)].map((v,i)=><td key={i} style={{padding:"7px 8px",borderBottom:`1px solid ${T.border}`,fontFamily:mono,color:i>=6&&v!=="—"&&parseFloat(v)>1.36?"#f87171":T.text1}}>{v}</td>)}</tr>)}</tbody></table></div>
+      <VACDiagram row={rows.find(r=>r.vacPes!==null&&r.vacPes!==undefined&&r.vs&&r.eesUsado)} pocusEntry={pocus}/>
       <div style={{padding:"8px 10px",fontSize:9,lineHeight:1.55,color:T.text3}}>
         <b style={{color:T.text2}}>Comparação para avaliação clínica e pesquisa.</b> Ea principal = 0,9 × PAS/VS; as variantes PAM/VS e Ea din = VPP/VVS são exibidas em paralelo. Ees de Chen usa PAS, PAD, FEVE, VS e tNd do POCUS; quando disponível, pode compor um VAC híbrido com VS do PiCCO ou Swan-Ganz. Ees simplificado assume V₀ = 0. VAC = Ea/Ees; próximo de 1 sugere acoplamento, e &gt;1,36 foi usado como desacoplamento nos estudos de choque séptico. Não há Ees validado calculado exclusivamente por PiCCO ou Swan-Ganz.
       </div>
