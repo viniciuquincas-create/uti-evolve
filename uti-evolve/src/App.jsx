@@ -1892,6 +1892,25 @@ function calcularExPres({rsbi,complacencia,dias,egcs,mrc,ht,cr,neuro}){
   return {componentes,faltantes,total,faixa:total===null?"incompleto":total<=44?"baixa":total<=58?"intermediária":"alta"};
 }
 
+function calcularGasAlveolar({fio2,paco2,pao2,pb=760,rq=.8}){
+  const fi=parseFloat(String(fio2??"").replace(",","."));
+  const co2=parseFloat(String(paco2??"").replace(",","."));
+  const arterial=parseFloat(String(pao2??"").replace(",","."));
+  const barometrica=parseFloat(String(pb??"").replace(",","."));
+  const quociente=parseFloat(String(rq??"").replace(",","."));
+  if(!Number.isFinite(fi)||fi<=0||!Number.isFinite(co2)||co2<=0||!Number.isFinite(barometrica)||barometrica<=47||!Number.isFinite(quociente)||quociente<=0)return null;
+  const fracao=fi>1?fi/100:fi;
+  const alveolar=fracao*(barometrica-47)-(co2/quociente);
+  if(!Number.isFinite(alveolar)||alveolar<=0)return null;
+  return {
+    pao2Alveolar:alveolar,
+    gradienteAa:Number.isFinite(arterial)&&arterial>0?alveolar-arterial:null,
+    fio2Percentual:fracao*100,
+    pb:barometrica,
+    rq:quociente
+  };
+}
+
 function gerarTextoVM(leito) {
   const modo = leito.vm_modo;
   if (!modo || modo === "ar_ambiente") return leito.vm_sato2 ? `Ar ambiente / SatO2 ${leito.vm_sato2}%` : "Ar ambiente";
@@ -1927,6 +1946,11 @@ function gerarTextoVM(leito) {
   if (mostraOpcional("obs")&&leito.vm_obs) partes.push(leito.vm_obs);
   const pao2=parseFloat(leito.vm_pf), fio2=parseFloat(leito.vm_fio2);
   if(Number.isFinite(pao2)&&pao2>0&&Number.isFinite(fio2)&&fio2>0) partes.push(`→ P/F ${Math.round(pao2/(fio2/100))}`);
+  const gasAlveolar=calcularGasAlveolar({fio2:leito.vm_modo==="ar_ambiente"?21:leito.vm_fio2,paco2:leito.vm_paco2,pao2:leito.vm_pf,pb:leito.vm_pb||760,rq:leito.vm_rq||.8});
+  if(gasAlveolar){
+    partes.push(`PAO₂: ${Math.round(gasAlveolar.pao2Alveolar)} mmHg`);
+    if(gasAlveolar.gradienteAa!==null)partes.push(`Gradiente A–a: ${Math.round(gasAlveolar.gradienteAa)} mmHg`);
+  }
   const cuidados=[];
   if(VM_INVASIVA_MODOS.includes(modo)){
     if(leito.vm_cuidado_cornea) cuidados.push("profilaxia de úlcera de córnea: dextrano");
@@ -1937,7 +1961,7 @@ function gerarTextoVM(leito) {
   return `${label}: ${partes.join(" / ")}${cuidados.length?`\n- Cuidados VM: ${cuidados.join("; ")}`:""}`;
 }
 
-const VM_SNAPSHOT_KEYS=["vm_modo","vm_sato2","vm_pf","vm_o2","vm_flow","vm_fio2","vm_ipap","vm_epap","vm_br","vm_ps","vm_peep","vm_fr","vm_vt","vm_p01","vm_pocc","vm_pins","vm_pplat","vm_ppico","vm_phigh","vm_plow","vm_thigh","vm_tlow","vm_cuff"];
+const VM_SNAPSHOT_KEYS=["vm_modo","vm_sato2","vm_pf","vm_paco2","vm_pb","vm_rq","vm_o2","vm_flow","vm_fio2","vm_ipap","vm_epap","vm_br","vm_ps","vm_peep","vm_fr","vm_vt","vm_p01","vm_pocc","vm_pins","vm_pplat","vm_ppico","vm_phigh","vm_plow","vm_thigh","vm_tlow","vm_cuff"];
 const snapshotVM=(leito)=>Object.fromEntries(VM_SNAPSHOT_KEYS.filter(k=>leito[k]!==undefined&&leito[k]!=="").map(k=>[k,leito[k]]));
 const resumoSnapshotVM=(snap={})=>snap.vm_modo?gerarTextoVM({...snap}).split("\n")[0]:"Suporte não definido";
 
@@ -1958,7 +1982,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const pao2Gasometrias=Object.keys(tabelaDataLeito||{}).sort().reverse().flatMap(data=>{
     let gasos=tabelaDataLeito[data]?._gasos||[];
     try{if(typeof gasos==="string")gasos=JSON.parse(gasos);}catch{gasos=[];}
-    return (Array.isArray(gasos)?gasos:[]).filter(g=>g?.po2!==undefined&&g.po2!=="").map(g=>({valor:g.po2,horario:g.horario||"sem horário",data:g.data||data})).reverse();
+    return (Array.isArray(gasos)?gasos:[]).filter(g=>g?.po2!==undefined&&g.po2!=="").map(g=>({valor:g.po2,pco2:g.pco2??"",horario:g.horario||"sem horário",data:g.data||data})).reverse();
   });
 
   const modosFiltrados = busca.length >= 1
@@ -1978,6 +2002,8 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const csr   = (vt && pplat && peep && pplat>peep) ? Math.round(vt/(pplat-peep)) : null;
   const ppeak_est = leito.vm_ppico ? parseFloat(leito.vm_ppico) : null;
   const pf_calc = (po2>0&&fio2>0) ? Math.round(po2/(fio2/100)) : null;
+  const fio2GasAlveolar=leito.vm_modo==="ar_ambiente"?21:leito.vm_fio2;
+  const gasAlveolar=calcularGasAlveolar({fio2:fio2GasAlveolar,paco2:leito.vm_paco2,pao2:leito.vm_pf,pb:leito.vm_pb||760,rq:leito.vm_rq||.8});
   const mechanicalPower=calcMechanicalPower(leito);
   const poccEffort=calcPoccEffort(leito);
   const ultimoLab=(chaves)=>{
@@ -2139,15 +2165,20 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
               placeholder="90-100"
               style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text1,fontSize:12}}/>
           </div>
-          {VM_INVASIVA_MODOS.includes(leito.vm_modo)&&<div style={{minWidth:160,flex:1,position:"relative"}}>
-            <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ (mmHg) — calcula P/F</div>
+          <div style={{minWidth:160,flex:1,position:"relative"}}>
+            <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ ARTERIAL (mmHg)</div>
             <input type="number" value={leito.vm_pf||""} onChange={e=>set("vm_pf",e.target.value)} onFocus={()=>setShowPaO2List(true)} onBlur={()=>setTimeout(()=>setShowPaO2List(false),150)} placeholder="Digite ou escolha da gasometria"
               style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text1,fontSize:12}}/>
             {showPaO2List&&pao2Gasometrias.length>0&&<div style={{position:"absolute",zIndex:30,top:"100%",left:0,right:0,marginTop:4,maxHeight:190,overflowY:"auto",border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 28px rgba(0,0,0,.24)"}}>
               <div style={{padding:"6px 9px",fontSize:8,color:T.text3,fontFamily:mono,letterSpacing:1}}>PaO₂ REGISTRADAS NAS GASOMETRIAS</div>
-              {pao2Gasometrias.map((g,i)=><button key={`${g.data}-${g.horario}-${i}`} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>{set("vm_pf",String(g.valor));setShowPaO2List(false);}} style={{width:"100%",padding:"7px 9px",display:"flex",justifyContent:"space-between",gap:10,border:0,borderTop:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left"}}><strong>PaO₂ {g.valor} mmHg</strong><span style={{fontSize:9,color:T.text3,fontFamily:mono}}>{g.horario} · {String(g.data).split("-").reverse().join("/")}</span></button>)}
+              {pao2Gasometrias.map((g,i)=><button key={`${g.data}-${g.horario}-${i}`} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>{alterarVM({vm_pf:String(g.valor),...(g.pco2!==""?{vm_paco2:String(g.pco2)}:{})});setShowPaO2List(false);}} style={{width:"100%",padding:"7px 9px",display:"flex",justifyContent:"space-between",gap:10,border:0,borderTop:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left"}}><strong>PaO₂ {g.valor} mmHg{g.pco2!==""?` · PaCO₂ ${g.pco2}`:""}</strong><span style={{fontSize:9,color:T.text3,fontFamily:mono}}>{g.horario} · {String(g.data).split("-").reverse().join("/")}</span></button>)}
             </div>}
-          </div>}
+          </div>
+          <div style={{minWidth:145,flex:1}}>
+            <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaCO₂ ARTERIAL (mmHg)</div>
+            <input type="number" step="0.1" value={leito.vm_paco2||""} onChange={e=>set("vm_paco2",e.target.value)} placeholder="Da mesma gasometria"
+              style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text1,fontSize:12}}/>
+          </div>
           {VM_INVASIVA_MODOS.includes(leito.vm_modo) && leito.dispositivos?.tqt?.ativo && (
             <div style={{minWidth:120,flex:1}}>
               <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>CUFF (TQT)</div>
@@ -2158,6 +2189,22 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
           )}
         </div>
       )}
+
+      {modoAtual&&<div style={{marginBottom:10,padding:"9px 11px",borderRadius:9,border:`1px solid ${T.border}`,background:T.bgInput}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:7}}>
+          <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.1,fontWeight:800}}>EQUAÇÃO DO GÁS ALVEOLAR</div>
+          <span style={{fontSize:8,color:T.text4}}>PH₂O 47 mmHg</span>
+          {leito.vm_modo==="ar_ambiente"&&<span style={{fontSize:8,color:T.text4}}>FiO₂ 21%</span>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(135px,1fr))",gap:8,alignItems:"end"}}>
+          {leito.vm_modo!=="ar_ambiente"&&!campos.some(c=>c.key==="vm_fio2")&&<label style={{fontSize:9,color:T.text3,fontFamily:mono}}>FiO₂ PARA O CÁLCULO (%)<input type="number" step="0.1" value={leito.vm_fio2||""} onChange={e=>set("vm_fio2",e.target.value)} placeholder="Ex.: 28" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>}
+          <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PRESSÃO BAROMÉTRICA (mmHg)<input type="number" step="1" value={leito.vm_pb??760} onChange={e=>set("vm_pb",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
+          <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>QUOCIENTE RESPIRATÓRIO<input type="number" min="0.1" step="0.05" value={leito.vm_rq??0.8} onChange={e=>set("vm_rq",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
+          <div style={{padding:"7px 9px",borderRadius:7,border:`1px solid ${gasAlveolar?T.accentBorder:T.border}`,background:gasAlveolar?T.accentBg:T.bgCard,minHeight:34,boxSizing:"border-box"}}><span style={{display:"block",fontSize:8,color:T.text4,fontFamily:mono}}>PAO₂ ALVEOLAR</span><strong style={{fontSize:13,color:gasAlveolar?T.accent:T.text3}}>{gasAlveolar?`${gasAlveolar.pao2Alveolar.toFixed(1).replace(".",",")} mmHg`:"—"}</strong></div>
+          <div style={{padding:"7px 9px",borderRadius:7,border:`1px solid ${gasAlveolar?.gradienteAa!==null&&gasAlveolar?T.accentBorder:T.border}`,background:gasAlveolar?.gradienteAa!==null&&gasAlveolar?T.accentBg:T.bgCard,minHeight:34,boxSizing:"border-box"}}><span style={{display:"block",fontSize:8,color:T.text4,fontFamily:mono}}>GRADIENTE ALVÉOLO-ARTERIAL</span><strong style={{fontSize:13,color:gasAlveolar?.gradienteAa!==null&&gasAlveolar?T.accent:T.text3}}>{gasAlveolar?.gradienteAa!==null&&gasAlveolar?`${gasAlveolar.gradienteAa.toFixed(1).replace(".",",")} mmHg`:"—"}</strong></div>
+        </div>
+        <div style={{marginTop:6,fontSize:8,color:T.text4,lineHeight:1.45}}>PAO₂ = FiO₂ × (PB − 47) − PaCO₂/RQ. Use PaO₂ e PaCO₂ da mesma gasometria; ajuste PB conforme altitude/pressão local.</div>
+      </div>}
 
       {/* Campos do modo selecionado */}
       {modoAtual && leito.vm_modo !== "ar_ambiente" && (
@@ -2607,7 +2654,7 @@ function EscoresAdmissaoPanel({dados,onChange}){
   const Sel=({k,t,opts,sapsField=false})=><L t={t}><select value={(sapsField?s[k]:a[k])??""} onChange={e=>(sapsField?updS:upd)(k,e.target.value)} style={inp}><option value="">— informar —</option>{opts.map(([v,l])=><option key={String(v)} value={v}>{l}</option>)}</select></L>;
   const Check=({k,t,group="saps3"})=><label style={{fontSize:10,color:"#94a3b8",display:"flex",gap:5,alignItems:"center"}}><input type="checkbox" checked={!!(group==="saps3"?s[k]:a[k])} onChange={e=>group==="saps3"?updS(k,e.target.checked):upd(k,e.target.checked)}/>{t}</label>;
   const comuns=[["temp","Temperatura (°C)"],["pam","PAM mínima/pior"],["pas","PAS mínima"],["fc","FC máxima/pior"],["fr","FR máxima/pior"],["fio2","FiO₂ (%)"],["pao2","PaO₂ (mmHg)"],["aado2","Gradiente A–a (se FiO₂ ≥50%)"],["ph","pH arterial mínimo"],["hco3","HCO₃ (se sem gasometria)"],["na","Na"],["k","K"],["cr","Creatinina (mg/dL)"],["ht","Hematócrito (%)"],["leuco","Leucócitos (mil/mm³)"],["gcs","Glasgow mínimo"],["bili","Bilirrubina total (mg/dL)"],["plaq","Plaquetas (mil/mm³)"]];
-  return <Collapsible title="ESCORES PROGNÓSTICOS DA ADMISSÃO" defaultOpen={false}>
+  return <Collapsible title="APACHE II E SAPS 3 — ADMISSÃO" defaultOpen={true}>
     <div style={{fontSize:9,color:"#64748b",lineHeight:1.4,marginBottom:10}}>APACHE II: piores valores das primeiras 24 h. SAPS 3: dados de 1 h antes até 1 h após a admissão na UTI. Não misture as janelas temporais; revise os valores importados.</div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))",gap:8}}>{comuns.map(([k,t])=><Num key={k} k={k} t={t}/>)}</div>
     <div style={{display:"flex",gap:14,flexWrap:"wrap",marginTop:9}}><Check group="apache" k="iraAguda" t="IRA aguda (dobra pontos da creatinina no APACHE)"/><Check k="vm" t="Ventilação mecânica na janela SAPS 3"/></div>
