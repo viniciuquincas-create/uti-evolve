@@ -1946,7 +1946,7 @@ function gerarTextoVM(leito) {
   if (mostraOpcional("obs")&&leito.vm_obs) partes.push(leito.vm_obs);
   const pao2=parseFloat(leito.vm_pf), fio2=parseFloat(leito.vm_fio2);
   if(Number.isFinite(pao2)&&pao2>0&&Number.isFinite(fio2)&&fio2>0) partes.push(`→ P/F ${Math.round(pao2/(fio2/100))}`);
-  const gasAlveolar=calcularGasAlveolar({fio2:leito.vm_modo==="ar_ambiente"?21:leito.vm_fio2,paco2:leito.vm_paco2,pao2:leito.vm_pf,pb:leito.vm_pb||760,rq:leito.vm_rq||.8});
+  const gasAlveolar=leito.vmOpcionais?.gasa?calcularGasAlveolar({fio2:leito.vm_modo==="ar_ambiente"?21:leito.vm_fio2,paco2:leito.vm_paco2,pao2:leito.vm_pf,pb:leito.vm_pb||760,rq:leito.vm_rq||.8}):null;
   if(gasAlveolar){
     partes.push(`PAO₂: ${Math.round(gasAlveolar.pao2Alveolar)} mmHg`);
     if(gasAlveolar.gradienteAa!==null)partes.push(`Gradiente A–a: ${Math.round(gasAlveolar.gradienteAa)} mmHg`);
@@ -1984,6 +1984,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
     try{if(typeof gasos==="string")gasos=JSON.parse(gasos);}catch{gasos=[];}
     return (Array.isArray(gasos)?gasos:[]).filter(g=>g?.po2!==undefined&&g.po2!=="").map(g=>({valor:g.po2,pco2:g.pco2??"",horario:g.horario||"sem horário",data:g.data||data})).reverse();
   });
+  const ultimaGasoResp=pao2Gasometrias[0]||null;
 
   const modosFiltrados = busca.length >= 1
     ? VM_MODOS.filter(m=>m.label.toLowerCase().includes(busca.toLowerCase()))
@@ -1996,14 +1997,15 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const pins  = parseFloat(leito.vm_pins||0)  || 0;
   const ps    = parseFloat(leito.vm_ps||0)    || 0;
   const fio2  = parseFloat(leito.vm_fio2||0)  || 0;
-  const po2   = parseFloat(leito.vm_pf||0)    || 0; // P/F
+  const po2   = parseFloat(leito.vm_pf||ultimaGasoResp?.valor||0) || 0;
+  const paco2 = parseFloat(leito.vm_paco2||ultimaGasoResp?.pco2||0) || 0;
 
   const dp    = (pplat && peep) ? Math.round((pplat - peep)*10)/10 : null;
   const csr   = (vt && pplat && peep && pplat>peep) ? Math.round(vt/(pplat-peep)) : null;
   const ppeak_est = leito.vm_ppico ? parseFloat(leito.vm_ppico) : null;
   const pf_calc = (po2>0&&fio2>0) ? Math.round(po2/(fio2/100)) : null;
   const fio2GasAlveolar=leito.vm_modo==="ar_ambiente"?21:leito.vm_fio2;
-  const gasAlveolar=calcularGasAlveolar({fio2:fio2GasAlveolar,paco2:leito.vm_paco2,pao2:leito.vm_pf,pb:leito.vm_pb||760,rq:leito.vm_rq||.8});
+  const gasAlveolar=calcularGasAlveolar({fio2:fio2GasAlveolar,paco2,pao2:po2,pb:leito.vm_pb||760,rq:leito.vm_rq||.8});
   const mechanicalPower=calcMechanicalPower(leito);
   const poccEffort=calcPoccEffort(leito);
   const ultimoLab=(chaves)=>{
@@ -2051,6 +2053,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
     id==="ed"?!!leito.vm_ed:
     id==="fed"?!!leito.vm_fed:
     id==="pimax"?!!leito.vm_pimax:
+    id==="gasa"?!!(leito.vm_paco2||leito.vm_pb||leito.vm_rq):
     id==="expres"?temExPres:
     id==="obs"?!!leito.vm_obs:
     id==="neb"?!!(leito.nebMed||leito.nebFreq):false
@@ -2167,17 +2170,13 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
           </div>
           <div style={{minWidth:160,flex:1,position:"relative"}}>
             <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ ARTERIAL (mmHg)</div>
-            <input type="number" value={leito.vm_pf||""} onChange={e=>set("vm_pf",e.target.value)} onFocus={()=>setShowPaO2List(true)} onBlur={()=>setTimeout(()=>setShowPaO2List(false),150)} placeholder="Digite ou escolha da gasometria"
+            <input type="number" value={leito.vm_pf||ultimaGasoResp?.valor||""} onChange={e=>set("vm_pf",e.target.value)} onFocus={()=>setShowPaO2List(true)} onBlur={()=>setTimeout(()=>setShowPaO2List(false),150)} placeholder="Digite ou escolha da gasometria"
               style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text1,fontSize:12}}/>
+            {!leito.vm_pf&&ultimaGasoResp&&<div style={{fontSize:8,color:T.text4,fontFamily:mono,marginTop:3}}>Gasometria {ultimaGasoResp.horario} · {String(ultimaGasoResp.data).split("-").reverse().join("/")}</div>}
             {showPaO2List&&pao2Gasometrias.length>0&&<div style={{position:"absolute",zIndex:30,top:"100%",left:0,right:0,marginTop:4,maxHeight:190,overflowY:"auto",border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 28px rgba(0,0,0,.24)"}}>
               <div style={{padding:"6px 9px",fontSize:8,color:T.text3,fontFamily:mono,letterSpacing:1}}>PaO₂ REGISTRADAS NAS GASOMETRIAS</div>
               {pao2Gasometrias.map((g,i)=><button key={`${g.data}-${g.horario}-${i}`} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>{alterarVM({vm_pf:String(g.valor),...(g.pco2!==""?{vm_paco2:String(g.pco2)}:{})});setShowPaO2List(false);}} style={{width:"100%",padding:"7px 9px",display:"flex",justifyContent:"space-between",gap:10,border:0,borderTop:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left"}}><strong>PaO₂ {g.valor} mmHg{g.pco2!==""?` · PaCO₂ ${g.pco2}`:""}</strong><span style={{fontSize:9,color:T.text3,fontFamily:mono}}>{g.horario} · {String(g.data).split("-").reverse().join("/")}</span></button>)}
             </div>}
-          </div>
-          <div style={{minWidth:145,flex:1}}>
-            <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaCO₂ ARTERIAL (mmHg)</div>
-            <input type="number" step="0.1" value={leito.vm_paco2||""} onChange={e=>set("vm_paco2",e.target.value)} placeholder="Da mesma gasometria"
-              style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text1,fontSize:12}}/>
           </div>
           {VM_INVASIVA_MODOS.includes(leito.vm_modo) && leito.dispositivos?.tqt?.ativo && (
             <div style={{minWidth:120,flex:1}}>
@@ -2190,13 +2189,20 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
         </div>
       )}
 
-      {modoAtual&&<div style={{marginBottom:10,padding:"9px 11px",borderRadius:9,border:`1px solid ${T.border}`,background:T.bgInput}}>
+      {modoAtual&&<div style={{marginBottom:10,padding:"8px 10px",borderRadius:9,border:`1px solid ${T.border}`,background:T.bgInput}}>
+        <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.1,marginBottom:6}}>VARIÁVEIS OPCIONAIS</div>
+        <button type="button" onClick={()=>toggleOpcional("gasa")} style={{padding:"4px 9px",borderRadius:12,cursor:"pointer",fontSize:10,fontWeight:700,color:opcionalAtivo("gasa")?T.accent:T.text3,background:opcionalAtivo("gasa")?T.accentBg:"transparent",border:`1px solid ${opcionalAtivo("gasa")?T.accentBorder:T.border}`}}>{opcionalAtivo("gasa")?"✓ ":"+ "}PAO₂ / Gradiente A–a</button>
+      </div>}
+
+      {modoAtual&&opcionalAtivo("gasa")&&<div style={{marginBottom:10,padding:"9px 11px",borderRadius:9,border:`1px solid ${T.border}`,background:T.bgInput}}>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:7}}>
           <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.1,fontWeight:800}}>EQUAÇÃO DO GÁS ALVEOLAR</div>
           <span style={{fontSize:8,color:T.text4}}>PH₂O 47 mmHg</span>
           {leito.vm_modo==="ar_ambiente"&&<span style={{fontSize:8,color:T.text4}}>FiO₂ 21%</span>}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(135px,1fr))",gap:8,alignItems:"end"}}>
+          <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PaO₂ ARTERIAL (mmHg)<input type="number" step="0.1" value={leito.vm_pf||ultimaGasoResp?.valor||""} onChange={e=>set("vm_pf",e.target.value)} placeholder="Da gasometria" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
+          <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PaCO₂ ARTERIAL (mmHg)<input type="number" step="0.1" value={leito.vm_paco2||ultimaGasoResp?.pco2||""} onChange={e=>set("vm_paco2",e.target.value)} placeholder="Da mesma gasometria" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
           {leito.vm_modo!=="ar_ambiente"&&!campos.some(c=>c.key==="vm_fio2")&&<label style={{fontSize:9,color:T.text3,fontFamily:mono}}>FiO₂ PARA O CÁLCULO (%)<input type="number" step="0.1" value={leito.vm_fio2||""} onChange={e=>set("vm_fio2",e.target.value)} placeholder="Ex.: 28" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>}
           <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PRESSÃO BAROMÉTRICA (mmHg)<input type="number" step="1" value={leito.vm_pb??760} onChange={e=>set("vm_pb",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
           <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>QUOCIENTE RESPIRATÓRIO<input type="number" min="0.1" step="0.05" value={leito.vm_rq??0.8} onChange={e=>set("vm_rq",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
