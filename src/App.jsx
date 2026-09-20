@@ -4874,13 +4874,13 @@ const formatarAnalgesiaItens=itens=>(Array.isArray(itens)?itens:[]).map(item=>{
   return [nome,item.dose?(def?.doseComUnidade?item.dose:`${item.dose} mg`):"",item.intervalo||""].filter(Boolean).join(" ");
 }).filter(Boolean).join(" · ");
 
-function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange}){
+function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={},tabelaDataLeito={}}){
   const T=useTheme();
   const [open,setOpen]=useState(false);
   const [focused,setFocused]=useState(false);
   const [suggestionIndex,setSuggestionIndex]=useState(0);
   const [editingId,setEditingId]=useState("");
-  const doseRefs=useRef({}),intervalRefs=useRef({});
+  const doseRefs=useRef({}),intervalRefs=useRef({}),textoRef=useRef(null);
   const itens=Array.isArray(value)?value:[];
   const todos=ANALGESIA_CATALOGO.flatMap(g=>g.itens);
   const textoAtual=String(freeValue||""),termoBruto=textoAtual.split(/[·,;\/\n]/).pop().trim(),termo=termoBruto.toLowerCase();
@@ -4896,17 +4896,38 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange}){
   };
   const add=(id,fromSearch=false)=>{if(itens.some(x=>x.id===id)){setOpen(true);setEditingId(id);return;}const next=[...itens,{id,dose:"",intervalo:""}],idx=fromSearch&&termoBruto?textoAtual.toLowerCase().lastIndexOf(termoBruto.toLowerCase()):-1,base=idx>=0?textoAtual.slice(0,idx).replace(/\s*[·,;\/]\s*$/,""):textoAtual;commit(next,itens,base);setOpen(true);setEditingId(id);};
   const upd=(id,patch)=>commit(itens.map(x=>x.id===id?{...x,...patch}:x));
-  const remove=id=>commit(itens.filter(x=>x.id!==id));
-  return <div style={{position:"relative",marginBottom:6}}>
-    <textarea value={freeValue||""} onChange={e=>onFreeChange?.(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} onKeyDown={e=>{if(!sugestoes.length||open)return;if(e.key==="ArrowDown"){e.preventDefault();setSuggestionIndex(i=>(i+1)%sugestoes.length);}else if(e.key==="ArrowUp"){e.preventDefault();setSuggestionIndex(i=>(i-1+sugestoes.length)%sugestoes.length);}else if(e.key==="Enter"){e.preventDefault();add(sugestoes[suggestionIndex]?.id,true);}}} rows={2} placeholder="Digite a medicação ou o esquema analgésico…" style={{width:"100%",height:106,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"10px 118px 10px 11px",color:T.text1,fontSize:12,resize:"vertical",fontFamily:"inherit"}}/>
+  const remove=id=>{commit(itens.filter(x=>x.id!==id));if(editingId===id)setEditingId("");};
+  const editarTexto=texto=>{
+    const norm=String(texto||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const restantes=itens.filter(item=>{const nome=(analgesiaDef(item.id)?.nome||item.nome||item.id).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();return norm.includes(nome);});
+    if(restantes.length!==itens.length)onChange(restantes);
+    onFreeChange?.(texto);
+  };
+  const voltarAoTexto=()=>{const base=String(textoAtual||"").trim();if(base&&!/[·,;\/]$/.test(base))onFreeChange?.(`${base} · `);setOpen(false);setEditingId("");setTimeout(()=>{const el=textoRef.current;if(!el)return;el.focus();el.setSelectionRange(el.value.length,el.value.length);},30);};
+  const ultimoCr=ultimoValorTabela(tabelaDataLeito,["cr","creatinina"])?.valor??tabelaDataLeito?.cr??null;
+  const clcr=calcClCr(ultimoCr,leito.peso,idadeDoLeito(leito),leito.sexo);
+  const diagnosticos=[leito.diagnostico,...(Array.isArray(leito.diagnosticos)?leito.diagnosticos:[])].map(x=>typeof x==="string"?x:(x?.nome||x?.descricao||"")).join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  const disfuncaoHepatica=/(insuficiencia hepat|cirrose|hepatopatia|child|falencia hepat)/.test(diagnosticos);
+  const alertaItem=item=>{
+    if(item.id==="gabapentina"&&clcr!==null&&clcr<60)return `Requer ajuste renal (ClCr ${clcr} mL/min); confirmar dose e intervalo conforme a faixa de ClCr.`;
+    if(item.id==="pregabalina"&&clcr!==null&&clcr<60)return `Requer ajuste renal (ClCr ${clcr} mL/min); confirmar dose total diária conforme a faixa de ClCr.`;
+    if(item.id==="tramadol"&&clcr!==null&&clcr<30)return `ClCr ${clcr} mL/min: evitar liberação prolongada; considerar maior intervalo e limite diário.`;
+    if(item.id==="morfina"&&clcr!==null&&clcr<30)return `ClCr ${clcr} mL/min: risco de acúmulo de metabólitos; considerar redução, maior intervalo ou alternativa.`;
+    if(item.id==="duloxetina"&&clcr!==null&&clcr<30)return `ClCr ${clcr} mL/min: uso geralmente não recomendado.`;
+    if(disfuncaoHepatica&&["paracetamol","tramadol","morfina","metadona","amitriptilina","duloxetina"].includes(item.id))return "Disfunção hepática identificada: revisar dose, intervalo e/ou alternativa conforme gravidade.";
+    return "";
+  };
+  return <div style={{position:"relative",marginBottom:0}}>
+    <textarea ref={textoRef} value={freeValue||""} onChange={e=>editarTexto(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} onKeyDown={e=>{if(!sugestoes.length||open)return;if(e.key==="ArrowDown"){e.preventDefault();setSuggestionIndex(i=>(i+1)%sugestoes.length);}else if(e.key==="ArrowUp"){e.preventDefault();setSuggestionIndex(i=>(i-1+sugestoes.length)%sugestoes.length);}else if(e.key==="Enter"){e.preventDefault();add(sugestoes[suggestionIndex]?.id,true);}}} rows={2} placeholder="Digite a medicação ou o esquema analgésico…" style={{width:"100%",height:54,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 118px 8px 10px",color:T.text1,fontSize:12,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
     <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setOpen(v=>!v)} style={{position:"absolute",right:8,top:8,padding:"4px 8px",borderRadius:12,border:`1px solid ${open?T.accentBorder:T.borderStrong}`,background:open?T.accentBg:T.bgCard,color:open?T.accent:T.text3,fontSize:9,fontWeight:700,cursor:"pointer"}}>💊 {open?"fechar menu":"medicações"}</button>
     {!!sugestoes.length&&!open&&<div style={{position:"absolute",zIndex:45,left:0,right:0,top:"calc(100% + 3px)",border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard,overflow:"hidden"}}>{sugestoes.map((m,i)=><button key={m.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>add(m.id,true)} style={{display:"flex",width:"100%",padding:"7px 10px",border:0,borderBottom:`1px solid ${T.border}`,background:i===suggestionIndex?T.accentBg:"transparent",color:i===suggestionIndex?T.accent:T.text1,cursor:"pointer",textAlign:"left",fontSize:11}}><strong>{m.nome}</strong><span style={{marginLeft:"auto",fontSize:9,color:T.accent}}>{i===suggestionIndex?"Enter para selecionar":"selecionar"}</span></button>)}</div>}
     {open&&<div style={{position:"absolute",zIndex:44,left:0,right:0,top:"calc(100% + 3px)",padding:"9px",display:"grid",gap:7,border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:"0 14px 34px rgba(0,0,0,.24)",maxHeight:390,overflowY:"auto"}}>
       {ANALGESIA_CATALOGO.map(g=><div key={g.grupo} style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><span style={{width:92,fontSize:8,color:T.text4,fontFamily:"'DM Mono',monospace"}}>{g.grupo.toUpperCase()}</span>{g.itens.map(m=>{const ativo=itens.some(x=>x.id===m.id);return <button key={m.id} type="button" onClick={()=>ativo?remove(m.id):add(m.id)} style={{padding:"3px 8px",borderRadius:12,border:`1px solid ${ativo?T.accentBorder:T.border}`,background:ativo?T.accentBg:T.bgCard,color:ativo?T.accent:T.text3,fontSize:9,fontWeight:700,cursor:"pointer"}}>{ativo?"✓ ":"+ "}{m.nome}</button>})}</div>)}
       {!!itens.length&&<div style={{display:"grid",gap:6,marginTop:2}}>{itens.map(item=>{const def=analgesiaDef(item.id);return <div key={item.id} style={{display:"grid",gridTemplateColumns:"minmax(105px,.8fr) minmax(135px,1.2fr) 30px",gap:6,alignItems:"end",padding:"6px 7px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard}}>
         <strong style={{fontSize:10,color:T.text2,alignSelf:"center"}}>{def?.nome||item.id}</strong>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}><label style={{fontSize:8,color:T.text4}}>DOSE {def?.doseComUnidade?"":"(mg)"}<input ref={el=>{if(el)doseRefs.current[item.id]=el;}} list={`analgesia-dose-${item.id}`} value={item.dose||""} onChange={e=>{const dose=e.target.value,permitidos=item.id==="dipirona"&&dose==="2g"?["q6h"]:(def?.intervalos||ANALGESIA_INTERVALOS);upd(item.id,{dose,...(item.intervalo&&!permitidos.includes(item.intervalo)?{intervalo:""}:{})});}} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();intervalRefs.current[item.id]?.focus();}}} placeholder="— informar —" style={{display:"block",width:"100%",boxSizing:"border-box",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 7px"}}/><datalist id={`analgesia-dose-${item.id}`}>{(def?.doses||[]).map(x=><option key={x} value={x}/>)}</datalist></label><label style={{fontSize:8,color:T.text4}}>INTERVALO<select ref={el=>{if(el)intervalRefs.current[item.id]=el;}} value={item.intervalo||""} onChange={e=>upd(item.id,{intervalo:e.target.value})} onKeyDown={e=>{if(e.key==="Enter"&&item.intervalo){e.preventDefault();setOpen(false);setEditingId("");}}} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 5px"}}><option value="">— informar —</option>{(item.id==="dipirona"&&item.dose==="2g"?["q6h"]:(def?.intervalos||ANALGESIA_INTERVALOS)).map(x=><option key={x}>{x}</option>)}</select></label></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}><label style={{fontSize:8,color:T.text4}}>DOSE {def?.doseComUnidade?"":"(mg)"}<input ref={el=>{if(el)doseRefs.current[item.id]=el;}} list={`analgesia-dose-${item.id}`} value={item.dose||""} onChange={e=>{const dose=e.target.value,permitidos=item.id==="dipirona"&&dose==="2g"?["q6h"]:(def?.intervalos||ANALGESIA_INTERVALOS);upd(item.id,{dose,...(item.intervalo&&!permitidos.includes(item.intervalo)?{intervalo:""}:{})});}} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();intervalRefs.current[item.id]?.focus();}}} placeholder="— informar —" style={{display:"block",width:"100%",boxSizing:"border-box",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 7px"}}/><datalist id={`analgesia-dose-${item.id}`}>{(def?.doses||[]).map(x=><option key={x} value={x}/>)}</datalist></label><label style={{fontSize:8,color:T.text4}}>INTERVALO<select ref={el=>{if(el)intervalRefs.current[item.id]=el;}} value={item.intervalo||""} onChange={e=>upd(item.id,{intervalo:e.target.value})} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();voltarAoTexto();}}} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 5px"}}><option value="">— informar —</option>{(item.id==="dipirona"&&item.dose==="2g"?["q6h"]:(def?.intervalos||ANALGESIA_INTERVALOS)).map(x=><option key={x}>{x}</option>)}</select></label></div>
         <button type="button" onClick={()=>remove(item.id)} title="Remover" style={{height:30,borderRadius:6,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
+        {alertaItem(item)&&<div style={{gridColumn:"1 / -1",padding:"5px 7px",borderRadius:6,background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.22)",fontSize:9,color:"#b7791f"}}>⚠ {alertaItem(item)}</div>}
       </div>})}</div>}
     </div>}
   </div>;
@@ -6685,7 +6706,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
           <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
-          <Col><FL>A — ANALGESIA</FL><AnalgesiaEstruturada value={campos.nAnalgesiaItens} onChange={v=>onCampoEdit("nAnalgesiaItens",v)} freeValue={campos.nAnalg} onFreeChange={v=>onCampoEdit("nAnalg",v)}/></Col>
+          <Col><FL>A — ANALGESIA</FL><AnalgesiaEstruturada value={campos.nAnalgesiaItens} onChange={v=>onCampoEdit("nAnalgesiaItens",v)} freeValue={campos.nAnalg} onFreeChange={v=>onCampoEdit("nAnalg",v)} leito={leito} tabelaDataLeito={tabelaDataLeito}/></Col>
         </Row>
         {vis["nEFExtra"]&&<Row><Col><FL>EF — Detalhe adicional</FL><TA fieldRef={refs.nEFExtra} defaultValue={campos.nEFExtra} isAntigo={isAntigo("nEFExtra")} rows={2} fieldName="nEFExtra" onBlurSave={salvar}/></Col></Row>}
         {/* Bombas: Sedação/Analgesia */}
