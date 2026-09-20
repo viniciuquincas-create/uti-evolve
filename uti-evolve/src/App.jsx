@@ -4362,12 +4362,12 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
           ))}
           <div style={{position:"relative",marginLeft:"auto"}}>
             <button type="button" onClick={()=>setShowScoresMenu(v=>!v)} aria-expanded={showScoresMenu}
-              style={{height:28,display:"flex",alignItems:"center",gap:7,padding:"0 9px 0 11px",borderRadius:7,border:`1px solid ${(leito.labACLF||leito.labSOFA)?T.accentBorder:T.border}`,background:(leito.labACLF||leito.labSOFA)?T.accentBg:T.bgCard,color:(leito.labACLF||leito.labSOFA)?T.accent:T.text3,cursor:"pointer",fontSize:11,fontWeight:700}}>
-              <span>Scores</span>{(leito.labACLF||leito.labSOFA)&&<span style={{minWidth:17,height:17,display:"grid",placeItems:"center",borderRadius:9,background:T.accent,color:"#fff",fontSize:9}}>{Number(!!leito.labACLF)+Number(!!leito.labSOFA)}</span>}<span style={{fontSize:10}}>{showScoresMenu?"▲":"▼"}</span>
+              style={{height:28,display:"flex",alignItems:"center",gap:7,padding:"0 9px 0 11px",borderRadius:7,border:`1px solid ${((leito.labMELD??leito.labACLF)||leito.labACLF||leito.labSOFA)?T.accentBorder:T.border}`,background:((leito.labMELD??leito.labACLF)||leito.labACLF||leito.labSOFA)?T.accentBg:T.bgCard,color:((leito.labMELD??leito.labACLF)||leito.labACLF||leito.labSOFA)?T.accent:T.text3,cursor:"pointer",fontSize:11,fontWeight:700}}>
+              <span>Scores</span>{((leito.labMELD??leito.labACLF)||leito.labACLF||leito.labSOFA)&&<span style={{minWidth:17,height:17,display:"grid",placeItems:"center",borderRadius:9,background:T.accent,color:"#fff",fontSize:9}}>{Number(!!(leito.labMELD??leito.labACLF))+Number(!!leito.labACLF)+Number(!!leito.labSOFA)}</span>}<span style={{fontSize:10}}>{showScoresMenu?"▲":"▼"}</span>
             </button>
             {showScoresMenu&&<div style={{position:"absolute",right:0,top:32,zIndex:60,width:235,padding:7,border:`1px solid ${T.accentBorder}`,borderRadius:9,background:T.bgPicker||T.bgCard,boxShadow:T.shadowCard}}>
               <div style={{padding:"3px 6px 7px",fontSize:9,fontFamily:mono,letterSpacing:1,color:T.text4}}>SELECIONE UM OU MAIS</div>
-              {[{key:"labACLF",label:"ACLF · MELD-Na",detail:"MELD-Na, CLIF-OF e CLIF-C"},{key:"labSOFA",label:"Sepse · SOFA",detail:"Pior valor em 24 horas"}].map(op=>{const checked=!!leito[op.key];return <label key={op.key} style={{display:"grid",gridTemplateColumns:"18px 1fr",gap:7,alignItems:"start",padding:"7px 6px",borderRadius:6,cursor:"pointer",background:checked?T.accentBg:"transparent"}}>
+              {[{key:"labMELD",label:"MELD-Na",detail:"Escore hepático MELD-Na"},{key:"labACLF",label:"ACLF",detail:"CLIF-OF e CLIF-C"},{key:"labSOFA",label:"Sepse · SOFA",detail:"Pior valor em 24 horas"}].map(op=>{const checked=op.key==="labMELD"?!!(leito.labMELD??leito.labACLF):!!leito[op.key];return <label key={op.key} style={{display:"grid",gridTemplateColumns:"18px 1fr",gap:7,alignItems:"start",padding:"7px 6px",borderRadius:6,cursor:"pointer",background:checked?T.accentBg:"transparent"}}>
                 <input type="checkbox" checked={checked} onChange={()=>onLeitoChange&&onLeitoChange({...leito,[op.key]:!checked})} style={{marginTop:2,accentColor:T.accent}}/>
                 <span><b style={{display:"block",fontSize:11,color:checked?T.accent:T.text1}}>{op.label}</b><small style={{display:"block",marginTop:2,fontSize:9,color:T.text4}}>{op.detail}</small></span>
               </label>})}
@@ -4425,13 +4425,16 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
               </tr>
             </thead>
             <tbody>
-              {leito.labACLF&&<>
-                <tr><td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#fb923c",background:"rgba(251,146,60,.07)",fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>🟠 ACLF — ESCORE HEPÁTICO</td></tr>
+              {(leito.labMELD??leito.labACLF)&&<>
+                <tr><td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#fbbf24",background:"rgba(251,191,36,.07)",fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>MELD-Na — ESCORE HEPÁTICO</td></tr>
                 <tr>
                   <td style={{...tdBase,padding:"5px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>MELD-Na</td>
                   <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>pontos</td>
                   {datas.map(d=>{const sc=calcMeldNa({bilirrubina:getVal(d,"bttot"),inr:getVal(d,"rni"),creatinina:getVal(d,"cr"),sodio:getVal(d,"na")});return <td key={d} style={{...tdBase,background:isHoje(d)?"rgba(251,146,60,.05)":undefined}}><div title={sc?`MELD ${sc.meldBase} · Na corrigido ${sc.na}`:"Requer BT, INR, creatinina e sódio"} style={{fontSize:13,fontFamily:mono,fontWeight:700,color:sc?(sc.meldNa>=30?"#f87171":sc.meldNa>=20?"#fbbf24":"#34d399"):T.text4}}>{sc?.meldNa??"—"}</div></td>;})}
                 </tr>
+              </>}
+              {leito.labACLF&&<>
+                <tr><td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:"#fb923c",background:"rgba(251,146,60,.07)",fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>🟠 ACLF — CLIF</td></tr>
                 {[['CLIF-OF','clifOF'],['CLIF-C ACLF','clifC']].map(([label,key])=><tr key={key}>
                   <td style={{...tdBase,padding:"5px 12px",fontSize:12,color:T.colorTableMuted,textAlign:"left",position:"sticky",left:0,background:T.bgTableSticky}}>{label}</td>
                   <td style={{...tdBase,fontSize:10,color:T.text3,fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>pontos</td>
