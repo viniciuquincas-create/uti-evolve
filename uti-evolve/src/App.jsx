@@ -4874,22 +4874,29 @@ const formatarAnalgesiaItens=itens=>(Array.isArray(itens)?itens:[]).map(item=>{
   return [nome,item.dose?`${item.dose} mg`:"",item.intervalo||""].filter(Boolean).join(" ");
 }).filter(Boolean).join(" · ");
 
-function AnalgesiaEstruturada({value,onChange}){
+function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange}){
   const T=useTheme();
+  const [open,setOpen]=useState(false);
   const itens=Array.isArray(value)?value:[];
   const add=id=>{if(itens.some(x=>x.id===id))return;const def=analgesiaDef(id);onChange([...itens,{id,...(def?.esquemas?{esquema:def.esquemas[0]}:{dose:"",intervalo:def?.intervalos?.[0]||"q6h"})}]);};
   const upd=(id,patch)=>onChange(itens.map(x=>x.id===id?{...x,...patch}:x));
   const remove=id=>onChange(itens.filter(x=>x.id!==id));
+  const resumo=[formatarAnalgesiaItens(itens),String(freeValue||"").trim()].filter(Boolean).join(" · ");
   return <div style={{border:`1px solid ${T.border}`,borderRadius:8,background:T.bgInput,overflow:"hidden",marginBottom:6}}>
-    <div style={{padding:"6px 9px",fontSize:9,color:T.text3,fontFamily:"'DM Mono',monospace",letterSpacing:1,background:T.bgCardHover}}>ESQUEMA ESTRUTURADO</div>
-    <div style={{padding:"7px 9px",display:"grid",gap:7}}>
+    <button type="button" onClick={()=>setOpen(v=>!v)} style={{width:"100%",minHeight:open?36:102,padding:open?"6px 9px":"10px 12px",border:0,background:T.bgCardHover,color:T.text1,cursor:"pointer",display:"flex",alignItems:open?"center":"flex-start",gap:10,textAlign:"left"}}>
+      <span style={{fontSize:9,color:T.text3,fontFamily:"'DM Mono',monospace",letterSpacing:1,whiteSpace:"nowrap"}}>ESQUEMA DE ANALGESIA</span>
+      {!open&&<span style={{flex:1,fontSize:11,color:resumo?T.text2:T.text4,lineHeight:1.45,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical"}}>{resumo||"Clique para selecionar medicamentos, doses e intervalos"}</span>}
+      <span style={{marginLeft:"auto",fontSize:10,color:T.accent,whiteSpace:"nowrap"}}>{open?"▲ minimizar":"▼ maximizar"}</span>
+    </button>
+    {open&&<div style={{padding:"7px 9px",display:"grid",gap:7,borderTop:`1px solid ${T.border}`}}>
       {ANALGESIA_CATALOGO.map(g=><div key={g.grupo} style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><span style={{width:92,fontSize:8,color:T.text4,fontFamily:"'DM Mono',monospace"}}>{g.grupo.toUpperCase()}</span>{g.itens.map(m=>{const ativo=itens.some(x=>x.id===m.id);return <button key={m.id} type="button" onClick={()=>ativo?remove(m.id):add(m.id)} style={{padding:"3px 8px",borderRadius:12,border:`1px solid ${ativo?T.accentBorder:T.border}`,background:ativo?T.accentBg:T.bgCard,color:ativo?T.accent:T.text3,fontSize:9,fontWeight:700,cursor:"pointer"}}>{ativo?"✓ ":"+ "}{m.nome}</button>})}</div>)}
       {!!itens.length&&<div style={{display:"grid",gap:6,marginTop:2}}>{itens.map(item=>{const def=analgesiaDef(item.id);return <div key={item.id} style={{display:"grid",gridTemplateColumns:"minmax(105px,.8fr) minmax(135px,1.2fr) 30px",gap:6,alignItems:"end",padding:"6px 7px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard}}>
         <strong style={{fontSize:10,color:T.text2,alignSelf:"center"}}>{def?.nome||item.id}</strong>
         {def?.esquemas?<label style={{fontSize:8,color:T.text4}}>DOSE E INTERVALO<select value={item.esquema||""} onChange={e=>upd(item.id,{esquema:e.target.value})} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 6px"}}>{def.esquemas.map(x=><option key={x}>{x}</option>)}</select></label>:<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}><label style={{fontSize:8,color:T.text4}}>DOSE (mg)<input type="number" min="0" step="any" value={item.dose||""} onChange={e=>upd(item.id,{dose:e.target.value})} placeholder="mg" style={{display:"block",width:"100%",boxSizing:"border-box",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 7px"}}/></label><label style={{fontSize:8,color:T.text4}}>INTERVALO<select value={item.intervalo||""} onChange={e=>upd(item.id,{intervalo:e.target.value})} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 5px"}}>{(def?.intervalos||ANALGESIA_INTERVALOS).map(x=><option key={x}>{x}</option>)}</select></label></div>}
         <button type="button" onClick={()=>remove(item.id)} title="Remover" style={{height:30,borderRadius:6,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
       </div>})}</div>}
-    </div>
+      <label style={{fontSize:8,color:T.text4,fontFamily:"'DM Mono',monospace"}}>ESQUEMA LIVRE / OBSERVAÇÕES<textarea value={freeValue||""} onChange={e=>onFreeChange?.(e.target.value)} rows={2} placeholder="Outro medicamento ou observação…" style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:3,background:T.bgCard,border:`1px solid ${T.borderStrong}`,borderRadius:7,padding:"7px 9px",color:T.text1,fontSize:11,resize:"vertical"}}/></label>
+    </div>}
   </div>;
 }
 
@@ -6666,7 +6673,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
           <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
-          <Col><FL>A — ANALGESIA</FL><AnalgesiaEstruturada value={campos.nAnalgesiaItens} onChange={v=>onCampoEdit("nAnalgesiaItens",v)}/><FL>ESQUEMA LIVRE / OBSERVAÇÕES</FL><TA fieldRef={refs.nAnalg} defaultValue={campos.nAnalg} isAntigo={isAntigo("nAnalg")} rows={1} fieldName="nAnalg" onBlurSave={salvar}/></Col>
+          <Col><FL>A — ANALGESIA</FL><AnalgesiaEstruturada value={campos.nAnalgesiaItens} onChange={v=>onCampoEdit("nAnalgesiaItens",v)} freeValue={campos.nAnalg} onFreeChange={v=>onCampoEdit("nAnalg",v)}/></Col>
         </Row>
         {vis["nEFExtra"]&&<Row><Col><FL>EF — Detalhe adicional</FL><TA fieldRef={refs.nEFExtra} defaultValue={campos.nEFExtra} isAntigo={isAntigo("nEFExtra")} rows={2} fieldName="nEFExtra" onBlurSave={salvar}/></Col></Row>}
         {/* Bombas: Sedação/Analgesia */}
