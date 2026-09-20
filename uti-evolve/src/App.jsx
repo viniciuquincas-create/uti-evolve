@@ -4860,28 +4860,33 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
 
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 const ANALGESIA_CATALOGO=[
-  {grupo:"Simples",itens:[{id:"dipirona",nome:"Dipirona",esquemas:["1g q6h","1g q4h","2g q6h"]},{id:"paracetamol",nome:"Paracetamol",intervalos:["6/6h"]}]},
-  {grupo:"Opióides",itens:[{id:"tramadol",nome:"Tramadol"},{id:"morfina",nome:"Morfina"},{id:"metadona",nome:"Metadona"}]},
-  {grupo:"Gabapentinoides",itens:[{id:"gabapentina",nome:"Gabapentina"},{id:"pregabalina",nome:"Pregabalina"}]},
-  {grupo:"Tricíclicos",itens:[{id:"amitriptilina",nome:"Amitriptilina"}]},
-  {grupo:"Duais",itens:[{id:"duloxetina",nome:"Duloxetina"}]},
+  {grupo:"Simples",itens:[{id:"dipirona",nome:"Dipirona",doses:["1g","2g"],intervalos:["q6h","q4h"],doseComUnidade:true},{id:"paracetamol",nome:"Paracetamol",doses:["500","750","1000"],intervalos:["6/6h"]}]},
+  {grupo:"Opióides",itens:[{id:"tramadol",nome:"Tramadol",doses:["50","100"]},{id:"morfina",nome:"Morfina",doses:["2","4","5","10"]},{id:"metadona",nome:"Metadona",doses:["5","10"]}]},
+  {grupo:"Gabapentinoides",itens:[{id:"gabapentina",nome:"Gabapentina",doses:["100","300","400","600"]},{id:"pregabalina",nome:"Pregabalina",doses:["25","50","75","150"]}]},
+  {grupo:"Tricíclicos",itens:[{id:"amitriptilina",nome:"Amitriptilina",doses:["10","25","50"]}]},
+  {grupo:"Duais",itens:[{id:"duloxetina",nome:"Duloxetina",doses:["30","60"]}]},
 ];
 const ANALGESIA_INTERVALOS=["q4h","q6h","q8h","q12h","q24h","SOS"];
 const analgesiaDef=id=>ANALGESIA_CATALOGO.flatMap(g=>g.itens).find(x=>x.id===id);
 const formatarAnalgesiaItens=itens=>(Array.isArray(itens)?itens:[]).map(item=>{
   const def=analgesiaDef(item.id),nome=def?.nome||item.nome||item.id;
-  if(def?.esquemas)return item.esquema?`${nome} ${item.esquema}`:nome;
-  return [nome,item.dose?`${item.dose} mg`:"",item.intervalo||""].filter(Boolean).join(" ");
+  if(item.esquema)return `${nome} ${item.esquema}`;
+  return [nome,item.dose?(def?.doseComUnidade?item.dose:`${item.dose} mg`):"",item.intervalo||""].filter(Boolean).join(" ");
 }).filter(Boolean).join(" · ");
 
 function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange}){
   const T=useTheme();
   const [open,setOpen]=useState(false);
   const [focused,setFocused]=useState(false);
+  const [suggestionIndex,setSuggestionIndex]=useState(0);
+  const [editingId,setEditingId]=useState("");
+  const doseRefs=useRef({}),intervalRefs=useRef({});
   const itens=Array.isArray(value)?value:[];
   const todos=ANALGESIA_CATALOGO.flatMap(g=>g.itens);
   const textoAtual=String(freeValue||""),termoBruto=textoAtual.split(/[·,;\/\n]/).pop().trim(),termo=termoBruto.toLowerCase();
   const sugestoes=focused&&termo.length>=2?todos.filter(m=>m.nome.toLowerCase().includes(termo)).slice(0,5):[];
+  useEffect(()=>{setSuggestionIndex(0);},[termo]);
+  useEffect(()=>{if(open&&editingId)setTimeout(()=>doseRefs.current[editingId]?.focus(),20);},[open,editingId]);
   const commit=(next,old=itens,baseText=textoAtual)=>{
     const antes=formatarAnalgesiaItens(old),depois=formatarAnalgesiaItens(next);
     let texto=String(baseText||"");
@@ -4889,18 +4894,18 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange}){
     else if(depois&&!texto.toLowerCase().includes(depois.toLowerCase()))texto=[texto.trim(),depois].filter(Boolean).join(" · ");
     onChange(next);onFreeChange?.(texto.replace(/^\s*[·,;\/]\s*/,"").trim());
   };
-  const add=(id,fromSearch=false)=>{if(itens.some(x=>x.id===id)){setOpen(true);return;}const def=analgesiaDef(id),next=[...itens,{id,...(def?.esquemas?{esquema:def.esquemas[0]}:{dose:"",intervalo:def?.intervalos?.[0]||"q6h"})}],idx=fromSearch&&termoBruto?textoAtual.toLowerCase().lastIndexOf(termoBruto.toLowerCase()):-1,base=idx>=0?textoAtual.slice(0,idx).replace(/\s*[·,;\/]\s*$/,""):textoAtual;commit(next,itens,base);setOpen(true);};
+  const add=(id,fromSearch=false)=>{if(itens.some(x=>x.id===id)){setOpen(true);setEditingId(id);return;}const next=[...itens,{id,dose:"",intervalo:""}],idx=fromSearch&&termoBruto?textoAtual.toLowerCase().lastIndexOf(termoBruto.toLowerCase()):-1,base=idx>=0?textoAtual.slice(0,idx).replace(/\s*[·,;\/]\s*$/,""):textoAtual;commit(next,itens,base);setOpen(true);setEditingId(id);};
   const upd=(id,patch)=>commit(itens.map(x=>x.id===id?{...x,...patch}:x));
   const remove=id=>commit(itens.filter(x=>x.id!==id));
   return <div style={{position:"relative",marginBottom:6}}>
-    <textarea value={freeValue||""} onChange={e=>onFreeChange?.(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} rows={2} placeholder="Digite a medicação ou o esquema analgésico…" style={{width:"100%",height:106,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"10px 118px 10px 11px",color:T.text1,fontSize:12,resize:"vertical",fontFamily:"inherit"}}/>
+    <textarea value={freeValue||""} onChange={e=>onFreeChange?.(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} onKeyDown={e=>{if(!sugestoes.length||open)return;if(e.key==="ArrowDown"){e.preventDefault();setSuggestionIndex(i=>(i+1)%sugestoes.length);}else if(e.key==="ArrowUp"){e.preventDefault();setSuggestionIndex(i=>(i-1+sugestoes.length)%sugestoes.length);}else if(e.key==="Enter"){e.preventDefault();add(sugestoes[suggestionIndex]?.id,true);}}} rows={2} placeholder="Digite a medicação ou o esquema analgésico…" style={{width:"100%",height:106,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"10px 118px 10px 11px",color:T.text1,fontSize:12,resize:"vertical",fontFamily:"inherit"}}/>
     <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setOpen(v=>!v)} style={{position:"absolute",right:8,top:8,padding:"4px 8px",borderRadius:12,border:`1px solid ${open?T.accentBorder:T.borderStrong}`,background:open?T.accentBg:T.bgCard,color:open?T.accent:T.text3,fontSize:9,fontWeight:700,cursor:"pointer"}}>💊 {open?"fechar menu":"medicações"}</button>
-    {!!sugestoes.length&&!open&&<div style={{position:"absolute",zIndex:45,left:0,right:0,top:"calc(100% + 3px)",border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard,overflow:"hidden"}}>{sugestoes.map(m=><button key={m.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>add(m.id,true)} style={{display:"flex",width:"100%",padding:"7px 10px",border:0,borderBottom:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left",fontSize:11}}><strong>{m.nome}</strong><span style={{marginLeft:"auto",fontSize:9,color:T.accent}}>selecionar e configurar</span></button>)}</div>}
+    {!!sugestoes.length&&!open&&<div style={{position:"absolute",zIndex:45,left:0,right:0,top:"calc(100% + 3px)",border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard,overflow:"hidden"}}>{sugestoes.map((m,i)=><button key={m.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>add(m.id,true)} style={{display:"flex",width:"100%",padding:"7px 10px",border:0,borderBottom:`1px solid ${T.border}`,background:i===suggestionIndex?T.accentBg:"transparent",color:i===suggestionIndex?T.accent:T.text1,cursor:"pointer",textAlign:"left",fontSize:11}}><strong>{m.nome}</strong><span style={{marginLeft:"auto",fontSize:9,color:T.accent}}>{i===suggestionIndex?"Enter para selecionar":"selecionar"}</span></button>)}</div>}
     {open&&<div style={{position:"absolute",zIndex:44,left:0,right:0,top:"calc(100% + 3px)",padding:"9px",display:"grid",gap:7,border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:"0 14px 34px rgba(0,0,0,.24)",maxHeight:390,overflowY:"auto"}}>
       {ANALGESIA_CATALOGO.map(g=><div key={g.grupo} style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><span style={{width:92,fontSize:8,color:T.text4,fontFamily:"'DM Mono',monospace"}}>{g.grupo.toUpperCase()}</span>{g.itens.map(m=>{const ativo=itens.some(x=>x.id===m.id);return <button key={m.id} type="button" onClick={()=>ativo?remove(m.id):add(m.id)} style={{padding:"3px 8px",borderRadius:12,border:`1px solid ${ativo?T.accentBorder:T.border}`,background:ativo?T.accentBg:T.bgCard,color:ativo?T.accent:T.text3,fontSize:9,fontWeight:700,cursor:"pointer"}}>{ativo?"✓ ":"+ "}{m.nome}</button>})}</div>)}
       {!!itens.length&&<div style={{display:"grid",gap:6,marginTop:2}}>{itens.map(item=>{const def=analgesiaDef(item.id);return <div key={item.id} style={{display:"grid",gridTemplateColumns:"minmax(105px,.8fr) minmax(135px,1.2fr) 30px",gap:6,alignItems:"end",padding:"6px 7px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard}}>
         <strong style={{fontSize:10,color:T.text2,alignSelf:"center"}}>{def?.nome||item.id}</strong>
-        {def?.esquemas?<label style={{fontSize:8,color:T.text4}}>DOSE E INTERVALO<select value={item.esquema||""} onChange={e=>upd(item.id,{esquema:e.target.value})} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 6px"}}>{def.esquemas.map(x=><option key={x}>{x}</option>)}</select></label>:<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}><label style={{fontSize:8,color:T.text4}}>DOSE (mg)<input type="number" min="0" step="any" value={item.dose||""} onChange={e=>upd(item.id,{dose:e.target.value})} placeholder="mg" style={{display:"block",width:"100%",boxSizing:"border-box",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 7px"}}/></label><label style={{fontSize:8,color:T.text4}}>INTERVALO<select value={item.intervalo||""} onChange={e=>upd(item.id,{intervalo:e.target.value})} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 5px"}}>{(def?.intervalos||ANALGESIA_INTERVALOS).map(x=><option key={x}>{x}</option>)}</select></label></div>}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}><label style={{fontSize:8,color:T.text4}}>DOSE {def?.doseComUnidade?"":"(mg)"}<input ref={el=>{if(el)doseRefs.current[item.id]=el;}} list={`analgesia-dose-${item.id}`} value={item.dose||""} onChange={e=>{const dose=e.target.value,permitidos=item.id==="dipirona"&&dose==="2g"?["q6h"]:(def?.intervalos||ANALGESIA_INTERVALOS);upd(item.id,{dose,...(item.intervalo&&!permitidos.includes(item.intervalo)?{intervalo:""}:{})});}} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();intervalRefs.current[item.id]?.focus();}}} placeholder="— informar —" style={{display:"block",width:"100%",boxSizing:"border-box",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 7px"}}/><datalist id={`analgesia-dose-${item.id}`}>{(def?.doses||[]).map(x=><option key={x} value={x}/>)}</datalist></label><label style={{fontSize:8,color:T.text4}}>INTERVALO<select ref={el=>{if(el)intervalRefs.current[item.id]=el;}} value={item.intervalo||""} onChange={e=>upd(item.id,{intervalo:e.target.value})} onKeyDown={e=>{if(e.key==="Enter"&&item.intervalo){e.preventDefault();setOpen(false);setEditingId("");}}} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 5px"}}><option value="">— informar —</option>{(item.id==="dipirona"&&item.dose==="2g"?["q6h"]:(def?.intervalos||ANALGESIA_INTERVALOS)).map(x=><option key={x}>{x}</option>)}</select></label></div>
         <button type="button" onClick={()=>remove(item.id)} title="Remover" style={{height:30,borderRadius:6,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
       </div>})}</div>}
     </div>}
@@ -6115,7 +6120,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
     if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
     if(get("cvMed"))  p.push(`- P: ${get("cvMed")}`);
-    {const perf=[get("cvPerf"),get("cvExtremidades")?`Extremidades ${get("cvExtremidades").toLowerCase()}`:""].filter(Boolean).join(" · ");if(perf)p.push(`- Perfusão: ${perf}`);}
+    {const perf=[get("cvExtremidades")?`Extremidades ${get("cvExtremidades").toLowerCase()}`:"",get("cvPerf")].filter(Boolean).join(" · ");if(perf)p.push(`- Perfusão: ${perf}`);}
     if(get("cvObs"))  p.push(`*${get("cvObs")}`);
     return p.join("\n");
   };
@@ -6374,7 +6379,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(ef_cv) p.push(`- EF: ${ef_cv}`);
     if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
     if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
-    {const pf=[get("cvTEC")?`TEC ${get("cvTEC")}`:null,get("cvLact")?`Lactato ${get("cvLact")} mmol/L`:null,get("cvExtremidades")?`Extremidades ${get("cvExtremidades").toLowerCase()}`:null,vis["cvDeltaCO2"]&&get("cvDeltaCO2")?`ΔCO₂ ${get("cvDeltaCO2")} mmHg`:null,vis["cvDeltaCO2"]&&get("cvDeltaPP")?`ΔPP ${get("cvDeltaPP")}%`:null].filter(Boolean).join(" · ");if(pf)p.push(`- Perfusão: ${pf}`);}
+    {const pf=[get("cvExtremidades")?`Extremidades ${get("cvExtremidades").toLowerCase()}`:null,get("cvTEC")?`TEC ${get("cvTEC")}`:null,get("cvLact")?`Lactato ${get("cvLact")} mmol/L`:null,vis["cvDeltaCO2"]&&get("cvDeltaCO2")?`ΔCO₂ ${get("cvDeltaCO2")} mmHg`:null,vis["cvDeltaCO2"]&&get("cvDeltaPP")?`ΔPP ${get("cvDeltaPP")}%`:null].filter(Boolean).join(" · ");if(pf)p.push(`- Perfusão: ${pf}`);}
     if(vis.cvTropo){
       const allTropos = (()=>{
         try {
@@ -6730,11 +6735,16 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           onVazaoChange={(k,v)=>onLeitoChange({...leito,drogasVazao:{...(leito.drogasVazao||{}),[k]:v}})}/>}
         {vis["cvMed"]&&<Row><Col><FL>P — MEDICAÇÕES CV</FL><TA fieldRef={refs.cvMed} defaultValue={campos.cvMed} isAntigo={isAntigo("cvMed")} sugestao="Atenolol 25mg / Furosemida 40mg/d" rows={1} fieldName="cvMed" onBlurSave={salvar}/></Col></Row>}
         </ClinicalGroup>
-        <ClinicalGroup label="MONITORIZAÇÃO · 24H" color="#f87171">
+      <ClinicalGroup label="MONITORIZAÇÃO · 24H" color="#f87171">
         <Row>
           <Col><FL>24h — FC · PAM (mín-máx)</FL><TA fieldRef={refs.cv24h} defaultValue={valorDiario("cv24h")} rows={1} fieldName="cv24h" onBlurSave={salvar}/></Col>
         </Row>
         <Row>
+        <Col><FL>Perfusão — Extremidades</FL>
+          <select value={campos.cvExtremidades||""} onChange={e=>onCampoEdit("cvExtremidades",e.target.value)}
+            style={{width:"100%",height:34,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:7,padding:"0 9px",color:T.text1,fontSize:12,fontFamily:mono}}>
+            <option value="">— selecionar —</option><option value="Quentes">Quentes</option><option value="Frias">Frias</option>
+          </select></Col>
         <Col><FL>Perfusão — TEC</FL>
           <input key={campos.cvTEC||""} defaultValue={campos.cvTEC||""}
             placeholder="< 3s" onBlur={e=>salvar("cvTEC",e.target.value)}
@@ -6743,11 +6753,6 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <input defaultValue={campos.cvLact||""}
             placeholder="mmol/L" onBlur={e=>salvar("cvLact",e.target.value)}
             style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,fontFamily:mono}}/></Col>
-        <Col><FL>Perfusão — Extremidades</FL>
-          <select value={campos.cvExtremidades||""} onChange={e=>onCampoEdit("cvExtremidades",e.target.value)}
-            style={{width:"100%",height:34,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:7,padding:"0 9px",color:T.text1,fontSize:12,fontFamily:mono}}>
-            <option value="">— selecionar —</option><option value="Quentes">Quentes</option><option value="Frias">Frias</option>
-          </select></Col>
       </Row>
       {vis["cvDeltaCO2"]&&<>{(campos.cvDeltaCO2||campos.cvDeltaPP)&&<div style={{fontSize:9,color:T.text3,margin:"3px 0 5px",fontFamily:mono}}>Registro legado: ΔCO₂ {campos.cvDeltaCO2||"—"} mmHg · ΔPP {campos.cvDeltaPP||"—"}%</div>}{serialPanel("cvPerfusaoSerial")}</>}
         </ClinicalGroup>
