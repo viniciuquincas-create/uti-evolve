@@ -2528,12 +2528,12 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
           const isSuspendendo = suspendendo === atb.id;
 
           return (
-            <div key={atb.id} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${ajuste&&!ajuste.ok&&!doseOk?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`,borderRadius:8,padding:"10px 12px"}}>
+            <div key={atb.id} style={{background:T.bgCard,border:`1px solid ${ajuste&&!ajuste.ok&&!doseOk?"rgba(248,113,113,0.45)":T.borderStrong}`,borderRadius:8,padding:"10px 12px",boxShadow:T.colorScheme==="light"?"0 1px 3px rgba(15,23,42,.06)":"none"}}>
               {/* Linha 1: nome + dia + suspender + remover */}
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
                 <input value={atb.nome} onChange={e=>updAtb(atb.id,"nome",e.target.value)}
                   placeholder="ATB / Antifúngico"
-                  style={{flex:1,background:"transparent",border:"none",borderBottom:"1px solid rgba(255,255,255,0.12)",padding:"2px 0",color:T.text1,fontSize:12,fontWeight:600,outline:"none"}}/>
+                  style={{flex:1,background:"transparent",border:"none",borderBottom:`1px solid ${T.borderStrong}`,padding:"2px 0",color:T.text1,fontSize:12,fontWeight:600,outline:"none"}}/>
                 {diasAtb !== null && atb.dose && (
                   <span style={{padding:"1px 7px",borderRadius:10,fontSize:10,fontFamily:mono,fontWeight:700,
                     background:diasAtb<=0?"rgba(56,189,248,0.12)":diasAtb<7?"rgba(52,211,153,0.1)":"rgba(251,146,60,0.1)",
