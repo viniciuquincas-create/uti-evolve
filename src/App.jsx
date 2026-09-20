@@ -4946,13 +4946,46 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
   </div>;
 }
 
+const PROCINETICO_CATALOGO=[
+  {id:"metoclopramida",nome:"Metoclopramida",doses:["5","10"],intervalos:["q6h","q8h","q12h"]},
+  {id:"bromoprida",nome:"Bromoprida",doses:["5","10"],intervalos:["q8h","q12h"]},
+  {id:"domperidona",nome:"Domperidona",doses:["10"],intervalos:["q8h","q12h"]},
+  {id:"eritromicina",nome:"Eritromicina",doses:["200","250"],intervalos:["q6h","q8h"]},
+];
+const procineticoDef=id=>PROCINETICO_CATALOGO.find(x=>x.id===id);
+const formatarProcineticos=itens=>(Array.isArray(itens)?itens:[]).map(item=>[procineticoDef(item.id)?.nome||item.nome||item.id,item.dose?`${item.dose} mg`:"",item.intervalo||""].filter(Boolean).join(" ")).join(" · ");
+
+function ProcineticosEstruturados({value,onChange,freeValue="",onFreeChange}){
+  const T=useTheme(),[open,setOpen]=useState(false),[focused,setFocused]=useState(false),[idx,setIdx]=useState(0),[editingId,setEditingId]=useState("");
+  const inputRef=useRef(null),doseRefs=useRef({}),intervalRefs=useRef({});
+  const itens=Array.isArray(value)?value:[],texto=String(freeValue||""),termoBruto=texto.split(/[·,;\/\n]/).pop().trim(),termo=termoBruto.toLowerCase();
+  const sugestoes=focused&&termo.length>=2?PROCINETICO_CATALOGO.filter(m=>m.nome.toLowerCase().includes(termo)).slice(0,5):[];
+  useEffect(()=>setIdx(0),[termo]);
+  useEffect(()=>{if(open&&editingId)setTimeout(()=>doseRefs.current[editingId]?.focus(),20);},[open,editingId]);
+  const commit=(next,old=itens,baseText=texto)=>{const antes=formatarProcineticos(old),depois=formatarProcineticos(next);let novo=String(baseText||"");if(antes&&novo.includes(antes))novo=novo.replace(antes,depois);else if(depois&&!novo.toLowerCase().includes(depois.toLowerCase()))novo=[novo.trim(),depois].filter(Boolean).join(" · ");onChange(next);onFreeChange?.(novo.replace(/^\s*[·,;\/]\s*/,"").trim());};
+  const add=(id,fromSearch=false)=>{if(itens.some(x=>x.id===id)){setOpen(true);setEditingId(id);return;}const next=[...itens,{id,dose:"",intervalo:""}],pos=fromSearch&&termoBruto?texto.toLowerCase().lastIndexOf(termoBruto.toLowerCase()):-1,base=pos>=0?texto.slice(0,pos).replace(/\s*[·,;\/]\s*$/,""):texto;commit(next,itens,base);setOpen(true);setEditingId(id);};
+  const upd=(id,patch)=>commit(itens.map(x=>x.id===id?{...x,...patch}:x));
+  const remove=id=>{commit(itens.filter(x=>x.id!==id));if(editingId===id)setEditingId("");};
+  const editarTexto=novo=>{const norm=novo.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase(),restantes=itens.filter(item=>norm.includes((procineticoDef(item.id)?.nome||item.id).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()));if(restantes.length!==itens.length)onChange(restantes);onFreeChange?.(novo);};
+  const voltar=()=>{const base=texto.trim();if(base&&!/[·,;\/]$/.test(base))onFreeChange?.(`${base} · `);setOpen(false);setEditingId("");setTimeout(()=>{const el=inputRef.current;if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},30);};
+  return <div style={{position:"relative"}}>
+    <input ref={inputRef} value={freeValue||""} onChange={e=>editarTexto(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} onKeyDown={e=>{if(!sugestoes.length||open)return;if(e.key==="ArrowDown"){e.preventDefault();setIdx(i=>(i+1)%sugestoes.length);}else if(e.key==="ArrowUp"){e.preventDefault();setIdx(i=>(i-1+sugestoes.length)%sugestoes.length);}else if(e.key==="Enter"){e.preventDefault();add(sugestoes[idx]?.id,true);}}} placeholder="Sem pró-cinético ou digite…" style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 72px 6px 10px",color:T.text1,fontSize:11}}/>
+    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setOpen(v=>!v)} style={{position:"absolute",right:6,top:7,padding:"3px 6px",borderRadius:10,border:`1px solid ${open?T.accentBorder:T.border}`,background:open?T.accentBg:T.bgCard,color:open?T.accent:T.text3,fontSize:8,fontWeight:700,cursor:"pointer"}}>💊 {open?"fechar":"menu"}</button>
+    {!!sugestoes.length&&!open&&<div style={{position:"absolute",zIndex:47,left:0,right:0,top:39,border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard,overflow:"hidden"}}>{sugestoes.map((m,i)=><button key={m.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>add(m.id,true)} style={{display:"flex",width:"100%",padding:"7px 9px",border:0,borderBottom:`1px solid ${T.border}`,background:i===idx?T.accentBg:"transparent",color:i===idx?T.accent:T.text1,fontSize:10,cursor:"pointer"}}><b>{m.nome}</b><span style={{marginLeft:"auto"}}>{i===idx?"Enter":"selecionar"}</span></button>)}</div>}
+    {open&&<div style={{position:"absolute",zIndex:46,left:0,right:0,top:39,padding:8,display:"grid",gap:6,border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard,minWidth:310}}>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{PROCINETICO_CATALOGO.map(m=>{const ativo=itens.some(x=>x.id===m.id);return <button key={m.id} type="button" onClick={()=>ativo?remove(m.id):add(m.id)} style={{padding:"3px 7px",borderRadius:11,border:`1px solid ${ativo?T.accentBorder:T.border}`,background:ativo?T.accentBg:T.bgCard,color:ativo?T.accent:T.text3,fontSize:8,fontWeight:700,cursor:"pointer"}}>{ativo?"✓ ":"+ "}{m.nome}</button>})}</div>
+      {itens.map(item=>{const def=procineticoDef(item.id);return <div key={item.id} style={{display:"grid",gridTemplateColumns:"90px 1fr 1fr 28px",gap:5,alignItems:"end",padding:6,border:`1px solid ${T.border}`,borderRadius:7}}><b style={{fontSize:9,alignSelf:"center"}}>{def?.nome||item.id}</b><label style={{fontSize:7,color:T.text4}}>DOSE (mg)<input ref={el=>{if(el)doseRefs.current[item.id]=el}} list={`proc-dose-${item.id}`} value={item.dose||""} onChange={e=>upd(item.id,{dose:e.target.value})} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();intervalRefs.current[item.id]?.focus()}}} style={{display:"block",width:"100%",boxSizing:"border-box",height:28,marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,color:T.text1,padding:"0 6px"}}/><datalist id={`proc-dose-${item.id}`}>{(def?.doses||[]).map(x=><option key={x} value={x}/>)}</datalist></label><label style={{fontSize:7,color:T.text4}}>INTERVALO<select ref={el=>{if(el)intervalRefs.current[item.id]=el}} value={item.intervalo||""} onChange={e=>upd(item.id,{intervalo:e.target.value})} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();voltar()}}} style={{display:"block",width:"100%",height:28,marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,color:T.text1}}><option value="">—</option>{(def?.intervalos||[]).map(x=><option key={x}>{x}</option>)}</select></label><button type="button" onClick={()=>remove(item.id)} style={{height:28,borderRadius:5,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171"}}>✕</button></div>})}
+    </div>}
+  </div>;
+}
+
 const EVOLUCAO_VAZIA = {
   hda:"",
   nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nEFExtra:"", n24h:"", nSeda:"", nAnalg:"", nAnalgesiaItens:[], nPsiq:"", nObs:"",
   cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvTEC:"", cvLact:"", cvExtremidades:"", cvDeltaCO2:"", cvDeltaPP:"", cvTropo:"", cvObs:"",
   reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
-  tgEF:"", tg24h:"", tgLaxativos:"", tgLabs:"", tgPocus:"", tgObs:"",
+  tgEF:"", tg24h:"", tgLaxativos:"", tgProcineticos:"", tgProcineticosItens:[], tgLabs:"", tgPocus:"", tgObs:"",
   heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
   probAtivos:"", probResolvidos:"",
   impressao:"",
@@ -6202,6 +6235,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(_ultEvac){const d=Math.floor((new Date()-new Date(_ultEvac+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${d}d atrás`);}
     if(_lamg)   p.push(`- LAMG: ${_lamg}`);
     if(get("tgLaxativos")) p.push(`- Laxativos: ${get("tgLaxativos")}`);
+    {const proc=get("tgProcineticos")||formatarProcineticos(campos.tgProcineticosItens);if(proc)p.push(`- Pró-cinéticos: ${proc}`);}
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(get("tgObs"))  p.push(`*${get("tgObs")}`);
     return p.join("\n");
@@ -6503,6 +6537,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(_ultEvac){const dx=Math.floor((new Date()-new Date(_ultEvac+"T00:00:00"))/86400000);p.push(`- Última evacuação: ${dx}d atrás`);}
     if(_lamg) p.push(`- LAMG: ${_lamg}`);
     if(get("tgLaxativos")) p.push(`- Laxativos: ${get("tgLaxativos")}`);
+    {const proc=get("tgProcineticos")||formatarProcineticos(campos.tgProcineticosItens);if(proc)p.push(`- Pró-cinéticos: ${proc}`);}
     if(get("tgLabs")) p.push(`- Labs: ${get("tgLabs")}`);
     if(vis.tgPocus&&get("tgPocus")) p.push(`- POCUS: ${get("tgPocus")}`);
     p.push(...serialLines("tgPocusSerial","POCUS abdominal"));
@@ -6930,6 +6965,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <Row>
           <Col><FL>Última evacuação</FL><div style={{position:"relative"}}><input type="date" value={campos.tgUltEvac||""} onChange={e=>onCampoEdit("tgUltEvac",e.target.value)} style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/>{campos.tgUltEvac&&<span style={{position:"absolute",right:36,top:10,fontSize:9,color:T.text3,fontFamily:mono,pointerEvents:"none"}}>{Math.floor((new Date()-new Date(campos.tgUltEvac+"T00:00:00"))/86400000)}d</span>}</div></Col>
           <Col><FL>Laxativos</FL><CompactMultiSelect value={campos.tgLaxativos||""} onChange={v=>onCampoEdit("tgLaxativos",v)} placeholder="Sem laxativos ou esquema…" options={["Sem laxativos","Lactulose","Macrogol","Bisacodil","Enema"]}/></Col>
+          <Col><FL>Pró-cinéticos</FL><ProcineticosEstruturados value={campos.tgProcineticosItens} onChange={v=>onCampoEdit("tgProcineticosItens",v)} freeValue={campos.tgProcineticos} onFreeChange={v=>onCampoEdit("tgProcineticos",v)}/></Col>
           <Col><FL>Profilaxia LAMG</FL><input list="tgi-lamg" value={campos.tgLAMG||""} onChange={e=>onCampoEdit("tgLAMG",e.target.value)} placeholder="Sem profilaxia ou esquema…" style={{width:"100%",boxSizing:"border-box",height:36,background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"6px 10px",color:T.text1,fontSize:12}}/><datalist id="tgi-lamg">{getHospitalConfig(config).lamgOpcoes.map(x=><option key={x} value={x}/>)}</datalist></Col>
         </Row>
 <Row>
