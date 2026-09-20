@@ -4877,25 +4877,32 @@ const formatarAnalgesiaItens=itens=>(Array.isArray(itens)?itens:[]).map(item=>{
 function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange}){
   const T=useTheme();
   const [open,setOpen]=useState(false);
+  const [focused,setFocused]=useState(false);
   const itens=Array.isArray(value)?value:[];
-  const add=id=>{if(itens.some(x=>x.id===id))return;const def=analgesiaDef(id);onChange([...itens,{id,...(def?.esquemas?{esquema:def.esquemas[0]}:{dose:"",intervalo:def?.intervalos?.[0]||"q6h"})}]);};
-  const upd=(id,patch)=>onChange(itens.map(x=>x.id===id?{...x,...patch}:x));
-  const remove=id=>onChange(itens.filter(x=>x.id!==id));
-  const resumo=[formatarAnalgesiaItens(itens),String(freeValue||"").trim()].filter(Boolean).join(" · ");
-  return <div style={{border:`1px solid ${T.border}`,borderRadius:8,background:T.bgInput,overflow:"hidden",marginBottom:6}}>
-    <button type="button" onClick={()=>setOpen(v=>!v)} style={{width:"100%",minHeight:open?36:102,padding:open?"6px 9px":"10px 12px",border:0,background:T.bgCardHover,color:T.text1,cursor:"pointer",display:"flex",alignItems:open?"center":"flex-start",gap:10,textAlign:"left"}}>
-      <span style={{fontSize:9,color:T.text3,fontFamily:"'DM Mono',monospace",letterSpacing:1,whiteSpace:"nowrap"}}>ESQUEMA DE ANALGESIA</span>
-      {!open&&<span style={{flex:1,fontSize:11,color:resumo?T.text2:T.text4,lineHeight:1.45,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical"}}>{resumo||"Clique para selecionar medicamentos, doses e intervalos"}</span>}
-      <span style={{marginLeft:"auto",fontSize:10,color:T.accent,whiteSpace:"nowrap"}}>{open?"▲ minimizar":"▼ maximizar"}</span>
-    </button>
-    {open&&<div style={{padding:"7px 9px",display:"grid",gap:7,borderTop:`1px solid ${T.border}`}}>
+  const todos=ANALGESIA_CATALOGO.flatMap(g=>g.itens);
+  const textoAtual=String(freeValue||""),termoBruto=textoAtual.split(/[·,;\/\n]/).pop().trim(),termo=termoBruto.toLowerCase();
+  const sugestoes=focused&&termo.length>=2?todos.filter(m=>m.nome.toLowerCase().includes(termo)).slice(0,5):[];
+  const commit=(next,old=itens,baseText=textoAtual)=>{
+    const antes=formatarAnalgesiaItens(old),depois=formatarAnalgesiaItens(next);
+    let texto=String(baseText||"");
+    if(antes&&texto.includes(antes))texto=texto.replace(antes,depois);
+    else if(depois&&!texto.toLowerCase().includes(depois.toLowerCase()))texto=[texto.trim(),depois].filter(Boolean).join(" · ");
+    onChange(next);onFreeChange?.(texto.replace(/^\s*[·,;\/]\s*/,"").trim());
+  };
+  const add=(id,fromSearch=false)=>{if(itens.some(x=>x.id===id)){setOpen(true);return;}const def=analgesiaDef(id),next=[...itens,{id,...(def?.esquemas?{esquema:def.esquemas[0]}:{dose:"",intervalo:def?.intervalos?.[0]||"q6h"})}],idx=fromSearch&&termoBruto?textoAtual.toLowerCase().lastIndexOf(termoBruto.toLowerCase()):-1,base=idx>=0?textoAtual.slice(0,idx).replace(/\s*[·,;\/]\s*$/,""):textoAtual;commit(next,itens,base);setOpen(true);};
+  const upd=(id,patch)=>commit(itens.map(x=>x.id===id?{...x,...patch}:x));
+  const remove=id=>commit(itens.filter(x=>x.id!==id));
+  return <div style={{position:"relative",marginBottom:6}}>
+    <textarea value={freeValue||""} onChange={e=>onFreeChange?.(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} rows={2} placeholder="Digite a medicação ou o esquema analgésico…" style={{width:"100%",height:106,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:"10px 118px 10px 11px",color:T.text1,fontSize:12,resize:"vertical",fontFamily:"inherit"}}/>
+    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setOpen(v=>!v)} style={{position:"absolute",right:8,top:8,padding:"4px 8px",borderRadius:12,border:`1px solid ${open?T.accentBorder:T.borderStrong}`,background:open?T.accentBg:T.bgCard,color:open?T.accent:T.text3,fontSize:9,fontWeight:700,cursor:"pointer"}}>💊 {open?"fechar menu":"medicações"}</button>
+    {!!sugestoes.length&&!open&&<div style={{position:"absolute",zIndex:45,left:0,right:0,top:"calc(100% + 3px)",border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard,overflow:"hidden"}}>{sugestoes.map(m=><button key={m.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>add(m.id,true)} style={{display:"flex",width:"100%",padding:"7px 10px",border:0,borderBottom:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left",fontSize:11}}><strong>{m.nome}</strong><span style={{marginLeft:"auto",fontSize:9,color:T.accent}}>selecionar e configurar</span></button>)}</div>}
+    {open&&<div style={{position:"absolute",zIndex:44,left:0,right:0,top:"calc(100% + 3px)",padding:"9px",display:"grid",gap:7,border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:"0 14px 34px rgba(0,0,0,.24)",maxHeight:390,overflowY:"auto"}}>
       {ANALGESIA_CATALOGO.map(g=><div key={g.grupo} style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><span style={{width:92,fontSize:8,color:T.text4,fontFamily:"'DM Mono',monospace"}}>{g.grupo.toUpperCase()}</span>{g.itens.map(m=>{const ativo=itens.some(x=>x.id===m.id);return <button key={m.id} type="button" onClick={()=>ativo?remove(m.id):add(m.id)} style={{padding:"3px 8px",borderRadius:12,border:`1px solid ${ativo?T.accentBorder:T.border}`,background:ativo?T.accentBg:T.bgCard,color:ativo?T.accent:T.text3,fontSize:9,fontWeight:700,cursor:"pointer"}}>{ativo?"✓ ":"+ "}{m.nome}</button>})}</div>)}
       {!!itens.length&&<div style={{display:"grid",gap:6,marginTop:2}}>{itens.map(item=>{const def=analgesiaDef(item.id);return <div key={item.id} style={{display:"grid",gridTemplateColumns:"minmax(105px,.8fr) minmax(135px,1.2fr) 30px",gap:6,alignItems:"end",padding:"6px 7px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard}}>
         <strong style={{fontSize:10,color:T.text2,alignSelf:"center"}}>{def?.nome||item.id}</strong>
         {def?.esquemas?<label style={{fontSize:8,color:T.text4}}>DOSE E INTERVALO<select value={item.esquema||""} onChange={e=>upd(item.id,{esquema:e.target.value})} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 6px"}}>{def.esquemas.map(x=><option key={x}>{x}</option>)}</select></label>:<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}><label style={{fontSize:8,color:T.text4}}>DOSE (mg)<input type="number" min="0" step="any" value={item.dose||""} onChange={e=>upd(item.id,{dose:e.target.value})} placeholder="mg" style={{display:"block",width:"100%",boxSizing:"border-box",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 7px"}}/></label><label style={{fontSize:8,color:T.text4}}>INTERVALO<select value={item.intervalo||""} onChange={e=>upd(item.id,{intervalo:e.target.value})} style={{display:"block",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 5px"}}>{(def?.intervalos||ANALGESIA_INTERVALOS).map(x=><option key={x}>{x}</option>)}</select></label></div>}
         <button type="button" onClick={()=>remove(item.id)} title="Remover" style={{height:30,borderRadius:6,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
       </div>})}</div>}
-      <label style={{fontSize:8,color:T.text4,fontFamily:"'DM Mono',monospace"}}>ESQUEMA LIVRE / OBSERVAÇÕES<textarea value={freeValue||""} onChange={e=>onFreeChange?.(e.target.value)} rows={2} placeholder="Outro medicamento ou observação…" style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:3,background:T.bgCard,border:`1px solid ${T.borderStrong}`,borderRadius:7,padding:"7px 9px",color:T.text1,fontSize:11,resize:"vertical"}}/></label>
     </div>}
   </div>;
 }
@@ -6097,7 +6104,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("nEF"))    p.push(`- EF: ${get("nEF")}`);
     if(get("n24h"))   p.push(`- Controles 24h: ${get("n24h")}`);
     if(get("nSeda"))  p.push(`- P: ${get("nSeda")}`);
-    {const analgesia=[formatarAnalgesiaItens(campos.nAnalgesiaItens),get("nAnalg")].filter(Boolean).join(" · ");if(analgesia)p.push(`- A: ${analgesia}`);}
+    {const analgesia=get("nAnalg")||formatarAnalgesiaItens(campos.nAnalgesiaItens);if(analgesia)p.push(`- A: ${analgesia}`);}
     if(get("nPsiq"))  p.push(`- Psiq: ${get("nPsiq")}`);
     if(get("nObs"))   p.push(`*${get("nObs")}`);
     return p.join("\n");
@@ -6333,7 +6340,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     ].filter(Boolean).join(", ");
     if(ef) p.push(`- EF: ${ef}`);
     if(get("nSeda"))  p.push(`- Sedação: ${get("nSeda")}`);
-    {const analgesia=[formatarAnalgesiaItens(campos.nAnalgesiaItens),get("nAnalg")].filter(Boolean).join(" · ");if(analgesia)p.push(`- Analgesia: ${analgesia}`);}
+    {const analgesia=get("nAnalg")||formatarAnalgesiaItens(campos.nAnalgesiaItens);if(analgesia)p.push(`- Analgesia: ${analgesia}`);}
     if(get("n24h")) p.push(`- Controles 24h: ${get("n24h")}`);
     if(vis.nPsiq&&get("nPsiq")) p.push(`- Psicoativos: ${get("nPsiq")}`);
     {const NK=["propofol","midazolam","fentanil","cetamina","precedex","morfina","clonidina",...(config?.drogasCustom||[]).filter(d=>["sedacao","analgesia"].includes(d.grupo)).map(d=>d.key)];
