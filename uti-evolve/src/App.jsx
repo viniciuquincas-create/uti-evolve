@@ -4909,12 +4909,25 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
   const diagnosticos=[leito.diagnostico,...(Array.isArray(leito.diagnosticos)?leito.diagnosticos:[])].map(x=>typeof x==="string"?x:(x?.nome||x?.descricao||"")).join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   const disfuncaoHepatica=/(insuficiencia hepat|cirrose|hepatopatia|child|falencia hepat)/.test(diagnosticos);
   const alertaItem=item=>{
-    if(item.id==="gabapentina"&&clcr!==null&&clcr<60)return `Requer ajuste renal (ClCr ${clcr} mL/min); confirmar dose e intervalo conforme a faixa de ClCr.`;
-    if(item.id==="pregabalina"&&clcr!==null&&clcr<60)return `Requer ajuste renal (ClCr ${clcr} mL/min); confirmar dose total diária conforme a faixa de ClCr.`;
-    if(item.id==="tramadol"&&clcr!==null&&clcr<30)return `ClCr ${clcr} mL/min: evitar liberação prolongada; considerar maior intervalo e limite diário.`;
-    if(item.id==="morfina"&&clcr!==null&&clcr<30)return `ClCr ${clcr} mL/min: risco de acúmulo de metabólitos; considerar redução, maior intervalo ou alternativa.`;
-    if(item.id==="duloxetina"&&clcr!==null&&clcr<30)return `ClCr ${clcr} mL/min: uso geralmente não recomendado.`;
-    if(disfuncaoHepatica&&["paracetamol","tramadol","morfina","metadona","amitriptilina","duloxetina"].includes(item.id))return "Disfunção hepática identificada: revisar dose, intervalo e/ou alternativa conforme gravidade.";
+    if(item.id==="gabapentina"&&clcr!==null&&clcr<60){
+      if(clcr>30)return `ClCr ${clcr}: dose total 400–1.400 mg/dia, dividida em 2 tomadas (ex.: 200–700 mg 12/12 h).`;
+      if(clcr>15)return `ClCr ${clcr}: dose total 200–700 mg, 1 vez/dia.`;
+      if(clcr===15)return "ClCr 15: 100–300 mg, 1 vez/dia.";
+      return `ClCr ${clcr}: reduzir proporcionalmente a partir de 100–300 mg/dia (em ClCr 7,5, usar cerca de metade da dose de ClCr 15). Se hemodiálise, considerar dose suplementar pós-HD.`;
+    }
+    if(item.id==="pregabalina"&&clcr!==null&&clcr<60){
+      if(clcr>=30)return `ClCr ${clcr}: dose total diária ajustada 75–300 mg/dia, dividida em 2–3 tomadas.`;
+      if(clcr>=15)return `ClCr ${clcr}: dose total diária ajustada 25–150 mg/dia, em 1–2 tomadas.`;
+      return `ClCr ${clcr}: dose total diária ajustada 25–75 mg, 1 vez/dia; em hemodiálise, avaliar suplementação pós-HD.`;
+    }
+    if(item.id==="tramadol"&&clcr!==null&&clcr<30)return `ClCr ${clcr}: formulação imediata a cada 12 h; máximo 200 mg/dia. Evitar formulação de liberação prolongada.`;
+    if(item.id==="morfina"&&clcr!==null&&clcr<30)return `ClCr ${clcr}: metabólitos ativos podem acumular. Preferir alternativa quando possível; se usada, iniciar abaixo da dose habitual, ampliar intervalo e titular lentamente com vigilância de sedação/depressão respiratória.`;
+    if(item.id==="duloxetina"&&clcr!==null&&clcr<30)return `ClCr ${clcr}: evitar duloxetina (não recomendada em TFG/ClCr <30 mL/min).`;
+    if(item.id==="dipirona"&&clcr!==null&&clcr<30)return `ClCr ${clcr}: evitar doses elevadas repetidas; se tratamento repetido for necessário, considerar redução e monitorização renal.`;
+    if(disfuncaoHepatica&&item.id==="tramadol")return "Disfunção hepática grave/cirrose: tramadol 50 mg a cada 12 h; evitar liberação prolongada.";
+    if(disfuncaoHepatica&&item.id==="duloxetina")return "Doença hepática crônica/cirrose: evitar duloxetina.";
+    if(disfuncaoHepatica&&item.id==="morfina")return "Cirrose/disfunção hepática: iniciar abaixo da dose habitual e titular lentamente, monitorando sedação, depressão respiratória e hipotensão.";
+    if(disfuncaoHepatica&&["paracetamol","metadona","amitriptilina"].includes(item.id))return "Disfunção hepática identificada: usar dose inicial conservadora e revisar dose/intervalo conforme gravidade e protocolo farmacêutico local.";
     return "";
   };
   return <div style={{position:"relative",marginBottom:0}}>
