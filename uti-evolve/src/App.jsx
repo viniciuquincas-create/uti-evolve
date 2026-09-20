@@ -6129,6 +6129,7 @@ const ClinicalGroup=({label,color="#64748b",children})=>{const T=useTheme();retu
 function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, tabelaDataLeito={}, onMetaChange, metas=[], onLeitoChange }) {
   const T = useTheme();
   const [copiado, setCopiado] = useState({});
+  const [showCulturasEditor, setShowCulturasEditor] = useState(false);
   const hoje = new Date().toISOString().split("T")[0];
   const isAntigo = (fieldName) => {
     const dataEdicao = campos._datas?.[fieldName];
@@ -7067,7 +7068,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <ClinicalGroup label="MICROBIOLOGIA E VIGILÂNCIA" color="#94a3b8">
         <Row><Col><FL>Temperatura nas últimas 24h — mín · máx</FL><TA fieldRef={refs.heTemp} defaultValue={valorDiario("heTemp")} rows={1} fieldName="heTemp" onBlurSave={salvar}/></Col></Row>
         <Row><Col>
-          <FL>🧫 Culturas</FL>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+            <FL>🧫 Culturas</FL>
+            {onLeitoChange&&<button type="button" onClick={()=>setShowCulturasEditor(v=>!v)} style={{padding:"4px 9px",borderRadius:7,border:`1px solid ${showCulturasEditor?"rgba(163,230,53,.45)":T.border}`,background:showCulturasEditor?"rgba(163,230,53,.10)":T.bgCard,color:showCulturasEditor?"#65a30d":T.text3,fontSize:9,fontWeight:700,cursor:"pointer"}}>{showCulturasEditor?"▲ Fechar edição":"✎ Editar culturas"}</button>}
+          </div>
           {(leito.culturas||[]).length>0 ? (
             <div style={{background:"rgba(163,230,53,0.04)",border:"1px solid rgba(163,230,53,0.12)",borderRadius:7,padding:"6px 9px",marginBottom:4}}>
               {(leito.culturas||[]).map(c=>{
@@ -7078,7 +7082,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
                 return <div key={c.id} style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:"#94a3b8",marginBottom:2}}>{`${hdr}: ${germes||c.resultado||"aguardando resultado"}`}</div>;
               })}
             </div>
-          ) : <div style={{fontSize:10,color:"#334155",marginBottom:4}}>Nenhuma cultura. Adicione na aba 🧫 Culturas.</div>}
+          ) : <div style={{fontSize:10,color:T.text4,marginBottom:4}}>Nenhuma cultura cadastrada.</div>}
+          {showCulturasEditor&&onLeitoChange&&<div style={{marginTop:8,padding:"8px",border:"1px solid rgba(163,230,53,.22)",borderRadius:9,background:"rgba(163,230,53,.025)"}}>
+            <CulturasPanel culturas={leito.culturas||[]} onChange={novas=>onLeitoChange({...leito,culturas:novas})}/>
+          </div>}
         </Col></Row>
         </ClinicalGroup>
         {vis["add_in_interconsulta"]&&eventPanel("in","interconsulta","#94a3b8")}
