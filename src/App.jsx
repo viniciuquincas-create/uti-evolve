@@ -3953,6 +3953,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   const [tabela, setTabela] = useState("labs");
   const [subTabLabs, setSubTabLabs] = useState("labs"); // "labs" | "controles"
   const [scoreEditor, setScoreEditor] = useState(null);
+  const [showScoresMenu, setShowScoresMenu] = useState(false);
 
   // Mostra colunas com dados OU marcadas como visíveis, mais hoje sempre
   // Aceita tanto "2026-04-23" quanto "2026-04-23T05:15"
@@ -4359,14 +4360,19 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
               {lbl}
             </button>
           ))}
-          <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,labACLF:!leito.labACLF})} title="Adicionar MELD-Na e CLIF à tabela"
-            style={{marginLeft:"auto",padding:"4px 10px",borderRadius:6,border:`1px solid ${leito.labACLF?"rgba(251,146,60,.45)":"rgba(255,255,255,.08)"}`,background:leito.labACLF?"rgba(251,146,60,.12)":"transparent",color:leito.labACLF?"#fb923c":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
-            {leito.labACLF?"✓ ":"+ "}ACLF · MELD-Na
-          </button>
-          <button onClick={()=>onLeitoChange&&onLeitoChange({...leito,labSOFA:!leito.labSOFA})} title="Acompanhar SOFA por data"
-            style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${leito.labSOFA?"rgba(248,113,113,.45)":"rgba(255,255,255,.08)"}`,background:leito.labSOFA?"rgba(248,113,113,.12)":"transparent",color:leito.labSOFA?"#f87171":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>
-            {leito.labSOFA?"✓ ":"+ "}Sepse · SOFA
-          </button>
+          <div style={{position:"relative",marginLeft:"auto"}}>
+            <button type="button" onClick={()=>setShowScoresMenu(v=>!v)} aria-expanded={showScoresMenu}
+              style={{height:28,display:"flex",alignItems:"center",gap:7,padding:"0 9px 0 11px",borderRadius:7,border:`1px solid ${(leito.labACLF||leito.labSOFA)?T.accentBorder:T.border}`,background:(leito.labACLF||leito.labSOFA)?T.accentBg:T.bgCard,color:(leito.labACLF||leito.labSOFA)?T.accent:T.text3,cursor:"pointer",fontSize:11,fontWeight:700}}>
+              <span>Scores</span>{(leito.labACLF||leito.labSOFA)&&<span style={{minWidth:17,height:17,display:"grid",placeItems:"center",borderRadius:9,background:T.accent,color:"#fff",fontSize:9}}>{Number(!!leito.labACLF)+Number(!!leito.labSOFA)}</span>}<span style={{fontSize:10}}>{showScoresMenu?"▲":"▼"}</span>
+            </button>
+            {showScoresMenu&&<div style={{position:"absolute",right:0,top:32,zIndex:60,width:235,padding:7,border:`1px solid ${T.accentBorder}`,borderRadius:9,background:T.bgPicker||T.bgCard,boxShadow:T.shadowCard}}>
+              <div style={{padding:"3px 6px 7px",fontSize:9,fontFamily:mono,letterSpacing:1,color:T.text4}}>SELECIONE UM OU MAIS</div>
+              {[{key:"labACLF",label:"ACLF · MELD-Na",detail:"MELD-Na, CLIF-OF e CLIF-C"},{key:"labSOFA",label:"Sepse · SOFA",detail:"Pior valor em 24 horas"}].map(op=>{const checked=!!leito[op.key];return <label key={op.key} style={{display:"grid",gridTemplateColumns:"18px 1fr",gap:7,alignItems:"start",padding:"7px 6px",borderRadius:6,cursor:"pointer",background:checked?T.accentBg:"transparent"}}>
+                <input type="checkbox" checked={checked} onChange={()=>onLeitoChange&&onLeitoChange({...leito,[op.key]:!checked})} style={{marginTop:2,accentColor:T.accent}}/>
+                <span><b style={{display:"block",fontSize:11,color:checked?T.accent:T.text1}}>{op.label}</b><small style={{display:"block",marginTop:2,fontSize:9,color:T.text4}}>{op.detail}</small></span>
+              </label>})}
+            </div>}
+          </div>
         </div>
       )}
       {tabela==="labs" && subTabLabs==="gasos" && (
