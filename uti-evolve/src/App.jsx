@@ -7562,7 +7562,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   </div>;
 }
 
-function CoordenacaoPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl}){
+function MapaLeitosPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl}){
   const T=useTheme();
   const ehHsp=hospital?.id===HSP_HOSPITAL_ID||/hospital s[aã]o paulo|\bhsp\b/i.test(`${hospital?.nome||""} ${hospital?.sigla||""}`);
   const ehG1=ehHsp&&/\bG1\b/i.test(uti?.nome||"");
@@ -7580,9 +7580,9 @@ function CoordenacaoPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUr
   const ordenados=[...leitos].sort((a,b)=>Number(numeroFisico(a))-Number(numeroFisico(b)));
   return <div style={{height:"100%",overflow:"auto",background:T.bgPage,padding:"14px clamp(12px,2vw,28px) 24px",boxSizing:"border-box"}}>
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,flexWrap:"wrap"}}>
-      <div><div style={{fontSize:20,fontWeight:850,color:T.text1}}>Coordenação · {uti?.nome}</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>Mapa físico dos leitos · dados compartilhados com o perfil Plantonista</div></div>
+      <div><div style={{fontSize:20,fontWeight:850,color:T.text1}}>Mapa de leitos · {uti?.nome}</div><div style={{fontSize:11,color:T.text3,marginTop:3}}>Visão espacial da unidade · clique em um leito para abrir o beira-leito</div></div>
       {urlAltas&&<button onClick={()=>atualizarAltas(false)} disabled={altaLoading} title="Atualizar situação das altas pela planilha institucional" style={{marginLeft:"auto",padding:"7px 11px",borderRadius:8,border:`1px solid ${altaErro?"#f87171":T.accentBorder}`,background:altaErro?"rgba(248,113,113,.08)":T.accentBg,color:altaErro?"#f87171":T.accent,cursor:altaLoading?"wait":"pointer",fontWeight:700}}>{altaLoading?"Atualizando altas…":"↻ Atualizar altas"}</button>}
-      <button onClick={onVoltar} style={{marginLeft:urlAltas?0:"auto",padding:"7px 11px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontWeight:700}}>Voltar ao Plantonista</button>
+      <button onClick={onVoltar} style={{marginLeft:urlAltas?0:"auto",padding:"7px 11px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontWeight:700}}>Voltar ao leito selecionado</button>
     </div>
     {altaErro&&<div style={{marginBottom:12,padding:"8px 10px",borderRadius:8,border:"1px solid rgba(248,113,113,.35)",background:"rgba(248,113,113,.08)",color:"#f87171",fontSize:10}}>Planilha de altas: {altaErro}</div>}
     {urlAltas&&!altaErro&&altaAtualizada&&<div style={{margin:"-10px 0 10px",fontSize:9,color:T.text4,textAlign:"right"}}>Altas verificadas às {new Date(altaAtualizada).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})} · atualização automática a cada 5 min</div>}
@@ -8747,10 +8747,9 @@ export default function App() {
     const lista=leitos.filter(l=>(l.utiId||utis[0]?.id)===id);
     setUtiAtivaId(id);sessionStorage.setItem("uti_ativa_id",id);
     if(lista.length)setLeitoSelId(lista[0].id);
-    // A entrada da unidade começa pelo mapa dos leitos. Ao escolher um leito,
-    // o usuário segue para o respectivo beira-leito no perfil Plantonista.
-    setPerfil("coordenacao");sessionStorage.setItem("uti_perfil","coordenacao");
-    setAba("evolucao");setViewGlobal("leitos");setDadosIA(null);
+    // A entrada da unidade começa pelo mapa, dentro do mesmo perfil Plantonista.
+    setPerfil("plantonista");sessionStorage.setItem("uti_perfil","plantonista");
+    setAba("evolucao");setViewGlobal("mapa");setDadosIA(null);
   };
   const criarUti=async(hospitalId=undefined)=>{
     const nome=window.prompt("Nome da nova UTI:","")?.trim();if(!nome)return;
@@ -8769,7 +8768,7 @@ export default function App() {
     try{await supabase.from("config").upsert({key:"hospitais_data",value:JSON.stringify(novos)});}catch{}
     await criarUti(hospital.id);
   };
-  const mudarPerfil=proximo=>{setPerfil(proximo);sessionStorage.setItem("uti_perfil",proximo);if(proximo==="plantonista")setViewGlobal("leitos");};
+  useEffect(()=>{if(perfil!=="plantonista"){setPerfil("plantonista");sessionStorage.setItem("uti_perfil","plantonista");}},[perfil]);
   const sincronizarSbari=async()=>{
     const raw=config.sbariLinks?.[utiAtiva?.id];
     const links=(Array.isArray(raw)?raw:(raw?[{label:"SBARI",url:raw}]:[])).filter(x=>x?.url);
@@ -9096,17 +9095,17 @@ export default function App() {
           else { setSidebarCollapsed(c=>{ const next=!c; localStorage.setItem("uti_sidebar_collapsed", next?"1":"0"); return next; }); }
         }} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,color:T.text3,cursor:"pointer",fontSize:16,padding:"4px 8px",marginRight:14}} title={railMode?"Expandir sidebar":"Recolher sidebar"}>{railMode?"»":"☰"}</button>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={()=>mudarPerfil(perfil==="plantonista"?"coordenacao":"plantonista")} title={perfil==="plantonista"?"Abrir perfil Coordenação":"Voltar ao perfil Plantonista"} style={{border:0,background:"transparent",padding:0,cursor:"pointer",display:"flex",alignItems:"center"}}><BrainLogo size={32}/></button>
+          <button onClick={()=>setViewGlobal(v=>v==="mapa"?"leitos":"mapa")} title={viewGlobal==="mapa"?"Voltar ao leito selecionado":"Abrir mapa dos leitos"} style={{border:0,background:"transparent",padding:0,cursor:"pointer",display:"flex",alignItems:"center"}}><BrainLogo size={32}/></button>
           <div>
             <div style={{fontSize:14,fontWeight:700,letterSpacing:0.5,color:T.text1}}>UTI Evolve</div>
-            <div style={{fontSize:9,color:T.accent,fontFamily:mono,letterSpacing:2}}>{perfil==="coordenacao"?"PERFIL COORDENAÇÃO":"PERFIL PLANTONISTA"}</div>
+            <div style={{fontSize:9,color:T.accent,fontFamily:mono,letterSpacing:2}}>PERFIL PLANTONISTA</div>
           </div>
         </div>
         <button onClick={e=>{if(isMobile){const r=e.currentTarget.getBoundingClientRect();setUtiMenu({x:Math.max(8,r.left),y:r.bottom+6});return;}sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} onContextMenu={e=>{e.preventDefault();setUtiMenu({x:e.clientX,y:e.clientY});}} title={isMobile?"Abrir menu da UTI":"Clique para trocar de UTI · botão direito para ações"} style={{marginLeft:16,padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>🏥 {hospitalAtivo?.sigla||hospitalAtivo?.nome} · {utiAtiva?.nome||"Selecionar UTI"} {isMobile?"⋮":"▾"}</button>
         {utiMenu&&<div onMouseDown={()=>setUtiMenu(null)} onContextMenu={e=>{e.preventDefault();setUtiMenu(null);}} style={{position:"fixed",inset:0,zIndex:19990}}><div onMouseDown={e=>e.stopPropagation()} style={{position:"fixed",left:Math.min(utiMenu.x,window.innerWidth-230),top:Math.min(utiMenu.y,window.innerHeight-130),width:220,padding:5,borderRadius:9,border:`1px solid ${T.borderStrong}`,background:T.bgPicker,boxShadow:"0 14px 38px rgba(0,0,0,.35)",zIndex:19991}}>
           <button onClick={()=>{setUtiMenu(null);sessionStorage.removeItem("uti_ativa_id");setUtiAtivaId("");}} style={{width:"100%",padding:"9px 10px",border:0,borderRadius:6,background:"transparent",color:T.text2,textAlign:"left",cursor:"pointer",fontSize:11,fontWeight:700}}>🏥 Trocar hospital ou UTI</button>
           {(Array.isArray(config.sbariLinks?.[utiAtiva?.id])?config.sbariLinks[utiAtiva.id].some(x=>x?.url):!!config.sbariLinks?.[utiAtiva?.id])&&<button onClick={()=>{setUtiMenu(null);sincronizarSbari();}} disabled={sbariSyncing} style={{width:"100%",padding:"9px 10px",border:0,borderRadius:6,background:"transparent",color:T.text2,textAlign:"left",cursor:sbariSyncing?"wait":"pointer",fontSize:11,fontWeight:700}}>{sbariSyncing?"⏳ Atualizando SBARI…":"↻ Atualizar leitos pelo SBARI"}</button>}
-          <button onClick={()=>{setUtiMenu(null);if(perfil!=="plantonista")mudarPerfil("plantonista");setViewGlobal("coleta");}} style={{width:"100%",padding:"9px 10px",border:0,borderRadius:6,background:viewGlobal==="coleta"?"rgba(168,85,247,.12)":"transparent",color:viewGlobal==="coleta"?"#a855f7":T.text2,textAlign:"left",cursor:"pointer",fontSize:11,fontWeight:700}}>📝 Folha de coleta dos leitos</button>
+          <button onClick={()=>{setUtiMenu(null);setViewGlobal("coleta");}} style={{width:"100%",padding:"9px 10px",border:0,borderRadius:6,background:viewGlobal==="coleta"?"rgba(168,85,247,.12)":"transparent",color:viewGlobal==="coleta"?"#a855f7":T.text2,textAlign:"left",cursor:"pointer",fontSize:11,fontWeight:700}}>📝 Folha de coleta dos leitos</button>
         </div></div>}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
@@ -9125,7 +9124,7 @@ export default function App() {
       </div>
 
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
-        {perfil==="plantonista"&&(!isMobile || showSidebar) && <div className="app-sidebar" style={{width:railMode?64:228,borderRight:`1px solid ${T.borderAccent}`,padding:railMode?"20px 8px":"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0,transition:"width 0.18s ease"}}>
+        {(!isMobile || showSidebar) && <div className="app-sidebar" style={{width:railMode?64:228,borderRight:`1px solid ${T.borderAccent}`,padding:railMode?"20px 8px":"20px 14px",overflowY:"auto",background:T.bgSidebar,flexShrink:0,transition:"width 0.18s ease"}}>
           {railMode ? (
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
               {leitosOrdenados.map(l=>{
@@ -9224,8 +9223,8 @@ export default function App() {
         </div>}
 
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {perfil==="coordenacao" ? (
-            <CoordenacaoPanel uti={utiAtiva} hospital={hospitalAtivo} leitos={leitosDaUti} altaSheetUrl={config.altaSheetUrls?.[hospitalAtivo?.id]} onVoltar={()=>mudarPerfil("plantonista")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");mudarPerfil("plantonista");}}/>
+          {viewGlobal==="mapa" ? (
+            <MapaLeitosPanel uti={utiAtiva} hospital={hospitalAtivo} leitos={leitosDaUti} altaSheetUrl={config.altaSheetUrls?.[hospitalAtivo?.id]} onVoltar={()=>setViewGlobal("leitos")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");}}/>
           ) : viewGlobal==="coleta" ? (
             <ColetaPlantaoPanel uti={utiAtiva} leitos={leitosDaUti} evolPorLeito={evolPorLeito} onAplicar={aplicarFolhaColeta}/>
           ) : viewGlobal==="ferramentas" ? (
