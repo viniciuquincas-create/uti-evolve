@@ -47,17 +47,28 @@ function parseAntibiotics(text){
   return String(text||"").split(/\s*\+\s*|\s*,\s*/).map(part=>{const m=part.match(/([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s/-]*?)(?:\s*\((\d{1,2}\/\d{1,2})\s*-\s*(\d{1,2}\/\d{1,2})?\))?(?:\s|$)/);return m?{nome:clean(m[1].replace(/\b(?:profil[aá]ticos?|por orienta[cç][aã]o.*)$/i,"")),dataInicio:toIsoDate(m[2]),dataFim:toIsoDate(m[3])}:null;}).filter(x=>x?.nome&&!/^(?:---?|pr[eé]vios?)$/i.test(x.nome));
 }
 function parseClinical(systems,situacao,recomendacoes,instrucoes,atb){
-  const neuro=systems.N||"",cv=systems.CV||"",resp=systems.R||"",rm=systems["R/M"]||"",hi=systems["H/I"]||"",all=`${rm} ${hi}`;
+  const neuro=systems.N||"",cv=systems.CV||"",resp=systems.R||"",tgi=systems.TGI||"",rm=systems["R/M"]||"",hi=systems["H/I"]||"",all=`${rm} ${hi}`;
+  const glasgowMatch=neuro.match(/\b(?:GCS|ECG|Glasgow)\s*[:=]?\s*(\d{1,2})(?:\s*\(?\s*(O\s*\d+)\s*(V\s*\d+)\s*(M\s*\d+)\s*\)?)?/i);
+  const glasgow=glasgowMatch?clean([glasgowMatch[1],...[glasgowMatch[2],glasgowMatch[3],glasgowMatch[4]].filter(Boolean)].join(" ")):"";
+  const neuroAdditional=clean(neuro
+    .replace(/\bRASS\s*[+-]?\d+/ig,"")
+    .replace(/\b(?:GCS|ECG|Glasgow)\s*[:=]?\s*\d{1,2}(?:\s*\(?\s*O\s*\d+\s*V\s*\d+\s*M\s*\d+\s*\)?)?/ig,"")
+    .replace(/\b(?:PPF|Propofol|Mida(?:zolam)?|Fenta(?:nil)?)\s*\d*(?:[.,]\d+)?/ig,"")
+    .replace(/^[\s,;|+\-–—]+|[\s,;|+\-–—]+$/g,""));
+  const nutrition=/\bjejum\b/i.test(tgi)?{tipo:"jejum"}:/\b(?:VO|via\s+oral)\b/i.test(tgi)?{tipo:"oral"}:null;
+  const tgiExam=clean(tgi.replace(/\b(?:jejum|VO|via\s+oral)\b/ig,"").replace(/^[\s,;|+\-–—]+|[\s,;|+\-–—]+$/g,""));
+  const roomAir=/^\s*(?:AA|ar\s+ambiente)\b/i.test(resp);
+  const respiratoryExam=clean(resp.replace(/^\s*(?:AA|ar\s+ambiente)\b\s*[,;|+\-–—/]*/i,"").trim());
   const lab=(re,thousands=false)=>{const v=captured(all,re).replace(",",".").replace(/[.,]+$/g,"");return v?(thousands?expandedThousands(v):v):"";};
   const labs={cr:lab(/\bCr\s*([\d.,]+)/i),ur:lab(/\bUr\s*([\d.,]+)/i),na:lab(/\bNa\s*([\d.,]+)/i),k:lab(/(?:^|[,;\s])K\s*([\d.,]+)/i),cai:lab(/\bCa[ií]\s*([\d.,]+)/i),hb:lab(/\bHb\s*([\d.,]+)/i),plaq:lab(/\b(?:Plqts?|Plaq)\s*([\d.,]+k?)/i,true),leuco:lab(/\bLeuco\s*([\d.,]+k?)/i,true),fibri:lab(/\bFib\s*([\d.,]+)/i),rni:lab(/\bTP\s*([\d.,]+)/i),ttpa:lab(/\bTTPa\s*([\d.,]+)/i),_extra_cpk:lab(/\b(?:CK|CPK)\s*([\d.,]+)/i)};
   const gasometry={ph:lab(/\bpH\s*([\d.,]+)/i),pco2:lab(/\bpCO2\s*([\d.,]+)/i),po2:lab(/\bpO2\s*([\d.,]+)/i),hco3:lab(/\bHCO3\s*([\d.,]+)/i),be:lab(/\bBE\s*([+-]?[\d.,]+)/i),lact:captured(cv,/\bLac\s*([\d.,]+)/i).replace(",",".")};
   const pumps={propofol:parseDrug(neuro,"PPF|Propofol"),midazolam:parseDrug(neuro,"Mida(?:zolam)?"),fentanil:parseDrug(neuro,"Fenta(?:nil)?"),noradrenalina:parseDrug(cv,"Nora(?:drenalina)?"),vasopressina:parseDrug(cv,"Vaso(?:pressina)?")};
   const concentratedNoradrenaline=/\[\s*Nora[^\]]*\]/i.test(cv);
   const mode=resp.match(/\b(?:IOT\s*\+?\s*)?VM\s+(PCV|VCV|PSV)\b/i)?.[1]?.toUpperCase()||"";
-  const ventilation=mode?{vm_modo:`vm_${mode.toLowerCase()}`,vm_fio2:captured(resp,/\bFiO2\s*([\d.,]+)/i),vm_peep:captured(resp,/\bPEEP\s*([\d.,]+)/i),vm_pf_ratio:captured(resp,/\bPF\s*([\d.,]+)/i)}:{};
+  const ventilation=mode?{vm_modo:`vm_${mode.toLowerCase()}`,vm_fio2:captured(resp,/\bFiO2\s*([\d.,]+)/i),vm_peep:captured(resp,/\bPEEP\s*([\d.,]+)/i),vm_pf_ratio:captured(resp,/\bPF\s*([\d.,]+)/i)}:(roomAir?{vm_modo:"ar_ambiente"}:{});
   if(mode==="PCV")ventilation.vm_pins=captured(resp,/\bPCV\s*([\d.,]+)/i);if(mode==="VCV")ventilation.vm_vc=captured(resp,/\bVCV\s*([\d.,]+)/i);
   const trsText=`${situacao} ${rm} ${recomendacoes}`;const trs=trsText.match(/\b(CVVHDF|CVVHD|CVVH|HD|hemodi[aá]lise)\b[^\n]*?(\d{1,2}\/\d{1,2})?/i);
-  return {labs,gasometry,pumps,concentratedNoradrenaline,ventilation,rass:captured(neuro,/\bRASS\s*([+-]?\d+)/i),trs:trs?{modalidade:trs[1].toUpperCase(),data:toIsoDate(trs[2])}:null,antibiotics:parseAntibiotics(atb),impression:[recomendacoes,instrucoes].filter(Boolean).join("\n")};
+  return {labs,gasometry,pumps,concentratedNoradrenaline,ventilation,rass:captured(neuro,/\bRASS\s*([+-]?\d+)/i),glasgow,neuroAdditional,nutrition,tgiExam,respiratoryExam,trs:trs?{modalidade:trs[1].toUpperCase(),data:toIsoDate(trs[2])}:null,antibiotics:parseAntibiotics(atb),impression:[recomendacoes,instrucoes].filter(Boolean).join("\n")};
 }
 
 export function parseSbari(textRaw) {
@@ -72,6 +83,22 @@ export function parseSbari(textRaw) {
     }
     return linha;
   }).join("\n");
+  // Em algumas tabelas do Google Docs a palavra "Leito" desaparece e restam
+  // números curtos (01–09). Só os promovemos a cabeçalho quando as linhas
+  // seguintes têm aparência inequívoca de cadastro clínico.
+  const linhas=text.split("\n");
+  for(let i=0;i<linhas.length;i++){
+    if(!/^\s*\d{1,2}\s*$/.test(linhas[i]))continue;
+    const proximas=linhas.slice(i+1,i+7).join("\n");
+    const deslocamento=linhas.slice(i+1).findIndex(x=>clean(x));
+    const nomeIdx=deslocamento<0?-1:i+1+deslocamento;
+    const nome=nomeIdx>=0?clean(linhas[nomeIdx]):"";
+    if(nome&&/[A-Za-zÀ-ÿ]/.test(nome)&&/^(?:Paciente\s*:|[A-Za-zÀ-ÿ])/i.test(nome)&&/^(?:Adm Hosp|Adm UTI|Equipe|S|B|A)\s*:/im.test(proximas)){
+      linhas[i]=`Leito ${clean(linhas[i])}: ${nome.replace(/^Paciente\s*:\s*/i,"")}`;
+      linhas[nomeIdx]="";
+    }
+  }
+  text=linhas.join("\n");
   text=text.replace(/(^|\n)(\s*(?:Leito|Box)\s*(?:n[º°o]\.?\s*)?[:#-]?\s*\d{1,4})\s*:\s*(?=\n|$)/gi,"$1$2: Vago");
   text=text.replace(/(^|\n)(\s*(?:Leito|Box)\s*(?:n[º°o]\.?\s*)?[:#-]?\s*\d{1,4})\s*(?=\n\s*(?:\n|(?:Leito|Box)\b|$))/gi,"$1$2: Vago");
   // Alguns SBARIs exportados do Google Docs perdem a palavra "Leito" da

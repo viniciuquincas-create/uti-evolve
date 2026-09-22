@@ -143,3 +143,58 @@ B:
   assert.equal(p.procedimentos[0].data,`${new Date().getFullYear()}-08-29`);
   assert.deepEqual(p.diagnosticos,["Ca renal céls. claras com meta hepática + metástases ósseas / Nefrectomia parcial prévia / RT e QT prévias /"]);
 });
+
+test("separa Glasgow, EF adicional, suporte respiratório e via nutricional",()=>{
+  const pacientes=parseSbari(`Leito 04: Paciente Quatro, 60 anos
+A:
+N: Glasgow: 15
+R: AA
+TGI: VO
+Leito 05: Paciente Cinco, 61 anos
+A:
+N: GCS 15, lentificada
+R: AA
+TGI: Jejum
+Leito 06: Paciente Seis, 62 anos
+A:
+N: GCS 13 (O3 V4 M6)
+R: Ar ambiente, MV presente
+TGI: Jejum
+Leito 09: Paciente Nove, 63 anos
+A:
+N: ECG 15 bem orientada
+R: AA
+TGI: VO`);
+  assert.equal(pacientes.length,4);
+  assert.equal(pacientes[0].clinical.glasgow,"15");
+  assert.equal(pacientes[0].clinical.nutrition.tipo,"oral");
+  assert.equal(pacientes[0].clinical.ventilation.vm_modo,"ar_ambiente");
+  assert.equal(pacientes[0].clinical.respiratoryExam,"");
+  assert.equal(pacientes[1].clinical.glasgow,"15");
+  assert.equal(pacientes[1].clinical.neuroAdditional,"lentificada");
+  assert.equal(pacientes[1].clinical.nutrition.tipo,"jejum");
+  assert.equal(pacientes[2].clinical.glasgow,"13 O3 V4 M6");
+  assert.equal(pacientes[2].clinical.respiratoryExam,"MV presente");
+  assert.equal(pacientes[3].clinical.glasgow,"15");
+  assert.equal(pacientes[3].clinical.neuroAdditional,"bem orientada");
+});
+
+test("reconhece leitos curtos quando o Google Docs remove a palavra Leito",()=>{
+  const pacientes=parseSbari(`01
+Paciente Um, 40 anos
+Adm Hosp: 01/09 Adm UTI: 02/09
+S: Sepse
+
+02
+Paciente Dois, 50 anos
+Equipe: Clínica Médica
+S: Choque
+
+03
+Vago
+S: -`);
+  assert.equal(pacientes.length,3);
+  assert.equal(pacientes[0].leito,"Leito 01");
+  assert.equal(pacientes[1].paciente,"Paciente Dois");
+  assert.equal(pacientes[2].vago,true);
+});
