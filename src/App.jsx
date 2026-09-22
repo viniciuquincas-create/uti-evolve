@@ -2189,11 +2189,6 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
         </div>
       )}
 
-      {modoAtual&&<div style={{marginBottom:10,padding:"8px 10px",borderRadius:9,border:`1px solid ${T.border}`,background:T.bgInput}}>
-        <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.1,marginBottom:6}}>VARIÁVEIS OPCIONAIS</div>
-        <button type="button" onClick={()=>toggleOpcional("gasa")} style={{padding:"4px 9px",borderRadius:12,cursor:"pointer",fontSize:10,fontWeight:700,color:opcionalAtivo("gasa")?T.accent:T.text3,background:opcionalAtivo("gasa")?T.accentBg:"transparent",border:`1px solid ${opcionalAtivo("gasa")?T.accentBorder:T.border}`}}>{opcionalAtivo("gasa")?"✓ ":"+ "}PAO₂ / Gradiente A–a</button>
-      </div>}
-
       {modoAtual&&opcionalAtivo("gasa")&&<div style={{marginBottom:10,padding:"9px 11px",borderRadius:9,border:`1px solid ${T.border}`,background:T.bgInput}}>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:7}}>
           <div style={{fontSize:9,color:T.text3,fontFamily:mono,letterSpacing:1.1,fontWeight:800}}>EQUAÇÃO DO GÁS ALVEOLAR</div>
@@ -3633,6 +3628,8 @@ const GRUPOS_LAB = [
     {key:"mg",    label:"Magnésio",         unit:"mg/dL"},
     {key:"cai",   label:"Cálcio iônico",    unit:"mmol/L"},
     {key:"p",     label:"Fósforo",          unit:"mg/dL"},
+    {key:"anionGap", label:"Ânion gap",     unit:"mEq/L"},
+    {key:"deltaDelta", label:"Delta–delta", unit:""},
   ]},
   { grupo:"❤️ Cardiovascular", params:[
     {key:"bnp",   label:"BNP",              unit:"pg/mL"},
@@ -5364,7 +5361,17 @@ function GasometriaPanel({ data={}, onChange, datas=[], hoje="" }) {
   };
 
   const setGasos = (d, gasos) => {
-    onChange({...data, [d]:{...(data[d]||{}), _gasos: JSON.stringify(gasos)}});
+    const linha={...(data[d]||{}),_gasos:JSON.stringify(gasos)};
+    const calculada=[...gasos].reverse().map(analisarGasometria).find(a=>a.anionGap!==null);
+    if(calculada){
+      linha.anionGap=String(calculada.anionGap);
+      if(calculada.deltaDelta!==null)linha.deltaDelta=String(calculada.deltaDelta);
+      else delete linha.deltaDelta;
+    }else{
+      delete linha.anionGap;
+      delete linha.deltaDelta;
+    }
+    onChange({...data,[d]:linha});
   };
 
   const addGaso = (d) => {
@@ -6890,6 +6897,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         opcionais={[]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"lus",label:"LUS"}]}
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]} {...customProps("res")}>
+        {onLeitoChange&&<div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",margin:"0 0 8px"}}>
+          <span style={{fontSize:9,color:T.text4,fontFamily:mono,letterSpacing:1}}>VARIÁVEIS OPCIONAIS</span>
+          {(()=>{const ativa=Object.prototype.hasOwnProperty.call(leito.vmOpcionais||{},"gasa")?!!leito.vmOpcionais.gasa:!!(leito.vm_paco2||leito.vm_pb||leito.vm_rq);return <button type="button" onClick={()=>onLeitoChange({...leito,vmOpcionais:{...(leito.vmOpcionais||{}),gasa:!ativa}})} style={{padding:"4px 9px",borderRadius:12,cursor:"pointer",fontSize:10,fontWeight:700,color:ativa?T.accent:T.text3,background:ativa?T.accentBg:"transparent",border:`1px solid ${ativa?T.accentBorder:T.border}`}}>{ativa?"✓ ":"+ "}PAO₂ / Gradiente A–a</button>})()}
+        </div>}
         {/* ── Suporte Ventilatório ── */}
         <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
         {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated tabelaDataLeito={tabelaDataLeito} glasgowNeurologico={campos.nGlasgow} config={config}/>}
