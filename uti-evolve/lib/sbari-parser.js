@@ -83,6 +83,10 @@ export function parseSbari(textRaw) {
     }
     return linha;
   }).join("\n");
+  // A exportação TXT de tabelas largas pode colocar vários cabeçalhos de
+  // leito na mesma linha. Separe cada cabeçalho antes de procurar os blocos;
+  // do contrário apenas a primeira coluna de cada página é reconhecida.
+  text=text.replace(/([^\n])\s+(?=(?:Leito|Box)\s*(?:n[º°o]\.?\s*)?[:#-]?\s*\d{1,4}\s*:)/gi,"$1\n");
   // Em algumas tabelas do Google Docs a palavra "Leito" desaparece e restam
   // números curtos (01–09). Só os promovemos a cabeçalho quando as linhas
   // seguintes têm aparência inequívoca de cadastro clínico.

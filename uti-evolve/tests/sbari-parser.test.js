@@ -198,3 +198,14 @@ S: -`);
   assert.equal(pacientes[1].paciente,"Paciente Dois");
   assert.equal(pacientes[2].vago,true);
 });
+
+test("reconhece todos os cabeçalhos quando vários leitos estão na mesma linha",()=>{
+  const registros=parseSbari(`Leito 01: Nilson de Jesus Silva, 44 anos Leito 02: Karoline Nicoly Barbosa Marques, 16 anos Leito 03: Lourivaldo Queiroz dos Santos Filho, 45 anos Leito 04: Dorival Prates, 65 anos
+Leito 05: Delio Costa Faria, 68 anos Leito 06: Osvaldo Ambrosio, 84 anos Leito 7: Maria Ines Betta, 85 anos
+Leito 08: Leito 09: Iraci Lopes Folha, 62 anos Leito 10: Wesley Matheus Da Silva Martins, 24 anos Leito 11: Sely Maria Vicente Luiz, 65 anos
+Leito 12: Jose Gilberto de Carvalho, 84 anos Leito 13: Lydia dos Santos Baptista, 81 anos RH: 1106264 Leito 14: Marco Aurelio Benaducci, 46 anos`);
+  assert.equal(registros.length,14);
+  assert.equal(registros.find(x=>x.numero==="08")?.vago,true);
+  assert.equal(registros.find(x=>x.numero==="13")?.paciente,"Lydia dos Santos Baptista");
+  assert.equal(registros.find(x=>x.numero==="14")?.paciente,"Marco Aurelio Benaducci");
+});
