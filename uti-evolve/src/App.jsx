@@ -5796,7 +5796,7 @@ function SystemTextSections({sections=[]}) {
   return <div style={{borderTop:"2px solid rgba(251,191,36,0.20)",padding:"10px 14px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:8}}>{sections.map(s=><SystemTextSection key={s.id||s.title} {...s}/>)}</div>;
 }
 
-const SysB = ({id, sigla, label, color, txtFn, textSections=[], children, opcionais=[], adicionaveis=[], camposVisiveis, setCamposVisiveis, statusFields=[], customFields=[], onAddCustomField, onUpdateCustomField, onRemoveCustomField, controlledOpen, onRequestOpen, reviewMode=false}) => {
+const SysB = ({id, sigla, label, color, txtFn, textSections=[], children, opcionais=[], adicionaveis=[], actionOptions=[], camposVisiveis, setCamposVisiveis, statusFields=[], customFields=[], onAddCustomField, onUpdateCustomField, onRemoveCustomField, controlledOpen, onRequestOpen, reviewMode=false}) => {
   const T=useTheme();
   const [localOpen,setLocalOpen]=useState(true);
   const open = controlledOpen===undefined ? localOpen : controlledOpen;
@@ -5882,6 +5882,17 @@ const SysB = ({id, sigla, label, color, txtFn, textSections=[], children, opcion
               {vis[o.key]?"✓ ":""}{o.label}
             </button>
           ))}
+          {actionOptions.map(a=>{
+            const active=!!a.active;
+            return <button key={a.key} onClick={()=>{a.onToggle?.();setShowAdd(false);}}
+              title={active?"Remover este campo do bloco":"Adicionar este campo ao bloco"}
+              style={{padding:"2px 9px",borderRadius:12,
+                border:`1px solid ${active?"rgba(248,113,113,.45)":"rgba(167,139,250,0.3)"}`,
+                background:active?"rgba(248,113,113,.09)":"rgba(167,139,250,0.08)",
+                color:active?"#f87171":"#a78bfa",cursor:"pointer",fontSize:11}}>
+              {active?"✕ ":"+ "}{a.label}
+            </button>;
+          })}
           {adicionaveis.map(a=>{
             const key=`add_${id}_${a.key}`,active=!!vis[key];
             return <button key={a.key} onClick={()=>{toggle(key);setShowAdd(false);}}
@@ -6896,11 +6907,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         camposVisiveis={vis} setCamposVisiveis={setCamposVis}
         opcionais={[]}
         adicionaveis={[{key:"interconsulta",label:"Interconsulta"},{key:"exames",label:"Exames Compl."},{key:"lus",label:"LUS"}]}
+        actionOptions={onLeitoChange?[{key:"gasa",label:"PAO₂ / Gradiente A–a",active:Object.prototype.hasOwnProperty.call(leito.vmOpcionais||{},"gasa")?!!leito.vmOpcionais.gasa:!!(leito.vm_paco2||leito.vm_pb||leito.vm_rq),onToggle:()=>{const ativa=Object.prototype.hasOwnProperty.call(leito.vmOpcionais||{},"gasa")?!!leito.vmOpcionais.gasa:!!(leito.vm_paco2||leito.vm_pb||leito.vm_rq);onLeitoChange({...leito,vmOpcionais:{...(leito.vmOpcionais||{}),gasa:!ativa}});}}]:[]}
         statusFields={[{label:"Modo de suporte",value:leito.vm_modo},{label:"EF — Ausculta",value:campos.reEF}]} {...customProps("res")}>
-        {onLeitoChange&&<div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",margin:"0 0 8px"}}>
-          <span style={{fontSize:9,color:T.text4,fontFamily:mono,letterSpacing:1}}>VARIÁVEIS OPCIONAIS</span>
-          {(()=>{const ativa=Object.prototype.hasOwnProperty.call(leito.vmOpcionais||{},"gasa")?!!leito.vmOpcionais.gasa:!!(leito.vm_paco2||leito.vm_pb||leito.vm_rq);return <button type="button" onClick={()=>onLeitoChange({...leito,vmOpcionais:{...(leito.vmOpcionais||{}),gasa:!ativa}})} style={{padding:"4px 9px",borderRadius:12,cursor:"pointer",fontSize:10,fontWeight:700,color:ativa?T.accent:T.text3,background:ativa?T.accentBg:"transparent",border:`1px solid ${ativa?T.accentBorder:T.border}`}}>{ativa?"✓ ":"+ "}PAO₂ / Gradiente A–a</button>})()}
-        </div>}
         {/* ── Suporte Ventilatório ── */}
         <ClinicalGroup label="SUPORTE VENTILATÓRIO" color="#38bdf8">
         {onLeitoChange&&<VentilacaoPanel leito={leito} onChange={onLeitoChange} integrated tabelaDataLeito={tabelaDataLeito} glasgowNeurologico={campos.nGlasgow} config={config}/>}
