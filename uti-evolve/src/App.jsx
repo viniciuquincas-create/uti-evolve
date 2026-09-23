@@ -5108,15 +5108,51 @@ const DIAGNOSTICOS_PROBLEMAS_PRESETS=[
     {key:"tipoIam",label:"Apresentação",tipo:"select",opcoes:["IAM com supra de ST","IAM sem supra de ST"]},
     {key:"heart",label:"HEART",tipo:"number",min:0,max:10},
     {key:"killip",label:"Killip",tipo:"select",opcoes:["I","II","III","IV"]},
-    {key:"grace",label:"GRACE",tipo:"number",min:0,max:400},
+    {key:"grace",label:"GRACE",tipo:"calculator"},
   ]},
+  {nome:"Traumatismo cranioencefálico",campos:[
+    {key:"marshall",label:"Marshall (TC)",tipo:"select",opcoes:["I — lesão difusa, sem patologia visível","II — cisternas presentes, desvio 0–5 mm, sem lesão >25 cm³","III — cisternas comprimidas/ausentes, desvio 0–5 mm, sem lesão >25 cm³","IV — desvio da linha média >5 mm, sem lesão >25 cm³","V — lesão de massa evacuada","VI — lesão de massa não evacuada >25 cm³"]},
+    {key:"rotterdam",label:"Rotterdam (TC)",tipo:"number",min:1,max:6},
+  ]},
+  {nome:"Hemorragia subaracnóidea",campos:[
+    {key:"fisher",label:"Fisher modificada",tipo:"select",opcoes:["0 — sem HSA/HIV","1 — HSA fina, sem HIV","2 — HSA fina, com HIV","3 — HSA espessa, sem HIV","4 — HSA espessa, com HIV"]},
+    {key:"huntHess",label:"Hunt-Hess",tipo:"select",opcoes:["I","II","III","IV","V"]},
+    {key:"wfns",label:"WFNS",tipo:"select",opcoes:["I","II","III","IV","V"]},
+  ]},
+  {nome:"Acidente vascular cerebral isquêmico",campos:[{key:"nihss",label:"NIHSS",tipo:"number",min:0,max:42}]},
+  {nome:"Tromboembolismo pulmonar",campos:[{key:"spesi",label:"sPESI",tipo:"number",min:0,max:6},{key:"pesi",label:"PESI",tipo:"number",min:0,max:300}]},
+  {nome:"Pneumonia adquirida na comunidade",campos:[{key:"curb65",label:"CURB-65",tipo:"number",min:0,max:5}]},
+  {nome:"Pancreatite aguda",campos:[{key:"bisap",label:"BISAP",tipo:"number",min:0,max:5}]},
+  {nome:"Cirrose / insuficiência hepática",campos:[{key:"childPugh",label:"Child-Pugh",tipo:"select",opcoes:["A (5–6)","B (7–9)","C (10–15)"]},{key:"meldNa",label:"MELD-Na",tipo:"number",min:6,max:40}]},
+  {nome:"Síndrome do desconforto respiratório agudo",campos:[{key:"berlin",label:"Berlim",tipo:"select",opcoes:["Leve — P/F 201–300","Moderada — P/F 101–200","Grave — P/F ≤100"]}]},
 ];
 const presetDiagnosticoProblema=nome=>DIAGNOSTICOS_PROBLEMAS_PRESETS.find(p=>p.nome===nome);
 const textoDiagnosticoProblema=item=>{
   const preset=presetDiagnosticoProblema(item.nome),campos=item.campos||{};
-  const detalhes=[...(preset?.campos||[]).map(c=>campos[c.key]?`${c.label}: ${campos[c.key]}`:""),...(item.custom||[]).map(c=>c.label&&c.value?`${c.label}: ${c.value}`:"")].filter(Boolean);
+  const detalhes=[...(preset?.campos||[]).map(c=>campos[c.key]!==undefined&&campos[c.key]!==""?`${c.label}: ${campos[c.key]}`:""),...(item.custom||[]).map(c=>c.label&&c.value?`${c.label}: ${c.value}`:"")].filter(Boolean);
   return `${item.nome}${detalhes.length?` (${detalhes.join(" · ")})`:""}`;
 };
+const gracePontos=(v,faixas)=>{const n=Number(v);if(!Number.isFinite(n))return null;return faixas.find(([max])=>n<max)?.[1]??faixas.at(-1)[1];};
+const calcularGrace=params=>{
+  const idade=gracePontos(params.idade,[[30,0],[40,8],[50,25],[60,41],[70,58],[80,75],[90,91],[Infinity,100]]);
+  const fc=gracePontos(params.fc,[[50,0],[70,3],[90,9],[110,15],[150,24],[200,38],[Infinity,46]]);
+  const pas=gracePontos(params.pas,[[80,58],[100,53],[120,43],[140,34],[160,24],[200,10],[Infinity,0]]);
+  const cr=gracePontos(params.creatinina,[[.4,1],[.8,4],[1.2,7],[1.6,10],[2,13],[4,21],[Infinity,28]]);
+  if([idade,fc,pas,cr].some(x=>x===null)||!params.killip)return null;
+  return idade+fc+pas+cr+({I:0,II:20,III:39,IV:59}[params.killip]||0)+(params.parada?39:0)+(params.desvioST?28:0)+(params.marcador?14:0);
+};
+function GraceEditor({item,onUpdate,T}){
+  const params=item.campos?.graceParams||{};
+  const set=(key,value)=>{const next={...params,[key]:value};onUpdate({campos:{...(item.campos||{}),graceParams:next,grace:calcularGrace(next)??""}});};
+  const inputs=[['idade','Idade','anos'],['fc','Frequência cardíaca','bpm'],['pas','Pressão arterial sistólica','mmHg'],['creatinina','Creatinina','mg/dL']];
+  return <div style={{marginTop:5,padding:7,borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.bgInput}} onClick={e=>e.stopPropagation()}>
+    <b style={{fontSize:9,color:T.text2}}>GRACE — mortalidade intra-hospitalar</b>
+    <div style={{display:'grid',gap:5,marginTop:6}}>{inputs.map(([key,label,unit])=><label key={key} style={{display:'grid',gridTemplateColumns:'1fr 70px',gap:5,alignItems:'center',fontSize:8.5,color:T.text3}}>{label}<span style={{display:'flex'}}><input type="number" step={key==='creatinina'?'.01':'1'} value={params[key]||''} onChange={e=>set(key,e.target.value)} style={{width:'100%',minWidth:0,padding:'4px',border:`1px solid ${T.border}`,background:T.bgCard,color:T.text1,borderRadius:'5px 0 0 5px',fontSize:9}}/><small style={{padding:'5px 3px',border:`1px solid ${T.border}`,borderLeft:0,borderRadius:'0 5px 5px 0',fontSize:7,color:T.text4}}>{unit}</small></span></label>)}</div>
+    <label style={{display:'block',fontSize:8.5,color:T.text3,marginTop:5}}>Killip<select value={params.killip||''} onChange={e=>set('killip',e.target.value)} style={{width:'100%',padding:4,borderRadius:5,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{['I','II','III','IV'].map(x=><option key={x}>{x}</option>)}</select></label>
+    {[['parada','Parada cardíaca na admissão'],['desvioST','Desvio do segmento ST'],['marcador','Marcador de necrose elevado']].map(([key,label])=><label key={key} style={{display:'flex',gap:5,alignItems:'center',fontSize:8.5,color:T.text2,marginTop:5}}><input type="checkbox" checked={!!params[key]} onChange={e=>set(key,e.target.checked)}/>{label}</label>)}
+    <div style={{marginTop:6,padding:5,borderRadius:5,background:T.accentBg,color:T.accent,fontSize:10,fontWeight:800}}>GRACE: {item.campos?.grace!==''&&item.campos?.grace!==undefined?item.campos.grace:'preencha todos os parâmetros'}</div>
+  </div>;
+}
 
 // Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
 // visível nas 5 abas do paciente (Paciente · Beira-leito · Tabela Clínica · Importar Print · Metas) — não só no Beira-leito.
@@ -5129,6 +5165,13 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
   const [menuEquipe,setMenuEquipe]=useState(null);
   const [showDiagnosticos,setShowDiagnosticos]=useState(false);
   const [novoDiagnostico,setNovoDiagnostico]=useState("");
+  const [diagnosticoAberto,setDiagnosticoAberto]=useState(null);
+  useEffect(()=>{
+    if(!diagnosticoAberto)return;
+    const fechar=e=>{if(!e.target.closest?.(`[data-diagnostico-card="${diagnosticoAberto}"]`))setDiagnosticoAberto(null);};
+    document.addEventListener("mousedown",fechar);
+    return()=>document.removeEventListener("mousedown",fechar);
+  },[diagnosticoAberto]);
   const mono2 = "'DM Mono',monospace";
   const refs = React.useRef({});
   if (!refs.current.probAtivos) refs.current.probAtivos = React.createRef();
@@ -5150,6 +5193,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
     const diagnosticosAtuais=(Array.isArray(leito.diagnosticos)?leito.diagnosticos:[leito.diagnostico||""]).filter(Boolean);
     const diagnosticos=diagnosticosAtuais.some(x=>normalizarNomeSbari(x)===normalizarNomeSbari(nome))?diagnosticosAtuais:[...diagnosticosAtuais,nome];
     onLeitoChange?.({...leito,problemasDiagnosticos:[...diagnosticosProblemas,item],diagnosticos,diagnostico:diagnosticos.join(" · ")});
+    setDiagnosticoAberto(item.id);
     setNovoDiagnostico("");
   };
   const atualizarDiagnostico=(id,patch)=>salvarDiagnosticosProblemas(diagnosticosProblemas.map(x=>x.id===id?{...x,...patch}:x));
@@ -5192,11 +5236,11 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             <div style={{display:"flex",gap:4}}><input autoFocus value={novoDiagnostico} onChange={e=>setNovoDiagnostico(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")adicionarDiagnostico(novoDiagnostico);if(e.key==="Escape")setShowDiagnosticos(false);}} placeholder="Digite o diagnóstico…" style={{minWidth:0,flex:1,padding:"5px 6px",borderRadius:5,border:`1px solid ${T.borderStrong}`,background:T.bgCard,color:T.text1,fontSize:10}}/><button onClick={()=>adicionarDiagnostico(novoDiagnostico)} disabled={!novoDiagnostico.trim()} style={{padding:"4px 7px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800}}>Adicionar</button></div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>{DIAGNOSTICOS_PROBLEMAS_PRESETS.map(p=><button key={p.nome} onClick={()=>adicionarDiagnostico(p.nome)} style={{padding:"3px 6px",borderRadius:10,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontSize:8.5,textAlign:"left"}}>+ {p.nome}</button>)}</div>
           </div>}
-          {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome);return <div key={item.id} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)"}}>
-            <div style={{display:"flex",gap:5,alignItems:"flex-start"}}><b style={{flex:1,fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3}}>{item.nome}</b><button onClick={()=>salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id))} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
-            {!!preset?.campos?.length&&<div style={{display:"grid",gap:4,marginTop:6}}>{preset.campos.map(c=><label key={c.key} style={{fontSize:8.5,color:T.text3}}>{c.label}{c.tipo==="select"?<select value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{c.opcoes.map(o=><option key={o}>{o}</option>)}</select>:<input type="number" min={c.min} max={c.max} value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}/>}</label>)}</div>}
+          {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome),expanded=diagnosticoAberto===item.id;return <div key={item.id} data-diagnostico-card={item.id} tabIndex={-1} onFocus={()=>setDiagnosticoAberto(item.id)} onMouseDown={e=>{if(!e.target.closest("button[data-remove-diagnostico]"))setDiagnosticoAberto(item.id)}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDiagnosticoAberto(null)}} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)"}}>
+            <div style={{display:"flex",gap:5,alignItems:"flex-start",cursor:"pointer"}}><span style={{fontSize:8,color:T.text4,marginTop:2}}>{expanded?"▼":"▶"}</span><div style={{flex:1,minWidth:0}}><b style={{display:"block",fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3}}>{item.nome}</b>{!expanded&&<small style={{display:"block",marginTop:2,color:T.text3,fontSize:8.5,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{textoDiagnosticoProblema(item)}</small>}</div><button data-remove-diagnostico onClick={e=>{e.stopPropagation();salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id));}} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
+            {expanded&&<>{!!preset?.campos?.length&&<div style={{display:"grid",gap:4,marginTop:6}}>{preset.campos.map(c=>c.tipo==="calculator"?<div key={c.key}><button onClick={()=>atualizarDiagnostico(item.id,{graceOpen:!item.graceOpen})} style={{width:"100%",padding:"5px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800,textAlign:"left"}}>▸ {c.label}{item.campos?.[c.key]!==undefined&&item.campos?.[c.key]!==""?`: ${item.campos[c.key]}`:" — calcular"}</button>{item.graceOpen&&<GraceEditor item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>}</div>:<label key={c.key} style={{fontSize:8.5,color:T.text3}}>{c.label}{c.tipo==="select"?<select value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{c.opcoes.map(o=><option key={o}>{o}</option>)}</select>:<input type="number" min={c.min} max={c.max} value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}/>}</label>)}</div>}
             {(item.custom||[]).map(c=><div key={c.id} style={{display:"grid",gridTemplateColumns:"minmax(60px,.8fr) minmax(70px,1fr) 14px",gap:3,marginTop:4}}><input value={c.label||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,label:e.target.value}:x)})} placeholder="Score" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,fontSize:8.5}}/><input value={c.value||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,value:e.target.value}:x)})} placeholder="Classificação/valor" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:8.5}}/><button onClick={()=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).filter(x=>x.id!==c.id)})} style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>×</button></div>)}
-            <button onClick={()=>atualizarDiagnostico(item.id,{custom:[...(item.custom||[]),{id:`class-${Date.now()}`,label:"",value:""}]})} style={{marginTop:5,padding:"2px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.text3,cursor:"pointer",fontSize:8.5}}>+ score/classificação</button>
+            <button onClick={()=>atualizarDiagnostico(item.id,{custom:[...(item.custom||[]),{id:`class-${Date.now()}`,label:"",value:""}]})} style={{marginTop:5,padding:"2px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.text3,cursor:"pointer",fontSize:8.5}}>+ score/classificação</button></>}
           </div>})}</div>}
           {!!problemasAuto.length&&<div style={{display:"grid",gap:5,marginBottom:8}}>{problemasAuto.map(p=><div key={p.id} style={{padding:"6px 8px",borderRadius:7,border:"1px solid rgba(248,113,113,.28)",background:"rgba(248,113,113,.07)",fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.35}}>
             <b>{p.texto}</b>{p.detalhe&&<small style={{display:"block",color:T.text3,marginTop:1}}>{p.detalhe}</small>}
