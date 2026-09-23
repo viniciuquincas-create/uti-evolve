@@ -5101,6 +5101,23 @@ const editarTextoMeta = (metas,meta,onChange) => {
   if(texto!==null&&texto.trim()) onChange(metas.map(m=>m.id===meta.id?{...m,texto:texto.trim()}:m));
 };
 
+const DIAGNOSTICOS_PROBLEMAS_PRESETS=[
+  {nome:"Choque cardiogênico",campos:[{key:"scai",label:"SCAI",tipo:"select",opcoes:["A — risco","B — início","C — clássico","D — deteriorando","E — extremo"]}]},
+  {nome:"Insuficiência cardíaca",campos:[{key:"perfil",label:"Perfil hemodinâmico",tipo:"select",opcoes:["A — quente e seco","B — quente e congesto","C — frio e congesto","L — frio e seco"]}]},
+  {nome:"Infarto agudo do miocárdio",campos:[
+    {key:"tipoIam",label:"Apresentação",tipo:"select",opcoes:["IAM com supra de ST","IAM sem supra de ST"]},
+    {key:"heart",label:"HEART",tipo:"number",min:0,max:10},
+    {key:"killip",label:"Killip",tipo:"select",opcoes:["I","II","III","IV"]},
+    {key:"grace",label:"GRACE",tipo:"number",min:0,max:400},
+  ]},
+];
+const presetDiagnosticoProblema=nome=>DIAGNOSTICOS_PROBLEMAS_PRESETS.find(p=>p.nome===nome);
+const textoDiagnosticoProblema=item=>{
+  const preset=presetDiagnosticoProblema(item.nome),campos=item.campos||{};
+  const detalhes=[...(preset?.campos||[]).map(c=>campos[c.key]?`${c.label}: ${campos[c.key]}`:""),...(item.custom||[]).map(c=>c.label&&c.value?`${c.label}: ${c.value}`:"")].filter(Boolean);
+  return `${item.nome}${detalhes.length?` (${detalhes.join(" · ")})`:""}`;
+};
+
 // Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
 // visível nas 5 abas do paciente (Paciente · Beira-leito · Tabela Clínica · Importar Print · Metas) — não só no Beira-leito.
 function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}, tabelaDataLeito={}, onLeitoChange, config={} }) {
@@ -5110,6 +5127,8 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
   const [minimized, setMinimized] = useState(false);
   const [copiado, setCopiado] = useState({});
   const [menuEquipe,setMenuEquipe]=useState(null);
+  const [showDiagnosticos,setShowDiagnosticos]=useState(false);
+  const [novoDiagnostico,setNovoDiagnostico]=useState("");
   const mono2 = "'DM Mono',monospace";
   const refs = React.useRef({});
   if (!refs.current.probAtivos) refs.current.probAtivos = React.createRef();
@@ -5122,6 +5141,18 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
   const diasSemEvacuar=ultimaEvacuacao?Math.floor((new Date(hoje+"T12:00:00")-new Date(ultimaEvacuacao+"T00:00:00"))/86400000):null;
   const riscoLAMG=avaliarRiscoLAMG(leito,tabelaDataLeito,campos);
   const problemasAuto=problemasAtivosAutomaticos(leito,tabelaDataLeito,campos,config);
+  const diagnosticosProblemas=Array.isArray(leito.problemasDiagnosticos)?leito.problemasDiagnosticos:[];
+  const salvarDiagnosticosProblemas=lista=>onLeitoChange?.({...leito,problemasDiagnosticos:lista});
+  const adicionarDiagnostico=nomeBruto=>{
+    const nome=String(nomeBruto||"").trim();if(!nome)return;
+    if(diagnosticosProblemas.some(x=>normalizarNomeSbari(x.nome)===normalizarNomeSbari(nome))){setNovoDiagnostico("");return;}
+    const item={id:globalThis.crypto?.randomUUID?.()||`diag-${Date.now()}`,nome,campos:{},custom:[]};
+    const diagnosticosAtuais=(Array.isArray(leito.diagnosticos)?leito.diagnosticos:[leito.diagnostico||""]).filter(Boolean);
+    const diagnosticos=diagnosticosAtuais.some(x=>normalizarNomeSbari(x)===normalizarNomeSbari(nome))?diagnosticosAtuais:[...diagnosticosAtuais,nome];
+    onLeitoChange?.({...leito,problemasDiagnosticos:[...diagnosticosProblemas,item],diagnosticos,diagnostico:diagnosticos.join(" · ")});
+    setNovoDiagnostico("");
+  };
+  const atualizarDiagnostico=(id,patch)=>salvarDiagnosticosProblemas(diagnosticosProblemas.map(x=>x.id===id?{...x,...patch}:x));
 
   if (minimized) {
     return (
@@ -5150,12 +5181,23 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
         background:T.bgCardHover,border:"1px solid rgba(239,68,68,0.40)",
         borderBottom:"none",borderRadius:"12px 12px 0 0",cursor:"pointer"}}>
         <span onClick={()=>setOpen(o=>!o)} style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1,cursor:"pointer"}}>🔴 PROBLEMAS ATIVOS</span>
+        <button onClick={e=>{e.stopPropagation();setOpen(true);setShowDiagnosticos(v=>!v);}} title="Adicionar diagnóstico aos problemas ativos" style={{padding:"2px 6px",borderRadius:9,border:"1px solid rgba(248,113,113,.3)",background:showDiagnosticos?"rgba(248,113,113,.14)":"transparent",color:"#f87171",cursor:"pointer",fontSize:9,fontWeight:800,whiteSpace:"nowrap"}}>+ diagnóstico</button>
         <button onClick={()=>setMinimized(true)} title="Minimizar" style={{background:"none",border:"none",color:T.text3,cursor:"pointer",fontSize:12,padding:"0 2px"}}>—</button>
         <span onClick={()=>setOpen(o=>!o)} style={{color:T.text3,fontSize:11,cursor:"pointer"}}>{open?"▲":"▼"}</span>
       </div>
       {open && (
         <div style={{background:T.bgCard,border:"1px solid rgba(239,68,68,0.32)",
           borderRadius:"0 0 12px 12px",padding:"10px 12px",overflowY:"auto",flex:1}}>
+          {showDiagnosticos&&<div style={{marginBottom:8,padding:"7px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput}}>
+            <div style={{display:"flex",gap:4}}><input autoFocus value={novoDiagnostico} onChange={e=>setNovoDiagnostico(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")adicionarDiagnostico(novoDiagnostico);if(e.key==="Escape")setShowDiagnosticos(false);}} placeholder="Digite o diagnóstico…" style={{minWidth:0,flex:1,padding:"5px 6px",borderRadius:5,border:`1px solid ${T.borderStrong}`,background:T.bgCard,color:T.text1,fontSize:10}}/><button onClick={()=>adicionarDiagnostico(novoDiagnostico)} disabled={!novoDiagnostico.trim()} style={{padding:"4px 7px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800}}>Adicionar</button></div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>{DIAGNOSTICOS_PROBLEMAS_PRESETS.map(p=><button key={p.nome} onClick={()=>adicionarDiagnostico(p.nome)} style={{padding:"3px 6px",borderRadius:10,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontSize:8.5,textAlign:"left"}}>+ {p.nome}</button>)}</div>
+          </div>}
+          {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome);return <div key={item.id} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)"}}>
+            <div style={{display:"flex",gap:5,alignItems:"flex-start"}}><b style={{flex:1,fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3}}>{item.nome}</b><button onClick={()=>salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id))} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
+            {!!preset?.campos?.length&&<div style={{display:"grid",gap:4,marginTop:6}}>{preset.campos.map(c=><label key={c.key} style={{fontSize:8.5,color:T.text3}}>{c.label}{c.tipo==="select"?<select value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{c.opcoes.map(o=><option key={o}>{o}</option>)}</select>:<input type="number" min={c.min} max={c.max} value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}/>}</label>)}</div>}
+            {(item.custom||[]).map(c=><div key={c.id} style={{display:"grid",gridTemplateColumns:"minmax(60px,.8fr) minmax(70px,1fr) 14px",gap:3,marginTop:4}}><input value={c.label||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,label:e.target.value}:x)})} placeholder="Score" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,fontSize:8.5}}/><input value={c.value||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,value:e.target.value}:x)})} placeholder="Classificação/valor" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:8.5}}/><button onClick={()=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).filter(x=>x.id!==c.id)})} style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>×</button></div>)}
+            <button onClick={()=>atualizarDiagnostico(item.id,{custom:[...(item.custom||[]),{id:`class-${Date.now()}`,label:"",value:""}]})} style={{marginTop:5,padding:"2px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.text3,cursor:"pointer",fontSize:8.5}}>+ score/classificação</button>
+          </div>})}</div>}
           {!!problemasAuto.length&&<div style={{display:"grid",gap:5,marginBottom:8}}>{problemasAuto.map(p=><div key={p.id} style={{padding:"6px 8px",borderRadius:7,border:"1px solid rgba(248,113,113,.28)",background:"rgba(248,113,113,.07)",fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.35}}>
             <b>{p.texto}</b>{p.detalhe&&<small style={{display:"block",color:T.text3,marginTop:1}}>{p.detalhe}</small>}
             {!!p.subitens?.length&&<div style={{marginTop:4,color:T.text2}}>{p.subitens.map(s=><div key={s}>└ {s}</div>)}</div>}
@@ -5167,7 +5209,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             rows={7} fieldName="probAtivos" onBlurSave={salvar}/>
           <button onClick={()=>{
             const manual=refs.current.probAtivos?.current?.value||campos.probAtivos||"";
-            const t=[...problemasAuto.map(textoProblemaAutomatico),manual].filter(Boolean).join("\n");
+            const t=[...diagnosticosProblemas.map((d,i)=>`${i+1}. ${textoDiagnosticoProblema(d)}`),...problemasAuto.map(textoProblemaAutomatico),manual].filter(Boolean).join("\n");
             if(t){navigator.clipboard?.writeText(t).catch(()=>{});
               setCopiado(c=>({...c,probAtivos:true}));
               setTimeout(()=>setCopiado(c=>({...c,probAtivos:false})),2000);}}}
@@ -6295,8 +6337,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
   const txtProblemas = () => {
     const p=[];
+    const diagnosticosAtivos=(Array.isArray(leito.problemasDiagnosticos)?leito.problemasDiagnosticos:[])
+      .map((d,i)=>`${i+1}. ${textoDiagnosticoProblema(d)}`);
     const automaticos=problemasAtivosAutomaticos(leito,tabelaDataLeito,campos,config).map(textoProblemaAutomatico);
-    const ativos=[...automaticos,get("probAtivos")].filter(Boolean).join("\n");
+    const ativos=[...diagnosticosAtivos,...automaticos,get("probAtivos")].filter(Boolean).join("\n");
     if(ativos) p.push(`ATIVOS:\n${ativos}`);
     if(get("probResolvidos")) p.push(`RESOLVIDOS:\n${get("probResolvidos")}`);
     return p.join("\n");
