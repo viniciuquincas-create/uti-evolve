@@ -6247,6 +6247,8 @@ function ClinicalEvents({kind="interconsulta",value,onChange,color="#38bdf8",leg
   const T=useTheme();
   const entries=Array.isArray(value)?value:[];
   const isIC=kind==="interconsulta";
+  const [campoExpandido,setCampoExpandido]=useState(null);
+  const campoTexto=(e,key,placeholder)=>{const id=`${e.id}_${key}`,expandido=campoExpandido===id;return <textarea rows={expandido?4:1} value={e[key]||""} onChange={x=>upd(e.id,key,x.target.value)} onFocus={()=>setCampoExpandido(id)} onBlur={()=>setCampoExpandido(null)} placeholder={placeholder} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10,lineHeight:1.45,resize:expandido?"vertical":"none",overflow:expandido?"auto":"hidden",whiteSpace:expandido?"pre-wrap":"nowrap",transition:"min-height .15s ease"}}/>;};
   const add=()=>onChange([...entries,{id:`ce_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,data:new Date().toISOString().slice(0,10),titulo:"",avaliacao:"",conduta:"",resultado:""}]);
   const upd=(id,key,val)=>onChange(entries.map(e=>e.id===id?{...e,[key]:val}:e));
   const remove=id=>onChange(entries.filter(e=>e.id!==id));
@@ -6255,7 +6257,7 @@ function ClinicalEvents({kind="interconsulta",value,onChange,color="#38bdf8",leg
     {legacy&&<div style={{padding:"6px 9px",fontSize:9,color:T.text3,borderBottom:`1px dashed ${T.border}`}}>Registro anterior: {legacy}</div>}
     {entries.map((e,i)=><div key={e.id} style={{padding:"8px 9px",borderTop:i?`1px solid ${T.border}`:0}}>
       <div style={{display:"grid",gridTemplateColumns:"130px minmax(180px,1fr) auto",gap:6,alignItems:"end"}}><label style={{fontSize:9,color:T.text3}}>DATA<input type="date" value={e.data||""} onChange={x=>upd(e.id,"data",x.target.value)} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1,fontSize:10}}/></label><label style={{fontSize:9,color:T.text3}}>{isIC?"ESPECIALIDADE":"EXAME"}<input value={e.titulo||""} onChange={x=>upd(e.id,"titulo",x.target.value)} placeholder={isIC?"Ex.: Cardiologia":"Ex.: Ecocardiograma"} style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"5px 6px",color:T.text1,fontSize:10}}/></label><button onClick={()=>remove(e.id)} title="Excluir" style={{height:28,border:0,background:"transparent",color:"#f87171",cursor:"pointer"}}>✕</button></div>
-      {isIC?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:6}}><label style={{fontSize:9,color:T.text3}}>AVALIAÇÃO<input value={e.avaliacao||""} onChange={x=>upd(e.id,"avaliacao",x.target.value)} placeholder="Parecer e avaliação da especialidade" style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10}}/></label><label style={{fontSize:9,color:T.text3}}>CONDUTA<input value={e.conduta||""} onChange={x=>upd(e.id,"conduta",x.target.value)} placeholder="Condutas propostas" style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10}}/></label></div>:<label style={{display:"block",fontSize:9,color:T.text3,marginTop:6}}>RESULTADO<input value={e.resultado||""} onChange={x=>upd(e.id,"resultado",x.target.value)} placeholder="Resultado ou status do exame" style={{display:"block",width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10}}/></label>}
+      {isIC?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:6}}><label style={{fontSize:9,color:T.text3}}>AVALIAÇÃO{campoTexto(e,"avaliacao","Parecer e avaliação da especialidade")}</label><label style={{fontSize:9,color:T.text3}}>CONDUTA{campoTexto(e,"conduta","Condutas propostas")}</label></div>:<label style={{display:"block",fontSize:9,color:T.text3,marginTop:6}}>RESULTADO{campoTexto(e,"resultado","Resultado ou status do exame")}</label>}
     </div>)}
     {!entries.length&&!legacy&&<div style={{padding:"7px 9px",fontSize:10,color:T.text4}}>Nenhum registro.</div>}
   </div>;
@@ -6519,6 +6521,21 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     salvar("_vis_", novo);
   };
   const vis = camposVis;
+  const temCateterCentral=Array.isArray(leito.dispositivos?.cvc)?leito.dispositivos.cvc.length>0:!!leito.dispositivos?.cvc?.ativo;
+  const requerRaioXTorax=!!(leito.dispositivos?.tot?.ativo||leito.dispositivos?.tqt?.ativo||temCateterCentral||[...VM_INVASIVA_MODOS,"vni","cnaf"].includes(leito.vm_modo));
+  useEffect(()=>{
+    if(!requerRaioXTorax)return;
+    if(!camposVis.add_res_exames){
+      const novoVis={...camposVis,add_res_exames:true};
+      setCamposVisRaw(novoVis);
+      onCampoEdit("_vis_",novoVis);
+    }
+    const exames=Array.isArray(campos.res_exames)?campos.res_exames:[];
+    const normaliza=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    if(!exames.some(e=>normaliza(e.titulo).includes("raioxdetorax")||normaliza(e.titulo).includes("radiografiatorax"))){
+      onCampoEdit("res_exames",[...exames,{id:`ce_rx_${Date.now()}`,data:hoje,titulo:"Raio-X de tórax",resultado:"",automatico:true}]);
+    }
+  },[requerRaioXTorax]);
 
   // Refs dinâmicos para campos extras adicionados
   const extraRefs = React.useRef({});
