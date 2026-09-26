@@ -5115,6 +5115,7 @@ const DIAGNOSTICOS_PROBLEMAS_PRESETS=[
     {key:"rotterdam",label:"Rotterdam (TC)",tipo:"calculator"},
   ]},
   {nome:"HSA",aliases:["Hemorragia subaracnóidea"],campos:[
+    {key:"glasgowAdmissional",label:"Glasgow admissional",tipo:"select",opcoes:Array.from({length:13},(_,i)=>String(15-i))},
     {key:"fisher",label:"Fisher modificada",tipo:"select",opcoes:["0 — sem HSA/HIV","1 — HSA fina, sem HIV","2 — HSA fina, com HIV","3 — HSA espessa, sem HIV","4 — HSA espessa, com HIV"]},
     {key:"huntHess",label:"Hunt-Hess",tipo:"select",opcoes:["I — assintomático/cefaleia leve","II — cefaleia moderada-intensa, rigidez nucal","III — sonolência/confusão ou déficit focal leve","IV — estupor, hemiparesia moderada-grave","V — coma profundo/rigidez descerebrada"]},
     {key:"wfns",label:"WFNS",tipo:"select",opcoes:["I — GCS 15, sem déficit focal","II — GCS 13–14, sem déficit focal","III — GCS 13–14, com déficit focal","IV — GCS 7–12, com ou sem déficit","V — GCS 3–6, com ou sem déficit"]},
