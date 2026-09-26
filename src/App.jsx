@@ -2954,10 +2954,10 @@ function UploadAnalyzer({ onResult, onManualResult }) {
         style={{ border:"1.5px dashed rgba(56,189,248,0.3)", borderRadius:12, padding:24, textAlign:"center", cursor:"pointer", background:"rgba(56,189,248,0.03)", marginBottom:16 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
         <div style={{fontSize:28,marginBottom:8}}>📋</div>
-        <div style={{color:"#38bdf8",fontSize:14,fontWeight:600}}>Cole o print com Ctrl+V</div>
+        <div style={{color:"#38bdf8",fontSize:14,fontWeight:600}}>Cole uma imagem com Ctrl+V ou ⌘+V</div>
         <div style={{color:"#64748b",fontSize:12,marginTop:6}}>ou arraste · ou clique para selecionar arquivo</div>
         <div style={{marginTop:10,display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:1}}>
-          CTRL + V  em qualquer momento nesta aba
+          Ctrl+V / ⌘+V nesta tela
         </div>
       </div>
       {preview && <img src={preview} alt="preview" style={{width:"100%",borderRadius:8,marginBottom:12,maxHeight:180,objectFit:"contain",background:"#0c1a10"}}/>}
@@ -7427,7 +7427,7 @@ function DiagnosticoTituloMenu({menu,onClose,onEdit}){
   </div>,document.body);
 }
 
-function ImportarPrintMenu({menu,onClose,onImportar}){
+function ImportarDadosClinicosMenu({menu,onClose,onImportar}){
   const T=useTheme();
   const botao=React.useRef(null);
   useEffect(()=>{
@@ -7444,7 +7444,7 @@ function ImportarPrintMenu({menu,onClose,onImportar}){
   if(!menu)return null;
   return createPortal(<div onMouseDown={e=>{e.stopPropagation();onClose();}} onContextMenu={e=>{e.preventDefault();e.stopPropagation();onClose();}} style={{position:"fixed",inset:0,zIndex:10000}}>
     <div role="menu" aria-label="Ações do paciente" onMouseDown={e=>e.stopPropagation()} style={{position:"fixed",left:Math.max(6,Math.min(menu.x,window.innerWidth-196)),top:Math.max(6,Math.min(menu.y,window.innerHeight-54)),width:180,padding:5,border:`1px solid ${T.borderStrong}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 32px rgba(0,0,0,.38)"}}>
-      <button ref={botao} role="menuitem" onClick={e=>{e.stopPropagation();onImportar();onClose();}} style={{width:"100%",padding:"8px",textAlign:"left",border:0,borderRadius:5,background:T.bgCardHover,color:T.text1,cursor:"pointer",fontSize:11}}>Importar print</button>
+      <button ref={botao} role="menuitem" onClick={e=>{e.stopPropagation();onImportar();onClose();}} style={{width:"100%",padding:"8px",textAlign:"left",border:0,borderRadius:5,background:T.bgCardHover,color:T.text1,cursor:"pointer",fontSize:11}}>Importar dados clínicos</button>
     </div>
   </div>,document.body);
 }
@@ -7867,7 +7867,7 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePr
       </div>
     </>}
     {menuOpen&&<div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:7,right:7,zIndex:40,display:"flex",flexWrap:"wrap",width:180,maxWidth:"calc(100% - 14px)",gap:4,padding:"4px",borderRadius:8,background:T.bgPicker,border:`1px solid ${T.borderStrong}`,boxShadow:"0 8px 24px rgba(0,0,0,.28)"}}>
-      {leito.paciente&&onImportar&&<button onClick={()=>{setMenuOpen(false);onImportar();}} title="Importar print · Ctrl+Alt+P / ⌘+Option+P" style={{flexBasis:"100%",textAlign:"left",border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:T.text1,padding:"4px 7px",cursor:"pointer",fontSize:10}}>Importar print</button>}
+      {leito.paciente&&onImportar&&<button onClick={()=>{setMenuOpen(false);onImportar();}} title="Importar dados clínicos · Ctrl+Alt+P / ⌘+Option+P" style={{flexBasis:"100%",textAlign:"left",border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:T.text1,padding:"4px 7px",cursor:"pointer",fontSize:10}}>Importar dados clínicos</button>}
       <button onClick={()=>{onTogglePrioridade&&onTogglePrioridade();setMenuOpen(false);}} title={leito.prioritario?"Remover dos prioritários":"Favoritar leito"} style={{border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:leito.prioritario?"#fbbf24":T.text3,padding:"4px 7px",cursor:"pointer"}}>{leito.prioritario?"★":"☆"}</button>
       <button onClick={()=>{setEditingNome(true);setNomeTemp(leito.nome);setMenuOpen(false);}} title="Editar nome do leito" style={{border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:T.text3,padding:"4px 7px",cursor:"pointer"}}>✏️</button>
       {onRemove&&<button onClick={()=>{setMenuOpen(false);if(confirm(`Remover ${leito.nome}?`))onRemove();}} title="Excluir leito" style={{border:"1px solid rgba(248,113,113,.3)",borderRadius:5,background:"rgba(248,113,113,.08)",color:"#f87171",padding:"4px 7px",cursor:"pointer"}}>🗑️</button>}
@@ -8784,8 +8784,10 @@ export default function App() {
           const agora=new Date().toISOString();
           const normalizados=p.map(l=>({...l,utiId:l.utiId||utiPadrao,diagnosticos:Array.isArray(l.diagnosticos)?l.diagnosticos:(l.diagnostico?[l.diagnostico]:[]),equipeAssistente:l.equipeAssistente||l.equipe||"",...(!l.paciente?{}:{patientId:l.patientId||(globalThis.crypto?.randomUUID?.()||`pac-${Date.now()}-${l.id}`),admissionId:l.admissionId||(globalThis.crypto?.randomUUID?.()||`adm-${Date.now()}-${l.id}`),admissionStartedAt:l.admissionStartedAt||agora})}));
           setLeitos(normalizados);
-          leitoAtualId = normalizados[0].id;
-          setLeitoSelId(normalizados[0].id);
+          const unidadeSelecionada=sessionStorage.getItem("uti_ativa_id")||utiPadrao;
+          const primeiroDaUnidade=normalizados.find(l=>l.utiId===unidadeSelecionada)||normalizados[0];
+          leitoAtualId = primeiroDaUnidade.id;
+          setLeitoSelId(primeiroDaUnidade.id);
           if(normalizados.some((l,i)=>JSON.stringify(l)!==JSON.stringify(p[i])))await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(normalizados)});
         }
       }
@@ -8992,11 +8994,12 @@ export default function App() {
   const hospitalAtivo=hospitais.find(h=>h.id===utiAtiva?.hospitalId)||hospitais[0];
   const configAtivo={...config,__hospitalId:hospitalAtivo?.id||HSP_HOSPITAL_ID};
   const leitosDaUti=leitos.filter(l=>(l.utiId||utis[0]?.id)===utiAtiva?.id);
-  const leito = leitos.find(l=>l.id===leitoSelId)||leitosDaUti[0]||leitos[0];
-  const abrirImportacao=(id=leitoSelId)=>{
-    const destino=leitosDaUti.find(l=>l.id===id);if(!destino?.paciente)return;
-    if(id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}
-    setLeitoSelId(id);setAba("upload");setViewGlobal("leitos");setMenuImportar(null);
+  const leito = leitosDaUti.find(l=>l.id===leitoSelId)||leitosDaUti[0]||leitos[0];
+  const abrirImportacao=(id=leito?.id)=>{
+    const destino=leitosDaUti.find(l=>String(l.id)===String(id));
+    if(!destino?.paciente){window.alert("Selecione um paciente da UTI atual para importar dados clínicos.");return;}
+    if(destino.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}
+    setLeitoSelId(destino.id);setAba("upload");setViewGlobal("leitos");setMenuImportar(null);
     if(window.innerWidth<=768)setShowSidebar(false);
   };
   useEffect(()=>{
@@ -9301,7 +9304,7 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={T}>
-    <ImportarPrintMenu menu={menuImportar} onClose={()=>setMenuImportar(null)} onImportar={()=>abrirImportacao(menuImportar?.leitoId||leitoSelId)}/>
+    <ImportarDadosClinicosMenu menu={menuImportar} onClose={()=>setMenuImportar(null)} onImportar={()=>abrirImportacao(menuImportar?.leitoId??leito?.id)}/>
     <div className={theme==="light"?"theme-light":"theme-dark"} style={{minHeight:"100vh",background:T.bgPage,fontFamily:"'Sora','DM Sans',sans-serif",color:T.text1,display:"flex",flexDirection:"column"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
@@ -9517,7 +9520,7 @@ export default function App() {
             </div>
           ) : (<>
           {(
-            <div onContextMenu={e=>{if(!leito.paciente||e.target.closest("input,textarea"))return;e.preventDefault();setMenuImportar({x:e.clientX,y:e.clientY});}} title="Botão direito para importar print · Ctrl+Alt+P / ⌘+Option+P" style={{padding:"13px 28px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
+            <div onContextMenu={e=>{if(!leito.paciente||e.target.closest("input,textarea"))return;e.preventDefault();setMenuImportar({x:e.clientX,y:e.clientY});}} title="Botão direito para importar dados clínicos · Ctrl+Alt+P / ⌘+Option+P" style={{padding:"13px 28px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
               {isMobile&&leito.paciente&&<button aria-label="Ações do paciente" onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setMenuImportar({x:r.left,y:r.bottom});}} style={{float:"right",border:0,background:"transparent",color:T.text2,cursor:"pointer",padding:6}}>⋮</button>}
               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                 <div style={{fontSize:16,fontWeight:700,color:leito.paciente?T.text1:T.text3}}>{leito.paciente||"Leito sem paciente cadastrado"}</div>
@@ -9634,8 +9637,8 @@ ${linha}`:linha}));
               <div style={{maxWidth:600}}>
                 <div style={{marginBottom:18}}>
                   <button onClick={()=>setAba("evolucao")} style={{marginBottom:12,padding:"5px 8px",border:`1px solid ${T.border}`,borderRadius:6,background:T.bgCard,color:T.text2,cursor:"pointer"}}>← Voltar ao beira-leito</button>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:T.text1}}>Importar print · {leito.paciente}</div>
-                  <div style={{fontSize:13,color:T.text3}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:T.text1}}>Importar dados clínicos · {leito.paciente}</div>
+                  <div style={{fontSize:13,color:T.text3}}>Cole exames e controles em texto ou envie uma imagem. Revise os dados reconhecidos antes de adicionar à Tabela Clínica.</div>
                 </div>
                 <UploadAnalyzer
                   onManualResult={parsed=>{
