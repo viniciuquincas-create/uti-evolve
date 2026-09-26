@@ -5129,7 +5129,7 @@ const DIAGNOSTICOS_PROBLEMAS_PRESETS=[
   {nome:"SDRA",aliases:["Síndrome do desconforto respiratório agudo"],campos:[{key:"berlin",label:"Berlim",tipo:"select",opcoes:["Leve — P/F 201–300","Moderada — P/F 101–200","Grave — P/F ≤100"]}]},
 ];
 const presetDiagnosticoProblema=nome=>DIAGNOSTICOS_PROBLEMAS_PRESETS.find(p=>p.nome===nome||(p.aliases||[]).includes(nome));
-const nomeDiagnosticoProblema=item=>presetDiagnosticoProblema(item.nome)?.nome||item.nome;
+const nomeDiagnosticoProblema=item=>item.titulo?.trim()||presetDiagnosticoProblema(item.nome)?.nome||item.nome;
 const subitensDiagnosticoProblema=item=>{
   const preset=presetDiagnosticoProblema(item.nome),campos=item.campos||{};
   return [...(preset?.campos||[]).map(c=>campos[c.key]!==undefined&&campos[c.key]!==""?`${c.label}: ${campos[c.key]}`:""),...(item.custom||[]).map(c=>c.label&&c.value?`${c.label}: ${c.value}`:"")].filter(Boolean);
@@ -5216,6 +5216,8 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
   const [novoDiagnostico,setNovoDiagnostico]=useState("");
   const [diagnosticoAberto,setDiagnosticoAberto]=useState(null);
   const [diagnosticoArrastando,setDiagnosticoArrastando]=useState(null);
+  const [menuDiagnostico,setMenuDiagnostico]=useState(null);
+  useEffect(()=>{setMenuDiagnostico(null);setDiagnosticoAberto(null);setShowDiagnosticos(false);},[leito.id]);
   useEffect(()=>{
     if(!diagnosticoAberto)return;
     const fechar=e=>{if(!e.target.closest?.(`[data-diagnostico-card="${diagnosticoAberto}"]`))setDiagnosticoAberto(null);};
@@ -5238,13 +5240,14 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
   const salvarDiagnosticosProblemas=lista=>onLeitoChange?.({...leito,problemasDiagnosticos:lista});
   const adicionarDiagnostico=nomeBruto=>{
     const nome=String(nomeBruto||"").trim();if(!nome)return;
-    if(diagnosticosProblemas.some(x=>normalizarNomeSbari(nomeDiagnosticoProblema(x))===normalizarNomeSbari(presetDiagnosticoProblema(nome)?.nome||nome))){setNovoDiagnostico("");return;}
+    if(diagnosticosProblemas.some(x=>normalizarNomeSbari(presetDiagnosticoProblema(x.nome)?.nome||x.nome)===normalizarNomeSbari(presetDiagnosticoProblema(nome)?.nome||nome))){setNovoDiagnostico("");return;}
     const item={id:globalThis.crypto?.randomUUID?.()||`diag-${Date.now()}`,nome,campos:{},custom:[]};
     const diagnosticosAtuais=(Array.isArray(leito.diagnosticos)?leito.diagnosticos:[leito.diagnostico||""]).filter(Boolean);
     const diagnosticos=diagnosticosAtuais.some(x=>normalizarNomeSbari(x)===normalizarNomeSbari(nome))?diagnosticosAtuais:[...diagnosticosAtuais,nome];
     onLeitoChange?.({...leito,problemasDiagnosticos:[...diagnosticosProblemas,item],diagnosticos,diagnostico:diagnosticos.join(" · ")});
     setDiagnosticoAberto(item.id);
     setNovoDiagnostico("");
+    setShowDiagnosticos(false);
   };
   const atualizarDiagnostico=(id,patch)=>salvarDiagnosticosProblemas(diagnosticosProblemas.map(x=>x.id===id?{...x,...patch}:x));
 
@@ -5286,7 +5289,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             <div style={{display:"flex",gap:4}}><input autoFocus value={novoDiagnostico} onChange={e=>setNovoDiagnostico(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")adicionarDiagnostico(novoDiagnostico);if(e.key==="Escape")setShowDiagnosticos(false);}} placeholder="Digite o diagnóstico…" style={{minWidth:0,flex:1,padding:"5px 6px",borderRadius:5,border:`1px solid ${T.borderStrong}`,background:T.bgCard,color:T.text1,fontSize:10}}/><button onClick={()=>adicionarDiagnostico(novoDiagnostico)} disabled={!novoDiagnostico.trim()} style={{padding:"4px 7px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800}}>Adicionar</button></div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>{DIAGNOSTICOS_PROBLEMAS_PRESETS.map(p=><button key={p.nome} onClick={()=>adicionarDiagnostico(p.nome)} style={{padding:"3px 6px",borderRadius:10,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontSize:8.5,textAlign:"left"}}>+ {p.nome}</button>)}</div>
           </div>}
-          {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome),expanded=diagnosticoAberto===item.id;return <div key={item.id} data-diagnostico-card={item.id} tabIndex={-1} onFocus={()=>setDiagnosticoAberto(item.id)} onMouseDown={e=>{if(!e.target.closest("button[data-remove-diagnostico]")&&!e.target.closest("[data-drag-diagnostico]"))setDiagnosticoAberto(item.id)}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDiagnosticoAberto(null)}} onDragOver={e=>{if(diagnosticoArrastando&&diagnosticoArrastando!==item.id)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!diagnosticoArrastando||diagnosticoArrastando===item.id)return;const lista=[...diagnosticosProblemas],de=lista.findIndex(x=>x.id===diagnosticoArrastando),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [movido]=lista.splice(de,1);lista.splice(para,0,movido);salvarDiagnosticosProblemas(lista);setDiagnosticoArrastando(null);}} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)",opacity:diagnosticoArrastando===item.id?.55:1}}>
+          {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome),expanded=diagnosticoAberto===item.id;return <div key={item.id} data-diagnostico-card={item.id} tabIndex={0} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuDiagnostico({id:item.id,x:e.clientX,y:e.clientY});}} onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="ContextMenu"||(e.shiftKey&&e.key==="F10")){e.preventDefault();const r=e.currentTarget.getBoundingClientRect();setMenuDiagnostico({id:item.id,x:r.left,y:r.top+20});}}} onFocus={()=>setDiagnosticoAberto(item.id)} onMouseDown={e=>{if(!e.target.closest("button[data-remove-diagnostico]")&&!e.target.closest("[data-drag-diagnostico]"))setDiagnosticoAberto(item.id)}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDiagnosticoAberto(null)}} onDragOver={e=>{if(diagnosticoArrastando&&diagnosticoArrastando!==item.id)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!diagnosticoArrastando||diagnosticoArrastando===item.id)return;const lista=[...diagnosticosProblemas],de=lista.findIndex(x=>x.id===diagnosticoArrastando),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [movido]=lista.splice(de,1);lista.splice(para,0,movido);salvarDiagnosticosProblemas(lista);setDiagnosticoArrastando(null);}} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)",opacity:diagnosticoArrastando===item.id?.55:1}}>
             <div style={{display:"flex",gap:5,alignItems:"flex-start",cursor:"pointer"}}><span data-drag-diagnostico draggable onDragStart={e=>{e.stopPropagation();setDiagnosticoArrastando(item.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",item.id);}} onDragEnd={()=>setDiagnosticoArrastando(null)} title="Segure e arraste para alterar a ordem" style={{fontSize:13,color:T.text4,cursor:"grab",lineHeight:1,userSelect:"none"}}>⠿</span><span style={{fontSize:8,color:T.text4,marginTop:2}}>{expanded?"▼":"▶"}</span><div style={{flex:1,minWidth:0}}><b style={{display:"block",fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3}}>{nomeDiagnosticoProblema(item)}</b>{!expanded&&<small style={{display:"grid",gap:1,marginTop:2,color:T.text3,fontSize:8.5,lineHeight:1.3,whiteSpace:"normal",overflowWrap:"anywhere"}}>{subitensDiagnosticoProblema(item).length?subitensDiagnosticoProblema(item).map((sub,i)=><span key={i}>└ {sub}</span>):<span>Sem classificação ou score preenchido</span>}</small>}</div><button data-remove-diagnostico onClick={e=>{e.stopPropagation();salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id));}} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
             {expanded&&<>{!!preset?.campos?.length&&<div style={{display:"grid",gap:4,marginTop:6}}>{preset.campos.map(c=>c.tipo==="calculator"?<div key={c.key}><button onClick={()=>atualizarDiagnostico(item.id,{scoreAberto:item.scoreAberto===c.key?null:c.key})} style={{width:"100%",padding:"5px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800,textAlign:"left"}}>{item.scoreAberto===c.key?"▼":"▶"} {c.label}{item.campos?.[c.key]!==undefined&&item.campos?.[c.key]!==""?`: ${item.campos[c.key]}`:" — calcular"}</button>{item.scoreAberto===c.key&&(c.key==="grace"?<GraceEditor item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>:<ScoreEditor scoreKey={c.key} item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>)}</div>:<label key={c.key} style={{fontSize:8.5,color:T.text3}}>{c.label}{c.tipo==="select"?<select value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{c.opcoes.map(o=><option key={o}>{o}</option>)}</select>:<input type="number" min={c.min} max={c.max} value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}/>}</label>)}</div>}
             {(item.custom||[]).map(c=><div key={c.id} style={{display:"grid",gridTemplateColumns:"minmax(60px,.8fr) minmax(70px,1fr) 14px",gap:3,marginTop:4}}><input value={c.label||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,label:e.target.value}:x)})} placeholder="Score" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,fontSize:8.5}}/><input value={c.value||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,value:e.target.value}:x)})} placeholder="Classificação/valor" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:8.5}}/><button onClick={()=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).filter(x=>x.id!==c.id)})} style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>×</button></div>)}
@@ -5298,9 +5301,10 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             {(p.id==="choque"||p.id==="sepse"&&p.texto.startsWith("Choque"))&&<select value={["","distributivo","hemorrágico","cardiogênico","obstrutivo","misto"].includes(leito.tipoChoque||"")?(leito.tipoChoque||""):"__outro__"} onChange={e=>{let tipo=e.target.value;if(tipo==="__outro__"){tipo=window.prompt("Caracterização do choque:","")?.trim()||leito.tipoChoque||"";}onLeitoChange?.({...leito,tipoChoque:tipo});}} style={{width:"100%",marginTop:5,padding:"4px 6px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}><option value="">Caracterizar choque…</option><option value="distributivo">Distributivo</option><option value="hemorrágico">Hemorrágico</option><option value="cardiogênico">Cardiogênico</option><option value="obstrutivo">Obstrutivo</option><option value="misto">Misto</option><option value="__outro__">Outro…</option></select>}
           </div>)}</div>}
           <details style={{margin:"0 0 7px",fontSize:9,color:T.text3}}><summary style={{cursor:"pointer"}}>Função renal · informar creatinina basal</summary><input type="number" step="0.01" min="0" defaultValue={leito.creatininaBasal||""} placeholder="Creatinina basal (mg/dL)" onBlur={e=>onLeitoChange?.({...leito,creatininaBasal:e.target.value})} style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:"5px 7px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}/></details>
-          <TA fieldRef={refs.current.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")}
-            sugestao={"1. Sepse foco pulmonar\n2. IRA oligúrica\n3. FA com RVR"}
-            rows={7} fieldName="probAtivos" onBlurSave={salvar}/>
+          {!!campos.probAtivos?.trim()&&<details style={{marginBottom:7,fontSize:9,color:T.text3}}>
+            <summary style={{cursor:"pointer"}}>Anotações anteriores</summary>
+            <TA fieldRef={refs.current.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} rows={3} fieldName="probAtivos" onBlurSave={salvar}/>
+          </details>}
           <button onClick={()=>{
             const manual=refs.current.probAtivos?.current?.value||campos.probAtivos||"";
             const t=[...diagnosticosProblemas.map((d,i)=>`${i+1}. ${textoDiagnosticoProblema(d)}`),...problemasAuto.map(textoProblemaAutomatico),manual].filter(Boolean).join("\n");
@@ -5356,6 +5360,11 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
               + meta
             </button>
           </div>
+          <DiagnosticoTituloMenu menu={menuDiagnostico} onClose={()=>setMenuDiagnostico(null)} onEdit={()=>{
+            const item=diagnosticosProblemas.find(d=>d.id===menuDiagnostico?.id);if(!item)return;
+            const titulo=window.prompt("Editar título do diagnóstico:",nomeDiagnosticoProblema(item));
+            if(titulo?.trim())atualizarDiagnostico(item.id,{titulo:titulo.trim()});
+          }}/>
           <MetaEquipeMenu menu={menuEquipe} onClose={()=>setMenuEquipe(null)} onSelect={equipe=>onMetaChange&&onMetaChange(metas.map((m,i)=>(menuEquipe?.metaId?m.id===menuEquipe.metaId:i===menuEquipe?.metaIndex)?{...m,equipe}:m))}/>
         </div>
       )}
@@ -7378,6 +7387,28 @@ const EQUIPES = [
 const equipeCor = (id) => (EQUIPES.find(e=>e.id===id)||{cor:"#64748b"}).cor;
 const equipeLabel = (id) => (EQUIPES.find(e=>e.id===id)||{label:"Geral"}).label;
 const equipeEmoji = (id) => (EQUIPES.find(e=>e.id===id)||{emoji:"📋"}).emoji;
+
+function DiagnosticoTituloMenu({menu,onClose,onEdit}){
+  const T=useTheme();
+  const botao=React.useRef(null);
+  useEffect(()=>{
+    if(!menu)return;
+    const anterior=document.activeElement;
+    botao.current?.focus();
+    const fechar=()=>onClose();
+    const tecla=e=>{if(e.key==="Escape"||e.key==="Tab"){e.preventDefault();onClose();}};
+    window.addEventListener("keydown",tecla);
+    window.addEventListener("resize",fechar);
+    window.addEventListener("scroll",fechar,true);
+    return()=>{window.removeEventListener("keydown",tecla);window.removeEventListener("resize",fechar);window.removeEventListener("scroll",fechar,true);if(anterior?.isConnected)anterior.focus();};
+  },[menu]);
+  if(!menu)return null;
+  return createPortal(<div onMouseDown={e=>{e.stopPropagation();onClose();}} onContextMenu={e=>{e.preventDefault();e.stopPropagation();onClose();}} style={{position:"fixed",inset:0,zIndex:10000}}>
+    <div role="menu" aria-label="Ações do diagnóstico" onMouseDown={e=>e.stopPropagation()} style={{position:"fixed",left:Math.max(6,Math.min(menu.x,window.innerWidth-196)),top:Math.max(6,Math.min(menu.y,window.innerHeight-54)),width:180,padding:5,border:`1px solid ${T.borderStrong}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 32px rgba(0,0,0,.38)"}}>
+      <button ref={botao} role="menuitem" onClick={e=>{e.stopPropagation();onEdit();onClose();}} style={{width:"100%",padding:"8px",textAlign:"left",border:0,borderRadius:5,background:T.bgCardHover,color:T.text1,cursor:"pointer",fontSize:11}}>Editar título</button>
+    </div>
+  </div>,document.body);
+}
 
 function MetaEquipeMenu({menu,onClose,onSelect}){
   const T=useTheme();
