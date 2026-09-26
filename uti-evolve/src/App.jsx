@@ -2837,23 +2837,27 @@ const CTRL_MAP_TEXT = {
   "dve":"c24_dve","liquordve":"c24_dve","liquordrenado":"c24_dve","debitodve":"c24_dve",
 };
 
+function normalizarControleImportado(key,valor) {
+  const bruto=String(valor??"").trim().replace(/−/g,"-");
+  const texto=/^[+-]?\d+(?:[.,]\d+)?$/.test(bruto)?bruto.replace(",","."):bruto;
+  const faixas=["c24_temp","c24_fc","c24_fr","c24_sat","c24_pam","c24_pas","c24_pad","c24_dextro","c24_pic"];
+  if(!faixas.includes(key))return texto;
+  // PAS may contain a systolic/diastolic pair; a slash alone is not a range there.
+  if(key==="c24_pas"&&texto.includes("/"))return texto.split("/").map(parte=>normalizarControleImportado("c24_pam",parte)).join(" / ");
+  const m=texto.match(/^([+-]?\d+(?:[.,]\d+)?)\s*[-–—/]\s*([+-]?\d+(?:[.,]\d+)?)$/);
+  if(!m)return texto;
+  const valores=[m[1],m[2]].map(v=>Number(v.replace(",","."))).sort((a,b)=>a-b);
+  return `${valores[0]} - ${valores[1]}`;
+}
 function parsearControlesTexto(txt) {
   const result = {};
-  // Split on / or ; or newline
-  txt.split(/[/;\n]+/).forEach(part => {
-    // Match "KEY value" where value can be "37 - 36.5" or "-900" or "500"
-    // Key can be multi-word: "PAM 78 - 60" or "DU 500" or "BH -900"
-    const m = part.trim().match(/^([a-zA-ZÀ-ú0-9_\s]+?)\s+([-]?[0-9]+(?:[.,][0-9]+)?(?:\s*[-–]\s*[-]?[0-9]+(?:[.,][0-9]+)?)*)$/i);
-    if (!m) return;
-    const [, nomeRaw, valRaw] = m;
-    const chave = nomeRaw.trim().toLowerCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]/g, "");
-    const key = CTRL_MAP_TEXT[chave];
-    // Normalize value: use dash separator for ranges
-    const val = valRaw.trim().replace(/\s*[-–]\s*/g, " / ").replace(",", ".");
-    if (key) result[key] = val;
-    // else ignore — controles not recognized are discarded silently
+  // Slashes between fields separate entries; numeric slashes remain in the value.
+  txt.split(/[;\n]+|\/(?=\s*[a-zA-ZÀ-ú])/).forEach(part => {
+    const m=part.trim().match(/^([a-zA-ZÀ-ú0-9_\s]+?)\s+([+−-]?\d+(?:[.,]\d+)?(?:\s*[-–—/]\s*[+−-]?\d+(?:[.,]\d+)?)*)$/);
+    if(!m)return;
+    const chave=m[1].trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+    const key=CTRL_MAP_TEXT[chave];
+    if(key)result[key]=normalizarControleImportado(key,m[2]);
   });
   return result;
 }
@@ -2981,16 +2985,16 @@ function UploadAnalyzer({ onResult, onManualResult }) {
               <div style={{fontSize:11,color:"#34d399",fontFamily:mono,letterSpacing:1,marginBottom:10}}>📊 CONTROLES 24H DETECTADOS — edite se necessário</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
                 {[
-                  {key:"c24_temp",   label:"T °C  (mín / máx)"},
-                  {key:"c24_fc",     label:"FC bpm  (mín / máx)"},
-                  {key:"c24_fr",     label:"FR irpm  (mín / máx)"},
-                  {key:"c24_sat",    label:"SpO2 %  (mín / máx)"},
-                  {key:"c24_pam",    label:"PAM mmHg  (mín / máx)"},
+                  {key:"c24_temp",   label:"T °C  (mín - máx)"},
+                  {key:"c24_fc",     label:"FC bpm  (mín - máx)"},
+                  {key:"c24_fr",     label:"FR irpm  (mín - máx)"},
+                  {key:"c24_sat",    label:"SpO2 %  (mín - máx)"},
+                  {key:"c24_pam",    label:"PAM mmHg  (mín - máx)"},
                   {key:"c24_pas",    label:"PAS/PAD  (mín-máx / mín-máx)"},
-                  {key:"c24_dextro", label:"Glic cap  (mín / máx)"},
+                  {key:"c24_dextro", label:"Glic cap  (mín - máx)"},
                   {key:"c24_diur",   label:"Diurese mL  (total)"},
                   {key:"c24_bh",     label:"BH mL  (total)"},
-                  {key:"c24_pic",    label:"PIC mmHg  (mín / máx)"},
+                  {key:"c24_pic",    label:"PIC mmHg  (mín - máx)"},
                   {key:"c24_dve",    label:"Líquor DVE mL  (total)"},
                   {key:"c24_dreno1", label:"Dreno 1 mL  (total)"},
                   {key:"c24_dreno2", label:"Dreno 2 mL  (total)"},
@@ -5211,7 +5215,7 @@ function ScoreEditor({scoreKey,item,onUpdate,T}){
 }
 
 // Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
-// visível nas 5 abas do paciente (Paciente · Beira-leito · Tabela Clínica · Importar Print · Metas) — não só no Beira-leito.
+// Visível nas áreas principais do paciente, não só no Beira-leito.
 function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}, tabelaDataLeito={}, onLeitoChange, config={} }) {
   const T=useTheme();
   const [open, setOpen] = useState(true);
@@ -5296,8 +5300,8 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             <div style={{display:"flex",gap:4}}><input autoFocus value={novoDiagnostico} onChange={e=>setNovoDiagnostico(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")adicionarDiagnostico(novoDiagnostico);if(e.key==="Escape")setShowDiagnosticos(false);}} placeholder="Digite o diagnóstico…" style={{minWidth:0,flex:1,padding:"5px 6px",borderRadius:5,border:`1px solid ${T.borderStrong}`,background:T.bgCard,color:T.text1,fontSize:10}}/><button onClick={()=>adicionarDiagnostico(novoDiagnostico)} disabled={!novoDiagnostico.trim()} style={{padding:"4px 7px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800}}>Adicionar</button></div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>{DIAGNOSTICOS_PROBLEMAS_PRESETS.map(p=><button key={p.nome} onClick={()=>adicionarDiagnostico(p.nome)} style={{padding:"3px 6px",borderRadius:10,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontSize:8.5,textAlign:"left"}}>+ {p.nome}</button>)}</div>
           </div>}
-          {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome),expanded=diagnosticoAberto===item.id;return <div key={item.id} data-diagnostico-card={item.id} tabIndex={0} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuDiagnostico({id:item.id,x:e.clientX,y:e.clientY});}} onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="ContextMenu"||(e.shiftKey&&e.key==="F10")){e.preventDefault();const r=e.currentTarget.getBoundingClientRect();setMenuDiagnostico({id:item.id,x:r.left,y:r.top+20});}}} onFocus={()=>setDiagnosticoAberto(item.id)} onMouseDown={e=>{if(!e.target.closest("button[data-remove-diagnostico]")&&!e.target.closest("[data-drag-diagnostico]"))setDiagnosticoAberto(item.id)}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDiagnosticoAberto(null)}} onDragOver={e=>{if(diagnosticoArrastando&&diagnosticoArrastando!==item.id)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!diagnosticoArrastando||diagnosticoArrastando===item.id)return;const lista=[...diagnosticosProblemas],de=lista.findIndex(x=>x.id===diagnosticoArrastando),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [movido]=lista.splice(de,1);lista.splice(para,0,movido);salvarDiagnosticosProblemas(lista);setDiagnosticoArrastando(null);}} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)",opacity:diagnosticoArrastando===item.id?.55:1}}>
-            <div style={{display:"flex",gap:5,alignItems:"flex-start",cursor:"pointer"}}><span data-drag-diagnostico draggable onDragStart={e=>{e.stopPropagation();setDiagnosticoArrastando(item.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",item.id);}} onDragEnd={()=>setDiagnosticoArrastando(null)} title="Segure e arraste para alterar a ordem" style={{fontSize:13,color:T.text4,cursor:"grab",lineHeight:1,userSelect:"none"}}>⠿</span><span style={{fontSize:8,color:T.text4,marginTop:2}}>{expanded?"▼":"▶"}</span><div style={{flex:1,minWidth:0}}><b style={{display:"block",fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3}}>{nomeDiagnosticoProblema(item)}</b>{!expanded&&<small style={{display:"grid",gap:1,marginTop:2,color:T.text3,fontSize:8.5,lineHeight:1.3,whiteSpace:"normal",overflowWrap:"anywhere"}}>{subitensDiagnosticoProblema(item).length?subitensDiagnosticoProblema(item).map((sub,i)=><span key={i}>• {sub}</span>):<span>Sem classificação ou score preenchido</span>}</small>}</div><button data-remove-diagnostico onClick={e=>{e.stopPropagation();salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id));}} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
+          {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome),expanded=diagnosticoAberto===item.id;return <div key={item.id} data-diagnostico-card={item.id} tabIndex={0} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuDiagnostico({id:item.id,x:e.clientX,y:e.clientY});}} onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="ContextMenu"||(e.shiftKey&&e.key==="F10")){e.preventDefault();const r=e.currentTarget.getBoundingClientRect();setMenuDiagnostico({id:item.id,x:r.left,y:r.top+20});}}} onFocus={e=>{if(!e.target.closest("[data-toggle-diagnostico]"))setDiagnosticoAberto(item.id);}} onMouseDown={e=>{if(!e.target.closest("[data-toggle-diagnostico]" )&&!e.target.closest("button[data-remove-diagnostico]")&&!e.target.closest("[data-drag-diagnostico]"))setDiagnosticoAberto(item.id)}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDiagnosticoAberto(null)}} onDragOver={e=>{if(diagnosticoArrastando&&diagnosticoArrastando!==item.id)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!diagnosticoArrastando||diagnosticoArrastando===item.id)return;const lista=[...diagnosticosProblemas],de=lista.findIndex(x=>x.id===diagnosticoArrastando),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [movido]=lista.splice(de,1);lista.splice(para,0,movido);salvarDiagnosticosProblemas(lista);setDiagnosticoArrastando(null);}} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)",opacity:diagnosticoArrastando===item.id?.55:1}}>
+            <div style={{display:"flex",gap:5,alignItems:"flex-start",cursor:"pointer"}}><span data-drag-diagnostico draggable onDragStart={e=>{e.stopPropagation();setDiagnosticoArrastando(item.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",item.id);}} onDragEnd={()=>setDiagnosticoArrastando(null)} title="Segure e arraste para alterar a ordem" style={{fontSize:13,color:T.text4,cursor:"grab",lineHeight:1,userSelect:"none"}}>⠿</span><span style={{fontSize:8,color:T.text4,marginTop:2}}>{expanded?"▼":"▶"}</span><div style={{flex:1,minWidth:0}}><button data-toggle-diagnostico aria-expanded={expanded} onClick={e=>{e.stopPropagation();setDiagnosticoAberto(atual=>atual===item.id?null:item.id);}} style={{display:"block",width:"100%",padding:0,border:0,background:"transparent",textAlign:"left",fontFamily:"inherit",fontWeight:700,fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3,cursor:"pointer"}}>{nomeDiagnosticoProblema(item)}</button>{!expanded&&<small style={{display:"grid",gap:1,marginTop:2,color:T.text3,fontSize:8.5,lineHeight:1.3,whiteSpace:"normal",overflowWrap:"anywhere"}}>{subitensDiagnosticoProblema(item).length?subitensDiagnosticoProblema(item).map((sub,i)=><span key={i}>• {sub}</span>):<span>Sem classificação ou score preenchido</span>}</small>}</div><button data-remove-diagnostico onClick={e=>{e.stopPropagation();salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id));}} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
             {expanded&&<>{!!preset?.campos?.length&&<div style={{display:"grid",gap:4,marginTop:6}}>{preset.campos.map(c=>c.tipo==="calculator"?<div key={c.key}><button onClick={()=>atualizarDiagnostico(item.id,{scoreAberto:item.scoreAberto===c.key?null:c.key})} style={{width:"100%",padding:"5px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800,textAlign:"left"}}>{item.scoreAberto===c.key?"▼":"▶"} {c.label}{item.campos?.[c.key]!==undefined&&item.campos?.[c.key]!==""?`: ${item.campos[c.key]}`:" — calcular"}</button>{item.scoreAberto===c.key&&(c.key==="grace"?<GraceEditor item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>:<ScoreEditor scoreKey={c.key} item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>)}</div>:<label key={c.key} style={{fontSize:8.5,color:T.text3}}>{c.label}{c.tipo==="select"?<select value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{c.opcoes.map(o=><option key={o}>{o}</option>)}</select>:<input type="number" min={c.min} max={c.max} value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}/>}</label>)}</div>}
             {(item.custom||[]).map(c=><div key={c.id} style={{display:"grid",gridTemplateColumns:"minmax(60px,.8fr) minmax(70px,1fr) 14px",gap:3,marginTop:4}}><input value={c.label||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,label:e.target.value}:x)})} placeholder="Score" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,fontSize:8.5}}/><input value={c.value||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,value:e.target.value}:x)})} placeholder="Classificação/valor" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:8.5}}/><button onClick={()=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).filter(x=>x.id!==c.id)})} style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>×</button></div>)}
             <button onClick={()=>atualizarDiagnostico(item.id,{custom:[...(item.custom||[]),{id:`class-${Date.now()}`,label:"",value:""}]})} style={{marginTop:5,padding:"2px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.text3,cursor:"pointer",fontSize:8.5}}>+ score/classificação</button>
@@ -7423,6 +7427,28 @@ function DiagnosticoTituloMenu({menu,onClose,onEdit}){
   </div>,document.body);
 }
 
+function ImportarPrintMenu({menu,onClose,onImportar}){
+  const T=useTheme();
+  const botao=React.useRef(null);
+  useEffect(()=>{
+    if(!menu)return;
+    const anterior=document.activeElement;
+    botao.current?.focus();
+    const fechar=()=>onClose();
+    const tecla=e=>{if(e.key==="Escape"||e.key==="Tab"){e.preventDefault();onClose();}};
+    window.addEventListener("keydown",tecla);
+    window.addEventListener("resize",fechar);
+    window.addEventListener("scroll",fechar,true);
+    return()=>{window.removeEventListener("keydown",tecla);window.removeEventListener("resize",fechar);window.removeEventListener("scroll",fechar,true);if(anterior?.isConnected)anterior.focus();};
+  },[menu]);
+  if(!menu)return null;
+  return createPortal(<div onMouseDown={e=>{e.stopPropagation();onClose();}} onContextMenu={e=>{e.preventDefault();e.stopPropagation();onClose();}} style={{position:"fixed",inset:0,zIndex:10000}}>
+    <div role="menu" aria-label="Ações do paciente" onMouseDown={e=>e.stopPropagation()} style={{position:"fixed",left:Math.max(6,Math.min(menu.x,window.innerWidth-196)),top:Math.max(6,Math.min(menu.y,window.innerHeight-54)),width:180,padding:5,border:`1px solid ${T.borderStrong}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 32px rgba(0,0,0,.38)"}}>
+      <button ref={botao} role="menuitem" onClick={e=>{e.stopPropagation();onImportar();onClose();}} style={{width:"100%",padding:"8px",textAlign:"left",border:0,borderRadius:5,background:T.bgCardHover,color:T.text1,cursor:"pointer",fontSize:11}}>Importar print</button>
+    </div>
+  </div>,document.body);
+}
+
 function MetaEquipeMenu({menu,onClose,onSelect}){
   const T=useTheme();
   useEffect(()=>{if(!menu)return;const close=()=>onClose();const esc=e=>e.key==="Escape"&&onClose();window.addEventListener("click",close);window.addEventListener("keydown",esc);return()=>{window.removeEventListener("click",close);window.removeEventListener("keydown",esc);};},[menu,onClose]);
@@ -7823,7 +7849,7 @@ function MapaLeitosPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl
 }
 
 // ── LeitoCard ─────────────────────────────────────────────────────────────────
-function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePrioridade }) {
+function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePrioridade, onImportar }) {
   const T=useTheme();
   const [editingNome,setEditingNome]=useState(false);
   const [nomeTemp,setNomeTemp]=useState(leito.nome);
@@ -7840,7 +7866,8 @@ function LeitoCard({ leito, selecionado, onClick, onRename, onRemove, onTogglePr
         <div style={{fontSize:13,color:leito.paciente?T.text1:T.textDim,fontWeight:leito.paciente?650:400,fontStyle:leito.paciente?"normal":"italic",whiteSpace:"normal",overflowWrap:"anywhere",wordBreak:"normal",lineHeight:1.35}}>{leito.paciente||"Vago"}</div>
       </div>
     </>}
-    {menuOpen&&<div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:7,right:7,zIndex:40,display:"flex",gap:4,padding:"4px",borderRadius:8,background:T.bgPicker,border:`1px solid ${T.borderStrong}`,boxShadow:"0 8px 24px rgba(0,0,0,.28)"}}>
+    {menuOpen&&<div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:7,right:7,zIndex:40,display:"flex",flexWrap:"wrap",width:180,maxWidth:"calc(100% - 14px)",gap:4,padding:"4px",borderRadius:8,background:T.bgPicker,border:`1px solid ${T.borderStrong}`,boxShadow:"0 8px 24px rgba(0,0,0,.28)"}}>
+      {leito.paciente&&onImportar&&<button onClick={()=>{setMenuOpen(false);onImportar();}} title="Importar print · Ctrl+Alt+P / ⌘+Option+P" style={{flexBasis:"100%",textAlign:"left",border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:T.text1,padding:"4px 7px",cursor:"pointer",fontSize:10}}>Importar print</button>}
       <button onClick={()=>{onTogglePrioridade&&onTogglePrioridade();setMenuOpen(false);}} title={leito.prioritario?"Remover dos prioritários":"Favoritar leito"} style={{border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:leito.prioritario?"#fbbf24":T.text3,padding:"4px 7px",cursor:"pointer"}}>{leito.prioritario?"★":"☆"}</button>
       <button onClick={()=>{setEditingNome(true);setNomeTemp(leito.nome);setMenuOpen(false);}} title="Editar nome do leito" style={{border:`1px solid ${T.border}`,borderRadius:5,background:T.bgInput,color:T.text3,padding:"4px 7px",cursor:"pointer"}}>✏️</button>
       {onRemove&&<button onClick={()=>{setMenuOpen(false);if(confirm(`Remover ${leito.nome}?`))onRemove();}} title="Excluir leito" style={{border:"1px solid rgba(248,113,113,.3)",borderRadius:5,background:"rgba(248,113,113,.08)",color:"#f87171",padding:"4px 7px",cursor:"pointer"}}>🗑️</button>}
@@ -8701,6 +8728,7 @@ export default function App() {
   const [utiAtivaId,setUtiAtivaId]=useState(()=>sessionStorage.getItem("uti_ativa_id")||"");
   const [perfil,setPerfil]=useState(()=>sessionStorage.getItem("uti_perfil")||"plantonista");
   const [utiMenu,setUtiMenu]=useState(null);
+  const [menuImportar,setMenuImportar]=useState(null);
   const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
   const [aba,        setAba]        = useState("evolucao");
   const [dadosIA,    setDadosIA]    = useState(null);
@@ -8965,6 +8993,22 @@ export default function App() {
   const configAtivo={...config,__hospitalId:hospitalAtivo?.id||HSP_HOSPITAL_ID};
   const leitosDaUti=leitos.filter(l=>(l.utiId||utis[0]?.id)===utiAtiva?.id);
   const leito = leitos.find(l=>l.id===leitoSelId)||leitosDaUti[0]||leitos[0];
+  const abrirImportacao=(id=leitoSelId)=>{
+    const destino=leitosDaUti.find(l=>l.id===id);if(!destino?.paciente)return;
+    if(id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}
+    setLeitoSelId(id);setAba("upload");setViewGlobal("leitos");setMenuImportar(null);
+    if(window.innerWidth<=768)setShowSidebar(false);
+  };
+  useEffect(()=>{
+    const atalho=e=>{
+      if(!authed||!appReady||viewGlobal!=="leitos"||!leito?.paciente||pacienteEditorAberto||historicoAberto||altaEditor)return;
+      if((e.ctrlKey||e.metaKey)&&e.altKey&&!e.shiftKey&&e.code==="KeyP"){
+        e.preventDefault();if(!e.repeat)abrirImportacao();
+      }
+    };
+    window.addEventListener("keydown",atalho);return()=>window.removeEventListener("keydown",atalho);
+  },[authed,appReady,viewGlobal,leitoSelId,leito?.paciente,pacienteEditorAberto,historicoAberto,altaEditor]);
+  useEffect(()=>setMenuImportar(null),[leitoSelId,viewGlobal,utiAtivaId]);
   const selecionarUti=id=>{
     const lista=leitos.filter(l=>(l.utiId||utis[0]?.id)===id);
     setUtiAtivaId(id);sessionStorage.setItem("uti_ativa_id",id);
@@ -9220,7 +9264,6 @@ export default function App() {
   const ABAS = [
     {id:"evolucao",      label:"🏥 Beira-leito"},
     {id:"tabela",        label:"📊 Tabela Clínica"},
-    {id:"upload",        label:"📤 Importar Print"},
     {id:"metas",         label:"🎯 Metas & Pendências"},
   ];
 
@@ -9240,7 +9283,7 @@ export default function App() {
     const encontrar=r=>{const nr=String(r.leito||"").match(/\d+/)?.[0];let l=nr?leitosDaUti.find(x=>String(x.nome||"").match(/\d+/)?.[0]?.replace(/^0+/,"")===nr.replace(/^0+/,"")):null;if(!l&&r.paciente){const n=normal(r.paciente);l=leitosDaUti.find(x=>{const p=normal(x.paciente);return n&&p&&(n===p||(Math.min(n.length,p.length)>4&&(n.includes(p)||p.includes(n))));});}return l;};
     const reconhecidos=(resultado?.leitos||[]).map(r=>({r,l:encontrar(r)})),validos=reconhecidos.filter(x=>x.l);
     if(!validos.length){window.alert("Nenhum dos leitos reconhecidos corresponde aos pacientes desta UTI.");return;}
-    setTabelaData(prev=>{const novo={...prev};validos.forEach(({r,l})=>{const valores={};Object.entries({...r.labs,...r.controles}).forEach(([k,v])=>{if(v!==""&&v!=null)valores[k]=String(v);});novo[l.id]={...(novo[l.id]||{}),[data]:{...(novo[l.id]?.[data]||{}),...valores}};});salvarTabela(novo);return novo;});
+    setTabelaData(prev=>{const novo={...prev};validos.forEach(({r,l})=>{const valores={};Object.entries({...r.labs,...r.controles}).forEach(([k,v])=>{if(v!==""&&v!=null)valores[k]=k.startsWith("c24_")?normalizarControleImportado(k,v):String(v);});novo[l.id]={...(novo[l.id]||{}),[data]:{...(novo[l.id]?.[data]||{}),...valores}};});salvarTabela(novo);return novo;});
     setLeitos(prev=>{let mudou=false;const novo=prev.map(l=>{const item=validos.find(x=>String(x.l.id)===String(l.id));if(!item)return l;const bombas=Object.fromEntries(Object.entries(item.r.bombas||{}).filter(([,v])=>v!==""&&v!=null).map(([k,v])=>[k,String(v).replace(/\s*mL\/?h\s*$/i,"").trim()]));if(!Object.keys(bombas).length)return l;mudou=true;return {...l,drogasVazao:{...(l.drogasVazao||{}),...bombas}};});if(mudou)salvarLeitos(novo);return novo;});
     setEvolPorLeito(prev=>{const novo={...prev};validos.forEach(({r,l})=>{const atual={...EVOLUCAO_VAZIA,...(novo[l.id]||{})},ev=r.evolucao||{};Object.entries(ev).forEach(([k,v])=>{if(v)atual[k]=atual[k]?`${atual[k]}\n${v}`:v;});if(r.observacoes)atual.impressao=atual.impressao?`${atual.impressao}\n${r.observacoes}`:r.observacoes;atual._datas={...(atual._datas||{})};[...Object.keys(ev),...(r.observacoes?["impressao"]:[])].forEach(k=>{if(ev[k]||k==="impressao")atual._datas[k]=data;});novo[l.id]=atual;});salvarEvol(novo);return novo;});
     const atualSel=validos.find(x=>x.l.id===leitoSelId);if(atualSel)setEvolCampos(c=>{const n={...c};Object.entries(atualSel.r.evolucao||{}).forEach(([k,v])=>{if(v)n[k]=n[k]?`${n[k]}\n${v}`:v;});if(atualSel.r.observacoes)n.impressao=n.impressao?`${n.impressao}\n${atualSel.r.observacoes}`:atualSel.r.observacoes;return n;});
@@ -9258,6 +9301,7 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={T}>
+    <ImportarPrintMenu menu={menuImportar} onClose={()=>setMenuImportar(null)} onImportar={()=>abrirImportacao(menuImportar?.leitoId||leitoSelId)}/>
     <div className={theme==="light"?"theme-light":"theme-dark"} style={{minHeight:"100vh",background:T.bgPage,fontFamily:"'Sora','DM Sans',sans-serif",color:T.text1,display:"flex",flexDirection:"column"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
@@ -9355,6 +9399,7 @@ export default function App() {
                 const ativo = l.id===leitoSelId&&viewGlobal==="leitos";
                 return (
                   <button key={l.id}
+                    onContextMenu={e=>{if(!l.paciente)return;e.preventDefault();setMenuImportar({x:e.clientX,y:e.clientY,leitoId:l.id});}}
                     onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setViewGlobal("leitos");}}
                     title={`${l.nome}${l.paciente?" — "+l.paciente:""}${precaucao?" · "+precaucao.label:""}`}
                     style={{width:40,height:40,borderRadius:10,background:precaucao?precaucao.fundo:(ativo?T.accentBg:T.bgCard),border:`2px solid ${precaucao?precaucao.cor:(ativo?T.accent:T.border)}`,boxShadow:ativo?`0 0 0 2px ${T.accent}55`:"none",color:precaucao?precaucao.cor:(ativo?T.accent:T.text3),fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:mono,flexShrink:0}}>
@@ -9423,7 +9468,7 @@ export default function App() {
           {leitosOrdenados.map(l=>(
             <div key={l.id} style={{display:"flex",alignItems:"stretch",gap:4,marginBottom:0}}>
               <div style={{flex:1}}>
-                <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config}
+                <LeitoCard leito={l} selecionado={l.id===leitoSelId} config={config} onImportar={()=>abrirImportacao(l.id)}
                   onClick={()=>{if(l.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}setLeitoSelId(l.id);setAba("evolucao");setViewGlobal("leitos");if(window.innerWidth<=768)setShowSidebar(false);}}
                   onRename={nome=>{setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,nome}:x);salvarLeitos(novo);return novo;})}}
                   onTogglePrioridade={()=>setLeitos(ls=>{const novo=ls.map(x=>x.id===l.id?{...x,prioritario:!x.prioritario}:x);salvarLeitos(novo);return novo;})}
@@ -9472,7 +9517,8 @@ export default function App() {
             </div>
           ) : (<>
           {(
-            <div style={{padding:"13px 28px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
+            <div onContextMenu={e=>{if(!leito.paciente||e.target.closest("input,textarea"))return;e.preventDefault();setMenuImportar({x:e.clientX,y:e.clientY});}} title="Botão direito para importar print · Ctrl+Alt+P / ⌘+Option+P" style={{padding:"13px 28px",borderBottom:`1px solid ${T.border}`,background:T.bgCard}}>
+              {isMobile&&leito.paciente&&<button aria-label="Ações do paciente" onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setMenuImportar({x:r.left,y:r.bottom});}} style={{float:"right",border:0,background:"transparent",color:T.text2,cursor:"pointer",padding:6}}>⋮</button>}
               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                 <div style={{fontSize:16,fontWeight:700,color:leito.paciente?T.text1:T.text3}}>{leito.paciente||"Leito sem paciente cadastrado"}</div>
                 {leito.paciente&&<button onClick={()=>setPacienteEditorAberto(true)} title={idadeAnos===null?"Clique para informar a idade":"Clique para editar a idade"} style={{padding:"3px 9px",borderRadius:10,border:`1px solid ${idadeAnos===null?T.border:"rgba(192,132,252,.38)"}`,background:idadeAnos===null?"transparent":"rgba(192,132,252,.11)",color:idadeAnos===null?T.text3:"#c084fc",fontSize:11,fontFamily:mono,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{idadeAnos===null?"Idade não informada":`${idadeAnos} anos`}</button>}
@@ -9587,7 +9633,8 @@ ${linha}`:linha}));
             ) : aba==="upload" ? (
               <div style={{maxWidth:600}}>
                 <div style={{marginBottom:18}}>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:T.text1}}>Importar dados via imagem</div>
+                  <button onClick={()=>setAba("evolucao")} style={{marginBottom:12,padding:"5px 8px",border:`1px solid ${T.border}`,borderRadius:6,background:T.bgCard,color:T.text2,cursor:"pointer"}}>← Voltar ao beira-leito</button>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:T.text1}}>Importar print · {leito.paciente}</div>
                   <div style={{fontSize:13,color:T.text3}}>Faça upload do print do Tasy. A IA extrai os dados e você revisa antes de aplicar na evolução.</div>
                 </div>
                 <UploadAnalyzer
@@ -9720,7 +9767,7 @@ ${linha}`:linha}));
                     const controles = d.controles || {};
                     // Map controles keys to tabela keys (same keys c24_*)
                     const controlesNovos = {};
-                    Object.entries(controles).forEach(([k,v])=>{ if(v) controlesNovos[k]=v; });
+                    Object.entries(controles).forEach(([k,v])=>{ if(v!==""&&v!=null) controlesNovos[k]=normalizarControleImportado(k,v); });
 
                     const novo = {
                       ...t,
