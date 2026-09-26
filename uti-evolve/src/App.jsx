@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { createPortal } from "react-dom";
 import { supabase } from './supabase.js';
+import ClinicalImportBox from './ClinicalImportBox.jsx';
+import { normalizarControleImportado, mesclarLinhaImportada } from './clinical-import.js';
 
 // UTI Evolve — build 2026-06-04T20:46:10 2026-05-28T18:31:01 //2026-05-28T18:12:42
 
@@ -2807,248 +2809,6 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   );
 }
 
-const LAB_MAP_TEXT={"hb":"hb","hemoglobina":"hb","ht":"ht","leuco":"leuco","leucocitos":"leuco","plaq":"plaq","plaquetas":"plaq","cr":"cr","creatinina":"cr","ur":"ur","ureia":"ur","na":"na","sodio":"na","k":"k","potassio":"k","mg":"mg","magnesio":"mg","cai":"cai","calcio":"cai","ca":"cai","p":"p","fosforo":"p","fa":"falc","falc":"falc","ggt":"ggt","tgo":"tgo","ast":"tgo","tgp":"tgp","alt":"tgp","bt":"bttot","bttot":"bttot","alb":"alb","rni":"rni","inr":"rni","ttpa":"ttpa","fibri":"fibri","ph":"ph","bic":"hco3","hco3":"hco3","be":"be","pco2":"pco2","po2":"po2","lact":"lact","lactato":"lact","trop":"trop","bnp":"bnp","ntpro":"ntpro","pcr":"pcr"};
-function parsearLabsTexto(txt){const result={};txt.split(/[/;\n]+/).forEach(part=>{const m=part.trim().match(/^([a-zA-Z\u00C0-\u00FF0-9_]+)\s+([0-9.,]+k?)/i);if(!m)return;const[,nome,valRaw]=m;const chave=nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");const key=LAB_MAP_TEXT[chave];let val=valRaw.replace(",",".");if(val.endsWith("k"))val=String(parseFloat(val)*1000);if(key)result[key]=val;else result[`_extra_${nome.toLowerCase()}`]=val;});return result;}
-
-
-const CTRL_MAP_TEXT = {
-  // Temperatura
-  "t":"c24_temp","temp":"c24_temp","temperatura":"c24_temp",
-  // Frequências
-  "fc":"c24_fc","frequenciacardiaca":"c24_fc","cardíaca":"c24_fc",
-  "fr":"c24_fr","frequenciarespiratoria":"c24_fr","respiratoria":"c24_fr",
-  // Pressão arterial
-  "pas":"c24_pas","sistolica":"c24_pas",
-  "pad":"c24_pad","diastolica":"c24_pad",
-  "pam":"c24_pam","pamedia":"c24_pam","arterial":"c24_pam",
-  // Saturação / glicemia
-  "spo2":"c24_sat","sat":"c24_sat","sato2":"c24_sat","saturacao":"c24_sat",
-  "dextro":"c24_dextro","glicemia":"c24_dextro","hgt":"c24_dextro","glic":"c24_dextro",
-  // Ganhos
-  "dietavol":"c24_diet_vol","dieta":"c24_diet_vol","npt":"c24_diet_vol",
-  // Perdas
-  "du":"c24_diur","diurese":"c24_diur","uo":"c24_diur","diu":"c24_diur","debito":"c24_diur","debitourinario":"c24_diur",
-  "hd":"c24_hd","hemodialise":"c24_hd","hemodiálise":"c24_hd","crrt":"c24_hd","uf":"c24_hd",
-  // Balanço
-  "bh":"c24_bh","balanco":"c24_bh","balanço":"c24_bh","balancohidrico":"c24_bh",
-  "bhac":"c24_bh_ac","bhacum":"c24_bh_ac","balancoac":"c24_bh_ac","acumulado":"c24_bh_ac",
-  // Monitorização neurológica
-  "pic":"c24_pic","pressaointracraniana":"c24_pic",
-  "dve":"c24_dve","liquordve":"c24_dve","liquordrenado":"c24_dve","debitodve":"c24_dve",
-};
-
-function normalizarControleImportado(key,valor) {
-  const bruto=String(valor??"").trim().replace(/−/g,"-");
-  const texto=/^[+-]?\d+(?:[.,]\d+)?$/.test(bruto)?bruto.replace(",","."):bruto;
-  const faixas=["c24_temp","c24_fc","c24_fr","c24_sat","c24_pam","c24_pas","c24_pad","c24_dextro","c24_pic"];
-  if(!faixas.includes(key))return texto;
-  // PAS may contain a systolic/diastolic pair; a slash alone is not a range there.
-  if(key==="c24_pas"&&texto.includes("/"))return texto.split("/").map(parte=>normalizarControleImportado("c24_pam",parte)).join(" / ");
-  const m=texto.match(/^([+-]?\d+(?:[.,]\d+)?)\s*[-–—/]\s*([+-]?\d+(?:[.,]\d+)?)$/);
-  if(!m)return texto;
-  const valores=[m[1],m[2]].map(v=>Number(v.replace(",","."))).sort((a,b)=>a-b);
-  return `${valores[0]} - ${valores[1]}`;
-}
-function parsearControlesTexto(txt) {
-  const result = {};
-  // Slashes between fields separate entries; numeric slashes remain in the value.
-  txt.split(/[;\n]+|\/(?=\s*[a-zA-ZÀ-ú])/).forEach(part => {
-    const m=part.trim().match(/^([a-zA-ZÀ-ú0-9_\s]+?)\s+([+−-]?\d+(?:[.,]\d+)?(?:\s*[-–—/]\s*[+−-]?\d+(?:[.,]\d+)?)*)$/);
-    if(!m)return;
-    const chave=m[1].trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
-    const key=CTRL_MAP_TEXT[chave];
-    if(key)result[key]=normalizarControleImportado(key,m[2]);
-  });
-  return result;
-}
-
-// ── UploadAnalyzer ────────────────────────────────────────────────────────────
-function UploadAnalyzer({ onResult, onManualResult }) {
-  const [loading,setLoading]=useState(false);
-  const [preview,setPreview]=useState(null);
-  const [draft,setDraft]=useState(null);
-  const [rev,setRev]=useState(false);
-  const [textoManual,setTextoManual]=useState("");
-  const [textoCtrl,setTextoCtrl]=useState("");
-  const [importadoMsg,setImportadoMsg]=useState("");
-  const [importadoCtrlMsg,setImportadoCtrlMsg]=useState("");
-  const fileRef=useRef();
-  const areaRef=useRef();
-  const importarControles=()=>{
-    if(!textoCtrl.trim())return;
-    const parsed=parsearControlesTexto(textoCtrl);
-    if(!Object.keys(parsed).length){setImportadoCtrlMsg("Nenhum campo reconhecido.");return;}
-    if(onManualResult)onManualResult(parsed);
-    const campos=Object.keys(parsed).map(k=>k.replace("c24_","")).join(", ");
-    setImportadoCtrlMsg(`✅ Importados: ${campos}`);
-    setTextoCtrl("");
-  };
-  const importarManual=()=>{if(!textoManual.trim())return;const parsed=parsearLabsTexto(textoManual);if(!Object.keys(parsed).length){setImportadoMsg("Nenhum campo reconhecido.");return;}if(onManualResult)onManualResult(parsed);const campos=Object.keys(parsed).filter(k=>!k.startsWith("_extra_")).join(", ");const extras=Object.keys(parsed).filter(k=>k.startsWith("_extra_")).map(k=>k.replace("_extra_","")).join(", ");setImportadoMsg(`✅ Importados: ${campos}${extras?` · extras: ${extras}`:""}`);setTextoManual("");};
-
-  const handleFile = useCallback(async (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const b64 = e.target.result.split(",")[1];
-      setPreview(e.target.result); setLoading(true); setDraft(null); setRev(false);
-      try {
-        const r = await fetch("/api/analyze", {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ imageBase64: b64, mimeType: file.type || "image/png" })
-        });
-        const data = await r.json();
-        if (data.error && data.error !== 'parse_failed') throw new Error(data.error);
-        if (data.raw) throw new Error("Resposta inválida da IA");
-        setDraft(data);
-        setRev(true);
-      } catch(err) { setDraft({error:`Erro ao analisar imagem: ${err.message}`}); }
-      setLoading(false);
-    };
-    reader.readAsDataURL(file);
-  }, []);
-
-  // Paste anywhere on the page
-  useEffect(() => {
-    const onPaste = (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (const item of items) {
-        if (item.type.startsWith("image/")) {
-          e.preventDefault();
-          handleFile(item.getAsFile());
-          return;
-        }
-      }
-    };
-    window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
-  }, [handleFile]);
-
-  return (
-    <div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:10,marginBottom:16}}>
-        {/* Labs */}
-        <div style={{padding:"12px 14px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:10}}>
-          <div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}><strong style={{color:"#38bdf8"}}>🔬 Entrada manual de labs</strong></div>
-          <div style={{fontSize:10,color:"#475569",marginBottom:6}}>Ex: Hb 9.8 / Leuco 12k / Cr 3 / Na 140 / K 4 / pH 7.21 / Bic 12</div>
-          <div style={{display:"flex",gap:6}}>
-            <input placeholder="Labs aqui..." value={textoManual} onChange={e=>setTextoManual(e.target.value)} onKeyDown={e=>e.key==="Enter"&&importarManual()} style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,outline:"none"}}/>
-            <button onClick={importarManual} style={{padding:"7px 12px",background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:7,color:"#38bdf8",cursor:"pointer",fontSize:12,fontWeight:600}}>→</button>
-          </div>
-          {importadoMsg&&<div style={{marginTop:5,fontSize:11,color:"#34d399"}}>{importadoMsg}</div>}
-        </div>
-        {/* Controles 24h */}
-        <div style={{padding:"12px 14px",background:"rgba(52,211,153,0.04)",border:"1px solid rgba(52,211,153,0.15)",borderRadius:10}}>
-          <div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}><strong style={{color:"#34d399"}}>📊 Controles 24h (manual)</strong></div>
-          <div style={{fontSize:10,color:"#475569",marginBottom:6}}>Ex: T 37.1-36 / FC 100-120 / PAM 78-60 / DU 500 / HD 1000 / BH -900</div>
-          <div style={{fontSize:10,color:"#334155",marginBottom:6}}>Abrev: T, FC, FR, PAS, PAD, PAM, SpO2, Dextro/HGT/Glic, DU/Diurese, HD/CRRT, BH, Dieta/NPT</div>
-          <div style={{display:"flex",gap:6}}>
-            <input placeholder="Controles aqui..." value={textoCtrl} onChange={e=>setTextoCtrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&importarControles()} style={{flex:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:7,padding:"7px 10px",color:"#e2e8f0",fontSize:12,outline:"none"}}/>
-            <button onClick={importarControles} style={{padding:"7px 12px",background:"rgba(52,211,153,0.12)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:7,color:"#34d399",cursor:"pointer",fontSize:12,fontWeight:600}}>→</button>
-          </div>
-          {importadoCtrlMsg&&<div style={{marginTop:5,fontSize:11,color:"#34d399"}}>{importadoCtrlMsg}</div>}
-        </div>
-      </div>
-      <div onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} onDragOver={e=>e.preventDefault()} onClick={()=>fileRef.current?.click()}
-        style={{ border:"1.5px dashed rgba(56,189,248,0.3)", borderRadius:12, padding:24, textAlign:"center", cursor:"pointer", background:"rgba(56,189,248,0.03)", marginBottom:16 }}>
-        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
-        <div style={{fontSize:28,marginBottom:8}}>📋</div>
-        <div style={{color:"#38bdf8",fontSize:14,fontWeight:600}}>Cole uma imagem com Ctrl+V ou ⌘+V</div>
-        <div style={{color:"#64748b",fontSize:12,marginTop:6}}>ou arraste · ou clique para selecionar arquivo</div>
-        <div style={{marginTop:10,display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",fontSize:11,color:"#38bdf8",fontFamily:mono,letterSpacing:1}}>
-          Ctrl+V / ⌘+V nesta tela
-        </div>
-      </div>
-      {preview && <img src={preview} alt="preview" style={{width:"100%",borderRadius:8,marginBottom:12,maxHeight:180,objectFit:"contain",background:"#0c1a10"}}/>}
-      {loading && <div style={{textAlign:"center",color:"#38bdf8",padding:16,fontSize:14}}>⏳ Analisando imagem com IA…</div>}
-      {draft && !draft.error && rev && (
-        <div>
-          {draft.resumo && !draft.resumo.startsWith('{') && !draft.resumo.startsWith('[ERRO') && !draft.resumo.startsWith('[SEM') && (
-            <div style={{background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#86efac"}}>
-              <strong>Resumo IA:</strong> {draft.resumo}
-            </div>
-          )}
-          {draft.dataColeta && (
-            <div style={{background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.25)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"#4ade80",display:"flex",alignItems:"center",gap:8}}>
-              📅 <strong>Data detectada:</strong> {(() => {
-                const [datePart] = draft.dataColeta.split('T');
-                const [y,m,d] = datePart.split('-');
-                return `${d}/${m}/${y}`;
-              })()} — os valores serão lançados nesta coluna da tabela
-            </div>
-          )}
-
-          {/* ── Controles 24h extraídos ── */}
-          {draft.controles && Object.values(draft.controles).some(v=>v) && (
-            <div style={{marginBottom:16,padding:"12px 14px",background:"rgba(52,211,153,0.06)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10}}>
-              <div style={{fontSize:11,color:"#34d399",fontFamily:mono,letterSpacing:1,marginBottom:10}}>📊 CONTROLES 24H DETECTADOS — edite se necessário</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
-                {[
-                  {key:"c24_temp",   label:"T °C  (mín - máx)"},
-                  {key:"c24_fc",     label:"FC bpm  (mín - máx)"},
-                  {key:"c24_fr",     label:"FR irpm  (mín - máx)"},
-                  {key:"c24_sat",    label:"SpO2 %  (mín - máx)"},
-                  {key:"c24_pam",    label:"PAM mmHg  (mín - máx)"},
-                  {key:"c24_pas",    label:"PAS/PAD  (mín-máx / mín-máx)"},
-                  {key:"c24_dextro", label:"Glic cap  (mín - máx)"},
-                  {key:"c24_diur",   label:"Diurese mL  (total)"},
-                  {key:"c24_bh",     label:"BH mL  (total)"},
-                  {key:"c24_pic",    label:"PIC mmHg  (mín - máx)"},
-                  {key:"c24_dve",    label:"Líquor DVE mL  (total)"},
-                  {key:"c24_dreno1", label:"Dreno 1 mL  (total)"},
-                  {key:"c24_dreno2", label:"Dreno 2 mL  (total)"},
-                  {key:"c24_dreno3", label:"Dreno 3 mL  (total)"},
-                  {key:"c24_sng",    label:"Resíduo SNG mL  (total)"},
-                ].map(({key,label})=>(
-                  <div key={key}>
-                    <div style={{fontSize:10,color:"#64748b",fontFamily:mono,marginBottom:2}}>{label}</div>
-                    <input value={draft.controles?.[key]||""} onChange={e=>setDraft(d=>({...d,controles:{...d.controles,[key]:e.target.value}}))}
-                      style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:6,padding:"5px 8px",color:"#e2e8f0",fontSize:13,fontFamily:mono,boxSizing:"border-box"}}
-                      placeholder="—"/>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div style={{fontSize:12,color:"#94a3b8",marginBottom:8,fontFamily:mono}}>DADOS CLÍNICOS (sistemas) — edite se necessário</div>
-          {SISTEMAS.map(s=>(
-            <div key={s} style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"#38bdf8",marginBottom:4,fontFamily:mono}}>{s.toUpperCase()}</div>
-              <textarea value={draft.sistemas?.[s]||""} onChange={e=>setDraft(d=>({...d,sistemas:{...d.sistemas,[s]:e.target.value}}))}
-                style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e2e8f0",fontSize:13,resize:"vertical",fontFamily:"inherit",minHeight:46,boxSizing:"border-box"}}
-                placeholder={`Dados de ${s}...`}/>
-            </div>
-          ))}
-
-          {/* Exames extras não categorizados */}
-          {(draft.extras||[]).length > 0 && (
-            <div style={{marginTop:4,marginBottom:12,padding:"12px 14px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10}}>
-              <div style={{fontSize:11,color:"#f59e0b",fontFamily:mono,letterSpacing:1,marginBottom:10}}>⚠️ EXAMES NÃO CATEGORIZADOS — selecione onde lançar</div>
-              {(draft.extras||[]).map((ex,i)=>(
-                <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
-                  <div style={{flex:2,minWidth:140,fontSize:13,color:"#e2e8f0",fontWeight:600}}>{ex.nome}: <span style={{color:"#fcd34d"}}>{ex.valor}</span></div>
-                  <select value={ex.categoria||ex.sugestao||""} onChange={e=>setDraft(d=>({...d,extras:d.extras.map((x,j)=>j===i?{...x,categoria:e.target.value}:x)}))}
-                    style={{flex:1,minWidth:160,background:"#111f14",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,padding:"6px 8px",color:"#e2e8f0",fontSize:12,fontFamily:"inherit"}}>
-                    <option value="" style={{background:"#111f14",color:"#94a3b8"}}>— Ignorar —</option>
-                    {SISTEMAS.map(s=><option key={s} value={s} style={{background:"#111f14",color:"#e2e8f0"}}>{s}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-          )}
-          <button onClick={()=>{onResult(draft);setRev(false);}}
-            style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#0ea5e9,#0284c7)",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
-            📊 Confirmar e adicionar à Tabela Clínica
-          </button>
-        </div>
-      )}
-      {draft?.error && <div style={{color:"#f87171",fontSize:13}}>{draft.error}</div>}
-    </div>
-  );
-}
-
 // ── EvolucaoEditor ────────────────────────────────────────────────────────────
 // ── Helpers de evolução ───────────────────────────────────────────────────────
 const v = (s) => s?.trim() || "";
@@ -3943,7 +3703,10 @@ const FLUID_ANALYSIS_TYPES = {
 
 // ── TabelaClinica ─────────────────────────────────────────────────────────────
 function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange, evolCampos={}, config={} }) {
-  const customCtrls = leito.customCtrls || [];
+  const customCtrls = [...(leito.customCtrls || [])];
+  for(const key of new Set(Object.values(data).flatMap(row=>Object.keys(row||{}).filter(k=>k.startsWith("_ctrl_"))))){
+    if(!customCtrls.some(c=>c.key===key))customCtrls.push({key,label:key.slice(6).replace(/_/g," "),unit:"",sistema:""});
+  }
   const onCustomCtrlChange = (ctrls) => { if(onLeitoChange) onLeitoChange({...leito, customCtrls:ctrls}); };
   const T = useTheme();
   const hoje = new Date().toISOString().split("T")[0];
@@ -8729,6 +8492,7 @@ export default function App() {
   const [perfil,setPerfil]=useState(()=>sessionStorage.getItem("uti_perfil")||"plantonista");
   const [utiMenu,setUtiMenu]=useState(null);
   const [menuImportar,setMenuImportar]=useState(null);
+  const [importacao,setImportacao]=useState(null);
   const [leitoSelId, setLeitoSelId] = useState(LEITOS_INICIAIS[0].id);
   const [aba,        setAba]        = useState("evolucao");
   const [dadosIA,    setDadosIA]    = useState(null);
@@ -8758,6 +8522,11 @@ export default function App() {
   const saveTimer   = useRef(null);
   const evolTimer   = useRef(null);
   const tabelaTimer = useRef(null);
+  const tabelaRef = useRef(tabelaData);
+  tabelaRef.current=tabelaData;
+  const leitosRef=useRef(leitos);
+  leitosRef.current=leitos;
+  const tabelaSaveChain=useRef(Promise.resolve());
   const configTimer = useRef(null);
   const metasTimer  = useRef(null);
   const historicoTimer = useRef(null);
@@ -8908,12 +8677,30 @@ export default function App() {
     }, 800);
   };
 
+  const persistirTabela = val => {
+    const tarefa=tabelaSaveChain.current.catch(()=>{}).then(async()=>{
+      const {error}=await supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(val)});
+      if(error)throw new Error("Não foi possível salvar os dados. Tente novamente.");
+    });
+    tabelaSaveChain.current=tarefa;
+    return tarefa;
+  };
   const salvarTabela = (val) => {
     if (!isLoaded.current) return;
+    tabelaRef.current=val;
     clearTimeout(tabelaTimer.current);
-    tabelaTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(val)}); } catch {}
-    }, 800);
+    tabelaTimer.current = setTimeout(()=>{persistirTabela(val).catch(()=>{});}, 800);
+  };
+  const salvarImportacao = async (resultado,destino) => {
+    const paciente=leitosRef.current.find(l=>l.id===destino.id);
+    if(!paciente?.paciente||paciente.admissionId!==destino.admissionId)throw new Error("O paciente deste leito mudou. Feche a caixa e abra a importação para o paciente atual.");
+    const atual=tabelaRef.current;
+    const data=resultado.data;
+    const novo={...atual,[destino.id]:{...(atual[destino.id]||{}),[data]:mesclarLinhaImportada(atual[destino.id]?.[data],resultado.valores,data)}};
+    clearTimeout(tabelaTimer.current);
+    tabelaRef.current=novo;
+    setTabelaData(novo);
+    await persistirTabela(novo);
   };
 
   const salvarConfig = (val) => {
@@ -8998,9 +8785,9 @@ export default function App() {
   const abrirImportacao=(id=leito?.id)=>{
     const destino=leitosDaUti.find(l=>String(l.id)===String(id));
     if(!destino?.paciente){window.alert("Selecione um paciente da UTI atual para importar dados clínicos.");return;}
-    if(destino.id!==leitoSelId){setDadosIA(null);setEvolCampos(EVOLUCAO_VAZIA);setEvolVersion(0);}
-    setLeitoSelId(destino.id);setAba("upload");setViewGlobal("leitos");setMenuImportar(null);
-    if(window.innerWidth<=768)setShowSidebar(false);
+    if(importacao&&importacao.id!==destino.id){window.alert("Conclua ou feche a importação em andamento antes de abrir outro paciente.");setImportacao(atual=>({...atual,minimizada:false}));setMenuImportar(null);return;}
+    setImportacao(atual=>atual?{...atual,minimizada:false}:{id:destino.id,admissionId:destino.admissionId,paciente:destino.paciente,leito:destino.nome,minimizada:false});
+    setMenuImportar(null);
   };
   useEffect(()=>{
     const atalho=e=>{
@@ -9010,7 +8797,7 @@ export default function App() {
       }
     };
     window.addEventListener("keydown",atalho);return()=>window.removeEventListener("keydown",atalho);
-  },[authed,appReady,viewGlobal,leitoSelId,leito?.paciente,pacienteEditorAberto,historicoAberto,altaEditor]);
+  },[authed,appReady,viewGlobal,leitoSelId,leito?.paciente,pacienteEditorAberto,historicoAberto,altaEditor,importacao]);
   useEffect(()=>setMenuImportar(null),[leitoSelId,viewGlobal,utiAtivaId]);
   const selecionarUti=id=>{
     const lista=leitos.filter(l=>(l.utiId||utis[0]?.id)===id);
@@ -9304,6 +9091,7 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={T}>
+    {importacao&&<ClinicalImportBox key={`${importacao.id}-${importacao.admissionId}`} T={T} destino={importacao} minimizada={importacao.minimizada} onMinimize={()=>setImportacao(atual=>({...atual,minimizada:true}))} onRestore={()=>setImportacao(atual=>({...atual,minimizada:false}))} onClose={()=>setImportacao(null)} onSave={resultado=>salvarImportacao(resultado,importacao)}/>}
     <ImportarDadosClinicosMenu menu={menuImportar} onClose={()=>setMenuImportar(null)} onImportar={()=>abrirImportacao(menuImportar?.leitoId??leito?.id)}/>
     <div className={theme==="light"?"theme-light":"theme-dark"} style={{minHeight:"100vh",background:T.bgPage,fontFamily:"'Sora','DM Sans',sans-serif",color:T.text1,display:"flex",flexDirection:"column"}}>
       <style>{`
@@ -9633,159 +9421,6 @@ ${linha}`:linha}));
                 }}
                 onAplicarEvolucao={(campos,opcoes={})=>{ setEvolCamposComPersistencia(c=>({...c,...campos})); setEvolVersion(v=>v+1); if(opcoes.navegar)setAba("evolucao"); }}
               />
-            ) : aba==="upload" ? (
-              <div style={{maxWidth:600}}>
-                <div style={{marginBottom:18}}>
-                  <button onClick={()=>setAba("evolucao")} style={{marginBottom:12,padding:"5px 8px",border:`1px solid ${T.border}`,borderRadius:6,background:T.bgCard,color:T.text2,cursor:"pointer"}}>← Voltar ao beira-leito</button>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:T.text1}}>Importar dados clínicos · {leito.paciente}</div>
-                  <div style={{fontSize:13,color:T.text3}}>Cole exames e controles em texto ou envie uma imagem. Revise os dados reconhecidos antes de adicionar à Tabela Clínica.</div>
-                </div>
-                <UploadAnalyzer
-                  onManualResult={parsed=>{
-                    const hoje = new Date().toISOString().split("T")[0];
-                    setTabelaData(t=>{
-                      const novo = {...t,[leitoSelId]:{...(t[leitoSelId]||{}),[hoje]:{...((t[leitoSelId]||{})[hoje]||{}),...parsed}}};
-                      salvarTabela(novo);
-                      return novo;
-                    });
-                  }}
-                  onResult={d=>{
-                  const hoje = new Date().toISOString().split("T")[0];
-                  // Usa a data de coleta do exame se disponível, senão hoje
-                  const dataAlvo = d.dataColeta || hoje;
-
-                  // Merge extras categorizados nos sistemas
-                  const sistemasFinais = { ...(d.sistemas||{}) };
-                  (d.extras||[]).forEach(ex=>{
-                    const cat = ex.categoria || ex.sugestao;
-                    if (cat && sistemasFinais[cat] !== undefined) {
-                      const linha = `${ex.nome}: ${ex.valor}`;
-                      sistemasFinais[cat] = sistemasFinais[cat]
-                        ? `${sistemasFinais[cat]} / ${linha}` : linha;
-                    }
-                  });
-
-                  const s = sistemasFinais;
-                  // Regex: captura números com vírgula OU ponto como decimal
-                  const NUM = `([0-9]+[.,][0-9]+|[0-9]+)`;
-                  const extrair = (texto, patterns) => {
-                    if (!texto) return {};
-                    const vals = {};
-                    patterns.forEach(([key, regex]) => {
-                      const m = texto.match(regex);
-                      if (m?.[1]) vals[key] = m[1].replace(',','.');
-                    });
-                    return vals;
-                  };
-
-                  const re = s => new RegExp(s, 'i');
-                  const novos = {};
-
-                  Object.assign(novos, extrair(s["Hemodinâmico"]||"", [
-                    ["lact",  re(`[Ll]actato[:\\s]+${NUM}`)],
-                    ["trop",  re(`[Tt]roponina[:\\s]+${NUM}`)],
-                    ["bnp",   re(`\\bBNP[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Renal/Metabólico"]||"", [
-                    ["cr",   re(`\\bCr[eatinina\\s]*[:/\\s]+${NUM}`)],
-                    ["ur",   re(`\\bUr[eia\\s]*[:/\\s]+${NUM}`)],
-                    ["k",    re(`\\bK[+\\s]*[:/\\s]+${NUM}`)],
-                    ["na",   re(`\\bNa[+\\s]*[:/\\s]+${NUM}`)],
-                    ["mg",   re(`\\bMg[:\\s]+${NUM}`)],
-                    ["cai",  re(`\\bCa[i\\s]*[:/\\s]+${NUM}`)],
-                    ["p",    re(`\\bP[:\\s]+${NUM}`)],
-                    ["ph",   re(`\\bpH[:\\s]+${NUM}`)],
-                    ["hco3", re(`\\bHCO3[:\\s]+${NUM}`)],
-                    ["diur", re(`[Dd]iurese[:\\s]+${NUM}`)],
-                    ["bh",   re(`\\bBH[:\\s]+([+-]?${NUM.slice(1)}`)],
-                    ["lact", re(`\\bLactato[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Hematológico/Infeccioso"]||"", [
-                    ["hb",    re(`\\bHb[:\\s]+${NUM}`)],
-                    ["ht",    re(`\\bHt[:\\s]+${NUM}`)],
-                    ["leuco", re(`[Ll]euco[citos\\s]*[:/\\s]+${NUM}`)],
-                    ["neut",  re(`[Nn]eutr[óo\\s]*[:/\\s]+${NUM}`)],
-                    ["bast",  re(`[Bb]ast[ões\\s]*[:/\\s]+${NUM}`)],
-                    ["linf",  re(`[Ll]inf[ócitos\\s]*[:/\\s]+${NUM}`)],
-                    ["plaq",  re(`[Pp]laq[uetas\\s]*[:/\\s]+${NUM}`)],
-                    ["rni",   re(`\\bRNI[:\\s]+${NUM}`)],
-                    ["ttpa",  re(`\\bTTPA[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Respiratório"]||"", [
-                    ["po2",  re(`pO2[:\\s]+${NUM}`)],
-                    ["pco2", re(`pCO2[:\\s]+${NUM}`)],
-                  ]));
-                  Object.assign(novos, extrair(s["Gastrointestinal"]||"", [
-                    ["tgo",   re(`\\bTGO[:\\s]+${NUM}`)],
-                    ["tgp",   re(`\\bTGP[:\\s]+${NUM}`)],
-                    ["alb",   re(`[Aa]lbumina[:\\s]+${NUM}`)],
-                    ["bttot", re(`[Bb]ili.*[Tt]otal[:\\s]+${NUM}`)],
-                    ["ggt",   re(`\\bGGT[:\\s]+${NUM}`)],
-                    ["falc",  re(`[Ff]osf.*[Aa]lc[:\\s]+${NUM}`)],
-                  ]));
-
-                  // Extras com categoria selecionada → também vai para a tabela
-                  const EXTRAS_PARA_KEY = {
-                    'hemoglobina':'hb','hematócrito':'ht','hematocrito':'ht',
-                    'leucócito':'leuco','leucocito':'leuco',
-                    'neutrófilo':'neut','neutrofilo':'neut',
-                    'bastão':'bast','bastao':'bast','bastonete':'bast',
-                    'linfócito':'linf','linfocito':'linf',
-                    'plaqueta':'plaq',
-                    'rni':'rni','inr':'rni','fibrinogênio':'fibri','fibrinogenio':'fibri','ttpa':'ttpa',
-                    'creatinina':'cr','ureia':'ur','uréia':'ur',
-                    'sódio':'na','sodio':'na','potássio':'k','potassio':'k',
-                    'magnésio':'mg','magnesio':'mg',
-                    'cálcio':'cai','calcio':'cai',
-                    'fósforo':'p','fosforo':'p',
-                    'hco3':'hco3','bicarbonato':'hco3',
-                    'lactato':'lact','troponina':'trop','bnp':'bnp',
-                    'po2':'po2','pco2':'pco2',
-                    'tgo':'tgo','ast':'tgo','tgp':'tgp','alt':'tgp',
-                    'albumina':'alb','ggt':'ggt',
-                    'fosfatase':'falc','bilirrubina total':'bttot','bilirrubina direta':'btdir',
-                    'diurese':'diur','balanço':'bh','balanco':'bh',
-                  };
-                  (d.extras||[]).forEach(ex=>{
-                    const cat = ex.categoria || ex.sugestao;
-                    if (!cat) return; // só lança se categoria foi selecionada
-                    const nl = (ex.nome||'').toLowerCase();
-                    const numMatch = (ex.valor||'').match(/([0-9]+[.,][0-9]+|[0-9]+)/);
-                    if (!numMatch) return;
-                    const numVal = numMatch[1].replace(',','.');
-                    // Tenta achar key padrão
-                    let achou = false;
-                    for (const [k, tkey] of Object.entries(EXTRAS_PARA_KEY)) {
-                      if (nl.includes(k)) { novos[tkey] = numVal; achou = true; break; }
-                    }
-                    // Se não achou key padrão, usa o nome do exame como key dinâmica
-                    if (!achou) {
-                      const keyDinamica = `_extra_${ex.nome.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')}`;
-                      novos[keyDinamica] = numVal; // salva só o valor numérico
-                    }
-                  });
-
-                  setTabelaData(t=>{
-                    // Merge labs extraídos via regex + controles extraídos direto pela IA
-                    const controles = d.controles || {};
-                    // Map controles keys to tabela keys (same keys c24_*)
-                    const controlesNovos = {};
-                    Object.entries(controles).forEach(([k,v])=>{ if(v!==""&&v!=null) controlesNovos[k]=normalizarControleImportado(k,v); });
-
-                    const novo = {
-                      ...t,
-                      [leitoSelId]: {
-                        ...(t[leitoSelId]||{}),
-                        [dataAlvo]: { ...(t[leitoSelId]?.[dataAlvo]||{}), ...novos, ...controlesNovos }
-                      }
-                    };
-                    salvarTabela(novo);
-                    return novo;
-                  });
-                  setDadosIA(d);
-                  setTimeout(()=>setAba("tabela"), 50);
-                }}/>
-              </div>
             ) : aba==="evolucao" ? (
               !leito.paciente ? (
                 <div style={{textAlign:"center",padding:60,color:"#334155"}}>
