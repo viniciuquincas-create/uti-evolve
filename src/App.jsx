@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { createPortal } from "react-dom";
 import { supabase } from './supabase.js';
+import {createSaveQueue} from './save-queue.js';
 import ClinicalImportBox from './ClinicalImportBox.jsx';
 import { normalizarControleImportado, mesclarLinhaImportada } from './clinical-import.js';
 
@@ -2817,7 +2818,7 @@ function TA({ fieldRef, defaultValue, sugestao, placeholder, rows=2, isAntigo=fa
   const T=useTheme();
   return (
     <div style={{position:"relative"}}>
-      <textarea ref={fieldRef} defaultValue={defaultValue||""} placeholder={placeholder||""} rows={rows}
+      <textarea data-evol-field={fieldName} ref={fieldRef} defaultValue={defaultValue||""} placeholder={placeholder||""} rows={rows}
         style={{width:"100%",
           background: isAntigo ? T.bgTableGroup : T.bgInput,
           border: `1px solid ${isAntigo?T.borderStrong:T.border}`,
@@ -2825,6 +2826,7 @@ function TA({ fieldRef, defaultValue, sugestao, placeholder, rows=2, isAntigo=fa
           color: isAntigo ? T.text3 : T.text1,
           fontSize:12, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box", lineHeight:1.5}}
         onFocus={e=>e.target.style.borderColor="rgba(56,189,248,0.4)"}
+        onChange={e=>{if(onBlurSave&&fieldName)onBlurSave(fieldName,e.target.value);}}
         onBlur={e=>{
           e.target.style.borderColor = isAntigo ? T.borderStrong : T.border;
           if (onBlurSave && fieldName) onBlurSave(fieldName, e.target.value);
@@ -8528,6 +8530,20 @@ export default function App() {
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
   });
   const [saving, setSaving] = useState(false);
+  const [saveState,setSaveState]=useState({pending:false,error:false});
+  const [loadError,setLoadError]=useState(false);
+  const saves=useRef(null);
+  if(!saves.current)saves.current=createSaveQueue({onState:setSaveState,write:async(key,value)=>{
+    const {error}=await supabase.from("config").upsert({key,value});
+    if(error)throw new Error("Não foi possível salvar no servidor.");
+  }});
+  useEffect(()=>{
+    const guard=e=>{if(saves.current.hasPending()){e.preventDefault();e.returnValue="";}};
+    const retry=()=>saves.current.flushAll();
+    const hide=()=>{if(document.visibilityState==="hidden")retry();};
+    window.addEventListener("beforeunload",guard);window.addEventListener("online",retry);document.addEventListener("visibilitychange",hide);
+    return()=>{window.removeEventListener("beforeunload",guard);window.removeEventListener("online",retry);document.removeEventListener("visibilitychange",hide);};
+  },[]);
   const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("uti_sidebar_collapsed") === "1");
   const [viewGlobal, setViewGlobal]   = useState("leitos");
@@ -8550,18 +8566,20 @@ export default function App() {
 
   // ── LOAD ─────────────────────────────────────────────────────────────────────
   const loadData = async () => {
+    let falhou=false;setLoadError(false);isLoaded.current=false;
+    const readConfig=async key=>{const r=await supabase.from("config").select("value").eq("key",key).single();if(r.error&&r.error.code!=="PGRST116")throw r.error;return r;};
     let leitoAtualId = LEITOS_INICIAIS[0].id;
     let utiPadrao="uti-principal";
     try{
-      const {data:hd}=await supabase.from("config").select("value").eq("key","hospitais_data").single();
+      const {data:hd}=await readConfig("hospitais_data");
       if(hd?.value){const parsed=JSON.parse(hd.value);if(Array.isArray(parsed)&&parsed.length)setHospitais(parsed);}
-    }catch{}
+    }catch{falhou=true;}
     try{
-      const {data:ud}=await supabase.from("config").select("value").eq("key","utis_data").single();
+      const {data:ud}=await readConfig("utis_data");
       if(ud?.value){const parsed=JSON.parse(ud.value);if(Array.isArray(parsed)&&parsed.length){const migradas=parsed.map(u=>({...u,nome:u.id==="uti-principal"&&u.nome==="UTI Principal"?"UTI G1":u.nome,hospitalId:u.hospitalId||"hsp"}));setUtis(migradas);utiPadrao=migradas[0].id;if(JSON.stringify(migradas)!==JSON.stringify(parsed))await supabase.from("config").upsert({key:"utis_data",value:JSON.stringify(migradas)});}}
-    }catch{}
+    }catch{falhou=true;}
     try {
-      const { data: ld } = await supabase.from("config").select("value").eq("key","leitos_data").single();
+      const { data: ld } = await readConfig("leitos_data");
       if (ld?.value) {
         const p = JSON.parse(ld.value);
         if (Array.isArray(p) && p.length) {
@@ -8575,23 +8593,23 @@ export default function App() {
           if(normalizados.some((l,i)=>JSON.stringify(l)!==JSON.stringify(p[i])))await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(normalizados)});
         }
       }
-    } catch {}
+    } catch {falhou=true;}
     try {
-      const { data: td } = await supabase.from("config").select("value").eq("key","tabela_data").single();
+      const { data: td } = await readConfig("tabela_data");
       if (td?.value) {
         const p = JSON.parse(td.value);
         if (p && typeof p === 'object') setTabelaData(p);
       }
-    } catch {}
+    } catch {falhou=true;}
     try {
-      const { data: cd } = await supabase.from("config").select("value").eq("key","app_config").single();
+      const { data: cd } = await readConfig("app_config");
       if (cd?.value) {
         const p = JSON.parse(cd.value);
         if (p && typeof p === 'object') setConfig(c=>({...c,...p}));
       }
-    } catch {}
+    } catch {falhou=true;}
     try {
-      const { data: ed } = await supabase.from("config").select("value").eq("key","evolucao_data").single();
+      const { data: ed } = await readConfig("evolucao_data");
       if (ed?.value) {
         const p = JSON.parse(ed.value);
         if (p && typeof p === 'object') {
@@ -8599,25 +8617,26 @@ export default function App() {
           if (p[leitoAtualId]) { setEvolCampos(p[leitoAtualId]); setEvolVersion(v=>v+1); }
         }
       }
-    } catch {}
+    } catch {falhou=true;}
     try {
-      const { data: md } = await supabase.from("config").select("value").eq("key","metas_data").single();
+      const { data: md } = await readConfig("metas_data");
       if (md?.value) {
         const p = JSON.parse(md.value);
         if (p && typeof p === 'object') setMetasPorLeito(p);
       }
-    } catch {}
+    } catch {falhou=true;}
     try {
-      const {data:ad}=await supabase.from("config").select("value").eq("key","pacientes_arquivados").single();
+      const {data:ad}=await readConfig("pacientes_arquivados");
       if(ad?.value){const p=JSON.parse(ad.value);if(Array.isArray(p))setPacientesArquivados(p);}
-    } catch {}
+    } catch {falhou=true;}
     try {
-      const {data:hd}=await supabase.from("config").select("value").eq("key","historico_diario").single();
+      const {data:hd}=await readConfig("historico_diario");
       if(hd?.value){const p=JSON.parse(hd.value);if(p&&typeof p==="object")setHistoricoDiario(p);}
-    } catch {}
+    } catch {falhou=true;}
     // Libera saves e dispara a criação do snapshot de hoje após o load completo.
+    if(falhou){setLoadError(true);return false;}
     setDataLoaded(true);
-    setTimeout(() => { isLoaded.current = true; }, 300);
+    isLoaded.current = true;return true;
   };
 
   // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -8627,7 +8646,7 @@ export default function App() {
       if (sess) {
         try {
           const { data } = await supabase.from("config").select("value").eq("key","pwd_hash").single();
-          if (data && data.value === sess) { await loadData(); setAuthed(true); }
+          if (data && data.value === sess) { if(await loadData())setAuthed(true); }
         } catch {}
       }
       setAppReady(true);
@@ -8646,7 +8665,7 @@ export default function App() {
     });
   },[]);
 
-  const onLogin = async () => { await loadData(); setAuthed(true); };
+  const onLogin = async () => { if(await loadData())setAuthed(true); };
 
   const isLoaded    = useRef(false);
 
@@ -8654,9 +8673,11 @@ export default function App() {
   useEffect(()=>{
     if(!authed) return;
     const atualizarLeitosRemotos=async()=>{
-      if(document.visibilityState!=="visible" || saveTimer.current) return;
+      if(document.visibilityState!=="visible" || saves.current.hasPending("leitos_data")) return;
       try{
-        const {data}=await supabase.from("config").select("value").eq("key","leitos_data").single();
+        const version=saves.current.revision();
+        const {data,error}=await supabase.from("config").select("value").eq("key","leitos_data").single();
+        if(error||saves.current.hasPending("leitos_data")||version!==saves.current.revision())return;
         if(!data?.value) return;
         const remotos=JSON.parse(data.value);
         if(!Array.isArray(remotos) || !remotos.length) return;
@@ -8673,39 +8694,11 @@ export default function App() {
   },[authed,leitoSelId]);
 
   // ── SAVES manuais (chamados explicitamente, não por useEffect) ────────────────
-  const salvarLeitos = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(saveTimer.current);
-    setSaving(true);
-    saveTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(val)}); } catch {}
-      saveTimer.current = null;
-      setSaving(false);
-    }, 800);
-  };
-
-  const salvarEvol = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(evolTimer.current);
-    evolTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(val)}); } catch {}
-    }, 800);
-  };
-
-  const persistirTabela = val => {
-    const tarefa=tabelaSaveChain.current.catch(()=>{}).then(async()=>{
-      const {error}=await supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(val)});
-      if(error)throw new Error("Não foi possível salvar os dados. Tente novamente.");
-    });
-    tabelaSaveChain.current=tarefa;
-    return tarefa;
-  };
-  const salvarTabela = (val) => {
-    if (!isLoaded.current) return;
-    tabelaRef.current=val;
-    clearTimeout(tabelaTimer.current);
-    tabelaTimer.current = setTimeout(()=>{persistirTabela(val).catch(()=>{});}, 800);
-  };
+  const agendarSave=(key,val)=>{if(isLoaded.current)saves.current.enqueue(key,val);};
+  const salvarLeitos=val=>agendarSave("leitos_data",val);
+  const salvarEvol=val=>agendarSave("evolucao_data",val);
+  const persistirTabela=val=>saves.current.enqueue("tabela_data",val,{immediate:true});
+  const salvarTabela=val=>{tabelaRef.current=val;agendarSave("tabela_data",val);};
   const salvarImportacao = async (resultado,destino) => {
     const paciente=leitosRef.current.find(l=>l.id===destino.id);
     if(!paciente?.paciente||paciente.admissionId!==destino.admissionId)throw new Error("O paciente deste leito mudou. Feche a caixa e abra a importação para o paciente atual.");
@@ -8718,21 +8711,8 @@ export default function App() {
     await persistirTabela(novo);
   };
 
-  const salvarConfig = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(configTimer.current);
-    configTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"app_config",value:JSON.stringify(val)}); } catch {}
-    }, 800);
-  };
-
-  const salvarMetas = (val) => {
-    if (!isLoaded.current) return;
-    clearTimeout(metasTimer.current);
-    metasTimer.current = setTimeout(async()=>{
-      try { await supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(val)}); } catch {}
-    }, 800);
-  };
+  const salvarConfig=val=>agendarSave("app_config",val);
+  const salvarMetas=val=>agendarSave("metas_data",val);
 
   // Compatibilidade longitudinal: cada paciente ativo recebe IDs permanentes de
   // paciente/internação. O registro de hoje é atualizado enquanto dias anteriores
@@ -8767,7 +8747,7 @@ export default function App() {
         }};novo[l.admissionId]=adm;
       });
       setHistoricoDiario(novo);
-      try{await supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novo)});}catch(e){console.warn("Falha ao salvar histórico diário",e);}
+      agendarSave("historico_diario",novo);
     },1200);
     return()=>clearTimeout(historicoTimer.current);
   },[leitos,evolPorLeito,tabelaData,metasPorLeito,config,dataLoaded]);
@@ -9033,7 +9013,7 @@ export default function App() {
       console.error("Falha ao arquivar paciente",e);window.alert("Não foi possível arquivar. O leito não foi limpo; tente novamente.");
     } finally {setSaving(false);}
   };
-  const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
+  const logout = () => { if(saves.current.hasPending()){window.alert("Há alterações não salvas. Tente salvar novamente antes de sair.");return;} sessionStorage.removeItem(SESSION_KEY); setAuthed(false); setLeitos(LEITOS_INICIAIS); };
 
   // Sincroniza evolCampos quando troca de leito
   const evolPorLeitoRef = useRef({});
@@ -9049,21 +9029,15 @@ export default function App() {
 
   // Quando evolCampos muda, persiste no evolPorLeito
   const setEvolCamposComPersistencia = (updater) => {
-    setEvolCampos(prev => {
-      const hoje = new Date().toISOString().split("T")[0];
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      const novasDatas = { ...(prev._datas||{}) };
-      Object.keys(next).forEach(k => {
-        if (k !== '_datas' && next[k] !== prev[k]) novasDatas[k] = hoje;
-      });
-      const comData = { ...next, _datas: novasDatas };
-      setEvolPorLeito(ep => {
-        const novo = { ...ep, [leitoSelId]: comData };
-        salvarEvol(novo);
-        return novo;
-      });
-      return comData;
-    });
+    const prev=evolPorLeitoRef.current[leitoSelId]||evolCampos;
+    const hoje=new Date().toISOString().split("T")[0];
+    const next=typeof updater==='function'?updater(prev):updater;
+    const novasDatas={...(prev._datas||{})};
+    Object.keys(next).forEach(k=>{if(k!=="_datas"&&next[k]!==prev[k])novasDatas[k]=hoje;});
+    const comData={...next,_datas:novasDatas};
+    const novo={...evolPorLeitoRef.current,[leitoSelId]:comData};
+    evolPorLeitoRef.current=novo;
+    setEvolCampos(comData);setEvolPorLeito(novo);salvarEvol(novo);
   };
 
   const ABAS = [
@@ -9095,6 +9069,7 @@ export default function App() {
     window.alert(`${validos.length} leito(s) atualizado(s).${validos.length<reconhecidos.length?` ${reconhecidos.length-validos.length} não foi/foram associado(s).`:""}`);
   };
 
+  if(loadError)return <div role="alert" style={{padding:30,fontFamily:"sans-serif"}}>Não foi possível carregar os dados do servidor. A edição está bloqueada para preservar os registros.<button onClick={async()=>{if(await loadData())setAuthed(true);}}>Tentar novamente</button></div>;
   if (!appReady) return (
     <div style={{minHeight:"100vh",background:"#080f0a",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}`}</style>
@@ -9180,9 +9155,9 @@ export default function App() {
           <button onClick={()=>{setUtiMenu(null);setViewGlobal("coleta");}} style={{width:"100%",padding:"9px 10px",border:0,borderRadius:6,background:viewGlobal==="coleta"?"rgba(168,85,247,.12)":"transparent",color:viewGlobal==="coleta"?"#a855f7":T.text2,textAlign:"left",cursor:"pointer",fontSize:11,fontWeight:700}}>📝 Folha de coleta dos leitos</button>
         </div></div>}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
-          <div style={{fontSize:11,fontFamily:mono,color:saving?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:saving?"#f59e0b":T.accent}}/>
-            {saving?"Salvando…":"Salvo"}
+          <div role={saveState.error?"alert":"status"} tabIndex={saveState.error?0:undefined} onKeyDown={e=>{if(saveState.error&&(e.key==="Enter"||e.key===" ")){e.preventDefault();saves.current.flushAll();}}} onClick={()=>{if(saveState.error)saves.current.flushAll();}} style={{cursor:saveState.error?"pointer":"default",fontSize:11,fontFamily:mono,color:(saveState.error||saving||saveState.pending)?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:(saveState.error||saving||saveState.pending)?"#f59e0b":T.accent}}/>
+            {saveState.error?"Não salvo — tentar novamente":(saving||saveState.pending)?"Salvando…":"Salvo"}
           </div>
           <div style={{fontSize:12,color:T.text3,fontFamily:mono}}>
             {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}).toUpperCase()}
