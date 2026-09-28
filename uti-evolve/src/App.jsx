@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { createPortal } from "react-dom";
 import { supabase } from './supabase.js';
+import {avaliarJejum,diasIngestaReduzida,mudarTipoDieta,hojeLocal} from './fasting.js';
 import {createSaveQueue} from './save-queue.js';
 import ClinicalImportBox from './ClinicalImportBox.jsx';
 import { normalizarControleImportado, mesclarLinhaImportada } from './clinical-import.js';
@@ -982,6 +983,7 @@ function analisarGasometria(g={}){
 
 function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config={}){
   const problemas=[];
+  if(leito.dieta?.tipo==="jejum")problemas.push({id:"jejum",texto:"Jejum",detalhe:avaliarJejum(leito.dieta).resumo});
   const problemaVmi=leito.dispositivos?.tot?.ativo?{id:"vmi",texto:"Intubado em VMI",detalhe:"TOT ativo",subitens:[]}:null;
   if(problemaVmi)problemas.push(problemaVmi);
   const vasoativas=new Set(["noradrenalina","adrenalina","dobutamina","levossimendana","vasopressina","nitroglicerina","nitroprussiato",...(config.drogasCustom||[]).filter(d=>d.grupo==="vasoativa").map(d=>d.key)]);
@@ -1118,7 +1120,7 @@ function avaliarRealimentacao(dados={}, tabelaDataLeito={}) {
   const dieta=dados.dieta||{}, manual=dieta.refeeding||{};
   const peso=numClinico(dados.peso), altura=numClinico(dados.altura);
   const imc=peso&&altura ? peso/((altura/100)**2) : null;
-  const perda=numClinico(manual.perdaPesoPct), dias=numClinico(manual.diasSemIngesta);
+  const perda=numClinico(manual.perdaPesoPct), dias=diasIngestaReduzida(dieta);
   const inicio=dieta.dataInicio||manual.dataInicio||"";
   const rows=Object.entries(tabelaDataLeito||{}).filter(([d,r])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&r).sort(([a],[b])=>a.localeCompare(b));
   const preEntry=inicio ? ([...rows].reverse().find(([d])=>d<inicio)||rows.find(([d])=>d===inicio)) : null;
@@ -1147,7 +1149,7 @@ function avaliarRealimentacao(dados={}, tabelaDataLeito={}) {
   const gravidade=quedaMax>30||!!(inicio&&manual.deficienciaTiamina)?"grave":quedaMax>=20?"moderada":quedaMax>=10?"leve":"";
   const faltantes=[]; if(imc===null)faltantes.push("IMC"); if(perda===null)faltantes.push("perda ponderal"); if(dias===null)faltantes.push("dias sem ingestão"); if(!inicio)faltantes.push("início da dieta");
   const criterios=[]; if(imc!==null&&imc<16)criterios.push(`IMC ${imc.toFixed(1)} (<16)`); else if(imc!==null&&imc<18.5)criterios.push(`IMC ${imc.toFixed(1)} (<18,5)`); if(perda!==null&&perda>10)criterios.push(`perda ${perda}%`); if(dias!==null&&dias>5)criterios.push(`${dias} dias sem ingestão`); if(eletroPre)criterios.push("K/P/Mg baixo pré-dieta"); if(manual.alcool)criterios.push("álcool"); if(drogas)criterios.push("medicações de risco");
-  return {alto,aspen,suspeitaClinica,gravidade,quedaMax,eletrólito,criterios,faltantes,imc,inicio,disfuncao,comparacoes};
+  return {alto,aspen,suspeitaClinica,gravidade,quedaMax,eletrólito,criterios,faltantes,imc,inicio,disfuncao,comparacoes,dias,jejum:avaliarJejum(dieta)};
 }
 
 // Jing et al., Clinical Nutrition 55 (2025) 282–292, Fig. 2.
@@ -1276,6 +1278,7 @@ function RefeedingRiskBox({ dados={}, tabelaDataLeito={}, onChange }) {
     {open&&createPortal(<div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:500,background:"rgba(0,0,0,.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div onClick={e=>e.stopPropagation()} style={{width:"min(760px,96vw)",maxHeight:"90vh",overflowY:"auto",background:T.bgCard,border:"1px solid rgba(251,146,60,.42)",borderRadius:14,padding:18,boxShadow:"0 24px 80px rgba(0,0,0,.55)"}}>
       <div style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:12}}><div><b style={{color:"#fdba74",fontSize:15}}>Riscos do paciente · realimentação</b><div style={{fontSize:10,color:T.text3,marginTop:3}}>Triagem NICE e monitorização ASPEN após início calórico. Apoio à decisão; não substitui avaliação clínica.</div></div><button onClick={()=>setOpen(false)} style={{background:"none",border:0,color:T.text3,cursor:"pointer",fontSize:18}}>✕</button></div>
       <div style={{padding:10,borderRadius:9,background:rf.aspen?"rgba(248,113,113,.10)":rf.alto?"rgba(251,146,60,.09)":"rgba(56,189,248,.05)",color:rf.aspen?"#fca5a5":rf.alto?"#fdba74":"#7dd3fc",fontSize:12,marginBottom:14}}><b>{rf.aspen?`Alerta pós-dieta ASPEN: ${rf.gravidade||"possível"}`:rf.alto?"Alto risco pelos critérios NICE":rf.suspeitaClinica?"Alterações clínicas temporais exigem revisão":"Critérios automáticos ainda não definem alto risco"}</b>{rf.quedaMax>=10&&<div style={{marginTop:4}}>Maior queda em até 5 dias: {rf.eletrólito} {rf.quedaMax.toFixed(0)}%.</div>}{rf.comparacoes?.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:7}}>{rf.comparacoes.map(c=><span key={c.key} style={{padding:"3px 7px",borderRadius:6,background:"rgba(255,255,255,.05)",fontFamily:"'DM Mono',monospace",fontSize:9}}>{c.key}: {c.base} → {c.valor} ({c.queda>0?"−":"+"}{Math.abs(c.queda).toFixed(0)}%)</span>)}</div>}{rf.faltantes.length>0&&<div style={{marginTop:4,color:T.text3}}>Falta documentar: {rf.faltantes.join(", ")}.</div>}</div>
+      <div style={{padding:9,marginBottom:10,fontSize:11,color:T.text2,background:T.bgInput,borderRadius:7}}>{rf.jejum.inicio?`${rf.jejum.resumo}${rf.jejum.ativo?"":` · encerrado em ${rf.jejum.fim.split("-").reverse().join("/")}`}`:rf.jejum.ativo?"Informe a data de início do jejum na nutrição.":"Sem período de jejum registrado."}<div style={{marginTop:4}}>Dias com pouca ou nenhuma ingestão usados na triagem: <b>{rf.dias??"não informado"}</b>. Usa o maior período entre o jejum calculado e o total informado abaixo, sem somá-los.</div></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>{[['dataInicio','Início/reintrodução da dieta','date'],['perdaPesoPct','Perda involuntária em 3–6 meses (%)','number'],['diasSemIngesta','Dias com pouca ou nenhuma ingestão','number']].map(([k,l,t])=><label key={k} style={{fontSize:10,color:T.text2}}>{l}<input type={t} value={(k==='dataInicio'?dieta.dataInicio:dieta.refeeding?.[k])||""} onChange={e=>k==='dataInicio'?upd('dataInicio',e.target.value):updRF(k,e.target.value)} style={{display:"block",width:"100%",marginTop:4,padding:"8px 9px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/></label>)}</div>
       <div style={{fontSize:10,color:T.text3,fontFamily:"'DM Mono',monospace",letterSpacing:1,margin:"16px 0 8px"}}>CRITÉRIOS COMPLEMENTARES NICE</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:7}}>{[['eletrolitosBaixos','K, P ou Mg baixos antes da dieta'],['alcool','História de uso nocivo de álcool'],['insulina','Insulina'],['quimioterapia','Quimioterapia'],['antiacido','Antiácido'],['diuretico','Diurético']].map(([k,l])=><label key={k} style={{fontSize:11,color:T.text2,display:"flex",gap:7,alignItems:"center"}}><input type="checkbox" checked={!!dieta.refeeding?.[k]} onChange={e=>updRF(k,e.target.checked)}/>{l}</label>)}</div>
       <div style={{marginTop:16,padding:12,borderRadius:10,border:`1px solid ${nom.alto?"rgba(251,146,60,.45)":T.border}`,background:nom.alto?"rgba(251,146,60,.07)":"rgba(56,189,248,.035)"}}>
@@ -1382,7 +1385,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
 
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
         {TIPOS.map(t=>(
-          <button key={t.k} onClick={()=>upd("tipo",t.k)}
+          <button key={t.k} onClick={()=>onChange({...dados,dieta:mudarTipoDieta(dieta,t.k)})}
             style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${dieta.tipo===t.k?"#38bdf8":"rgba(255,255,255,0.1)"}`,background:dieta.tipo===t.k?"rgba(56,189,248,0.12)":"rgba(255,255,255,0.02)",color:dieta.tipo===t.k?"#38bdf8":"#64748b",fontSize:12,cursor:"pointer",fontWeight:dieta.tipo===t.k?700:400}}>
             {t.label}
           </button>
@@ -1397,6 +1400,10 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
       {dieta.tipo==="jejum" ? (
         <div style={{padding:"12px 14px",background:"rgba(248,113,113,0.07)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8,fontSize:13,color:"#fca5a5",marginBottom:10}}>
           ⛔ Em jejum — registre o motivo nas observações.
+          <label style={{display:"block",marginTop:10,color:T.text2,fontSize:12}}>Data de início do jejum
+            <input aria-label="Data de início do jejum" type="date" max={hojeLocal()} value={dieta.jejumInicio||""} onChange={e=>{if(!e.target.value||e.target.value<=hojeLocal())upd("jejumInicio",e.target.value);}} style={{display:"block",marginTop:5,padding:8,borderRadius:7,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/>
+          </label>
+          <div style={{marginTop:7,fontSize:11,color:T.text2}}>{avaliarJejum(dieta).resumo}</div>
         </div>
       ) : dieta.tipo==="oral" ? (
         <div style={{padding:"12px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,fontSize:13,color:"#86efac",marginBottom:10}}>
@@ -4908,15 +4915,15 @@ const subitensDiagnosticoProblema=item=>{
     const resumo=c.tipo==="select"?String(valor).split(/\s+—\s+/)[0]:String(valor);
     return `${c.label} ${resumo}`;
   }),...(item.custom||[]).map(c=>c.label?.trim()&&preenchido(c.value)?`${c.label.trim()} ${String(c.value).trim()}`:"")].filter(Boolean);
-  return [scores.join(", "),...(item.subitens||[]).map(s=>s.texto?.trim()||"")].filter(Boolean);
+  return [item.jejumResumo||"",scores.join(", "),...(item.subitens||[]).map(s=>s.texto?.trim()||"")].filter(Boolean);
 };
 const diagnosticosAtivosUnificados=(leito,automaticos)=>{
   const manuais=Array.isArray(leito.problemasDiagnosticos)?leito.problemasDiagnosticos:[];
   const ajustes=leito.problemasAutomaticosEdicoes||{};
-  const lista=[...manuais,...automaticos.filter(p=>!ajustes[p.id]?.oculto).map(p=>({
+  const lista=[...manuais,...automaticos.filter(p=>p.id==="jejum"||!ajustes[p.id]?.oculto).map(p=>({
     id:`auto:${p.id}`,automaticoId:p.id,nome:p.texto,campos:{},custom:[],
-    subitens:[...(p.detalhe?[p.detalhe]:[]),...(p.subitens||[])].map((texto,i)=>({id:`auto-sub-${i}`,texto})),
-    ...ajustes[p.id],
+    subitens:[...(p.id!=="jejum"&&p.detalhe?[p.detalhe]:[]),...(p.subitens||[])].map((texto,i)=>({id:`auto-sub-${i}`,texto})),
+    ...ajustes[p.id],jejumResumo:p.id==="jejum"?p.detalhe:"",
   }))];
   const ordem=leito.problemasAtivosOrdem||[];
   const rank=id=>{const i=ordem.indexOf(id);return i<0?ordem.length:i;};
@@ -5086,7 +5093,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>{DIAGNOSTICOS_PROBLEMAS_PRESETS.map(p=><button key={p.nome} onClick={()=>adicionarDiagnostico(p.nome)} style={{padding:"3px 6px",borderRadius:10,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontSize:8.5,textAlign:"left"}}>+ {p.nome}</button>)}</div>
           </div>}
           {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome),expanded=diagnosticoAberto===item.id;return <div key={item.id} data-diagnostico-card={item.id} tabIndex={0} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuDiagnostico({id:item.id,x:e.clientX,y:e.clientY});}} onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="ContextMenu"||(e.shiftKey&&e.key==="F10")){e.preventDefault();const r=e.currentTarget.getBoundingClientRect();setMenuDiagnostico({id:item.id,x:r.left,y:r.top+20});}}} onFocus={e=>{if(!e.target.closest("[data-toggle-diagnostico]"))setDiagnosticoAberto(item.id);}} onMouseDown={e=>{if(!e.target.closest("[data-toggle-diagnostico]" )&&!e.target.closest("button[data-remove-diagnostico]")&&!e.target.closest("[data-drag-diagnostico]"))setDiagnosticoAberto(item.id)}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDiagnosticoAberto(null)}} onDragOver={e=>{if(diagnosticoArrastando&&diagnosticoArrastando!==item.id)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!diagnosticoArrastando||diagnosticoArrastando===item.id)return;const lista=[...diagnosticosProblemas],de=lista.findIndex(x=>x.id===diagnosticoArrastando),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [movido]=lista.splice(de,1);lista.splice(para,0,movido);salvarDiagnosticosProblemas(lista);setDiagnosticoArrastando(null);}} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)",opacity:diagnosticoArrastando===item.id?.55:1}}>
-            <div style={{display:"flex",gap:5,alignItems:"flex-start",cursor:"pointer"}}><span data-drag-diagnostico draggable onDragStart={e=>{e.stopPropagation();setDiagnosticoArrastando(item.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",item.id);}} onDragEnd={()=>setDiagnosticoArrastando(null)} title="Segure e arraste para alterar a ordem" style={{fontSize:13,color:T.text4,cursor:"grab",lineHeight:1,userSelect:"none"}}>⠿</span><span style={{fontSize:8,color:T.text4,marginTop:2}}>{expanded?"▼":"▶"}</span><div style={{flex:1,minWidth:0}}><button data-toggle-diagnostico aria-expanded={expanded} onClick={e=>{e.stopPropagation();setDiagnosticoAberto(atual=>atual===item.id?null:item.id);}} style={{display:"block",width:"100%",padding:0,border:0,background:"transparent",textAlign:"left",fontFamily:"inherit",fontWeight:700,fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3,cursor:"pointer"}}>{nomeDiagnosticoProblema(item)}</button>{!expanded&&<small style={{display:"grid",gap:1,marginTop:2,color:T.text3,fontSize:8.5,lineHeight:1.3,whiteSpace:"normal",overflowWrap:"anywhere"}}>{subitensDiagnosticoProblema(item).length?subitensDiagnosticoProblema(item).map((sub,i)=><span key={i}>• {sub}</span>):<span>Sem classificação ou score preenchido</span>}</small>}</div><button data-remove-diagnostico onClick={e=>{e.stopPropagation();salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id));}} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
+            <div style={{display:"flex",gap:5,alignItems:"flex-start",cursor:"pointer"}}><span data-drag-diagnostico draggable onDragStart={e=>{e.stopPropagation();setDiagnosticoArrastando(item.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",item.id);}} onDragEnd={()=>setDiagnosticoArrastando(null)} title="Segure e arraste para alterar a ordem" style={{fontSize:13,color:T.text4,cursor:"grab",lineHeight:1,userSelect:"none"}}>⠿</span><span style={{fontSize:8,color:T.text4,marginTop:2}}>{expanded?"▼":"▶"}</span><div style={{flex:1,minWidth:0}}><button data-toggle-diagnostico aria-expanded={expanded} onClick={e=>{e.stopPropagation();setDiagnosticoAberto(atual=>atual===item.id?null:item.id);}} style={{display:"block",width:"100%",padding:0,border:0,background:"transparent",textAlign:"left",fontFamily:"inherit",fontWeight:700,fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3,cursor:"pointer"}}>{nomeDiagnosticoProblema(item)}</button>{!expanded&&<small style={{display:"grid",gap:1,marginTop:2,color:T.text3,fontSize:8.5,lineHeight:1.3,whiteSpace:"normal",overflowWrap:"anywhere"}}>{subitensDiagnosticoProblema(item).length?subitensDiagnosticoProblema(item).map((sub,i)=><span key={i}>• {sub}</span>):<span>Sem classificação ou score preenchido</span>}</small>}</div><button data-remove-diagnostico hidden={item.automaticoId==="jejum"} onClick={e=>{e.stopPropagation();salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id));}} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
             {expanded&&<>
             {(item.automaticoId==="choque"||item.automaticoId==="sepse"&&item.nome.startsWith("Choque"))&&<select value={["","distributivo","hemorrágico","cardiogênico","obstrutivo","misto"].includes(leito.tipoChoque||"")?(leito.tipoChoque||""):"__outro__"} onChange={e=>{let tipo=e.target.value;if(tipo==="__outro__"){tipo=window.prompt("Caracterização do choque:","")?.trim()||leito.tipoChoque||"";}onLeitoChange?.({...leito,tipoChoque:tipo});}} style={{width:"100%",marginTop:5,padding:"4px 6px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}><option value="">Caracterizar choque…</option><option value="distributivo">Distributivo</option><option value="hemorrágico">Hemorrágico</option><option value="cardiogênico">Cardiogênico</option><option value="obstrutivo">Obstrutivo</option><option value="misto">Misto</option><option value="__outro__">Outro…</option></select>}
             {!!preset?.campos?.length&&<div style={{display:"grid",gap:4,marginTop:6}}>{preset.campos.map(c=>c.tipo==="calculator"?<div key={c.key}><button onClick={()=>atualizarDiagnostico(item.id,{scoreAberto:item.scoreAberto===c.key?null:c.key})} style={{width:"100%",padding:"5px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800,textAlign:"left"}}>{item.scoreAberto===c.key?"▼":"▶"} {c.label}{item.campos?.[c.key]!==undefined&&item.campos?.[c.key]!==""?`: ${item.campos[c.key]}`:" — calcular"}</button>{item.scoreAberto===c.key&&(c.key==="grace"?<GraceEditor item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>:<ScoreEditor scoreKey={c.key} item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>)}</div>:<label key={c.key} style={{fontSize:8.5,color:T.text3}}>{c.label}{c.tipo==="select"?<select value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{c.opcoes.map(o=><option key={o}>{o}</option>)}</select>:<input type="number" min={c.min} max={c.max} value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}/>}</label>)}</div>}
@@ -6211,7 +6218,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       }
       if(d.ptnManual&&peso)  dl+=` / ${(parseFloat(d.ptnManual)/peso).toFixed(2)} g ptn/kg/d)`;
       p.push(`- ${dl}`);
-    }else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
+    }else if(d?.tipo==="jejum") p.push(`- Dieta: ${avaliarJejum(d).resumo}`);
     if(d?.aporteGlicose?.ativo&&d.aporteGlicose.volumeDia){const ag=calcAporteGlicose(d.aporteGlicose);p.push(`- Aporte glicêmico: SG ${d.aporteGlicose.concentracao||5}% · ${d.aporteGlicose.volumeDia} mL/dia · ${ag.kcal} kcal/dia`);}
     if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
@@ -6529,7 +6536,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       if(d.moduloProteina?.ativo&&d.moduloProteina?.gramas) dl+=` + módulo proteico ${d.moduloProteina.gramas}g/d`;
       if(d.tipo==="parenteral"&&(d.suplementosNPT?.length||d.suplementacaoNPT)){const sups=[...(d.suplementosNPT||[]),d.suplementacaoNPT].filter(Boolean);dl+=` · suplementação: ${sups.join(" · ")}`;}
       p.push(dl);
-    } else if(d?.tipo==="jejum") p.push(`- Dieta: Jejum`);
+    } else if(d?.tipo==="jejum") p.push(`- Dieta: ${avaliarJejum(d).resumo}`);
     if(d?.aporteGlicose?.ativo&&d.aporteGlicose.volumeDia){const ag=calcAporteGlicose(d.aporteGlicose);p.push(`- Aporte glicêmico: SG ${d.aporteGlicose.concentracao||5}% · ${d.aporteGlicose.volumeDia} mL/dia · ${ag.kcal} kcal/dia`);}
     if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
     if(get("tg24h")) p.push(`- 24h: ${get("tg24h")}`);
@@ -8529,6 +8536,8 @@ export default function App() {
     alertaCVC: 7, alertaPAI: 7, alertaSVD: 14, alertaTQT: 99,
     alertaTOT: 99, alertaSNG: 21, alertaDreno: 21, alertaDialise: 14,
   });
+  const [,setDiaClinico]=useState(hojeLocal);
+  useEffect(()=>{const timer=setInterval(()=>setDiaClinico(hojeLocal()),60000);return()=>clearInterval(timer);},[]);
   const [saving, setSaving] = useState(false);
   const [saveState,setSaveState]=useState({pending:false,error:false});
   const [loadError,setLoadError]=useState(false);
