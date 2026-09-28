@@ -1,3 +1,4 @@
+import {calcCKDEPI,calcCockcroftGault,calcKeGFR,renalEstimate,RENAL_EQUATIONS} from './renal.js';
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { createPortal } from "react-dom";
@@ -2380,13 +2381,7 @@ const ATB_RENAL = {
 
 const ATB_VIAS = ["EV","VO","IM","SC","Inalatória"];
 
-function calcClCr(cr, peso, idade, sexo) {
-  if (!cr || !peso || !idade || idade <= 0) return null;
-  const crN = parseFloat(cr); const pesoN = parseFloat(peso); const idadeN = parseFloat(idade);
-  if (isNaN(crN)||isNaN(pesoN)||isNaN(idadeN)||crN<=0) return null;
-  const base = ((140 - idadeN) * pesoN) / (72 * crN);
-  return Math.round(base * (sexo==="F" ? 0.85 : 1));
-}
+function calcClCr(cr,peso,idade,sexo){return calcCockcroftGault(cr,idade,peso,sexo);}
 
 // Conta dias de ATB em blocos exatos de 24h desde a primeira dose (data+hora)
 function diasAtb24h(dataInicio, horaInicio) {
@@ -2415,7 +2410,7 @@ function atbAjusteRenal(nomeAtb, clcr) {
   if (clcr === null) return null;     // Sem dados suficientes para calcular
   const ajuste = tabela.find(a => clcr < a.tfg);
   if (!ajuste) return { ok:true, rec:"Dose normal para função renal atual" };
-  return { ok:false, rec:`ClCr ${clcr} mL/min → ${ajuste.rec}` };
+  return { ok:false, rec:`Função renal ${formatRenal(clcr)} mL/min → ${ajuste.rec}` };
 }
 
 const ALERTA_CONFIG_KEY = { cvc:"alertaCVC", pai:"alertaPAI", svd:"alertaSVD", tqt:"alertaTQT", tot:"alertaTOT", sng:"alertaSNG", dreno:"alertaDreno", dialise:"alertaDialise" };
@@ -2429,13 +2424,13 @@ function contarAlertasLeito(leito, tabelaData, config={}) {
   let cr = null;
   for (const d of ds) { if (tb[d]?.cr) { cr = tb[d].cr; break; } }
   const idade = leito.dataNascimento ? Math.floor((new Date()-new Date(leito.dataNascimento+"T00:00:00"))/(365.25*86400000)) : null;
-  const clcr = calcClCr(cr, leito.peso, idade, leito.sexo);
+  const clcr = funcaoRenal(leito,tb,config,"antibioticos").value;
   (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
     const dias = diasAtb24h(a.dataInicio, a.horaInicio);
     if (dias===null || dias<2) return;
     const lc = a.nome.toLowerCase();
     const key = lc.includes("pip")&&lc.includes("tazo") ? "pip/tazo" : lc.includes("amp")&&lc.includes("sulbactam") ? "amp/sulbactam" : lc.split(" ")[0].replace(/[^a-z]/g,"");
-    if (clcr && ATB_RENAL[key]?.length>0) { const aj = ATB_RENAL[key].find(x=>clcr<x.tfg); if (aj) n++; }
+    if (clcr !== null && ATB_RENAL[key]?.length>0) { const aj = ATB_RENAL[key].find(x=>clcr<x.tfg); if (aj) n++; }
   });
   DISP_MULTIPLO.forEach(d=>(Array.isArray((leito.dispositivos||{})[d.key])?leito.dispositivos[d.key]:[]).forEach(inst=>{
     if (!inst.data) return;
@@ -2455,7 +2450,7 @@ function contarAlertasLeito(leito, tabelaData, config={}) {
   return n;
 }
 
-function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", idadeAnos=null, sexo="M", clcrOverride=null, vancocinemia=null }) {
+function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", idadeAnos=null, sexo="M", clcrOverride=null, renalResult=null, vancocinemia=null }) {
   const T = useTheme();
   const mono = "'DM Mono',monospace";
   const hoje = new Date().toISOString().split("T")[0];
@@ -2463,7 +2458,7 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
   const [showBusca, setShowBusca] = useState(false);
   const [suspendendo, setSuspendendo] = useState(null); // id do atb sendo suspenso
 
-  const clcr = clcrOverride !== null ? clcrOverride : calcClCr(crSerico, peso, idadeAnos, sexo);
+  const clcr = renalResult ? renalResult.value : clcrOverride !== null ? clcrOverride : calcClCr(crSerico, peso, idadeAnos, sexo);
 
   const ATB_LISTA = [
     // Carbapenems
@@ -2515,9 +2510,10 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
       <SecTitle>ANTIBIOTICOTERAPIA</SecTitle>
 
       {/* ClCr badge */}
+      {renalResult&&<RenalEstimateInfo result={renalResult}/>}
       {clcr !== null && (
         <div style={{marginBottom:8,padding:"4px 10px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.12)",borderRadius:6,fontSize:11,color:"#94a3b8",fontFamily:mono,display:"inline-flex",gap:10}}>
-          <span>ClCr: <strong style={{color:clcr>=60?"#34d399":clcr>=30?"#fbbf24":"#f87171"}}>{clcr} mL/min</strong></span>
+          <span>Função renal: <strong style={{color:clcr>=60?"#34d399":clcr>=30?"#fbbf24":"#f87171"}}>{formatRenal(clcr)} mL/min</strong></span>
           <span style={{color:"#334155"}}>Cr {crSerico} · {peso}kg · {idadeAnos}a · {sexo==="F"?"♀":"♂"}</span>
         </div>
       )}
@@ -2588,11 +2584,11 @@ function AntibioticosPanel({ antibioticos=[], onChange, crSerico="", peso="", id
                 if (!atb.nome) return null;
                 if (horas48) return <div style={{marginTop:5,fontSize:10,color:"#475569",fontFamily:mono}}>⏱ &lt;48h — sem ajuste renal</div>;
                 if (clcr===null||!ajuste) return null;
-                if (doseOk) return <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>✅ Dose ok — ClCr {clcr} mL/min</div>;
+                if (doseOk) return <div style={{marginTop:5,fontSize:10,color:"#34d399",fontFamily:mono}}>✅ Dose ok — Função renal {formatRenal(clcr)} mL/min</div>;
                 return (
                   <div style={{marginTop:5,borderRadius:5,overflow:"hidden",border:"1px solid rgba(248,113,113,0.2)"}}>
                     <div style={{padding:"4px 8px",background:"rgba(248,113,113,0.06)",fontSize:10,color:"#f87171",fontFamily:mono}}>
-                      ⚠️ ClCr {clcr} mL/min → {ajuste.rec}
+                      ⚠️ Função renal {formatRenal(clcr)} mL/min → {ajuste.rec}
                     </div>
                     <button onClick={()=>updAtb(atb.id,"doseConfirmada",true)}
                       style={{width:"100%",padding:"3px 8px",background:"rgba(52,211,153,0.05)",border:"none",borderTop:"1px solid rgba(248,113,113,0.1)",color:"#34d399",cursor:"pointer",fontSize:10,fontFamily:mono,textAlign:"left"}}>
@@ -3131,13 +3127,20 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, ho
   return (
     <div className="config-panel" style={{maxWidth:680}}>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-        <button onClick={onVoltar} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",cursor:"pointer",fontSize:12,padding:"6px 12px"}}>← Voltar</button>
+
+      <button onClick={onVoltar} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#64748b",cursor:"pointer",fontSize:12,padding:"6px 12px"}}>← Voltar</button>
         <div>
           <div style={{fontSize:15,fontWeight:700}}>⚙️ Configurações</div>
           <div style={{fontSize:12,color:"#64748b"}}>Configurações de {hospitalAtivo?.nome||"Hospital São Paulo"}</div>
         </div>
       </div>
 
+        <section style={{padding:14,marginBottom:18,border:"1px solid #64748b55",borderRadius:10}}>
+        <b>Equações de função renal para medicamentos</b>
+        <p style={{fontSize:11}}>Os módulos usam mL/min. CKD-EPI é desindexado pela superfície corporal (peso e altura). A escolha na tabela clínica vale para a cópia da evolução.</p>
+        {[['padrao','Padrão'],['antibioticos','Antibióticos'],['analgesicos','Analgésicos']].map(([key,label])=><label key={key} style={{display:"block",fontSize:12,marginTop:9}}>{label}<select aria-label={`Equação renal — ${label}`} value={config.equacaoRenal?.[key]||(key==="padrao"?"cg":"")} onChange={e=>onChange({...config,equacaoRenal:{...(config.equacaoRenal||{}),[key]:e.target.value}})} style={{display:"block",width:"100%",padding:7,marginTop:4}}>{key!=="padrao"&&<option value="">Usar padrão</option>}{Object.entries(RENAL_EQUATIONS).map(([id,nome])=><option key={id} value={id}>{nome}</option>)}</select></label>)}
+        <p style={{fontSize:10}}>Sem dados suficientes, não há troca automática de equação. A cinética estima depuração com volume constante (0,6 × peso); não é validada para ajustar doses durante diálise. Revise a métrica da bula e o protocolo de cada medicamento.</p>
+      </section>
       <button onClick={onAbrirPesquisa} style={{width:"100%",display:"flex",alignItems:"center",gap:14,textAlign:"left",padding:"14px 16px",marginBottom:20,background:"rgba(52,211,153,.07)",border:"1px solid rgba(52,211,153,.25)",borderRadius:12,color:"#cbd5e1",cursor:"pointer"}}>
         <span style={{fontSize:24}}>📊</span>
         <span style={{flex:1}}>
@@ -3292,69 +3295,9 @@ function ConfigPanel({ config, onChange, onVoltar, onAbrirPesquisa, utiAtiva, ho
 
 
 // ── Fórmulas TFG ─────────────────────────────────────────────────────────────
-// CKD-EPI 2021 (race-free) — Inker et al. NEJM 2021
-function calcCKDEPI(cr, idadeA, sexo) {
-  if (!cr || !idadeA) return null;
-  const Scr = parseFloat(cr);
-  const age  = parseFloat(idadeA);
-  if (isNaN(Scr) || isNaN(age) || Scr <= 0 || age <= 0) return null;
-  const k = sexo === "F" ? 0.7  : 0.9;
-  const a = sexo === "F" ? -0.241 : -0.302;
-  const sex_mult = sexo === "F" ? 1.012 : 1.0;
-  const ratio = Scr / k;
-  const egfr = 142
-    * Math.pow(Math.min(ratio, 1), a)
-    * Math.pow(Math.max(ratio, 1), -1.200)
-    * Math.pow(0.9938, age)
-    * sex_mult;
-  return Math.round(egfr);
-}
-
-// Cockcroft-Gault — em mL/min
-function calcCockcroftGault(cr, idadeA, peso, sexo) {
-  if (!cr || !idadeA || !peso) return null;
-  const Scr = parseFloat(cr);
-  const age  = parseFloat(idadeA);
-  const wt   = parseFloat(peso);
-  if (isNaN(Scr) || isNaN(age) || isNaN(wt) || Scr <= 0) return null;
-  const cg = ((140 - age) * wt) / (72 * Scr) * (sexo === "F" ? 0.85 : 1);
-  return Math.round(cg);
-}
-
-// Kinetic eGFR — Chen et al. (PLOS ONE 2013, doi:10.1371/journal.pone.0225601)
-// Eq A: KeGFR = (SSPCr × CrCl / MeanPCr) × (1 - 24×ΔPCr / (ΔTime_h × MaxΔPCr/day))
-// Eq B: MaxΔPCr = SSPCr × CrCl / TBW
-// SSPCr = creatinina estável de referência (usamos Cr do dia anterior estável = cr1)
-// CrCl  = Cockcroft-Gault com SSPCr
-// MeanPCr = (cr1 + cr2) / 2
-// ΔPCr  = cr2 - cr1  (positivo = piorando, negativo = melhorando)
-// TBW   = 0.6 × peso (kg)  [total body water]
-// ΔTime = 24h entre dias consecutivos
-function calcKeGFR(cr1, cr2, peso, sexo, idadeA, deltaTh = 24) {
-  if (!cr1 || !cr2 || !peso || !idadeA) return null;
-  const C1 = parseFloat(cr1), C2 = parseFloat(cr2);
-  const wt = parseFloat(peso), age = parseFloat(idadeA);
-  if (isNaN(C1)||isNaN(C2)||isNaN(wt)||isNaN(age)||C1<=0||C2<=0||wt<=0) return null;
-  if (Math.abs(C1-C2) < 0.05) return null; // variação insuficiente
-
-  const SSPCr = C1;                                       // Cr estável = dia anterior
-  const TBW   = 0.6 * wt;                                // L
-  const CrCl  = calcCockcroftGault(SSPCr, age, wt, sexo); // mL/min (com SSPCr)
-  if (!CrCl || CrCl <= 0) return null;
-
-  const MeanPCr    = (C1 + C2) / 2;
-  const DeltaPCr   = C2 - C1;                            // positivo = subindo
-  const MaxDeltaPCr = (SSPCr * CrCl) / TBW;              // Eq B: mL/min / L = mg/dL/h·correction
-  // MaxΔPCr/day = MaxΔPCr × 24 (mg/dL por 24h)
-  const MaxDeltaPCr_per_day = MaxDeltaPCr;                // já é por unidade de tempo consistente
-
-  // Eq A
-  const kegfr = (SSPCr * CrCl / MeanPCr) *
-                (1 - (24 * DeltaPCr) / (deltaTh * MaxDeltaPCr_per_day));
-
-  if (!isFinite(kegfr) || kegfr < 0) return null;
-  return Math.round(kegfr);
-}
+const formatRenal=v=>v===null?"—":Number(v.toFixed(1));
+const funcaoRenal=(leito,tabela,config={},area="padrao",data)=>renalEstimate({...leito,renalAge:idadeDoLeito(leito)},tabela,config,area,data);
+function RenalEstimateInfo({result}){const T=useTheme();return <div style={{fontSize:10,color:T.text3,margin:"5px 0",lineHeight:1.4}}>Função renal · {result.label}: {result.value===null?result.reason:`${result.value.toFixed(1)} mL/min · Cr de ${result.date}`}{result.hours!==null&&<span> · Δt {result.hours.toFixed(1)} h{result.approximate?" (estimado pelas datas; informe os horários)":""}</span>}</div>;}
 
 // Cor por faixa TFG
 function corTFG(v) {
@@ -3978,14 +3921,14 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     const tfgSelHoje = (leito.tfgSel||{})[hoje3];
     const crHoje = pegarCtrl(["cr"]) ? getVal(chaveHoje,"cr") : "";
     if (tfgSelHoje && crHoje) {
-      const p3 = parseFloat(leito.peso)||null;
+      const p3 = leito.peso||null;
       const ia3 = idadeDoLeito(leito);
       const sx3 = leito.sexo||"M";
       const tfgVal = tfgSelHoje==="ckdepi" ? calcCKDEPI(crHoje,ia3,sx3)
                    : tfgSelHoje==="cg"     ? calcCockcroftGault(crHoje,ia3,p3,sx3)
-                   : null;
+                   : funcaoRenal(leito,data,{equacaoRenal:{padrao:"kegfr"}},"padrao",chaveHoje).value;
       const tfgLabel = tfgSelHoje==="ckdepi" ? "CKD-EPI" : tfgSelHoje==="cg" ? "CG" : "KeGFR";
-      if (tfgVal) campos.reLab = (campos.reLab||"") + (campos.reLab?"\n":"") + `TFG: ${tfgVal} mL/min (${tfgLabel})`;
+      if (tfgVal!==null) campos.reLab = (campos.reLab||"") + (campos.reLab?"\n":"") + `TFG: ${Math.round(tfgVal)} ${tfgSelHoje==="ckdepi"?"mL/min/1,73 m²":"mL/min"} (${tfgLabel})`;
     }
 
     // Ventilação mecânica → reVM (campo "Ventilação — Modo" na evolução)
@@ -4257,15 +4200,15 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                     {/* TFG abaixo da creatinina */}
                     {key==="cr" && (leito.dataNascimento||leito.idadeAnos||leito.peso) && (()=>{
                       const idadeA = idadeDoLeito(leito);
-                      const peso = parseFloat(leito.peso)||null;
+                      const peso = leito.peso||null;
                       const sexo = leito.sexo||"M";
                       const tfgRows = [
                         { id:"ckdepi", lbl:"↳ CKD-EPI 2021",   unit:"mL/min/1.73m²",
                           calc:(d)=>calcCKDEPI(getVal(d,"cr"),idadeA,sexo) },
                         { id:"cg",     lbl:"↳ Cockcroft-Gault", unit:"mL/min",
                           calc:(d)=>calcCockcroftGault(getVal(d,"cr"),idadeA,peso,sexo) },
-                        { id:"kegfr",  lbl:"↳ KeGFR (Chen)",    unit:"mL/min",
-                          calc:(d,di)=>calcKeGFR(di>0?getVal(datas[di-1],"cr"):null,getVal(d,"cr"),peso,sexo,idadeA) },
+                        { id:"kegfr",  lbl:"↳ Cinética (Chen/CG)",    unit:"mL/min",
+                          calc:(d)=>{if(!getVal(d,"cr"))return null;const r=funcaoRenal(leito,data,{equacaoRenal:{padrao:"kegfr"}},"padrao",d);return r.value===null?null:Math.round(r.value);} },
                       ];
                       const tfgSel = leito.tfgSel || {};
                       const setSel = (d, fid) => {
@@ -4274,43 +4217,44 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                         // store in leito
                         if(onLeitoChange) onLeitoChange({...leito, tfgSel: novo});
                       };
-                      return tfgRows.map(row=>(
+                      return <React.Fragment><tr><td colSpan={2} style={{...tdBase,fontSize:10,textAlign:"left"}}><label>Cr basal estável (mg/dL)<input aria-label="Creatinina basal estável" type="number" min="0.01" step="0.01" value={leito.creatininaBasal||""} onChange={e=>onLeitoChange?.({...leito,creatininaBasal:e.target.value})} style={{width:70,marginLeft:4}}/></label></td>{datas.map(d=><td key={d} style={tdBase}><input aria-label={`Horário da creatinina ${d}`} type="time" value={getVal(d,"crHora")||""} onChange={e=>setVal(d,"crHora",e.target.value)} style={{width:95,fontSize:10}}/></td>)}</tr>{tfgRows.map(row=>(
                         <tr key={row.id} style={{opacity:0.85}}>
                           <td style={{...tdBase,padding:"3px 12px",fontSize:10,color:"#64748b",textAlign:"left",fontStyle:"italic",position:"sticky",left:0,background:T.bgTableSticky}}>
-                            {row.lbl}
+                            {row.lbl}{row.id==="kegfr"&&<small style={{display:"block",fontSize:8}}>Δt entre coletas; sem horário, estimado pelas datas</small>}
                           </td>
                           <td style={{...tdBase,fontSize:9,color:"#475569",fontFamily:mono,position:"sticky",left:155,background:T.bgTableSticky}}>
                             {row.unit}
                           </td>
                           {datas.map((d,di)=>{
                             const val=row.calc(d,di);
+                            const kinetic=row.id==="kegfr"?funcaoRenal(leito,data,{equacaoRenal:{padrao:"kegfr"}},"padrao",d):null;
                             const selId = tfgSel[d];
                             const isSel = selId === row.id;
                             const ativo = isHoje(d);
                             return (
-                              <td key={d} style={{...tdBase,background:isSel?"rgba(52,211,153,0.06)":ativo?"rgba(56,189,248,0.02)":undefined,
+                              <td key={d} title={kinetic?(kinetic.value===null?kinetic.reason:`${kinetic.previousDate} → ${kinetic.date}: ${kinetic.hours} h${kinetic.approximate?" (estimado pelas datas)":""}`):undefined} style={{...tdBase,background:isSel?"rgba(52,211,153,0.06)":ativo?"rgba(56,189,248,0.02)":undefined,
                                 outline:isSel?`1px solid rgba(52,211,153,0.3)`:"none"}}>
                                 {val!==null ? (
                                   <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
                                     <div style={{textAlign:"center",fontSize:11,fontFamily:mono,padding:"2px 3px",
                                       color:isSel?"#34d399":corTFG(val),fontWeight:isSel?700:600}}>
-                                      {val}<span style={{fontSize:9,color:"#475569",marginLeft:2}}>{stageCKD(val)}</span>
+                                      {val}{row.id==="ckdepi"&&<span title="Faixa de TFG; isoladamente não confirma doença renal crônica" style={{fontSize:9,color:"#475569",marginLeft:2}}>{stageCKD(val)}</span>}
                                     </div>
                                     <button onClick={()=>setSel(d,isSel?null:row.id)}
-                                      title={isSel?"Desmarcar TFG selecionada":"Usar esta TFG para ATB e evolução"}
+                                      title={isSel?"Desmarcar TFG selecionada":"Usar esta TFG na evolução (medicamentos seguem Configurações)"}
                                       style={{background:"none",border:"none",cursor:"pointer",fontSize:11,
                                         color:isSel?"#34d399":"#334155",padding:"0 2px",lineHeight:1}}>
                                       {isSel?"✓":"○"}
                                     </button>
                                   </div>
                                 ) : (
-                                  <div style={{textAlign:"center",fontSize:11,color:"#1e293b"}}>—</div>
+                                  <div title={kinetic?.reason||"Dados insuficientes"} style={{textAlign:"center",fontSize:11,color:T.text3}}>—</div>
                                 )}
                               </td>
                             );
                           })}
                         </tr>
-                      ));
+                      ))}</React.Fragment>;
                     })()}
                     </React.Fragment>
                   ))}
@@ -4657,7 +4601,7 @@ const formatarAnalgesiaItens=itens=>(Array.isArray(itens)?itens:[]).map(item=>{
   return [nome,item.dose?(def?.doseComUnidade?item.dose:`${item.dose} mg`):"",item.intervalo||""].filter(Boolean).join(" ");
 }).filter(Boolean).join(" · ");
 
-function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={},tabelaDataLeito={}}){
+function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={},tabelaDataLeito={},config={}}){
   const T=useTheme();
   const [open,setOpen]=useState(false);
   const [focused,setFocused]=useState(false);
@@ -4688,25 +4632,26 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
   };
   const voltarAoTexto=()=>{const base=String(textoAtual||"").trim();if(base&&!/[·,;\/]$/.test(base))onFreeChange?.(`${base} · `);setOpen(false);setEditingId("");setTimeout(()=>{const el=textoRef.current;if(!el)return;el.focus();el.setSelectionRange(el.value.length,el.value.length);},30);};
   const ultimoCr=ultimoValorTabela(tabelaDataLeito,["cr","creatinina"])?.valor??tabelaDataLeito?.cr??null;
-  const clcr=calcClCr(ultimoCr,leito.peso,idadeDoLeito(leito),leito.sexo);
+  const renalResult=funcaoRenal(leito,tabelaDataLeito,config,"analgesicos");
+  const clcr=renalResult.value;
   const diagnosticos=[leito.diagnostico,...(Array.isArray(leito.diagnosticos)?leito.diagnosticos:[])].map(x=>typeof x==="string"?x:(x?.nome||x?.descricao||"")).join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   const disfuncaoHepatica=/(insuficiencia hepat|cirrose|hepatopatia|child|falencia hepat)/.test(diagnosticos);
   const alertaItem=item=>{
     if(item.id==="gabapentina"&&clcr!==null&&clcr<60){
-      if(clcr>30)return `ClCr ${clcr}: dose total 400–1.400 mg/dia, dividida em 2 tomadas (ex.: 200–700 mg 12/12 h).`;
-      if(clcr>15)return `ClCr ${clcr}: dose total 200–700 mg, 1 vez/dia.`;
-      if(clcr===15)return "ClCr 15: 100–300 mg, 1 vez/dia.";
-      return `ClCr ${clcr}: reduzir proporcionalmente a partir de 100–300 mg/dia (em ClCr 7,5, usar cerca de metade da dose de ClCr 15). Se hemodiálise, considerar dose suplementar pós-HD.`;
+      if(clcr>30)return `Função renal ${formatRenal(clcr)}: dose total 400–1.400 mg/dia, dividida em 2 tomadas (ex.: 200–700 mg 12/12 h).`;
+      if(clcr>15)return `Função renal ${formatRenal(clcr)}: dose total 200–700 mg, 1 vez/dia.`;
+      if(clcr===15)return "Função renal 15: 100–300 mg, 1 vez/dia.";
+      return `Função renal ${formatRenal(clcr)}: reduzir proporcionalmente a partir de 100–300 mg/dia (em ClCr 7,5, usar cerca de metade da dose de ClCr 15). Se hemodiálise, considerar dose suplementar pós-HD.`;
     }
     if(item.id==="pregabalina"&&clcr!==null&&clcr<60){
-      if(clcr>=30)return `ClCr ${clcr}: dose total diária ajustada 75–300 mg/dia, dividida em 2–3 tomadas.`;
-      if(clcr>=15)return `ClCr ${clcr}: dose total diária ajustada 25–150 mg/dia, em 1–2 tomadas.`;
-      return `ClCr ${clcr}: dose total diária ajustada 25–75 mg, 1 vez/dia; em hemodiálise, avaliar suplementação pós-HD.`;
+      if(clcr>=30)return `Função renal ${formatRenal(clcr)}: dose total diária ajustada 75–300 mg/dia, dividida em 2–3 tomadas.`;
+      if(clcr>=15)return `Função renal ${formatRenal(clcr)}: dose total diária ajustada 25–150 mg/dia, em 1–2 tomadas.`;
+      return `Função renal ${formatRenal(clcr)}: dose total diária ajustada 25–75 mg, 1 vez/dia; em hemodiálise, avaliar suplementação pós-HD.`;
     }
-    if(item.id==="tramadol"&&clcr!==null&&clcr<30)return `ClCr ${clcr}: formulação imediata a cada 12 h; máximo 200 mg/dia. Evitar formulação de liberação prolongada.`;
-    if(item.id==="morfina"&&clcr!==null&&clcr<30)return `ClCr ${clcr}: metabólitos ativos podem acumular. Preferir alternativa quando possível; se usada, iniciar abaixo da dose habitual, ampliar intervalo e titular lentamente com vigilância de sedação/depressão respiratória.`;
-    if(item.id==="duloxetina"&&clcr!==null&&clcr<30)return `ClCr ${clcr}: evitar duloxetina (não recomendada em TFG/ClCr <30 mL/min).`;
-    if(item.id==="dipirona"&&clcr!==null&&clcr<30)return `ClCr ${clcr}: evitar doses elevadas repetidas; se tratamento repetido for necessário, considerar redução e monitorização renal.`;
+    if(item.id==="tramadol"&&clcr!==null&&clcr<30)return `Função renal ${formatRenal(clcr)}: formulação imediata a cada 12 h; máximo 200 mg/dia. Evitar formulação de liberação prolongada.`;
+    if(item.id==="morfina"&&clcr!==null&&clcr<30)return `Função renal ${formatRenal(clcr)}: metabólitos ativos podem acumular. Preferir alternativa quando possível; se usada, iniciar abaixo da dose habitual, ampliar intervalo e titular lentamente com vigilância de sedação/depressão respiratória.`;
+    if(item.id==="duloxetina"&&clcr!==null&&clcr<30)return `Função renal ${formatRenal(clcr)}: evitar duloxetina (não recomendada em TFG/ClCr <30 mL/min).`;
+    if(item.id==="dipirona"&&clcr!==null&&clcr<30)return `Função renal ${formatRenal(clcr)}: evitar doses elevadas repetidas; se tratamento repetido for necessário, considerar redução e monitorização renal.`;
     if(disfuncaoHepatica&&item.id==="tramadol")return "Disfunção hepática grave/cirrose: tramadol 50 mg a cada 12 h; evitar liberação prolongada.";
     if(disfuncaoHepatica&&item.id==="duloxetina")return "Doença hepática crônica/cirrose: evitar duloxetina.";
     if(disfuncaoHepatica&&item.id==="morfina")return "Cirrose/disfunção hepática: iniciar abaixo da dose habitual e titular lentamente, monitorando sedação, depressão respiratória e hipotensão.";
@@ -4714,6 +4659,7 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
     return "";
   };
   return <div style={{position:"relative",marginBottom:0}}>
+    <RenalEstimateInfo result={renalResult}/>
     <textarea ref={textoRef} value={freeValue||""} onChange={e=>editarTexto(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} onKeyDown={e=>{if(!sugestoes.length||open)return;if(e.key==="ArrowDown"){e.preventDefault();setSuggestionIndex(i=>(i+1)%sugestoes.length);}else if(e.key==="ArrowUp"){e.preventDefault();setSuggestionIndex(i=>(i-1+sugestoes.length)%sugestoes.length);}else if(e.key==="Enter"){e.preventDefault();add(sugestoes[suggestionIndex]?.id,true);}}} rows={2} placeholder="Digite a medicação ou o esquema analgésico…" style={{width:"100%",height:54,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 42px 8px 10px",color:T.text1,fontSize:12,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
     <button type="button" aria-label={open?"Minimizar menu":"Maximizar menu"} onMouseDown={e=>e.preventDefault()} onClick={()=>setOpen(v=>!v)} style={{position:"absolute",right:0,top:0,width:36,height:54,borderRadius:"0 8px 8px 0",border:`1px solid ${open?T.accentBorder:T.border}`,background:open?T.accentBg:T.bgCard,color:open?T.accent:T.text3,fontSize:14,fontWeight:700,cursor:"pointer"}}>{open?"▲":"▼"}</button>
     {!!sugestoes.length&&!open&&<div style={{position:"absolute",zIndex:45,left:0,right:0,top:"calc(100% + 3px)",border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard,overflow:"hidden"}}>{sugestoes.map((m,i)=><button key={m.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>add(m.id,true)} style={{display:"flex",width:"100%",padding:"7px 10px",border:0,borderBottom:`1px solid ${T.border}`,background:i===suggestionIndex?T.accentBg:"transparent",color:i===suggestionIndex?T.accent:T.text1,cursor:"pointer",textAlign:"left",fontSize:11}}><strong>{m.nome}</strong><span style={{marginLeft:"auto",fontSize:9,color:T.accent}}>{i===suggestionIndex?"Enter para selecionar":"selecionar"}</span></button>)}</div>}
@@ -6791,7 +6737,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
           <Col><FL>P — SEDAÇÃO</FL><TA fieldRef={refs.nSeda} defaultValue={campos.nSeda} isAntigo={isAntigo("nSeda")} rows={2} fieldName="nSeda" onBlurSave={salvar}/></Col>
-          <Col><FL>A — ANALGESIA</FL><AnalgesiaEstruturada value={campos.nAnalgesiaItens} onChange={v=>onCampoEdit("nAnalgesiaItens",v)} freeValue={campos.nAnalg} onFreeChange={v=>onCampoEdit("nAnalg",v)} leito={leito} tabelaDataLeito={tabelaDataLeito}/></Col>
+          <Col><FL>A — ANALGESIA</FL><AnalgesiaEstruturada value={campos.nAnalgesiaItens} onChange={v=>onCampoEdit("nAnalgesiaItens",v)} freeValue={campos.nAnalg} onFreeChange={v=>onCampoEdit("nAnalg",v)} leito={leito} tabelaDataLeito={tabelaDataLeito} config={config}/></Col>
         </Row>
         {vis["nEFExtra"]&&<Row><Col><FL>EF — Detalhe adicional</FL><TA fieldRef={refs.nEFExtra} defaultValue={campos.nEFExtra} isAntigo={isAntigo("nEFExtra")} rows={2} fieldName="nEFExtra" onBlurSave={salvar}/></Col></Row>}
         {/* Bombas: Sedação/Analgesia */}
@@ -7058,8 +7004,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           {/* ── Sugestão de ajuste de dose por ClCr, inline por ATB — ações rápidas ── */}
           {(()=>{
             const crHojeIn=(()=>{const ds=Object.keys(tabelaDataLeito||{}).filter(k=>!k.startsWith("_")).sort().reverse();for(const d of ds){if(tabelaDataLeito[d]?.cr)return tabelaDataLeito[d].cr;}return "";})();
-            const clcrIn = calcClCr(crHojeIn, leito.peso, idadeDoLeito(leito), leito.sexo||"M");
-            if (!clcrIn) return null;
+            const clcrIn = funcaoRenal(leito,tabelaDataLeito,config,"antibioticos").value;
+            if (clcrIn===null) return null;
             const ativos = (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&!a.ajusteRevisado);
             return ativos.map(a=>{
               const diasA = diasAtb24h(a.dataInicio, a.horaInicio);
@@ -7824,13 +7770,13 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
     const h=getHoje(leito.id);
     const alerts=[];
     const idade=idadeDoLeito(leito);
-    const clcr=(h.cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(h.cr))*(leito.sexo==="F"?0.85:1)):null;
+    const clcr=funcaoRenal(leito,tabelaData[leito.id]||{},config,"antibioticos").value;
     (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio&&!a.ajusteRevisado).forEach(a=>{
       const dias=diasAtb24h(a.dataInicio, a.horaInicio);
       if(dias<2) return;
       const lc=a.nome.toLowerCase();
       const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
-      if(clcr&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);if(aj)alerts.push({tipo:"atb-ajuste",texto:`ATB ${a.nome}: ajuste (ClCr ${clcr})`,atbId:a.id,clcr});}
+      if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);if(aj)alerts.push({tipo:"atb-ajuste",texto:`ATB ${a.nome}: ajuste (ClCr ${formatRenal(clcr)})`,atbId:a.id,clcr});}
     });
     DISP_MULTIPLO.forEach(d=>(Array.isArray((leito.dispositivos||{})[d.key])?(leito.dispositivos[d.key]):[]).forEach(inst=>{
       if(!inst.data) return;
@@ -7990,10 +7936,10 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
 
         const resumoRenal = (l, h) => {
           const idade = idadeDoLeito(l);
-          const clcr = calcClCr(h.cr, l.peso, idade, l.sexo);
+          const clcr = funcaoRenal(l,tabelaData[l.id]||{},config).value;
           const diureseKgH = (h.c24_diur && l.peso) ? (parseFloat(h.c24_diur)/parseFloat(l.peso)/24).toFixed(1) : null;
           const l1 = diureseKgH ? `Diurese ${diureseKgH}mL/kg/h` : null;
-          const l2 = [h.cr?`Cr ${h.cr}`:null, clcr?`TFG ${clcr}`:null].filter(Boolean).join(" · ") || null;
+          const l2 = [h.cr?`Cr ${h.cr}`:null, clcr?`TFG ${formatRenal(clcr)}`:null].filter(Boolean).join(" · ") || null;
           const trs = h.c24_hd ? `TSR ${h.c24_hd}mL` : null;
           const lines = [l1,l2,trs].filter(Boolean);
           if (!lines.length) return null;
@@ -8129,7 +8075,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                 <div style={{fontSize:9,fontFamily:mono,letterSpacing:1,color:"#64748b",marginBottom:4}}>ATB ATUAL</div>
                 <div style={{fontSize:12,color:"#cbd5e1",marginBottom:10}}>{atb.nome}{atb.dose?` — ${atb.dose}`:""}{atb.intervalo?` ${atb.intervalo}`:""}</div>
                 {aj && (
-                  <div style={{fontSize:9,fontFamily:mono,letterSpacing:1,color:"#64748b",marginBottom:4}}>SUGESTÃO (ClCr {clcr} mL/min)</div>
+                  <div style={{fontSize:9,fontFamily:mono,letterSpacing:1,color:"#64748b",marginBottom:4}}>SUGESTÃO (ClCr {formatRenal(clcr)} mL/min)</div>
                 )}
                 {aj && <div style={{fontSize:12,color:"#34d399",marginBottom:12}}>{aj.rec}</div>}
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -8168,13 +8114,13 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
     const ds=Object.keys(tb).sort().reverse();
     const cr=ds.length?tb[ds[0]]?.cr:null;
     const idade=idadeDoLeito(leito);
-    const clcr=(cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(cr))*(leito.sexo==="F"?0.85:1)):null;
+    const clcr=funcaoRenal(leito,tabelaData[leito.id]||{},config,"antibioticos").value;
     (leito.antibioticos||[]).filter(a=>!a.dataFim&&a.nome&&a.dataInicio).forEach(a=>{
       const dias=diasAtb24h(a.dataInicio, a.horaInicio);
       if(dias<2) return;
       const lc=a.nome.toLowerCase();
       const key=lc.includes("pip")&&lc.includes("tazo")?"pip/tazo":lc.includes("amp")&&lc.includes("sulbactam")?"amp/sulbactam":lc.split(" ")[0].replace(/[^a-z]/g,"");
-      if(clcr&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);if(aj)alerts.push(`Ajustar ${a.nome} (ClCr ${clcr})`);}
+      if(clcr!==null&&ATB_RENAL[key]?.length>0){const aj=ATB_RENAL[key].find(x=>clcr<x.tfg);if(aj)alerts.push(`Ajustar ${a.nome} (ClCr ${formatRenal(clcr)})`);}
     });
     return alerts;
   };
@@ -8186,7 +8132,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
     const ds=Object.keys(tb).sort().reverse();
     const cr=ds.length?tb[ds[0]]?.cr:null;
     const idade=idadeDoLeito(leito);
-    const clcr=(cr&&leito.peso&&idade)?Math.round(((140-idade)*parseFloat(leito.peso))/(72*parseFloat(cr))*(leito.sexo==="F"?0.85:1)):null;
+    const clcr=funcaoRenal(leito,tabelaData[leito.id]||{},config,"antibioticos").value;
     const jaTemMeta = (texto) => (metasPorLeito[leito.id]||[]).some(m=>(m.texto||m||"").toLowerCase().includes(texto.toLowerCase()));
     if (clcr!==null && clcr<60 && !jaTemMeta("diurese")) {
       s.push("Meta de diurese ≥0,5 mL/kg/h");
@@ -9409,19 +9355,7 @@ ${linha}`:linha}));
                     idadeAnos={idadeAnos}
                     sexo={leito.sexo||"M"}
                     vancocinemia={ultimoValorTabela(tabelaData[leitoSelId]||{},["_extra_vancocinemia","_extra_vancomicinemia"])}
-                    clcrOverride={(()=>{
-                      const hoje2=new Date().toISOString().split("T")[0];
-                      const sel=(leito.tfgSel||{})[hoje2];
-                      const tb=tabelaData[leitoSelId]||{};
-                      const ds=Object.keys(tb).sort().reverse();
-                      const cr=ds.length?tb[ds[0]]?.cr:null;
-                      const p=parseFloat(leito.peso)||null;
-                      const ia=idadeAnos;const sx=leito.sexo||"M";
-                      if(!sel||!cr||!p||!ia)return null;
-                      if(sel==="ckdepi")return calcCKDEPI(cr,ia,sx);
-                      if(sel==="cg")return calcCockcroftGault(cr,ia,p,sx);
-                      return null;
-                    })()}
+                    renalResult={funcaoRenal(leito,tabelaData[leitoSelId]||{},config,"antibioticos")}
                   />
                   </Collapsible>
                   <Collapsible title="DISPOSITIVOS" defaultOpen={true}>
