@@ -5000,6 +5000,29 @@ function ScoreEditor({scoreKey,item,onUpdate,T}){
 
 // Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
 // Visível nas áreas principais do paciente, não só no Beira-leito.
+function MetasTerapeuticas({items=[],onChange}){
+  const T=useTheme();
+  const [novo,setNovo]=useState(''),[aberto,setAberto]=useState(null),[drag,setDrag]=useState(null),[menu,setMenu]=useState(null),[copiado,setCopiado]=useState(false),[erro,setErro]=useState('');
+  const update=(id,patch)=>onChange(items.map(x=>x.id===id?{...x,...patch}:x));
+  const add=()=>{if(!novo.trim())return;const id=(globalThis.crypto?.randomUUID?.()||`meta-${Date.now()}-${Math.random().toString(36).slice(2)}`);onChange([...items,{id,titulo:novo.trim(),subitens:[]}]);setNovo('');setAberto(id);};
+  const btn={border:`1px solid ${T.border}`,borderRadius:6,padding:'5px 7px',background:T.bgInput,color:T.text2,fontSize:10,cursor:'pointer'};
+  return <div aria-label="Metas terapêuticas longitudinais">
+    <div style={{fontSize:11,fontWeight:700,color:T.text1,marginBottom:7}}>Metas terapêuticas</div>
+    <div style={{display:'flex',gap:4,marginBottom:8}}><input aria-label="Nova meta terapêutica" placeholder="Objetivo longitudinal…" value={novo} onChange={e=>setNovo(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} style={{...btn,minWidth:0,flex:1,cursor:'text'}}/><button style={btn} onClick={add} disabled={!novo.trim()} aria-label="Adicionar meta terapêutica">+</button></div>
+    {!items.length&&<p style={{fontSize:10,color:T.text3}}>Nenhuma meta terapêutica registrada.</p>}
+    {items.map(item=><div key={item.id} data-meta-terapeutica={item.id} onContextMenu={e=>{e.preventDefault();setMenu({id:item.id,x:e.clientX,y:e.clientY});}} onDragOver={e=>{if(drag)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!drag||drag===item.id)return;const lista=[...items],de=lista.findIndex(x=>x.id===drag),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [m]=lista.splice(de,1);lista.splice(para,0,m);onChange(lista);setDrag(null);}} style={{padding:7,border:`1px solid ${T.border}`,borderRadius:8,marginBottom:6,background:T.bgInput}}>
+      <div style={{display:'flex',gap:5,alignItems:'start'}}><span draggable onDragStart={e=>{setDrag(item.id);e.dataTransfer.setData('text/plain',item.id);e.dataTransfer.effectAllowed='move';}} onDragEnd={()=>setDrag(null)} title="Arrastar meta terapêutica" style={{cursor:'grab',color:T.text3}}>⠿</span><button onClick={()=>setAberto(aberto===item.id?null:item.id)} aria-expanded={aberto===item.id} style={{...btn,border:0,padding:0,flex:1,textAlign:'left',fontWeight:700}}>{aberto===item.id?'▾':'▸'} {item.titulo}</button><button style={{...btn,padding:0,border:0}} aria-label="Editar título da meta terapêutica" onClick={()=>{const titulo=window.prompt('Editar título da meta terapêutica:',item.titulo);if(titulo?.trim())update(item.id,{titulo:titulo.trim()});}}>✎</button><button style={{...btn,padding:0,border:0}} aria-label="Remover meta terapêutica" onClick={()=>onChange(items.filter(x=>x.id!==item.id))}>×</button></div>
+      {aberto===item.id?<>
+        {(item.subitens||[]).map(sub=><div key={sub.id} style={{display:'flex',gap:4,marginTop:5}}><span style={{color:T.text3}}>•</span><textarea aria-label="Subitem da meta terapêutica" value={sub.texto} onChange={e=>update(item.id,{subitens:item.subitens.map(x=>x.id===sub.id?{...x,texto:e.target.value}:x)})} rows={2} style={{...btn,minWidth:0,flex:1,fontFamily:'inherit',resize:'vertical',cursor:'text'}}/><button style={btn} aria-label="Remover subitem da meta" onClick={()=>update(item.id,{subitens:item.subitens.filter(x=>x.id!==sub.id)})}>×</button></div>)}
+        <button style={{...btn,marginTop:6}} onClick={()=>update(item.id,{subitens:[...(item.subitens||[]),{id:(globalThis.crypto?.randomUUID?.()||`meta-${Date.now()}-${Math.random().toString(36).slice(2)}`),texto:''}]})}>+ subitem</button>
+      </>:<div style={{fontSize:10,color:T.text3,marginTop:4,whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{(item.subitens||[]).filter(s=>s.texto.trim()).map(s=><div key={s.id}>• {s.texto}</div>)}</div>}
+    </div>)}
+    <button disabled={!items.length} style={{...btn,width:'100%',marginTop:6}} onClick={async()=>{try{await navigator.clipboard.writeText(items.map((m,i)=>`${i+1}. ${m.titulo}${(m.subitens||[]).filter(s=>s.texto.trim()).map(s=>`\n   • ${s.texto.trim()}`).join('')}`).join('\n'));setErro('');setCopiado(true);setTimeout(()=>setCopiado(false),2000);}catch{setErro('Não foi possível copiar. Tente novamente.');}}}>{copiado?'✓ Copiado':'Copiar metas terapêuticas'}</button>
+    {erro&&<div role="alert" style={{fontSize:10,color:T.text2}}>{erro}</div>}
+    <DiagnosticoTituloMenu menu={menu} onClose={()=>setMenu(null)} onEdit={()=>{const item=items.find(x=>x.id===menu?.id);if(!item)return;const titulo=window.prompt('Editar título da meta terapêutica:',item.titulo);if(titulo?.trim())update(item.id,{titulo:titulo.trim()});}}/>
+  </div>;
+}
+
 function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}, tabelaDataLeito={}, onLeitoChange, config={} }) {
   const T=useTheme();
   const [open, setOpen] = useState(true);
@@ -5086,7 +5109,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
         <span onClick={()=>setOpen(o=>!o)} style={{color:T.text3,fontSize:11,cursor:"pointer"}}>{open?"▲":"▼"}</span>
       </div>
       <div role="group" aria-label="Exibir no painel" style={{display:"flex",gap:4,padding:"7px 8px",background:T.bgCard,borderLeft:`1px solid ${T.border}`,borderRight:`1px solid ${T.border}`}}>
-        {[{id:"ativos",label:"Ativos",cor:"#ef4444"},{id:"resolvidos",label:"Resolvidos",cor:"#10b981"},{id:"metas",label:"Metas",cor:"#0ea5e9"}].map(op=><button key={op.id} aria-pressed={modo===op.id} onClick={()=>{setModo(op.id);setOpen(true);setMenuDiagnostico(null);setMenuEquipe(null);}} style={{flex:1,padding:"6px 3px",borderRadius:12,border:`1px solid ${modo===op.id?op.cor:T.border}`,background:modo===op.id?`${op.cor}20`:"transparent",color:modo===op.id?T.text1:T.text3,fontFamily:"inherit",fontSize:10,fontWeight:modo===op.id?750:500,cursor:"pointer"}}>{op.label}{op.id==="metas"&&pendentes>0?` (${pendentes})`:""}</button>)}
+        {[{id:"ativos",label:"Ativos",cor:"#ef4444"},{id:"resolvidos",label:"Resolvidos",cor:"#10b981"},{id:"metas",label:"Metas",cor:"#0ea5e9"}].map(op=><button key={op.id} aria-pressed={modo===op.id} onClick={()=>{setModo(op.id);setOpen(true);setMenuDiagnostico(null);setMenuEquipe(null);}} style={{flex:1,padding:"6px 3px",borderRadius:12,border:`1px solid ${modo===op.id?op.cor:T.border}`,background:modo===op.id?`${op.cor}20`:"transparent",color:modo===op.id?T.text1:T.text3,fontFamily:"inherit",fontSize:10,fontWeight:modo===op.id?750:500,cursor:"pointer"}}>{op.label}</button>)}
       </div>
       {open && (
         <div style={{background:T.bgCard,border:"1px solid rgba(239,68,68,0.32)",
@@ -5138,10 +5161,13 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             <div style={{fontSize:10,fontWeight:700,color:T.text2,marginBottom:7}}>Diagnósticos resolvidos</div>
             <TA key={`resolvidos-${leito.id}`} fieldRef={refs.current.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} placeholder="Registre os diagnósticos resolvidos…" rows={6} fieldName="probResolvidos" onBlurSave={salvar}/>
           </div>
-          <div hidden={modo!=="metas"} aria-label="Metas terapêuticas">
+          <div hidden={modo!=="metas"}>
+            <MetasTerapeuticas key={`metas-terapeuticas-${leito.id}`} items={leito.metasTerapeuticas||[]} onChange={items=>onLeitoChange?.({...leito,metasTerapeuticas:items})}/>
+          </div>
+          <div hidden={modo==="metas"} aria-label="Metas e pendências com checklist">
           {/* ── Metas / Pendências ── */}
-          <div style={{paddingTop:2}}>
-            <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS TERAPÊUTICAS</div>
+          <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
+            <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS / PENDÊNCIAS{pendentes>0?` (${pendentes})`:""}</div>
             {!metas.length&&<div style={{fontSize:11,color:T.text3,marginBottom:8}}>Nenhuma meta registrada.</div>}
             {ordenarMetas(metas).map((m,i)=>(
               <div key={m.id||i} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,metaIndex:metas.indexOf(m),equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
