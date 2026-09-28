@@ -5003,7 +5003,7 @@ function ScoreEditor({scoreKey,item,onUpdate,T}){
 function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}, tabelaDataLeito={}, onLeitoChange, config={} }) {
   const T=useTheme();
   const [open, setOpen] = useState(true);
-  const [openResolvidos, setOpenResolvidos] = useState(false);
+  const [modo,setModo]=useState("ativos");
   const [minimized, setMinimized] = useState(false);
   const [copiado, setCopiado] = useState({});
   const [menuEquipe,setMenuEquipe]=useState(null);
@@ -5056,14 +5056,14 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
 
   if (minimized) {
     return (
-      <button onClick={()=>setMinimized(false)} title="Expandir problemas ativos / metas" className="prob-floating" style={{
+      <button onClick={()=>setMinimized(false)} title="Expandir diagnósticos e metas" className="prob-floating" style={{
         position:"fixed", right:20, top:100, zIndex:200,
         display:"flex", alignItems:"center", gap:6,
         background:T.bgCard, border:"1px solid rgba(239,68,68,0.45)",
         borderRadius:20, padding:"8px 14px", cursor:"pointer",
         filter:T.colorScheme==="light"?"drop-shadow(0 5px 16px rgba(15,23,42,0.18))":"drop-shadow(0 4px 24px rgba(0,0,0,0.5))",
       }}>
-        <span style={{fontSize:14}}>🔴</span>
+        <span style={{fontSize:11,color:T.text2}}>{{ativos:"🔴 Ativos",resolvidos:"✅ Resolvidos",metas:"📌 Metas"}[modo]}</span>
         {pendentes>0 && <span style={{fontSize:11,fontFamily:mono2,fontWeight:700,color:"#f87171"}}>{pendentes}</span>}
       </button>
     );
@@ -5080,14 +5080,18 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",
         background:T.bgCardHover,border:"1px solid rgba(239,68,68,0.40)",
         borderBottom:"none",borderRadius:"12px 12px 0 0",cursor:"pointer"}}>
-        <span onClick={()=>setOpen(o=>!o)} style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1,cursor:"pointer"}}>🔴 PROBLEMAS ATIVOS</span>
-        <button onClick={e=>{e.stopPropagation();setOpen(true);setShowDiagnosticos(v=>!v);}} title="Adicionar diagnóstico aos problemas ativos" style={{padding:"2px 6px",borderRadius:9,border:"1px solid rgba(248,113,113,.3)",background:showDiagnosticos?"rgba(248,113,113,.14)":"transparent",color:"#f87171",cursor:"pointer",fontSize:9,fontWeight:800,whiteSpace:"nowrap"}}>+</button>
+        <span onClick={()=>setOpen(o=>!o)} style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1,cursor:"pointer"}}>DIAGNÓSTICOS E METAS</span>
+        <button hidden={modo!=="ativos"} onClick={e=>{e.stopPropagation();setOpen(true);setShowDiagnosticos(v=>!v);}} title="Adicionar diagnóstico aos problemas ativos" style={{padding:"2px 6px",borderRadius:9,border:"1px solid rgba(248,113,113,.3)",background:showDiagnosticos?"rgba(248,113,113,.14)":"transparent",color:"#f87171",cursor:"pointer",fontSize:9,fontWeight:800,whiteSpace:"nowrap"}}>+</button>
         <button onClick={()=>setMinimized(true)} title="Minimizar" style={{background:"none",border:"none",color:T.text3,cursor:"pointer",fontSize:12,padding:"0 2px"}}>—</button>
         <span onClick={()=>setOpen(o=>!o)} style={{color:T.text3,fontSize:11,cursor:"pointer"}}>{open?"▲":"▼"}</span>
+      </div>
+      <div role="group" aria-label="Exibir no painel" style={{display:"flex",gap:4,padding:"7px 8px",background:T.bgCard,borderLeft:`1px solid ${T.border}`,borderRight:`1px solid ${T.border}`}}>
+        {[{id:"ativos",label:"Ativos",cor:"#ef4444"},{id:"resolvidos",label:"Resolvidos",cor:"#10b981"},{id:"metas",label:"Metas",cor:"#0ea5e9"}].map(op=><button key={op.id} aria-pressed={modo===op.id} onClick={()=>{setModo(op.id);setOpen(true);setMenuDiagnostico(null);setMenuEquipe(null);}} style={{flex:1,padding:"6px 3px",borderRadius:12,border:`1px solid ${modo===op.id?op.cor:T.border}`,background:modo===op.id?`${op.cor}20`:"transparent",color:modo===op.id?T.text1:T.text3,fontFamily:"inherit",fontSize:10,fontWeight:modo===op.id?750:500,cursor:"pointer"}}>{op.label}{op.id==="metas"&&pendentes>0?` (${pendentes})`:""}</button>)}
       </div>
       {open && (
         <div style={{background:T.bgCard,border:"1px solid rgba(239,68,68,0.32)",
           borderRadius:"0 0 12px 12px",padding:"10px 12px",overflowY:"auto",flex:1}}>
+          <div hidden={modo!=="ativos"} aria-label="Diagnósticos ativos">
           {showDiagnosticos&&<div style={{marginBottom:8,padding:"7px",borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput}}>
             <div style={{display:"flex",gap:4}}><input autoFocus value={novoDiagnostico} onChange={e=>setNovoDiagnostico(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")adicionarDiagnostico(novoDiagnostico);if(e.key==="Escape")setShowDiagnosticos(false);}} placeholder="Digite o diagnóstico…" style={{minWidth:0,flex:1,padding:"5px 6px",borderRadius:5,border:`1px solid ${T.borderStrong}`,background:T.bgCard,color:T.text1,fontSize:10}}/><button onClick={()=>adicionarDiagnostico(novoDiagnostico)} disabled={!novoDiagnostico.trim()} style={{padding:"4px 7px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800}}>Adicionar</button></div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>{DIAGNOSTICOS_PROBLEMAS_PRESETS.map(p=><button key={p.nome} onClick={()=>adicionarDiagnostico(p.nome)} style={{padding:"3px 6px",borderRadius:10,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:"pointer",fontSize:8.5,textAlign:"left"}}>+ {p.nome}</button>)}</div>
@@ -5122,15 +5126,6 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
               color:"#f87171",cursor:"pointer",fontSize:10}}>
             {copiado.probAtivos?"✅ Copiado":"📋 Copiar"}
           </button>
-          <div style={{marginTop:8,borderTop:"1px solid rgba(52,211,153,0.15)"}}>
-            <div onClick={()=>setOpenResolvidos(o=>!o)}
-              style={{padding:"5px 0",cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#34d399"}}>✅ RESOLVIDOS</span>
-              <span style={{fontSize:9,color:"#334155",marginLeft:"auto"}}>{openResolvidos?"▲":"▼"}</span>
-            </div>
-            {openResolvidos&&<TA fieldRef={refs.current.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")}
-              sugestao={"1. Choque séptico (D5)\n2. Acidose metabólica"} rows={3} fieldName="probResolvidos" onBlurSave={salvar}/>}
-          </div>
           {/* ── Riscos do paciente ── */}
           <div style={{marginTop:8,borderTop:"1px solid rgba(251,146,60,.18)",paddingTop:7}}>
             <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#fb923c",marginBottom:6}}>⚠ RISCOS DO PACIENTE</div>
@@ -5138,9 +5133,16 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             {diasSemEvacuar!==null&&diasSemEvacuar>2&&<div style={{marginTop:5,padding:"7px 8px",display:"flex",alignItems:"center",gap:7,borderRadius:7,border:"1px solid rgba(251,146,60,.38)",background:"rgba(251,146,60,.08)",color:"#fdba74",fontSize:10,lineHeight:1.35}}><span>⚠</span><span><b>Sem evacuação há {diasSemEvacuar} dias</b><small style={{display:"block",color:T.text3,marginTop:2}}>Última evacuação: {new Date(ultimaEvacuacao+"T00:00:00").toLocaleDateString("pt-BR")}</small></span></div>}
             {riscoLAMG.risco&&riscoLAMG.semProfilaxia&&<div style={{marginTop:5,padding:"7px 8px",display:"flex",alignItems:"flex-start",gap:7,borderRadius:7,border:"1px solid rgba(248,113,113,.42)",background:"rgba(248,113,113,.09)",color:"#fca5a5",fontSize:10,lineHeight:1.35}}><span>⚠</span><span><b>Avaliar profilaxia de lesão aguda da mucosa gástrica</b><small style={{display:"block",color:T.text3,marginTop:2}}>Sem profilaxia registrada · {riscoLAMG.criterios.join(" · ")}</small></span></div>}
           </div>
+          </div>
+          <div hidden={modo!=="resolvidos"} aria-label="Diagnósticos resolvidos">
+            <div style={{fontSize:10,fontWeight:700,color:T.text2,marginBottom:7}}>Diagnósticos resolvidos</div>
+            <TA key={`resolvidos-${leito.id}`} fieldRef={refs.current.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} placeholder="Registre os diagnósticos resolvidos…" rows={6} fieldName="probResolvidos" onBlurSave={salvar}/>
+          </div>
+          <div hidden={modo!=="metas"} aria-label="Metas terapêuticas">
           {/* ── Metas / Pendências ── */}
-          <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
-            <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS</div>
+          <div style={{paddingTop:2}}>
+            <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS TERAPÊUTICAS</div>
+            {!metas.length&&<div style={{fontSize:11,color:T.text3,marginBottom:8}}>Nenhuma meta registrada.</div>}
             {ordenarMetas(metas).map((m,i)=>(
               <div key={m.id||i} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,metaIndex:metas.indexOf(m),equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
                 <MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/>
@@ -5165,6 +5167,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
               border:"1px solid rgba(56,189,248,0.15)",borderRadius:5,color:"#38bdf8",cursor:"pointer",fontSize:10}}>
               + meta
             </button>
+          </div>
           </div>
           <DiagnosticoTituloMenu menu={menuDiagnostico} onClose={()=>setMenuDiagnostico(null)} onEdit={()=>{
             const item=diagnosticosProblemas.find(d=>d.id===menuDiagnostico?.id);if(!item)return;
