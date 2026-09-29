@@ -1,17 +1,17 @@
 const clean = value => String(value || "").replace(/\r/g, "").replace(/[ \t]+$/gm, "").trim();
 
 function field(text, label) {
-  const match = text.match(new RegExp(`^${label}\\s*:\\s*([^\\n]*)`, "im"));
+  const match = text.match(new RegExp(`^[ \t]*${label}[ \t]*:[ \t]*([^\\n]*)`, "im"));
   return clean(match?.[1]);
 }
 
 function section(text, start, ends) {
-  const end = ends.map(x => `(?=^${x}\\s*:)`).join("|");
+  const end = ends.map(x => `(?=^[ \t]*${x}[ \t]*:)`).join("|");
   // Não usar `$` aqui: com a flag multiline ele representa o fim de qualquer
   // linha e cortava seções do SBARI logo após a primeira linha.
   const eof = `(?![\\s\\S])`;
   const boundary = end ? `(?:${end}|${eof})` : eof;
-  const match = text.match(new RegExp(`^${start}\\s*:\\s*([\\s\\S]*?)${boundary}`, "im"));
+  const match = text.match(new RegExp(`^[ \t]*${start}[ \t]*:[ \t]*([\\s\\S]*?)${boundary}`, "im"));
   return clean(match?.[1]);
 }
 
@@ -48,11 +48,11 @@ function parseAntibiotics(text){
 }
 function parseClinical(systems,situacao,recomendacoes,instrucoes,atb){
   const neuro=systems.N||"",cv=systems.CV||"",resp=systems.R||"",tgi=systems.TGI||"",rm=systems["R/M"]||"",hi=systems["H/I"]||"",all=`${rm} ${hi}`;
-  const glasgowMatch=neuro.match(/\b(?:GCS|ECG|Glasgow)\s*[:=]?\s*(\d{1,2})(?:\s*\(?\s*(O\s*\d+)\s*(V\s*\d+)\s*(M\s*\d+)\s*\)?)?/i);
+  const glasgowMatch=neuro.match(/\b(?:GCS|ECG|Glasgow)\s*[:=]?\s*(\d{1,2})(?:\s*\(?\s*(O\s*\d+)[,\s]*(V\s*\d+)[,\s]*(M\s*\d+)\s*\)?)?/i);
   const glasgow=glasgowMatch?clean([glasgowMatch[1],...[glasgowMatch[2],glasgowMatch[3],glasgowMatch[4]].filter(Boolean)].join(" ")):"";
   const neuroAdditional=clean(neuro
     .replace(/\bRASS\s*[+-]?\d+/ig,"")
-    .replace(/\b(?:GCS|ECG|Glasgow)\s*[:=]?\s*\d{1,2}(?:\s*\(?\s*O\s*\d+\s*V\s*\d+\s*M\s*\d+\s*\)?)?/ig,"")
+    .replace(/\b(?:GCS|ECG|Glasgow)\s*[:=]?\s*\d{1,2}(?:\s*\(?\s*O\s*\d+[,\s]*V\s*\d+[,\s]*M\s*\d+\s*\)?)?/ig,"")
     .replace(/\b(?:PPF|Propofol|Mida(?:zolam)?|Fenta(?:nil)?)\s*\d*(?:[.,]\d+)?/ig,"")
     .replace(/^[\s,;|+\-–—]+|[\s,;|+\-–—]+$/g,""));
   const nutrition=/\bjejum\b/i.test(tgi)?{tipo:"jejum"}:/\b(?:VO|via\s+oral)\b/i.test(tgi)?{tipo:"oral"}:null;
@@ -67,8 +67,10 @@ function parseClinical(systems,situacao,recomendacoes,instrucoes,atb){
   const mode=resp.match(/\b(?:IOT\s*\+?\s*)?VM\s+(PCV|VCV|PSV)\b/i)?.[1]?.toUpperCase()||"";
   const ventilation=mode?{vm_modo:`vm_${mode.toLowerCase()}`,vm_fio2:captured(resp,/\bFiO2\s*([\d.,]+)/i),vm_peep:captured(resp,/\bPEEP\s*([\d.,]+)/i),vm_pf_ratio:captured(resp,/\bPF\s*([\d.,]+)/i)}:(roomAir?{vm_modo:"ar_ambiente"}:{});
   if(mode==="PCV")ventilation.vm_pins=captured(resp,/\bPCV\s*([\d.,]+)/i);if(mode==="VCV")ventilation.vm_vc=captured(resp,/\bVCV\s*([\d.,]+)/i);
+  const lastHD=rm.match(/\b(?:ult(?:ima|[ií]ma)?\.?|[uú]lt(?:ima)?\.?)\s*(?:HD|hemodi[aá]lise)\s*[:=]?\s*(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/i);
+  const renalAdditional=clean(rm.replace(/\b(?:ult(?:ima|[ií]ma)?\.?|[uú]lt(?:ima)?\.?)\s*(?:HD|hemodi[aá]lise)\s*[:=]?\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/ig,"").replace(/^[,;\s]+|[,;\s]+$/g,""));
   const trsText=`${situacao} ${rm} ${recomendacoes}`;const trs=trsText.match(/\b(CVVHDF|CVVHD|CVVH|HD|hemodi[aá]lise)\b[^\n]*?(\d{1,2}\/\d{1,2})?/i);
-  return {labs,gasometry,pumps,concentratedNoradrenaline,ventilation,rass:captured(neuro,/\bRASS\s*([+-]?\d+)/i),glasgow,neuroAdditional,nutrition,tgiExam,respiratoryExam,trs:trs?{modalidade:trs[1].toUpperCase(),data:toIsoDate(trs[2])}:null,antibiotics:parseAntibiotics(atb),impression:[recomendacoes,instrucoes].filter(Boolean).join("\n")};
+  return {labs,gasometry,pumps,concentratedNoradrenaline,ventilation,rass:captured(neuro,/\bRASS\s*([+-]?\d+)/i),glasgow,neuroAdditional,renalAdditional:lastHD?renalAdditional:"",lastHD:toIsoDate(lastHD?.[1]),nutrition,tgiExam,respiratoryExam,trs:lastHD?{modalidade:"HD",data:toIsoDate(lastHD[1]),ultima:true}:trs?{modalidade:trs[1].toUpperCase(),data:toIsoDate(trs[2])}:null,antibiotics:parseAntibiotics(atb),impression:[recomendacoes,instrucoes].filter(Boolean).join("\n")};
 }
 
 export function parseSbari(textRaw) {
@@ -118,14 +120,14 @@ export function parseSbari(textRaw) {
     const paciente=clean(cabecalho
       .replace(/\s*(?:[,;|–—-]\s*|\s)\d{1,3}\s*(?:anos?\b|a\.?(?=\s|$))[\s\S]*$/i,"")
       .replace(/\s+(?:RH|REG(?:ISTRO)?|PRONTU[ÁA]RIO)\s*[:#-]?\s*[A-Za-z0-9.-]+[\s\S]*$/i,""));
-    const assessment = section(body, "A", ["ATB"]);
+    const assessment = section(body, "A", ["ATB", "I"]);
     const systems = {};
-    const systemPattern = /^(N|CV|R|TGI|R\/M|H\/I)\s*:\s*([\s\S]*?)(?=^(?:N|CV|R|TGI|R\/M|H\/I)\s*:|$)/gim;
-    for (const sm of assessment.matchAll(systemPattern)) systems[sm[1].toUpperCase()] = clean(sm[2]);
+    const systemPattern = /^[ \t]*(N|CV|ACV|R|AR|TGI|R\/M|H\/I)[ \t]*:[ \t]*([\s\S]*?)(?=^[ \t]*(?:N|CV|ACV|R|AR|TGI|R\/M|H\/I|ATB|I)[ \t]*:|(?![\s\S]))/gim;
+    for (const sm of assessment.matchAll(systemPattern)) systems[({ACV:'CV',AR:'R'})[sm[1].toUpperCase()]||sm[1].toUpperCase()] = clean(sm[2]);
     const adm = body.match(/^Adm Hosp\s*:\s*([^\n]*?)\s+Adm UTI\s*:\s*([^\n]*)/im);
     const planoInicio=body.search(/^ATB\s*:/im);
     const plano=planoInicio>=0?body.slice(planoInicio):body;
-    const situacao=section(body, "S", ["B", "A", "ATB", "R", "I"]);
+    const situacao=section(body, "S", ["B", "A", "ATB", "N", "CV", "ACV", "AR", "TGI", "R/M", "H/I", "R", "I"]);
     const background=section(body, "B", ["A", "ATB", "R", "I"]);
     const procedimentos=extractProcedures(situacao,background);
     const linhasProcedimento=new Set(procedimentos.map(p=>p.nome.toLowerCase()));
@@ -133,7 +135,7 @@ export function parseSbari(textRaw) {
       const semPo=x.replace(/^\s*(?:POI|PO)\b\s*(?:\(\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s*\)|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d+)?\s*[:\-–—]?\s*/i,"").trim().toLowerCase();
       return !/^\s*(?:POI|PO)\b/i.test(x)&&!linhasProcedimento.has(semPo)&&!procedureWords.test(x);
     });
-    const diagnosticos=[...semProcedimentos(situacao),...clinicalLines(background).filter(x=>oncologicHistory.test(x))]
+    const diagnosticos=[...semProcedimentos(situacao.replace(/(?<![\d/])(?=\d{1,2}\)[ \t]*[A-ZÀ-Ý])/g,"\n")).filter(x=>!/^MELD\b/i.test(x)),...clinicalLines(background).filter(x=>oncologicHistory.test(x))]
       .filter((x,i,a)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i);
     const antibioticos=section(body, "ATB", ["Prévio", "R", "I"]),recomendacoes=section(plano, "R", ["I"]),instrucoes=section(plano, "I", []);
     return {

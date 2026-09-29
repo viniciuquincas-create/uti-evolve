@@ -209,3 +209,35 @@ Leito 12: Jose Gilberto de Carvalho, 84 anos Leito 13: Lydia dos Santos Baptista
   assert.equal(registros.find(x=>x.numero==="13")?.paciente,"Lydia dos Santos Baptista");
   assert.equal(registros.find(x=>x.numero==="14")?.paciente,"Marco Aurelio Benaducci");
 });
+
+
+test("separa sistemas indentados, Glasgow com vírgulas e última HD",()=>{
+ const [p]=parseSbari(`Leito 1: Paciente Exemplo, 60 anos
+Equipe:
+ S:
+1) DRC com IRA
+MELD 3.0 27 (82.9% mort. em 3 m)Múltiplos cistos3) Sepse de foco abdominal? > PBE/PBS
+ B: HAS / DRC
+ A:
+ N: GCS 14 (O4, V4, M6), West Haven II
+ ACV: Nora 5 ml/h
+ AR: AA
+ TGI: Jejum VO, Ascite/cistos
+ R/M: ult hd 27/09, oligurica
+ H/I: Hb 7.6
+ATB:
+R: Reavaliar`);
+ assert.equal(p.equipe,"");
+ assert.deepEqual(p.diagnosticos,["1) DRC com IRA","3) Sepse de foco abdominal? > PBE/PBS"]);
+ assert.equal(p.clinical.glasgow,"14 O4 V4 M6");
+ assert.equal(p.clinical.neuroAdditional,"West Haven II");
+ assert.equal(p.clinical.pumps.noradrenalina,"5");
+ assert.equal(p.clinical.ventilation.vm_modo,"ar_ambiente");
+ assert.equal(p.clinical.nutrition.tipo,"jejum");
+ assert.equal(p.clinical.tgiExam,"Ascite/cistos");
+ assert.equal(p.clinical.renalAdditional,"oligurica");
+ assert.equal(p.clinical.trs.ultima,true);
+ assert.match(p.clinical.trs.data,/-09-27$/);
+ assert.equal(p.clinical.labs.hb,"7.6");
+ assert(p.situacao.includes('Múltiplos cistos'));
+});

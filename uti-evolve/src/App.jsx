@@ -4774,10 +4774,10 @@ const dataSbariParaIso = valor => {
 const evolucaoInicialSbari = p => ({...EVOLUCAO_VAZIA,
   hda:[p.situacao,p.background].filter(Boolean).join("\n"),
   nEF:"",nEFExtra:p.clinical?.neuroAdditional||"",nGlasgow:p.clinical?.glasgow||"",cvEF:p.assessment?.CV||"",reEF:p.clinical?.respiratoryExam??p.assessment?.R??"",
-  tgEF:p.clinical?.tgiExam??p.assessment?.TGI??"",rm24h:p.assessment?.["R/M"]||"",heLabs:p.assessment?.["H/I"]||"",
+  tgEF:p.clinical?.tgiExam??p.assessment?.TGI??"",rmEFExtra:p.clinical?.renalAdditional||"",rm24h:p.clinical?.lastHD?"":p.assessment?.["R/M"]||"",heLabs:p.assessment?.["H/I"]||"",
   heAtb:[p.antibioticos,p.antibioticosPrevios&&`Prévios: ${p.antibioticosPrevios}`].filter(Boolean).join("\n"),
   nRASS:p.clinical?.rass||"",
-  rmTRS:p.clinical?.trs?[p.clinical.trs.modalidade,p.clinical.trs.data&&`início ${p.clinical.trs.data.split("-").reverse().join("/")}`].filter(Boolean).join(" — "):"",
+  rmTRS:p.clinical?.trs?[p.clinical.trs.modalidade,p.clinical.trs.data&&`${p.clinical.trs.ultima?"última sessão":"data"} ${p.clinical.trs.data.split("-").reverse().join("/")}`].filter(Boolean).join(" — "):"",
   impressao:p.clinical?.impression||[p.recomendacoes,p.instrucoes].filter(Boolean).join("\n"),
 });
 
@@ -4788,13 +4788,14 @@ const sbariEhHistoricoOncologico=valor=>{const texto=String(valor||"");return /\
 const enriquecerLeitoComSbari=(base,p,stamp="")=>{
   const c=p?.clinical||{};
   const procedimentosLegados=(base.procedimentos||[]).filter(x=>x?.fonte==="sbari"&&sbariEhHistoricoOncologico(x.nome));
-  const diagnosticosBase=(base.diagnosticos||[]).filter(x=>!sbariEhPosOperatorio(x));
+  const reclassificados=(base.diagnosticos||[]).filter(x=>/^\s*(?:(?:N|ACV|CV|AR|R|TGI|R\/M|H\/I|B|A)\s*:|MELD\b)/i.test(x)&&String(p.raw||"").replace(/\s+/g," ").includes(String(x).replace(/\s+/g," ")));
+  const diagnosticosBase=(base.diagnosticos||[]).filter(x=>!sbariEhPosOperatorio(x)&&!reclassificados.includes(x));
   const diagnosticos=mergeListaSbari(diagnosticosBase,[...procedimentosLegados.map(x=>x.nome),...(p.diagnosticos||[]).filter(x=>!sbariEhPosOperatorio(x))]);
   const procedimentosEntrada=(p.procedimentos||[]).filter(x=>!sbariEhHistoricoOncologico(x.nome)).map((x,i)=>({...x,id:x.id||`sbari-proc-${stamp}-${i}`,fonte:"sbari"}));
   const procedimentos=mergeListaSbari((base.procedimentos||[]).filter(x=>!procedimentosLegados.includes(x)),procedimentosEntrada);
   const antibioticos=mergeListaSbari(base.antibioticos||[],(c.antibiotics||[]).map((x,i)=>({id:`sbari-atb-${stamp}-${i}`,nome:x.nome,dataInicio:x.dataInicio||"",dataFim:x.dataFim||"",via:"",dose:"",fonte:"sbari"})));
   const dieta=base.dieta?.tipo?base.dieta:(c.nutrition?{...(base.dieta||{}),...c.nutrition}:base.dieta);
-  return {...base,dieta,diagnosticos,diagnostico:diagnosticos.join(" · "),procedimentos,antibioticos,equipeAssistente:base.equipeAssistente||p.equipe||"",equipe:base.equipe||p.equipe||"",drogasVazao:mergeSbariSemSobrescrever(base.drogasVazao,c.pumps),...mergeSbariSemSobrescrever(Object.fromEntries(Object.entries(base).filter(([k])=>k.startsWith("vm_"))),c.ventilation),sbariNoradrenalinaConcentrada:base.sbariNoradrenalinaConcentrada||c.concentratedNoradrenaline||false};
+  return {...base,sbariDiagnosticosReclassificados:[...new Set([...(base.sbariDiagnosticosReclassificados||[]),...reclassificados])],dieta,diagnosticos,diagnostico:diagnosticos.join(" · "),procedimentos,antibioticos,equipeAssistente:/^[SBA]:$/.test(base.equipeAssistente||"")?(p.equipe||""):(base.equipeAssistente||p.equipe||""),equipe:/^[SBA]:$/.test(base.equipe||"")?(p.equipe||""):(base.equipe||p.equipe||""),drogasVazao:mergeSbariSemSobrescrever(base.drogasVazao,c.pumps),...mergeSbariSemSobrescrever(Object.fromEntries(Object.entries(base).filter(([k])=>k.startsWith("vm_"))),c.ventilation),sbariNoradrenalinaConcentrada:base.sbariNoradrenalinaConcentrada||c.concentratedNoradrenaline||false};
 };
 
 function aplicarIA(dadosIA) {
@@ -6144,7 +6145,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     nEF:useRef(), n24h:useRef(), nSeda:useRef(), nAnalg:useRef(), nPsiq:useRef(), nObs:useRef(),
     cvEF:useRef(), cv24h:useRef(), cvDVA:useRef(), cvMed:useRef(), cvPerf:useRef(), cvObs:useRef(),
     reVM:useRef(), reEF:useRef(), re24h:useRef(), reGaso:useRef(), rePocus:useRef(), reObs:useRef(),
-    rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
+    rmEFExtra:useRef(), rm24h:useRef(), rmLabs:useRef(), rmTRS:useRef(), rmObs:useRef(),
     tgEF:useRef(), tg24h:useRef(), tgLabs:useRef(), tgObs:useRef(),
     heTemp:useRef(), heLabs:useRef(), heMed:useRef(), heAtb:useRef(), heProf:useRef(), heObs:useRef(),
     probAtivos:useRef(), probResolvidos:useRef(),
@@ -6526,6 +6527,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     if(get("rmLabs")) p.push(`- Labs: ${get("rmLabs")}`);
     if(vis.rmTRS&&get("rmTRS")&&!campos.rmTrsSerial?.entries?.length) p.push(`- TSR: ${get("rmTRS")}`);
     p.push(...serialLines("rmTrsSerial","TSR"),...serialLines("rmPocusSerial","POCUS renal"));
+    if(get("rmEFExtra")) p.push(`- ${get("rmEFExtra")}`);
     if(vis.rmObs&&get("rmObs")) p.push(`*${get("rmObs")}`);
     p.push(...customLines("reme"));
     if(vis.add_reme_interconsulta){const e=eventText("reme","interconsulta");if(e)p.push(e);}
@@ -6960,6 +6962,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {vis["add_reme_pocus"]&&serialPanel("rmPocusSerial")}
         {vis["add_reme_interconsulta"]&&eventPanel("reme","interconsulta","#34d399")}
         {vis["add_reme_exames"]&&eventPanel("reme","exames","#34d399")}
+        {(vis.rmEFExtra||campos.rmEFExtra)&&<Row><Col><FL>EF — Detalhe adicional</FL><TA fieldRef={refs.rmEFExtra} defaultValue={campos.rmEFExtra} rows={2} fieldName="rmEFExtra" onBlurSave={salvar}/></Col></Row>}
         {vis["rmObs"]&&<Row><Col><FL>* OBSERVAÇÃO</FL><TA fieldRef={refs.rmObs} defaultValue={campos.rmObs} isAntigo={isAntigo("rmObs")} sugestao="Repor K se < 3,5" rows={1} fieldName="rmObs" onBlurSave={salvar}/></Col></Row>}
       </SysB>
 
