@@ -2711,22 +2711,10 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
 
   return (
     <div>
-      <SecTitle>DADOS DO PACIENTE</SecTitle>
-      <div style={{marginBottom:12,padding:10,border:`1px solid ${T.border}`,borderRadius:8,background:T.bgInput}}>
-        <label style={{fontSize:10,color:T.text2}}>CREATININA BASAL (mg/dL)
-          <input aria-label="Creatinina basal do paciente" type="number" min="0.01" step="0.01" value={dados.creatininaBasal??""} placeholder="Opcional · ex.: 0,9" onChange={e=>onChange({...dados,creatininaBasal:e.target.value})} style={{display:"block",width:170,marginTop:5,padding:"8px 10px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text1}}/>
-        </label>
-        <div style={{fontSize:10,color:T.text3,marginTop:5}}>Valor habitual em condição estável, antes da alteração renal atual. Quando informado, tem prioridade como referência para avaliar lesão renal aguda. Não substitui as creatininas das coletas.</div>
-        {dados.creatininaBasal!==""&&dados.creatininaBasal!=null&&!(numClinico(dados.creatininaBasal)>0)&&<div role="alert" style={{fontSize:10,color:"#ef4444",marginTop:4}}>Informe um valor maior que zero ou deixe em branco.</div>}
-      </div>
-
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
+      <section style={{padding:14,border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,marginBottom:12}}>
+      <SecTitle>IDENTIFICAÇÃO</SecTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,alignItems:"end"}}>
         <Field label="NOME / ID"   value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuário" style={{flex:2,minWidth:200}}/>
-        <Field label="EQUIPE ASSISTENTE" value={dados.equipeAssistente||dados.equipe||""} onChange={v=>onChange({...dados,equipeAssistente:v,equipe:v})} placeholder="Ex: Cirurgia do Fígado" style={{flex:2,minWidth:200}}/>
-      </div>
-      <div style={{marginBottom:12,padding:"10px 12px",border:"1px solid rgba(56,189,248,.16)",borderRadius:9,background:"rgba(56,189,248,.025)"}}><div style={{display:"flex",alignItems:"center",marginBottom:7}}><b style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1}}>DIAGNÓSTICOS</b><button onClick={()=>atualizarDiagnosticos([...diagnosticos,""])} style={{marginLeft:"auto",padding:"4px 8px",borderRadius:6,border:"1px solid rgba(56,189,248,.3)",background:"rgba(56,189,248,.08)",color:"#38bdf8",fontSize:9,fontWeight:700,cursor:"pointer"}}>＋ Adicionar diagnóstico</button></div><div style={{display:"grid",gap:6}}>{diagnosticos.map((d,i)=><div key={i} style={{display:"flex",gap:6}}><input value={d} onChange={e=>atualizarDiagnosticos(diagnosticos.map((x,j)=>j===i?e.target.value:x))} placeholder={`Diagnóstico ${i+1}`} style={{flex:1,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:7,padding:"8px 10px",color:"#e2e8f0",fontSize:12}}/><button disabled={diagnosticos.length===1} onClick={()=>atualizarDiagnosticos(diagnosticos.filter((_,j)=>j!==i))} title="Remover diagnóstico" style={{width:32,borderRadius:7,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:diagnosticos.length===1?"not-allowed":"pointer",opacity:diagnosticos.length===1 ? .35 : 1}}>✕</button></div>)}</div></div>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, alignItems:"flex-end" }}>
-        <Field label="DATA INTERNAÇÃO"   value={dados.dataInternacao}    onChange={v=>onChange({...dados,dataInternacao:v})}  type="date" style={{minWidth:150}}/>
         <Field label="IDADE (ANOS)"   value={dados.idadeAnos||""} onChange={v=>onChange({...dados,idadeAnos:v})} type="number" placeholder="Ex: 68" style={{minWidth:100}}/>
         <div style={{ minWidth:150, flex:1 }}>
           <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>SEXO BIOLÓGICO</div>
@@ -2738,13 +2726,96 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
             ))}
           </div>
         </div>
+      </div>
+      </section>
+      <section style={{padding:14,border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,marginBottom:12}}>
+      <SecTitle>INTERNAÇÃO E DIAGNÓSTICOS</SecTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,alignItems:"end"}}>
+        <Field label="DATA INTERNAÇÃO"   value={dados.dataInternacao}    onChange={v=>onChange({...dados,dataInternacao:v})}  type="date" style={{minWidth:150}}/>
+        <Field label="EQUIPE ASSISTENTE" value={dados.equipeAssistente||dados.equipe||""} onChange={v=>onChange({...dados,equipeAssistente:v,equipe:v})} placeholder="Ex: Cirurgia do Fígado" style={{flex:2,minWidth:200}}/>
+      </div>
+
+      <div style={{marginBottom:12,padding:"10px 12px",border:"1px solid rgba(56,189,248,.16)",borderRadius:9,background:"rgba(56,189,248,.025)"}}><div style={{display:"flex",alignItems:"center",marginBottom:7}}><b style={{fontSize:10,color:"#38bdf8",fontFamily:mono,letterSpacing:1}}>DIAGNÓSTICOS</b><button onClick={()=>atualizarDiagnosticos([...diagnosticos,""])} style={{marginLeft:"auto",padding:"4px 8px",borderRadius:6,border:"1px solid rgba(56,189,248,.3)",background:"rgba(56,189,248,.08)",color:"#38bdf8",fontSize:9,fontWeight:700,cursor:"pointer"}}>＋ Adicionar diagnóstico</button></div><div style={{display:"grid",gap:6}}>{diagnosticos.map((d,i)=><div key={i} style={{display:"flex",gap:6}}><input value={d} onChange={e=>atualizarDiagnosticos(diagnosticos.map((x,j)=>j===i?e.target.value:x))} placeholder={`Diagnóstico ${i+1}`} style={{flex:1,background:T.bgInput,border:"1px solid rgba(255,255,255,.1)",borderRadius:7,padding:"8px 10px",color:T.text1,fontSize:12}}/><button disabled={diagnosticos.length===1} onClick={()=>atualizarDiagnosticos(diagnosticos.filter((_,j)=>j!==i))} title="Remover diagnóstico" style={{width:32,borderRadius:7,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:diagnosticos.length===1?"not-allowed":"pointer",opacity:diagnosticos.length===1 ? .35 : 1}}>✕</button></div>)}</div></div>
+      </section>
+      <section style={{padding:14,border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,marginBottom:12}}>
+      <SecTitle>MEDIDAS E REFERÊNCIAS BASAIS</SecTitle>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,alignItems:"end"}}>
         <Field label="PESO (kg)"   value={dados.peso}   onChange={v=>onChange({...dados,peso:v})}   type="number" placeholder="70"  suffix="kg" style={{minWidth:90}}/>
         <Field label="ALTURA (cm)" value={dados.altura} onChange={v=>onChange({...dados,altura:v})} type="number" placeholder="170" suffix="cm" style={{minWidth:90}}/>
-        <div style={{minWidth:260,flex:2}}><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>RANKIN MODIFICADA — ADMISSÃO</div><select value={dados.rankinAdmissao??""} onChange={e=>onChange({...dados,rankinAdmissao:e.target.value})} style={{width:"100%",height:38,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"0 9px",color:"#e2e8f0",fontSize:11}}><option value="">— selecionar —</option>{RANKIN_OPCOES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>
       </div>
+
+      <div style={{marginBottom:12,padding:10,border:`1px solid ${T.border}`,borderRadius:8,background:T.bgInput}}>
+        <label style={{fontSize:10,color:T.text2}}>CREATININA BASAL (mg/dL)
+          <input aria-label="Creatinina basal do paciente" type="number" min="0.01" step="0.01" value={dados.creatininaBasal??""} placeholder="Opcional · ex.: 0,9" onChange={e=>onChange({...dados,creatininaBasal:e.target.value})} style={{display:"block",width:170,marginTop:5,padding:"8px 10px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text1}}/>
+        </label>
+        <div style={{fontSize:10,color:T.text3,marginTop:5}}>Valor habitual em condição estável, antes da alteração renal atual. Quando informado, tem prioridade como referência para avaliar lesão renal aguda. Não substitui as creatininas das coletas.</div>
+        {dados.creatininaBasal!==""&&dados.creatininaBasal!=null&&!(numClinico(dados.creatininaBasal)>0)&&<div role="alert" style={{fontSize:10,color:"#ef4444",marginTop:4}}>Informe um valor maior que zero ou deixe em branco.</div>}
+      </div>
+
+      {/* Balanço Hídrico Prévio */}
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, marginTop:10 }}>
+        <div style={{flex:1, minWidth:200}}>
+          <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>BALANÇO PRÉVIO (mL) <span style={{color:"#475569",fontWeight:400,letterSpacing:0}}>— soma antes do sistema</span></div>
+          <input type="number" value={dados.bhPrevio||""} onChange={e=>onChange({...dados,bhPrevio:e.target.value})}
+            placeholder="Ex: +1500 ou -800"
+            style={{width:"100%",background:T.bgInput,border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:T.text1,fontSize:13,fontFamily:"inherit"}}/>
+        </div>
+      </div>
+      {(dias!==null||pp||dados.peso) && <>
+        <Collapsible title="PARÂMETROS CALCULADOS" defaultOpen={true}>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {dias!==null && <Pill label="INTERNAÇÃO"   value={`D${dias}`}   unit="dias"            color="#a78bfa"/>}
+          {dados.peso  && <Pill label="PESO ATUAL"   value={dados.peso}   unit="kg"              color="#f59e0b"/>}
+          {pp          && <Pill label="PESO PREDITO" value={pp}           unit="kg (ARDSNet)"    color="#fb923c"/>}
+          {vc6         && <Pill label="VC 6 mL/kg"   value={vc6}          unit="mL (protetor)"   color="#34d399"/>}
+          {vc8         && <Pill label="VC 8 mL/kg"   value={vc8}          unit="mL (máx ARDSNet)"color="#34d399"/>}
+        </div>
+        {pp && (
+          <div style={{marginTop:8,display:"flex",alignItems:"center",gap:8,padding:"7px 12px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:8,fontSize:11,color:T.text2,flexWrap:"wrap"}}>
+            <span>💡 <strong>PP:</strong> {dados.sexo==="M"?"♂":"♀"} {dados.altura}cm → <strong style={{color:"#fb923c"}}>{pp}kg</strong></span>
+            <span style={{color:"#64748b"}}>·</span>
+            <span>VC protetor <strong style={{color:"#34d399"}}>{vc6}mL</strong></span>
+            <span style={{color:"#64748b"}}>·</span>
+            <span>Máx ARDSNet <strong style={{color:"#34d399"}}>{vc8}mL</strong></span>
+          </div>
+        )}
+        </Collapsible>
+      </>}
+
+
+      </section>
+      <Collapsible title="HISTÓRICO CLÍNICO" defaultOpen={false}>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:220,marginBottom:10}}>
+          <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:4}}>DOENÇAS PRÉVIAS / COMORBIDADES</div>
+          <textarea value={dados.doencasPrevias||""} onChange={e=>onChange({...dados,doencasPrevias:e.target.value})}
+            placeholder={"HAS · DM2 · ICC · DRC · DPOC · FA crônica..."} rows={4}
+            style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:T.text2,fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{flex:1,minWidth:220,marginBottom:10}}>
+          <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:4}}>MEDICAÇÕES DE USO CONTÍNUO</div>
+          <textarea value={dados.medicacoesContinuas||""} onChange={e=>onChange({...dados,medicacoesContinuas:e.target.value})}
+            placeholder={"- Losartana 50mg 1x/d\n- Metformina 500mg 2x/d\n- AAS 100mg 1x/d"} rows={4}
+            style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:T.text2,fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
+      </div>
+      </Collapsible>
+      <section style={{padding:14,border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,marginBottom:12}}>
+      <SecTitle>AVALIAÇÃO NA ADMISSÃO</SecTitle>
+        <div style={{minWidth:260,flex:2}}><div style={{fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:5}}>RANKIN MODIFICADA — ADMISSÃO</div><select value={dados.rankinAdmissao??""} onChange={e=>onChange({...dados,rankinAdmissao:e.target.value})} style={{width:"100%",height:38,background:T.bgInput,border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"0 9px",color:T.text1,fontSize:11}}><option value="">— selecionar —</option>{RANKIN_OPCOES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>
+
+<Collapsible title="APACHE II / SAPS 3" defaultOpen={false}>
       <OptionalClinicalPanelBoundary name="APACHE II / SAPS 3">
         <EscoresAdmissaoPanel dados={dados} onChange={onChange}/>
       </OptionalClinicalPanelBoundary>
+</Collapsible>
+      </section>
+      <Collapsible title="PROCEDIMENTOS" defaultOpen={true}>
+      <ProcedimentosPanel
+        procedimentos={procedimentos}
+        onChange={procs=>onChange({...dados,procedimentos:procs})}
+      />
+      </Collapsible>
 
       <div style={{margin:"14px 0",padding:"12px 14px",border:"1px solid rgba(56,189,248,.18)",borderRadius:10,background:"rgba(56,189,248,.035)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:acompanhantes.length?10:0}}>
@@ -2759,65 +2830,12 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
       </div>
 
       {dados.paciente&&leitosDisponiveis.length>0&&<div style={{display:"flex",alignItems:"end",gap:8,flexWrap:"wrap",margin:"10px 0 14px",padding:"10px 12px",borderRadius:9,border:"1px solid rgba(251,191,36,.25)",background:"rgba(251,191,36,.045)"}}>
-        <label style={{flex:1,minWidth:220,fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1}}>TRANSFERIR PACIENTE PARA OUTRO LEITO<select value={destinoLeito} onChange={e=>setDestinoLeito(e.target.value)} style={{display:"block",width:"100%",height:38,marginTop:4,borderRadius:8,border:"1px solid rgba(251,191,36,.3)",background:"rgba(255,255,255,.04)",color:"#e2e8f0",padding:"0 9px"}}><option value="">— selecionar leito vago —</option>{leitosDisponiveis.map(l=><option key={l.id} value={l.id}>{l.nome}</option>)}</select></label>
+        <label style={{flex:1,minWidth:220,fontSize:10,color:"#64748b",fontFamily:mono,letterSpacing:1}}>TRANSFERIR PACIENTE PARA OUTRO LEITO<select value={destinoLeito} onChange={e=>setDestinoLeito(e.target.value)} style={{display:"block",width:"100%",height:38,marginTop:4,borderRadius:8,border:"1px solid rgba(251,191,36,.3)",background:T.bgInput,color:T.text1,padding:"0 9px"}}><option value="">— selecionar leito vago —</option>{leitosDisponiveis.map(l=><option key={l.id} value={l.id}>{l.nome}</option>)}</select></label>
         <button disabled={!destinoLeito} onClick={async()=>{if(await onTransferir?.(destinoLeito))setDestinoLeito("");}} style={{height:38,padding:"0 13px",borderRadius:8,border:"1px solid rgba(251,191,36,.35)",background:"rgba(251,191,36,.09)",color:"#d97706",fontWeight:800,cursor:destinoLeito?"pointer":"not-allowed",opacity:destinoLeito?1:.45}}>Transferir leito</button>
       </div>}
 
 
-      {/* Balanço Hídrico Prévio */}
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, marginTop:10 }}>
-        <div style={{flex:1, minWidth:200}}>
-          <div style={{ fontSize:10, color:"#64748b", fontFamily:mono, letterSpacing:1, marginBottom:4 }}>BALANÇO PRÉVIO (mL) <span style={{color:"#475569",fontWeight:400,letterSpacing:0}}>— soma antes do sistema</span></div>
-          <input type="number" value={dados.bhPrevio||""} onChange={e=>onChange({...dados,bhPrevio:e.target.value})}
-            placeholder="Ex: +1500 ou -800"
-            style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit"}}/>
-        </div>
-      </div>
-      {(dias!==null||pp||dados.peso) && <>
-        <Collapsible title="PARÂMETROS CALCULADOS" defaultOpen={true}>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {dias!==null && <Pill label="INTERNAÇÃO"   value={`D${dias}`}   unit="dias"            color="#a78bfa"/>}
-          {dados.peso  && <Pill label="PESO ATUAL"   value={dados.peso}   unit="kg"              color="#f59e0b"/>}
-          {pp          && <Pill label="PESO PREDITO" value={pp}           unit="kg (ARDSNet)"    color="#fb923c"/>}
-          {vc6         && <Pill label="VC 6 mL/kg"   value={vc6}          unit="mL (protetor)"   color="#34d399"/>}
-          {vc8         && <Pill label="VC 8 mL/kg"   value={vc8}          unit="mL (máx ARDSNet)"color="#34d399"/>}
-        </div>
-        {pp && (
-          <div style={{marginTop:8,display:"flex",alignItems:"center",gap:8,padding:"7px 12px",background:"rgba(251,146,60,0.07)",border:"1px solid rgba(251,146,60,0.2)",borderRadius:8,fontSize:11,color:"#cbd5e1",flexWrap:"wrap"}}>
-            <span>💡 <strong>PP:</strong> {dados.sexo==="M"?"♂":"♀"} {dados.altura}cm → <strong style={{color:"#fb923c"}}>{pp}kg</strong></span>
-            <span style={{color:"#64748b"}}>·</span>
-            <span>VC protetor <strong style={{color:"#34d399"}}>{vc6}mL</strong></span>
-            <span style={{color:"#64748b"}}>·</span>
-            <span>Máx ARDSNet <strong style={{color:"#34d399"}}>{vc8}mL</strong></span>
-          </div>
-        )}
-        </Collapsible>
-      </>}
 
-
-      <Collapsible title="PROCEDIMENTOS" defaultOpen={true}>
-      <ProcedimentosPanel
-        procedimentos={procedimentos}
-        onChange={procs=>onChange({...dados,procedimentos:procs})}
-      />
-      </Collapsible>
-
-      <Collapsible title="HISTÓRICO CLÍNICO" defaultOpen={false}>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-        <div style={{flex:1,minWidth:220,marginBottom:10}}>
-          <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:4}}>DOENÇAS PRÉVIAS / COMORBIDADES</div>
-          <textarea value={dados.doencasPrevias||""} onChange={e=>onChange({...dados,doencasPrevias:e.target.value})}
-            placeholder={"HAS · DM2 · ICC · DRC · DPOC · FA crônica..."} rows={4}
-            style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-        </div>
-        <div style={{flex:1,minWidth:220,marginBottom:10}}>
-          <div style={{fontSize:10,color:"#64748b",fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:4}}>MEDICAÇÕES DE USO CONTÍNUO</div>
-          <textarea value={dados.medicacoesContinuas||""} onChange={e=>onChange({...dados,medicacoesContinuas:e.target.value})}
-            placeholder={"- Losartana 50mg 1x/d\n- Metformina 500mg 2x/d\n- AAS 100mg 1x/d"} rows={4}
-            style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px",color:"#cbd5e1",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-        </div>
-      </div>
-      </Collapsible>
     </div>
   );
 }
