@@ -4973,26 +4973,46 @@ function ScoreEditor({scoreKey,item,onUpdate,T}){
 
 // Auto-contido (refs/estado próprios) para poder ser renderizado uma única vez,
 // Visível nas áreas principais do paciente, não só no Beira-leito.
-function MetasTerapeuticas({items=[],onChange}){
+function textoPlanoCuidado(items=[],metas=[]){
+ const linha=m=>`   • [${m.feito||m.status==="cumprido"?"x":" "}] ${m.texto||""}`;
+ const partes=items.map((p,i)=>`${i+1}. ${p.titulo}${p.problemas?.length?`\n   Problemas: ${p.problemas.map(x=>x.nome).join("; ")}`:""}${(p.subitens||[]).filter(x=>x.texto?.trim()).map(x=>`\n   • ${x.texto.trim()}`).join("")}${ordenarMetas(metas.filter(m=>m.planoId===p.id)).map(m=>"\n"+linha(m)).join("")}`);
+ const soltas=metas.filter(m=>!items.some(p=>p.id===m.planoId));
+ if(soltas.length)partes.push("Metas sem plano definido\n"+ordenarMetas(soltas).map(linha).join("\n"));
+ return partes.length?"PLANO DE CUIDADO\n"+partes.join("\n\n"):"";
+}
+
+function MetasTerapeuticas({items=[],onChange,metas=[],onMetaChange,problemas=[]}){
   const T=useTheme();
   const [novo,setNovo]=useState(''),[aberto,setAberto]=useState(null),[drag,setDrag]=useState(null),[menu,setMenu]=useState(null),[copiado,setCopiado]=useState(false),[erro,setErro]=useState('');
   const update=(id,patch)=>onChange(items.map(x=>x.id===id?{...x,...patch}:x));
   const add=()=>{if(!novo.trim())return;const id=(globalThis.crypto?.randomUUID?.()||`meta-${Date.now()}-${Math.random().toString(36).slice(2)}`);onChange([...items,{id,titulo:novo.trim(),subitens:[]}]);setNovo('');setAberto(id);};
   const btn={border:`1px solid ${T.border}`,borderRadius:6,padding:'5px 7px',background:T.bgInput,color:T.text2,fontSize:10,cursor:'pointer'};
-  return <div aria-label="Metas terapêuticas longitudinais">
-    <div style={{fontSize:11,fontWeight:700,color:T.text1,marginBottom:7}}>Metas terapêuticas</div>
-    <div style={{display:'flex',gap:4,marginBottom:8}}><input aria-label="Nova meta terapêutica" placeholder="Objetivo longitudinal…" value={novo} onChange={e=>setNovo(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} style={{...btn,minWidth:0,flex:1,cursor:'text'}}/><button style={btn} onClick={add} disabled={!novo.trim()} aria-label="Adicionar meta terapêutica">+</button></div>
-    {!items.length&&<p style={{fontSize:10,color:T.text3}}>Nenhuma meta terapêutica registrada.</p>}
-    {items.map(item=><div key={item.id} data-meta-terapeutica={item.id} onContextMenu={e=>{e.preventDefault();setMenu({id:item.id,x:e.clientX,y:e.clientY});}} onDragOver={e=>{if(drag)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!drag||drag===item.id)return;const lista=[...items],de=lista.findIndex(x=>x.id===drag),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [m]=lista.splice(de,1);lista.splice(para,0,m);onChange(lista);setDrag(null);}} style={{padding:7,border:`1px solid ${T.border}`,borderRadius:8,marginBottom:6,background:T.bgInput}}>
-      <div style={{display:'flex',gap:5,alignItems:'start'}}><span draggable onDragStart={e=>{setDrag(item.id);e.dataTransfer.setData('text/plain',item.id);e.dataTransfer.effectAllowed='move';}} onDragEnd={()=>setDrag(null)} title="Arrastar meta terapêutica" style={{cursor:'grab',color:T.text3}}>⠿</span><button onClick={()=>setAberto(aberto===item.id?null:item.id)} aria-expanded={aberto===item.id} style={{...btn,border:0,padding:0,flex:1,textAlign:'left',fontWeight:700}}>{aberto===item.id?'▾':'▸'} {item.titulo}</button><button style={{...btn,padding:0,border:0}} aria-label="Editar título da meta terapêutica" onClick={()=>{const titulo=window.prompt('Editar título da meta terapêutica:',item.titulo);if(titulo?.trim())update(item.id,{titulo:titulo.trim()});}}>✎</button><button style={{...btn,padding:0,border:0}} aria-label="Remover meta terapêutica" onClick={()=>onChange(items.filter(x=>x.id!==item.id))}>×</button></div>
-      {aberto===item.id?<>
-        {(item.subitens||[]).map(sub=><div key={sub.id} style={{display:'flex',gap:4,marginTop:5}}><span style={{color:T.text3}}>•</span><textarea aria-label="Subitem da meta terapêutica" value={sub.texto} onChange={e=>update(item.id,{subitens:item.subitens.map(x=>x.id===sub.id?{...x,texto:e.target.value}:x)})} rows={2} style={{...btn,minWidth:0,flex:1,fontFamily:'inherit',resize:'vertical',cursor:'text'}}/><button style={btn} aria-label="Remover subitem da meta" onClick={()=>update(item.id,{subitens:item.subitens.filter(x=>x.id!==sub.id)})}>×</button></div>)}
-        <button style={{...btn,marginTop:6}} onClick={()=>update(item.id,{subitens:[...(item.subitens||[]),{id:(globalThis.crypto?.randomUUID?.()||`meta-${Date.now()}-${Math.random().toString(36).slice(2)}`),texto:''}]})}>+ subitem</button>
-      </>:<div style={{fontSize:10,color:T.text3,marginTop:4,whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{(item.subitens||[]).filter(s=>s.texto.trim()).map(s=><div key={s.id}>• {s.texto}</div>)}</div>}
+  const checklist=planoId=><div style={{marginTop:8,paddingLeft:8,borderLeft:`2px solid ${T.border}`}}>
+    {ordenarMetas(metas.filter(m=>planoId?m.planoId===planoId:!items.some(p=>p.id===m.planoId))).map(m=><div key={m.id} style={{marginBottom:7}}>
+      <div style={{display:'flex',gap:5,alignItems:'start'}}><MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/><input type="checkbox" aria-label={`Concluir meta: ${m.texto}`} checked={!!(m.feito||m.status==='cumprido')} onChange={e=>onMetaChange(metas.map(x=>x.id===m.id?{...x,feito:e.target.checked,status:e.target.checked?'cumprido':'pendente'}:x))}/><span style={{flex:1,fontSize:11,color:T.text2,textDecoration:m.feito||m.status==='cumprido'?'line-through':'none'}}>{m.texto}{m.equipe&&<small style={{display:'block'}}>{equipeLabel(m.equipe)}</small>}</span><button style={btn} title="Editar meta" onClick={()=>editarTextoMeta(metas,m,onMetaChange)}>✎</button><button style={btn} title="Excluir meta" onClick={()=>onMetaChange(metas.filter(x=>x.id!==m.id))}>×</button></div>
+      <select aria-label={`Equipe da meta: ${m.texto}`} value={m.equipe||''} onChange={e=>onMetaChange(metas.map(x=>x.id===m.id?{...x,equipe:e.target.value}:x))} style={{...btn,width:'100%',marginTop:3}}><option value="">Equipe responsável…</option>{EQUIPES.map(e=><option key={e.id} value={e.id}>{e.label}</option>)}</select>
+      <select aria-label={`Plano da meta: ${m.texto}`} value={items.some(p=>p.id===m.planoId)?m.planoId:''} onChange={e=>onMetaChange(metas.map(x=>x.id===m.id?{...x,planoId:e.target.value}:x))} style={{...btn,width:'100%',marginTop:3}}><option value="">Sem plano definido</option>{items.map(p=><option key={p.id} value={p.id}>{p.titulo}</option>)}</select>
     </div>)}
-    <button disabled={!items.length} style={{...btn,width:'100%',marginTop:6}} onClick={async()=>{try{await navigator.clipboard.writeText(items.map((m,i)=>`${i+1}. ${m.titulo}${(m.subitens||[]).filter(s=>s.texto.trim()).map(s=>`\n   • ${s.texto.trim()}`).join('')}`).join('\n'));setErro('');setCopiado(true);setTimeout(()=>setCopiado(false),2000);}catch{setErro('Não foi possível copiar. Tente novamente.');}}}>{copiado?'✓ Copiado':'Copiar metas terapêuticas'}</button>
+    <button style={btn} onClick={()=>{const texto=window.prompt('Meta para alcançar este plano:');if(texto?.trim())onMetaChange([...metas,{id:globalThis.crypto.randomUUID(),texto:texto.trim(),feito:false,status:'pendente',prioridade:'amarelo',planoId:planoId||''}]);}}>+ meta com checkbox</button>
+  </div>;
+  return <div aria-label="Plano de cuidado">
+    <div style={{fontSize:11,fontWeight:700,color:T.text1,marginBottom:7}}>Plano de cuidado</div>
+    <div style={{display:'flex',gap:4,marginBottom:8}}><input aria-label="Novo plano de cuidado" placeholder="Objetivo longitudinal…" value={novo} onChange={e=>setNovo(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} style={{...btn,minWidth:0,flex:1,cursor:'text'}}/><button style={btn} onClick={add} disabled={!novo.trim()} aria-label="Adicionar plano de cuidado">+</button></div>
+    {!items.length&&<p style={{fontSize:10,color:T.text3}}>Nenhum plano de cuidado registrado.</p>}
+    {items.map(item=><div key={item.id} data-meta-terapeutica={item.id} onContextMenu={e=>{e.preventDefault();setMenu({id:item.id,x:e.clientX,y:e.clientY});}} onDragOver={e=>{if(drag)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!drag||drag===item.id)return;const lista=[...items],de=lista.findIndex(x=>x.id===drag),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [m]=lista.splice(de,1);lista.splice(para,0,m);onChange(lista);setDrag(null);}} style={{padding:7,border:`1px solid ${T.border}`,borderRadius:8,marginBottom:6,background:T.bgInput}}>
+      <div style={{display:'flex',gap:5,alignItems:'start'}}><span draggable onDragStart={e=>{setDrag(item.id);e.dataTransfer.setData('text/plain',item.id);e.dataTransfer.effectAllowed='move';}} onDragEnd={()=>setDrag(null)} title="Arrastar plano de cuidado" style={{cursor:'grab',color:T.text3}}>⠿</span><button onClick={()=>setAberto(aberto===item.id?null:item.id)} aria-expanded={aberto===item.id} style={{...btn,border:0,padding:0,flex:1,textAlign:'left',fontWeight:700}}>{aberto===item.id?'▾':'▸'} {item.titulo}</button><button style={{...btn,padding:0,border:0}} aria-label="Editar título do plano de cuidado" onClick={()=>{const titulo=window.prompt('Editar título do plano de cuidado:',item.titulo);if(titulo?.trim())update(item.id,{titulo:titulo.trim()});}}>✎</button><button style={{...btn,padding:0,border:0}} aria-label="Remover plano de cuidado" onClick={()=>onChange(items.filter(x=>x.id!==item.id))}>×</button></div>
+      <div style={{fontSize:10,color:T.text3,marginTop:5}}>{item.problemas?.length?item.problemas.map(p=>p.nome).join(' · '):'Vincule aos problemas que motivam este plano'}</div>
+      {aberto===item.id?<>
+        <div style={{display:'grid',gap:4,marginTop:6}}>{problemas.map(p=><label key={p.id} style={{fontSize:10,color:T.text2}}><input type="checkbox" checked={!!item.problemas?.some(x=>x.id===p.id)} onChange={e=>update(item.id,{problemas:e.target.checked?[...(item.problemas||[]),{id:p.id,nome:nomeDiagnosticoProblema(p)}]:(item.problemas||[]).filter(x=>x.id!==p.id)})}/>{nomeDiagnosticoProblema(p)}</label>)}{(item.problemas||[]).filter(p=>!problemas.some(x=>x.id===p.id)).map(p=><div key={p.id} style={{fontSize:10,color:T.text3}}>{p.nome} (fora dos ativos) <button style={btn} onClick={()=>update(item.id,{problemas:item.problemas.filter(x=>x.id!==p.id)})}>Desvincular</button></div>)}</div>
+        {(item.subitens||[]).map(sub=><div key={sub.id} style={{display:'flex',gap:4,marginTop:5}}><span style={{color:T.text3}}>•</span><textarea aria-label="Subitem do plano de cuidado" value={sub.texto} onChange={e=>update(item.id,{subitens:item.subitens.map(x=>x.id===sub.id?{...x,texto:e.target.value}:x)})} rows={2} style={{...btn,minWidth:0,flex:1,fontFamily:'inherit',resize:'vertical',cursor:'text'}}/><button style={btn} aria-label="Remover anotação do plano" onClick={()=>update(item.id,{subitens:item.subitens.filter(x=>x.id!==sub.id)})}>×</button></div>)}
+        <button style={{...btn,marginTop:6}} onClick={()=>update(item.id,{subitens:[...(item.subitens||[]),{id:(globalThis.crypto?.randomUUID?.()||`meta-${Date.now()}-${Math.random().toString(36).slice(2)}`),texto:''}]})}>+ anotação</button>
+      </>:<div style={{fontSize:10,color:T.text3,marginTop:4,whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{(item.subitens||[]).filter(s=>s.texto.trim()).map(s=><div key={s.id}>• {s.texto}</div>)}</div>}
+      {checklist(item.id)}
+    </div>)}
+    {metas.some(m=>!items.some(p=>p.id===m.planoId))&&<div><b style={{fontSize:11,color:T.text2}}>Metas sem plano</b>{checklist(null)}</div>}
+    <button disabled={!items.length&&!metas.length} style={{...btn,width:'100%',marginTop:6}} onClick={async()=>{try{await navigator.clipboard.writeText(textoPlanoCuidado(items,metas));setErro('');setCopiado(true);setTimeout(()=>setCopiado(false),2000);}catch{setErro('Não foi possível copiar. Tente novamente.');}}}>{copiado?'✓ Copiado':'Copiar plano de cuidado'}</button>
     {erro&&<div role="alert" style={{fontSize:10,color:T.text2}}>{erro}</div>}
-    <DiagnosticoTituloMenu menu={menu} onClose={()=>setMenu(null)} onEdit={()=>{const item=items.find(x=>x.id===menu?.id);if(!item)return;const titulo=window.prompt('Editar título da meta terapêutica:',item.titulo);if(titulo?.trim())update(item.id,{titulo:titulo.trim()});}}/>
+    <DiagnosticoTituloMenu menu={menu} onClose={()=>setMenu(null)} onEdit={()=>{const item=items.find(x=>x.id===menu?.id);if(!item)return;const titulo=window.prompt('Editar título do plano de cuidado:',item.titulo);if(titulo?.trim())update(item.id,{titulo:titulo.trim()});}}/>
   </div>;
 }
 
@@ -5059,7 +5079,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
         borderRadius:20, padding:"8px 14px", cursor:"pointer",
         filter:T.colorScheme==="light"?"drop-shadow(0 5px 16px rgba(15,23,42,0.18))":"drop-shadow(0 4px 24px rgba(0,0,0,0.5))",
       }}>
-        <span style={{fontSize:11,color:T.text2}}>{{ativos:"🔴 Ativos",resolvidos:"✅ Resolvidos",metas:"📌 Metas"}[modo]}</span>
+        <span style={{fontSize:11,color:T.text2}}>{{ativos:"🔴 Ativos",resolvidos:"✅ Resolvidos",metas:"📌 Plano de cuidado"}[modo]}</span>
         {pendentes>0 && <span style={{fontSize:11,fontFamily:mono2,fontWeight:700,color:"#f87171"}}>{pendentes}</span>}
       </button>
     );
@@ -5076,13 +5096,13 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",
         background:T.bgCardHover,border:"1px solid rgba(239,68,68,0.40)",
         borderBottom:"none",borderRadius:"12px 12px 0 0",cursor:"pointer"}}>
-        <span onClick={()=>setOpen(o=>!o)} style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1,cursor:"pointer"}}>DIAGNÓSTICOS E METAS</span>
+        <span onClick={()=>setOpen(o=>!o)} style={{fontSize:11,fontFamily:mono2,color:"#f87171",fontWeight:700,flex:1,cursor:"pointer"}}>PROBLEMAS E PLANO DE CUIDADO</span>
         <button hidden={modo!=="ativos"} onClick={e=>{e.stopPropagation();setOpen(true);setShowDiagnosticos(v=>!v);}} title="Adicionar diagnóstico aos problemas ativos" style={{padding:"2px 6px",borderRadius:9,border:"1px solid rgba(248,113,113,.3)",background:showDiagnosticos?"rgba(248,113,113,.14)":"transparent",color:"#f87171",cursor:"pointer",fontSize:9,fontWeight:800,whiteSpace:"nowrap"}}>+</button>
         <button onClick={()=>setMinimized(true)} title="Minimizar" style={{background:"none",border:"none",color:T.text3,cursor:"pointer",fontSize:12,padding:"0 2px"}}>—</button>
         <span onClick={()=>setOpen(o=>!o)} style={{color:T.text3,fontSize:11,cursor:"pointer"}}>{open?"▲":"▼"}</span>
       </div>
       <div role="group" aria-label="Exibir no painel" style={{display:"flex",gap:4,padding:"7px 8px",background:T.bgCard,borderLeft:`1px solid ${T.border}`,borderRight:`1px solid ${T.border}`}}>
-        {[{id:"ativos",label:"Ativos",cor:"#ef4444"},{id:"resolvidos",label:"Resolvidos",cor:"#10b981"},{id:"metas",label:"Metas",cor:"#0ea5e9"}].map(op=><button key={op.id} aria-pressed={modo===op.id} onClick={()=>{setModo(op.id);setOpen(true);setMenuDiagnostico(null);setMenuEquipe(null);}} style={{flex:1,padding:"6px 3px",borderRadius:12,border:`1px solid ${modo===op.id?op.cor:T.border}`,background:modo===op.id?`${op.cor}20`:"transparent",color:modo===op.id?T.text1:T.text3,fontFamily:"inherit",fontSize:10,fontWeight:modo===op.id?750:500,cursor:"pointer"}}>{op.label}</button>)}
+        {[{id:"ativos",label:"Ativos",cor:"#ef4444"},{id:"resolvidos",label:"Resolvidos",cor:"#10b981"},{id:"metas",label:"Plano de cuidado",cor:"#0ea5e9"}].map(op=><button key={op.id} aria-pressed={modo===op.id} onClick={()=>{setModo(op.id);setOpen(true);setMenuDiagnostico(null);setMenuEquipe(null);}} style={{flex:1,padding:"6px 3px",borderRadius:12,border:`1px solid ${modo===op.id?op.cor:T.border}`,background:modo===op.id?`${op.cor}20`:"transparent",color:modo===op.id?T.text1:T.text3,fontFamily:"inherit",fontSize:10,fontWeight:modo===op.id?750:500,cursor:"pointer"}}>{op.label}</button>)}
       </div>
       {open && (
         <div style={{background:T.bgCard,border:"1px solid rgba(239,68,68,0.32)",
@@ -5135,39 +5155,9 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             <TA key={`resolvidos-${leito.id}`} fieldRef={refs.current.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} placeholder="Registre os diagnósticos resolvidos…" rows={6} fieldName="probResolvidos" onBlurSave={salvar}/>
           </div>
           <div hidden={modo!=="metas"}>
-            <MetasTerapeuticas key={`metas-terapeuticas-${leito.id}`} items={leito.metasTerapeuticas||[]} onChange={items=>onLeitoChange?.({...leito,metasTerapeuticas:items})}/>
+            <MetasTerapeuticas key={`metas-terapeuticas-${leito.id}`} items={leito.metasTerapeuticas||[]} metas={metas} onMetaChange={onMetaChange} problemas={diagnosticosProblemas} onChange={items=>onLeitoChange?.({...leito,metasTerapeuticas:items})}/>
           </div>
-          <div hidden={modo==="metas"} aria-label="Metas e pendências com checklist">
-          {/* ── Metas / Pendências ── */}
-          <div style={{marginTop:10,borderTop:"1px solid rgba(56,189,248,0.2)",paddingTop:8}}>
-            <div style={{fontSize:9,fontFamily:mono2,letterSpacing:2,color:"#38bdf8",marginBottom:6}}>📌 METAS / PENDÊNCIAS{pendentes>0?` (${pendentes})`:""}</div>
-            {!metas.length&&<div style={{fontSize:11,color:T.text3,marginBottom:8}}>Nenhuma meta registrada.</div>}
-            {ordenarMetas(metas).map((m,i)=>(
-              <div key={m.id||i} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,metaIndex:metas.indexOf(m),equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
-                <MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/>
-                <button onClick={()=>onMetaChange&&onMetaChange(metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x))}
-                  style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
-                  {m.feito?"☑":"☐"}
-                </button>
-                <span title={metaPrioridade(m).label} style={{fontSize:10,color:m.feito?T.text4:T.text2,flex:1,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,
-                  textDecoration:m.feito?"line-through":"none",lineHeight:1.4}}>{m.texto||m}{m.equipe&&<small style={{display:"block",color:equipeCor(m.equipe),fontSize:8,marginTop:1}}>{equipeEmoji(m.equipe)} {equipeLabel(m.equipe)}</small>}</span>
-                <button onClick={()=>onMetaChange&&editarTextoMeta(metas,m,onMetaChange)} title="Editar meta" style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#38bdf8"}}>✎</button>
-                <button onClick={()=>onMetaChange&&onMetaChange(metas.filter(x=>x.id!==m.id))}
-                  title="Excluir meta"
-                  style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:"#475569",flexShrink:0}}>
-                  ✕
-                </button>
-              </div>
-            ))}
-            <button onClick={()=>{
-              const txt=window.prompt("Nova meta:");
-              if(txt&&onMetaChange) onMetaChange([...metas,{id:Date.now()+"",texto:txt.trim(),feito:false,prioridade:"amarelo"}]);
-            }} style={{marginTop:4,width:"100%",padding:"3px 0",background:"rgba(56,189,248,0.06)",
-              border:"1px solid rgba(56,189,248,0.15)",borderRadius:5,color:"#38bdf8",cursor:"pointer",fontSize:10}}>
-              + meta
-            </button>
-          </div>
-          </div>
+          {modo!=="metas"&&<button onClick={()=>setModo("metas")} style={{width:"100%",marginTop:10,padding:8,border:`1px solid ${T.border}`,borderRadius:7,background:T.bgInput,color:T.text2,cursor:"pointer",fontSize:10}}>Plano de cuidado · {pendentes} metas pendentes →</button>}
           <DiagnosticoTituloMenu menu={menuDiagnostico} onClose={()=>setMenuDiagnostico(null)} onEdit={()=>{
             const item=diagnosticosProblemas.find(d=>d.id===menuDiagnostico?.id);if(!item)return;
             const titulo=window.prompt("Editar título do diagnóstico:",nomeDiagnosticoProblema(item));
@@ -6322,6 +6312,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     blocos.forEach(([h,fn])=>{ const c=fn(); if(c) t+=`${h}\n${c}\n\n`; });
     const imp = refs.impressao?.current?.value?.trim() || campos.impressao || "";
     if(imp) t+=`== Impressão:\n${imp}\n`;
+    const plano=textoPlanoCuidado(leito.metasTerapeuticas||[],metas);
+    if(plano)t+=`\n${plano}\n`;
     navigator.clipboard.writeText(t);
     setCopiado(c=>({...c,tudo:true}));
     setTimeout(()=>setCopiado(c=>({...c,tudo:false})),2500);
