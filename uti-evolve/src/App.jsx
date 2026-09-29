@@ -7600,7 +7600,7 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   </div>;
 }
 
-const MAPA_SUPORTES={DVA:{cor:'#b45309',label:'Droga vasoativa'},VM:{cor:'#0369a1',label:'Ventilação mecânica invasiva'},VNI:{cor:'#0e7490',label:'Ventilação não invasiva'},TRS:{cor:'#7c3aed',label:'Terapia renal substitutiva ativa'},'HD reg.':{cor:'#64748b',label:'Suporte renal registrado — consultar data/status'},PREC:{cor:'#be123c',label:'Precaução microbiológica'},ISO:{cor:'#4f46e5',label:'Leito de isolamento respiratório'}};
+const MAPA_SUPORTES={DVA:{cor:'#b45309',label:'Droga vasoativa'},VM:{cor:'#0369a1',label:'Ventilação mecânica invasiva'},VNI:{cor:'#0e7490',label:'Ventilação não invasiva'},TRS:{cor:'#7c3aed',label:'Terapia renal substitutiva ativa'},'HD reg.':{cor:'#64748b',label:'Suporte renal registrado — consultar data/status'},ISO:{cor:'#4f46e5',label:'Leito de isolamento respiratório'}};
 function suportesMapa(leito,campos={}){
  if(!leito.paciente)return [];
  const badges=[];
@@ -7610,7 +7610,6 @@ function suportesMapa(leito,campos={}){
  if(leito.vm_modo==='vni')badges.push({id:'VNI',detalhe:'Ventilação não invasiva'});
  if(leito.emTRS||leito.trsAtiva||leito.dialiseAtiva||leito.terapiaRenalSubstitutiva)badges.push({id:'TRS',detalhe:'Terapia renal substitutiva sinalizada como ativa'});
  else if(campos.rmTRS?.trim()||campos.rmTrsSerial?.entries?.length)badges.push({id:'HD reg.',detalhe:'Registro de suporte renal; não confirma sessão em andamento: '+(campos.rmTRS||'consultar sessões na evolução')});
- const prec=precaucaoMicrobiologica(leito.culturas||[]);if(prec)badges.push({id:'PREC',detalhe:prec.label});
  return badges;
 }
 
