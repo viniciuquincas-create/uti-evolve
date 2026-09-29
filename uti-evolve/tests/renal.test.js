@@ -17,7 +17,8 @@ test('Chen agrees with independent mass balance and is defined at steady creatin
  }
  assert.equal(kineticRaw(1,20,70,'M',60,1,1),null);
  assert.equal(kineticRaw(1,2,70,'M',60,0,1),null);
- assert.equal(kineticRaw(1,2,70,'M',60,24,''),null);
+ near(kineticRaw(1,2,70,'M',60,24),32.407407407407405);
+ near(kineticRaw(1,2,70,'M',60,24,''),kineticRaw(1,2,70,'M',60,24,2));
 });
 test('dated samples skip empty days and use actual hours, or label date approximation',()=>{
  const cfg={equacaoRenal:{padrao:'kegfr'}};
@@ -32,4 +33,10 @@ test('drug configuration overrides only its category and CKD-EPI is absolute',()
  near(renalEstimate(p,t,cfg).value,cgRaw(1,60,70,'M'));
  assert.equal(renalEstimate({...p,altura:''},t,cfg,'antibioticos').value,null);
  assert.equal(renalEstimate({...p,emTRS:true},t,cfg).value,null);
+});
+
+test('CG-based kinetic estimate does not require a historical baseline',()=>{
+ const patient={...p};delete patient.creatininaBasal;
+ const table={'2026-09-20':{cr:'1'},'2026-09-21':{cr:'2'}};
+ near(renalEstimate(patient,table,{equacaoRenal:{padrao:'kegfr'}}).value,32.407407407407405);
 });

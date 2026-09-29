@@ -4217,7 +4217,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                         // store in leito
                         if(onLeitoChange) onLeitoChange({...leito, tfgSel: novo});
                       };
-                      return <React.Fragment><tr><td colSpan={2} style={{...tdBase,fontSize:10,textAlign:"left"}}><label>Cr basal estável (mg/dL)<input aria-label="Creatinina basal estável" type="number" min="0.01" step="0.01" value={leito.creatininaBasal||""} onChange={e=>onLeitoChange?.({...leito,creatininaBasal:e.target.value})} style={{width:70,marginLeft:4}}/></label></td>{datas.map(d=><td key={d} style={tdBase}><input aria-label={`Horário da creatinina ${d}`} type="time" value={getVal(d,"crHora")||""} onChange={e=>setVal(d,"crHora",e.target.value)} style={{width:95,fontSize:10}}/></td>)}</tr>{tfgRows.map(row=>(
+                      return <React.Fragment><tr><td colSpan={2} style={{...tdBase,fontSize:10,textAlign:"left"}}>Horário da coleta de creatinina<small style={{display:"block",fontSize:8}}>Opcional · sem horário, usa o intervalo pelas datas</small></td>{datas.map(d=><td key={d} style={tdBase}><input aria-label={`Horário da creatinina ${d}`} type="time" value={getVal(d,"crHora")||""} onChange={e=>setVal(d,"crHora",e.target.value)} style={{width:95,fontSize:10}}/></td>)}</tr>{tfgRows.map(row=>(
                         <tr key={row.id} style={{opacity:0.85}}>
                           <td style={{...tdBase,padding:"3px 12px",fontSize:10,color:"#64748b",textAlign:"left",fontStyle:"italic",position:"sticky",left:0,background:T.bgTableSticky}}>
                             {row.lbl}{row.id==="kegfr"&&<small style={{display:"block",fontSize:8}}>Δt entre coletas; sem horário, estimado pelas datas</small>}
@@ -4248,7 +4248,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                                     </button>
                                   </div>
                                 ) : (
-                                  <div title={kinetic?.reason||"Dados insuficientes"} style={{textAlign:"center",fontSize:11,color:T.text3}}>—</div>
+                                  <div title={kinetic?.reason||"Dados insuficientes"} style={{textAlign:"center",fontSize:11,color:T.text3}}>—{kinetic&&<small style={{display:"block",fontSize:8,lineHeight:1.3}}>{kinetic.reason||"Informe a creatinina desta data."}</small>}</div>
                                 )}
                               </td>
                             );

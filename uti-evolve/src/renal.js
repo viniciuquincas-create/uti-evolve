@@ -7,12 +7,14 @@ export function epiRaw(cr,age,sex){[cr,age]=[cr,age].map(renalNumber);if(!(cr>0)
 const rounded=n=>n===null?null:Math.round(n);
 export const calcCKDEPI=(cr,age,sex)=>rounded(epiRaw(cr,age,sex));
 export const calcCockcroftGault=(cr,age,weight,sex)=>rounded(cgRaw(cr,age,weight,sex));
-export function kineticRaw(c1,c2,weight,sex,age,hours,baseline){
- [c1,c2,weight,age,hours,baseline]=[c1,c2,weight,age,hours,baseline].map(renalNumber);
- const clearance=cgRaw(baseline,age,weight,sex);
- if(!(c1>0&&c2>0&&hours>0&&baseline>0)||clearance===null)return null;
- const maxRise=baseline*clearance*1.44/(.6*weight); // 1440 min/day / 1000 mL/L
- const result=baseline*clearance/((c1+c2)/2)*(1-24*(c2-c1)/(hours*maxRise));
+export function kineticRaw(c1,c2,weight,sex,age,hours){
+ [c1,c2,weight,age,hours]=[c1,c2,weight,age,hours].map(renalNumber);
+ if(!(c1>0&&c2>0&&weight>0&&hours>0)||!adult(age,sex))return null;
+ // In the CG-based variant, baselineCr * CG(baselineCr) cancels baselineCr.
+ // generationTerm is that product, not an assumed baseline creatinine.
+ const generationTerm=(140-age)*weight/72*(sex==='F'?.85:1);
+ const mean=(c1+c2)/2;
+ const result=generationTerm/mean-(.6*weight*1000)*(c2-c1)/(hours*60*mean);
  return Number.isFinite(result)&&result>=0?result:null;
 }
 export const calcKeGFR=(...args)=>rounded(kineticRaw(...args));
@@ -32,13 +34,13 @@ export function renalEstimate(patient,table={},config={},area='padrao',until='99
  else reason='CKD-EPI absoluto requer idade, sexo, peso e altura.';
  }else if(equation==='kegfr'){
  if(!previous)reason='Cinética requer duas creatininas em datas distintas.';
- else if(!(renalNumber(patient.creatininaBasal)>0))reason='Informe a creatinina basal estável.';
+ else if(!adult(renalNumber(patient.renalAge),patient.sexo)||!(renalNumber(patient.peso)>0))reason='Informe idade adulta, sexo e peso no cadastro.';
  else{
  const validTime=t=>/^([01]\d|2[0-3]):[0-5]\d$/.test(t||'');
  approximate=!(validTime(last[1].crHora)&&validTime(previous[1].crHora));
  const stamp=row=>Date.parse(`${row[0]}T${approximate?'00:00':row[1].crHora}:00Z`);
  hours=(stamp(last)-stamp(previous))/3600000;
- value=kineticRaw(previous[1].cr,last[1].cr,patient.peso,patient.sexo,patient.renalAge,hours,patient.creatininaBasal);
+ value=kineticRaw(previous[1].cr,last[1].cr,patient.peso,patient.sexo,patient.renalAge,hours);
  if(value===null)reason='Cinética indisponível: confira dados, intervalo e pressupostos (resultado negativo não é exibido como zero).';
  }
  }
