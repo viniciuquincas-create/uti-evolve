@@ -1048,7 +1048,7 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const peso=num(leito.peso),diurese=num(dataAtual?valorAte(dataAtual,"c24_diur"):null);
   const atualMs=dataReferenciaCr?new Date(`${dataReferenciaCr}T12:00:00`).getTime():null;
   const crAnteriores=crRegistradas.filter(x=>x.data<(dataReferenciaCr||"")&&(!atualMs||atualMs-new Date(`${x.data}T12:00:00`).getTime()<=7*86400000));
-  const basalInformada=num(leito.creatininaBasal);
+  const basalInformada=num(leito.creatininaBasal)>0?num(leito.creatininaBasal):null;
   const basal=basalInformada??(crRegistradas.length?Math.min(...crRegistradas.map(x=>x.valor)):null);
   const cr48=crAnteriores.filter(x=>atualMs-new Date(`${x.data}T12:00:00`).getTime()<=2*86400000).map(x=>x.valor);
   let grauCr=0;
@@ -2690,6 +2690,7 @@ function EscoresAdmissaoPanel({dados,onChange}){
 
 // ── PacientePanel ─────────────────────────────────────────────────────────────
 function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChange, diureseHoje="", tabelaHoje={}, leitosDisponiveis=[], onTransferir }) {
+  const T=useTheme();
   const [destinoLeito,setDestinoLeito]=useState("");
   const dias  = diasInternacao(dados.dataInternacao);
   const idadeAnos = idadeDoLeito(dados);
@@ -2711,6 +2712,14 @@ function PacientePanel({ dados, onChange, config={}, onLancarDroga, onConfigChan
   return (
     <div>
       <SecTitle>DADOS DO PACIENTE</SecTitle>
+      <div style={{marginBottom:12,padding:10,border:`1px solid ${T.border}`,borderRadius:8,background:T.bgInput}}>
+        <label style={{fontSize:10,color:T.text2}}>CREATININA BASAL (mg/dL)
+          <input aria-label="Creatinina basal do paciente" type="number" min="0.01" step="0.01" value={dados.creatininaBasal??""} placeholder="Opcional · ex.: 0,9" onChange={e=>onChange({...dados,creatininaBasal:e.target.value})} style={{display:"block",width:170,marginTop:5,padding:"8px 10px",borderRadius:7,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text1}}/>
+        </label>
+        <div style={{fontSize:10,color:T.text3,marginTop:5}}>Valor habitual em condição estável, antes da alteração renal atual. Quando informado, tem prioridade como referência para avaliar lesão renal aguda. Não substitui as creatininas das coletas.</div>
+        {dados.creatininaBasal!==""&&dados.creatininaBasal!=null&&!(numClinico(dados.creatininaBasal)>0)&&<div role="alert" style={{fontSize:10,color:"#ef4444",marginTop:4}}>Informe um valor maior que zero ou deixe em branco.</div>}
+      </div>
+
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10 }}>
         <Field label="NOME / ID"   value={dados.paciente}    onChange={v=>onChange({...dados,paciente:v})}    placeholder="Nome ou prontuário" style={{flex:2,minWidth:200}}/>
         <Field label="EQUIPE ASSISTENTE" value={dados.equipeAssistente||dados.equipe||""} onChange={v=>onChange({...dados,equipeAssistente:v,equipe:v})} placeholder="Ex: Cirurgia do Fígado" style={{flex:2,minWidth:200}}/>
@@ -5079,7 +5088,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             </div>)}
             <button onClick={()=>atualizarDiagnostico(item.id,{subitens:[...(item.subitens||[]),{id:globalThis.crypto?.randomUUID?.()||`sub-${Date.now()}`,texto:""}]})} style={{marginTop:5,marginLeft:5,padding:"2px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.text3,cursor:"pointer",fontSize:8.5}}>+ subitem livre</button></>}
           </div>})}</div>}
-          <details style={{margin:"0 0 7px",fontSize:9,color:T.text3}}><summary style={{cursor:"pointer"}}>Função renal · informar creatinina basal</summary><input type="number" step="0.01" min="0" defaultValue={leito.creatininaBasal||""} placeholder="Creatinina basal (mg/dL)" onBlur={e=>onLeitoChange?.({...leito,creatininaBasal:e.target.value})} style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:"5px 7px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}/></details>
+
           {!!campos.probAtivos?.trim()&&<details style={{marginBottom:7,fontSize:9,color:T.text3}}>
             <summary style={{cursor:"pointer"}}>Anotações anteriores</summary>
             <TA fieldRef={refs.current.probAtivos} defaultValue={campos.probAtivos} isAntigo={isAntigo("probAtivos")} rows={3} fieldName="probAtivos" onBlurSave={salvar}/>
