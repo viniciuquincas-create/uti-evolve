@@ -3923,7 +3923,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     if (tfgSelHoje && crHoje) {
       const p3 = leito.peso||null;
       const ia3 = idadeDoLeito(leito);
-      const sx3 = leito.sexo||"M";
+      const sx3 = leito.sexo;
       const tfgVal = tfgSelHoje==="ckdepi" ? calcCKDEPI(crHoje,ia3,sx3)
                    : tfgSelHoje==="cg"     ? calcCockcroftGault(crHoje,ia3,p3,sx3)
                    : funcaoRenal(leito,data,{equacaoRenal:{padrao:"kegfr"}},"padrao",chaveHoje).value;
@@ -4201,7 +4201,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                     {key==="cr" && (leito.dataNascimento||leito.idadeAnos||leito.peso) && (()=>{
                       const idadeA = idadeDoLeito(leito);
                       const peso = leito.peso||null;
-                      const sexo = leito.sexo||"M";
+                      const sexo = leito.sexo;
                       const tfgRows = [
                         { id:"ckdepi", lbl:"↳ CKD-EPI 2021",   unit:"mL/min/1.73m²",
                           calc:(d)=>calcCKDEPI(getVal(d,"cr"),idadeA,sexo) },
