@@ -7441,14 +7441,14 @@ function precaucaoMicrobiologica(culturas=[]) {
 
 // ── Perfil Coordenação · mapa físico da unidade ──────────────────────────────
 const G1_LAYOUT={
-  "604":{gridColumn:"1 / 2",gridRow:"1"},"605":{gridColumn:"2 / 3",gridRow:"1"},
+  "604":{gridColumn:"1 / 2",gridRow:"3"},"605":{gridColumn:"2 / 3",gridRow:"1"},
   "606":{gridColumn:"3 / 4",gridRow:"1"},"607":{gridColumn:"4 / 5",gridRow:"1"},
   "608":{gridColumn:"5 / 6",gridRow:"1"},"609":{gridColumn:"6 / 7",gridRow:"1"},
   "610":{gridColumn:"7 / 8",gridRow:"1"},"611":{gridColumn:"8 / 9",gridRow:"1"},
   "612":{gridColumn:"9 / 10",gridRow:"1"},"613":{gridColumn:"9 / 10",gridRow:"3"},
   "614":{gridColumn:"9 / 10",gridRow:"4"},"615":{gridColumn:"9 / 10",gridRow:"6"},
   "616":{gridColumn:"8 / 9",gridRow:"6"},"617":{gridColumn:"7 / 8",gridRow:"6"},
-  "603":{gridColumn:"1 / 2",gridRow:"6"},"602":{gridColumn:"2 / 3",gridRow:"6"},
+  "603":{gridColumn:"1 / 2",gridRow:"4"},"602":{gridColumn:"2 / 3",gridRow:"6"},
   "601":{gridColumn:"3 / 4",gridRow:"6"},
 };
 // UTI G3 — disposição física conforme o croqui: 01–03 na parede superior,
@@ -7600,7 +7600,21 @@ function ColetaPlantaoPanel({uti,leitos,evolPorLeito,onAplicar}){
   </div>;
 }
 
-function MapaLeitosPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl}){
+const MAPA_SUPORTES={DVA:{cor:'#b45309',label:'Droga vasoativa'},VM:{cor:'#0369a1',label:'Ventilação mecânica invasiva'},VNI:{cor:'#0e7490',label:'Ventilação não invasiva'},TRS:{cor:'#7c3aed',label:'Terapia renal substitutiva ativa'},'HD reg.':{cor:'#64748b',label:'Suporte renal registrado — consultar data/status'},PREC:{cor:'#be123c',label:'Precaução microbiológica'},ISO:{cor:'#4f46e5',label:'Leito de isolamento respiratório'}};
+function suportesMapa(leito,campos={}){
+ if(!leito.paciente)return [];
+ const badges=[];
+ const drogas=['noradrenalina','adrenalina','vasopressina','dobutamina','dopamina','milrinona'].filter(k=>Number(String(leito.drogasVazao?.[k]||'').replace(',','.'))>0);
+ if(drogas.length)badges.push({id:'DVA',detalhe:'Em infusão: '+drogas.join(', ')});
+ if(/^vm_/.test(leito.vm_modo||''))badges.push({id:'VM',detalhe:'Ventilação invasiva · '+leito.vm_modo.replace('vm_','').toUpperCase()});
+ if(leito.vm_modo==='vni')badges.push({id:'VNI',detalhe:'Ventilação não invasiva'});
+ if(leito.emTRS||leito.trsAtiva||leito.dialiseAtiva||leito.terapiaRenalSubstitutiva)badges.push({id:'TRS',detalhe:'Terapia renal substitutiva sinalizada como ativa'});
+ else if(campos.rmTRS?.trim()||campos.rmTrsSerial?.entries?.length)badges.push({id:'HD reg.',detalhe:'Registro de suporte renal; não confirma sessão em andamento: '+(campos.rmTRS||'consultar sessões na evolução')});
+ const prec=precaucaoMicrobiologica(leito.culturas||[]);if(prec)badges.push({id:'PREC',detalhe:prec.label});
+ return badges;
+}
+
+function MapaLeitosPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl,evolPorLeito={}}){
   const T=useTheme();
   const ehHsp=hospital?.id===HSP_HOSPITAL_ID||/hospital s[aã]o paulo|\bhsp\b/i.test(`${hospital?.nome||""} ${hospital?.sigla||""}`);
   const ehG1=ehHsp&&/\bG1\b/i.test(uti?.nome||"");
@@ -7625,11 +7639,13 @@ function MapaLeitosPanel({uti,hospital,leitos,onAbrirLeito,onVoltar,altaSheetUrl
     </div>
     {altaErro&&<div style={{marginBottom:12,padding:"8px 10px",borderRadius:8,border:"1px solid rgba(248,113,113,.35)",background:"rgba(248,113,113,.08)",color:"#f87171",fontSize:10}}>Planilha de altas: {altaErro}</div>}
     {urlAltas&&!altaErro&&altaAtualizada&&<div style={{margin:"-10px 0 10px",fontSize:9,color:T.text4,textAlign:"right"}}>Altas verificadas às {new Date(altaAtualizada).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})} · atualização automática a cada 5 min</div>}
+    <div aria-label="Legenda do mapa" style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',margin:'8px 0 12px',fontSize:10,color:T.text3}}>{Object.entries(MAPA_SUPORTES).filter(([id])=>id!=='ISO'||ehG1).map(([id,x])=><span key={id} title={x.label} style={{display:'inline-flex',gap:4,alignItems:'center'}}><b style={{fontSize:9,color:x.cor,border:`1px solid ${x.cor}55`,background:`${x.cor}0d`,borderRadius:5,padding:'2px 4px'}}>{id}</b>{x.label}</span>)}<span style={{fontSize:9}}>Indicadores conforme registros disponíveis.</span></div>
     <div style={temMapaFisico?{display:"grid",gridTemplateColumns:ehG1?"repeat(9,minmax(0,1fr))":ehG4?"repeat(8,minmax(105px,1fr))":"repeat(4,minmax(120px,170px))",gridTemplateRows:ehG1?"repeat(6,minmax(58px,1fr))":"repeat(4,minmax(88px,118px))",justifyContent:"center",alignContent:"center",gap:ehG1?8:ehG4?10:12,width:ehG1||ehG4?"100%":"min(100%,820px)",minWidth:ehG4?920:undefined,height:ehG1?"calc(100vh - 150px)":ehG4?"min(calc(100vh - 165px),620px)":"min(calc(100vh - 165px),590px)",minHeight:ehG1?430:470,margin:ehG1?0:"14px auto 0",padding:ehG1?12:ehG4?16:22,boxSizing:"border-box",border:`1px solid ${T.border}`,borderRadius:18,background:`radial-gradient(circle at center,${T.accentBg} 0,transparent 42%), ${T.bgCard}`,boxShadow:T.shadowCard}:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):ehG2?(G2_LAYOUT[String(Number(n))]||{}):ehG3?(G3_LAYOUT[String(Number(n))]||{}):ehG4?(G4_LAYOUT[String(Number(n))]||{}):{},alta=encontrarAltaDoPaciente(l.paciente,altas,leitos),cor=p?.cor||T.accent;return <button className="coord-bed-card" key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:58,padding:ehG1?"8px":"13px 11px 10px",borderRadius:13,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||`linear-gradient(155deg,${T.bgCard} 0%,${T.bgInput} 100%)`,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:alta?.leitoCedido?"0 0 0 3px rgba(16,185,129,.25), 0 8px 20px rgba(15,23,42,.14)":"0 8px 20px rgba(15,23,42,.12)",overflow:"hidden",position:"relative"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}${alta?` · Alta: ${alta.leitoCedido?`leito cedido ${alta.leitoCedido}`:"aguardando leito"}`:""}`}>
+      {ordenados.map(l=>{const n=numeroFisico(l),p=precaucaoMicrobiologica(l.culturas||[]),pos=ehG1?(G1_LAYOUT[n]||{}):ehG2?(G2_LAYOUT[String(Number(n))]||{}):ehG3?(G3_LAYOUT[String(Number(n))]||{}):ehG4?(G4_LAYOUT[String(Number(n))]||{}):{},alta=encontrarAltaDoPaciente(l.paciente,altas,leitos),cor=p?.cor||T.accent,badges=suportesMapa(l,evolPorLeito[l.id]||{}),isolamento=ehG1&&["603","604","613","614"].includes(n);if(isolamento)badges.unshift({id:"ISO",detalhe:"Leito destinado a isolamento respiratório"});return <button className="coord-bed-card" key={l.id} onClick={()=>onAbrirLeito(l.id)} style={{...pos,minHeight:58,padding:ehG1?"8px":"13px 11px 10px",borderRadius:13,border:`2px solid ${p?.cor||T.borderStrong}`,background:p?.fundo||`linear-gradient(155deg,${T.bgCard} 0%,${T.bgInput} 100%)`,color:T.text1,cursor:"pointer",textAlign:"left",boxShadow:alta?.leitoCedido?"0 0 0 3px rgba(16,185,129,.25), 0 8px 20px rgba(15,23,42,.14)":"0 8px 20px rgba(15,23,42,.12)",overflow:"auto",position:"relative"}} title={`${l.nome} · ${l.paciente||"Vago"}${p?` · ${p.label}`:""}${alta?` · Alta: ${alta.leitoCedido?`leito cedido ${alta.leitoCedido}`:"aguardando leito"}`:""}`}>
         {!ehG1&&<span style={{position:"absolute",left:0,right:0,top:0,height:4,background:cor}}/>}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}><div style={{display:"flex",alignItems:"center",gap:7}}>{!ehG1&&<span aria-hidden="true" style={{position:"relative",display:"inline-block",width:25,height:16,border:`1.5px solid ${cor}`,borderRadius:4}}><i style={{position:"absolute",left:3,top:3,width:6,height:5,borderRadius:2,background:cor}}/><i style={{position:"absolute",left:3,right:3,bottom:3,height:4,borderRadius:2,background:`${cor}55`}}/><i style={{position:"absolute",left:1,bottom:-4,width:2,height:4,background:cor}}/><i style={{position:"absolute",right:1,bottom:-4,width:2,height:4,background:cor}}/></span>}<b style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:ehG1?0:32,height:ehG1?"auto":24,padding:ehG1?0:"0 7px",borderRadius:8,background:ehG1?"transparent":T.accentBg,fontFamily:mono,fontSize:ehG1?13:14,color:cor}}>{n||l.nome}</b></div><span style={{fontSize:7.5,fontWeight:850,letterSpacing:.8,color:l.paciente?cor:T.text4}}>{l.paciente?"OCUPADO":"VAGO"}</span></div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}><div style={{display:"flex",alignItems:"center",gap:7}}>{!ehG1&&<span aria-hidden="true" style={{position:"relative",display:"inline-block",width:25,height:16,border:`1.5px solid ${cor}`,borderRadius:4}}><i style={{position:"absolute",left:3,top:3,width:6,height:5,borderRadius:2,background:cor}}/><i style={{position:"absolute",left:3,right:3,bottom:3,height:4,borderRadius:2,background:`${cor}55`}}/><i style={{position:"absolute",left:1,bottom:-4,width:2,height:4,background:cor}}/><i style={{position:"absolute",right:1,bottom:-4,width:2,height:4,background:cor}}/></span>}<b style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:ehG1?0:32,height:ehG1?"auto":24,padding:ehG1?0:"0 7px",borderRadius:8,background:ehG1?"transparent":T.accentBg,fontFamily:mono,fontSize:ehG1?13:14,color:cor}}>{n||l.nome}</b></div><span style={{fontSize:7.5,fontWeight:850,letterSpacing:.8,color:l.paciente?cor:T.text4}}>{l.paciente?"":"VAGO"}</span></div>
         <div style={{marginTop:ehG1?5:9,fontSize:10,fontWeight:l.paciente?750:500,fontStyle:l.paciente?"normal":"italic",color:l.paciente?T.text1:T.text3,lineHeight:1.35,overflowWrap:"anywhere"}}>{l.paciente||"Leito disponível"}</div>
+        {!!badges.length&&<div style={{display:'flex',gap:3,flexWrap:'wrap',marginTop:5}}>{badges.map(b=><span key={b.id} title={b.detalhe} aria-label={b.detalhe} style={{fontSize:8,fontWeight:750,lineHeight:1.3,padding:'2px 4px',borderRadius:5,color:MAPA_SUPORTES[b.id].cor,border:`1px solid ${MAPA_SUPORTES[b.id].cor}55`,background:T.bgCard}}>{b.id}</span>)}</div>}
         {alta&&<div style={{marginTop:4,padding:"3px 5px",borderRadius:6,background:alta.leitoCedido?"rgba(16,185,129,.15)":"rgba(245,158,11,.13)",border:`1px solid ${alta.leitoCedido?"rgba(16,185,129,.4)":"rgba(245,158,11,.35)"}`,color:alta.leitoCedido?"#059669":"#d97706",fontSize:8.5,fontWeight:850,lineHeight:1.25}}>{alta.leitoCedido?`✓ SAÍDA · leito cedido ${alta.leitoCedido}`:"◷ ALTA · aguardando leito"}</div>}
       </button>})}
       {ehG1&&<div style={{gridColumn:"4 / 7",gridRow:"3 / 5",display:"flex",alignItems:"center",justifyContent:"center",border:`1px dashed ${T.border}`,borderRadius:18,color:T.textDim,fontFamily:mono,fontSize:11,letterSpacing:2}}>ÁREA CENTRAL</div>}
@@ -9286,7 +9302,7 @@ export default function App() {
 
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {viewGlobal==="mapa" ? (
-            <MapaLeitosPanel uti={utiAtiva} hospital={hospitalAtivo} leitos={leitosDaUti} altaSheetUrl={config.altaSheetUrls?.[hospitalAtivo?.id]} onVoltar={()=>setViewGlobal("leitos")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");}}/>
+            <MapaLeitosPanel evolPorLeito={evolPorLeito} uti={utiAtiva} hospital={hospitalAtivo} leitos={leitosDaUti} altaSheetUrl={config.altaSheetUrls?.[hospitalAtivo?.id]} onVoltar={()=>setViewGlobal("leitos")} onAbrirLeito={id=>{setLeitoSelId(id);setAba("evolucao");setViewGlobal("leitos");}}/>
           ) : viewGlobal==="coleta" ? (
             <ColetaPlantaoPanel uti={utiAtiva} leitos={leitosDaUti} evolPorLeito={evolPorLeito} onAplicar={aplicarFolhaColeta}/>
           ) : viewGlobal==="ferramentas" ? (
