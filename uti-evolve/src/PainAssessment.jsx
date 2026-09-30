@@ -1,11 +1,27 @@
-import React from 'react';
+import React, {useState,useRef,useEffect,useId} from 'react';
 import {painItems,painTotal,painSummary} from './pain.js';
 export default function PainAssessment({value,legacy,onChange,theme={}}){
  const a=value||{};const total=painTotal(a);
+ const [open,setOpen]=useState(false);
+ const root=useRef(null),trigger=useRef(null),menuId=useId();
+ useEffect(()=>{
+  if(!open)return;
+  const outside=e=>{if(!root.current?.contains(e.target))setOpen(false);};
+  document.addEventListener('pointerdown',outside);
+  return ()=>document.removeEventListener('pointerdown',outside);
+ },[open]);
+ const result=a.method==='Não avaliável'?'Não avaliável':total!==null?`${a.method} ${String(total).replace('.',',')}/${a.method==='CPOT'?8:a.method==='EVA'?10:12}`:a.method?`${a.method} · incompleta`:legacy||'';
+ const mono="'DM Mono',monospace";
  const update=next=>onChange(next,painSummary(next));
  const style={border:`1px solid ${theme.border||'#cbd5e1'}`,borderRadius:8,padding:8,background:theme.bgInput||'#fff',color:theme.text1||'#172033',minWidth:0};
  const optionStyle=selected=>({...style,textAlign:'left',cursor:'pointer',fontSize:12,lineHeight:1.4,borderColor:selected?'#0284c7':theme.border,background:selected?'#e0f2fe':style.background,color:selected?'#075985':style.color});
- return <section aria-label="Avaliação de dor" style={{minWidth:0,marginTop:10}}>
+ return <section ref={root} aria-label="Avaliação de dor" onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpen(false);}} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();setOpen(false);trigger.current?.focus();}}} style={{minWidth:0,marginBottom:6,border:`1px solid ${theme.border||'#cbd5e1'}`,borderRadius:8,overflow:'hidden',background:theme.bgInput}}>
+ <button ref={trigger} type="button" aria-label="Avaliação de dor" aria-expanded={open} aria-controls={menuId} onClick={()=>setOpen(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',width:'100%',border:0,textAlign:'left',cursor:'pointer',background:theme.bgCardHover||'#f1f5f9',fontFamily:mono}}>
+ <span style={{fontSize:10,color:theme.text3,letterSpacing:1,flex:1}}>Avaliação de dor</span>
+ {!open&&result&&<span title={result} style={{fontSize:10,color:theme.accent||'#0284c7',maxWidth:200,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{result}</span>}
+ <span aria-hidden="true" style={{fontSize:10,color:theme.text4}}>{open?'▲':'▼'}</span>
+ </button>
+ {open&&<div id={menuId} style={{padding:'8px 10px',background:theme.bgTableGroup}}>
  <label style={{display:'grid',gap:6,fontSize:12,color:theme.text2}}>Avaliação de dor
  <select aria-label="Método de avaliação de dor" value={a.method||''} style={{...style,width:'100%'}} onChange={e=>update({method:e.target.value,values:{}})}>
  <option value="">Selecionar escala</option>{['BPS','BPS-NI','CPOT','EVA','Não avaliável'].map(m=><option key={m}>{m}</option>)}
@@ -15,5 +31,6 @@ export default function PainAssessment({value,legacy,onChange,theme={}}){
  {painItems(a.method,a.airway).map(item=><fieldset key={item.id} style={{border:0,padding:0,margin:'10px 0',minWidth:0}}><legend style={{fontSize:12,marginBottom:6,color:theme.text2}}>{item.label}</legend><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(135px,100%),1fr))',gap:5}}>{item.options.map(o=><button type="button" key={o.value} aria-pressed={a.values?.[item.id]===o.value} style={optionStyle(a.values?.[item.id]===o.value)} onClick={()=>update({...a,values:{...a.values,[item.id]:o.value}})}><strong>{o.value}</strong> · {o.label}</button>)}</div></fieldset>)}
  {a.method==='EVA'&&<div style={{marginTop:10}}><div style={{fontSize:12,color:theme.text2}}>Marque na linha a intensidade referida pelo paciente.</div><div role="slider" aria-label="Intensidade da dor — EVA" aria-valuemin={0} aria-valuemax={10} aria-valuenow={total??undefined} aria-valuetext={total===null?'Não avaliada':String(total)} tabIndex={0} style={{position:'relative',height:44,cursor:'crosshair',touchAction:'none'}} onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);const r=e.currentTarget.getBoundingClientRect();update({...a,eva:Math.round(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*100)});}} onPointerMove={e=>{if(!e.currentTarget.hasPointerCapture(e.pointerId))return;const r=e.currentTarget.getBoundingClientRect();update({...a,eva:Math.round(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*100)});}} onKeyDown={e=>{const keys=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'];if(!keys.includes(e.key))return;e.preventDefault();update({...a,eva:e.key==='Home'?0:e.key==='End'?100:Math.max(0,Math.min(100,(a.eva??50)+(['ArrowLeft','ArrowDown'].includes(e.key)?-1:1)))});}}><div style={{position:'absolute',top:21,left:0,right:0,height:2,background:theme.text3||'#64748b'}}/>{total!==null&&<div style={{position:'absolute',top:14,left:`${a.eva}%`,transform:'translateX(-50%)',width:16,height:16,borderRadius:'50%',background:'#0284c7'}}/>}</div><div style={{display:'flex',justifyContent:'space-between',fontSize:11,gap:12}}><span>Sem dor</span><span>Pior dor imaginável</span></div></div>}
  {a.method&&a.method!=='Não avaliável'&&<div role="status" style={{fontSize:12,fontWeight:600,marginTop:10,color:theme.text2}}>{total===null?'Avaliação incompleta':`${a.method}: ${String(total).replace('.',',')}/${a.method==='CPOT'?8:a.method==='EVA'?10:12}`}</div>}
+ </div>}
  </section>;
 }
