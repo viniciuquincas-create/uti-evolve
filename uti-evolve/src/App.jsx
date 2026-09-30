@@ -1,3 +1,5 @@
+import PainAssessment from './PainAssessment.jsx';
+import {painSummary} from './pain.js';
 import {cgRaw,calcCKDEPI,calcCockcroftGault,calcKeGFR,renalEstimate,RENAL_EQUATIONS} from './renal.js';
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
@@ -6470,7 +6472,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       get("nGlasgow")? `GCS ${get("nGlasgow")}` : "",
       get("nPupilas")? get("nPupilas") : "",
       get("nEF")     ? get("nEF") : "",
-      get("nDor")    ? get("nDor").replace(/^(BPS|EVA)\s*/i,"$1 ") : "",
+      get("nDor")    ? get("nDor") : "",
       get("nEFExtra")? get("nEFExtra") : "",
     ].filter(Boolean).join(", ");
     if(ef) p.push(`- EF: ${ef}`);
@@ -6807,9 +6809,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             <PickField label="Motricidade"
               options={["Força preservada globalmente","Paraplegia","Hemiplegia D","Hemiplegia E","Força reduzida difusamente","Sedado — não avaliável"]}
               value={campos.nEF||""} onChange={v=>onCampoEdit("nEF",v)} rows={2}/>
-            <PickField label="Avaliação de Dor (BPS / EVA)"
-              options={["BPS 3 (sem dor)","BPS 4","BPS 5","BPS 6","BPS 7","BPS 8-12 (dor máx)","EVA 0/10","EVA 1-3/10 (leve)","EVA 4-6/10 (moderada)","EVA 7-9/10 (intensa)","EVA 10/10 (máxima)","Não avaliável"]}
-              value={campos.nDor||""} onChange={v=>onCampoEdit("nDor",v)} rows={1} placeholder="BPS ou EVA..."/>
+            <PainAssessment value={campos.nDorAvaliacao} legacy={campos.nDor} theme={T} onChange={assessment=>onCampoEdit("nDorAvaliacao",assessment)}/>
           </Col>
         </Row>
         </ClinicalGroup>
@@ -9109,6 +9109,9 @@ export default function App() {
     const prev=evolPorLeitoRef.current[leitoSelId]||evolCampos;
     const hoje=new Date().toISOString().split("T")[0];
     const next=typeof updater==='function'?updater(prev):updater;
+    // Keep the structured assessment and its evolution text in the same save.
+    if(next.nDorAvaliacao!==prev.nDorAvaliacao&&next.nDorAvaliacao)next.nDor=painSummary(next.nDorAvaliacao);
+    else if(next.nDor!==prev.nDor)next.nDorAvaliacao=null;
     const novasDatas={...(prev._datas||{})};
     Object.keys(next).forEach(k=>{if(k!=="_datas"&&next[k]!==prev[k])novasDatas[k]=hoje;});
     const comData={...next,_datas:novasDatas};
