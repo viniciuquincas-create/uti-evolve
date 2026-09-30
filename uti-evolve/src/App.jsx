@@ -1,4 +1,4 @@
-import {calcCKDEPI,calcCockcroftGault,calcKeGFR,renalEstimate,RENAL_EQUATIONS} from './renal.js';
+import {cgRaw,calcCKDEPI,calcCockcroftGault,calcKeGFR,renalEstimate,RENAL_EQUATIONS} from './renal.js';
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
 import { createPortal } from "react-dom";
@@ -4640,6 +4640,7 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
   const formatarAnalgesiaItens=itens=>(itens||[]).map(x=>[analgesiaDef(x.id)?.nome||x.id,x.dose?(analgesiaDef(x.id)?.doseComUnidade?x.dose:`${x.dose} mg`):'',x.intervalo||''].filter(Boolean).join(' ')).join(' · ');
 
   const [open,setOpen]=useState(false);
+  const [showRenal,setShowRenal]=useState(false);
   const [focused,setFocused]=useState(false);
   const [suggestionIndex,setSuggestionIndex]=useState(0);
   const [editingId,setEditingId]=useState("");
@@ -4673,6 +4674,22 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
   const diagnosticos=[leito.diagnostico,...(Array.isArray(leito.diagnosticos)?leito.diagnosticos:[])].map(x=>typeof x==="string"?x:(x?.nome||x?.descricao||"")).join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   const disfuncaoHepatica=/(insuficiencia hepat|cirrose|hepatopatia|child|falencia hepat)/.test(diagnosticos);
   const alertaItem=item=>{
+    if(clcr===null)return `Avaliação renal indisponível: ${renalResult.reason}`;
+    if(psicoativos){
+      if(item.id==='fenitoina')return 'Na doença renal ou hipoalbuminemia, a fração livre de fenitoína aumenta. Orientar monitorização pelo nível livre; não ajustar somente pelo nível total ou pela TFG.';
+      if(item.id==='fenobarbital')return 'A bula orienta reduzir a dose na insuficiência renal, mas não fornece faixas numéricas por TFG. Individualizar dose e monitorização; não há sugestão automática em mg.';
+      if(item.id==='sertralina')return 'A bula não exige ajuste de dose por insuficiência renal leve a grave. Avaliar separadamente função hepática, indicação e tolerância.';
+      if(item.id==='clobazam')return 'Sem ajuste renal recomendado na insuficiência leve a moderada; experiência insuficiente na insuficiência grave e doença renal terminal. Não extrapolar uma dose automática nessas situações.';
+      if(item.id==='levetiracetam'){
+        const weight=numClinico(leito.peso),height=numClinico(leito.altura),cg=cgRaw(ultimoCr,idadeDoLeito(leito),weight,leito.sexo);
+        if(cg===null||!(height>0&&weight>0))return 'Levetiracetam: informe creatinina, idade adulta, sexo, peso e altura para aplicar a tabela renal da bula (CG ajustado à superfície corporal).';
+        const clearance=cg*1.73/Math.sqrt(weight*height/3600);
+        const faixa=clearance>80?'500–1.500':clearance>=50?'500–1.000':clearance>=30?'250–750':'250–500';
+        return `Levetiracetam de liberação imediata, manutenção em adulto sem diálise: ${faixa} mg a cada 12 h. Referência da bula: CG ${clearance.toFixed(1)} mL/min/1,73 m². Titular conforme indicação e resposta; não é dose de ataque. A tabela da bula usa CG indexado, independentemente da equação geral configurada.`;
+      }
+      return 'Ainda não há regra automática de ajuste renal cadastrada para este medicamento. Isso não significa ausência de necessidade de ajuste; revisar bula, formulação e contexto clínico.';
+    }
+
     if(item.id==="gabapentina"&&clcr!==null&&clcr<60){
       if(clcr>30)return `Função renal ${formatRenal(clcr)}: dose total 400–1.400 mg/dia, dividida em 2 tomadas (ex.: 200–700 mg 12/12 h).`;
       if(clcr>15)return `Função renal ${formatRenal(clcr)}: dose total 200–700 mg, 1 vez/dia.`;
@@ -4695,8 +4712,10 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
     return "";
   };
   return <div onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpen(false);}} onKeyDown={e=>{if(e.key==="Escape")setOpen(false);}} style={{position:"relative",marginBottom:0}}>
-    {!psicoativos&&<button type="button" aria-label="Informações da função renal na analgesia" title={`Função renal · ${renalResult.label}: ${renalResult.value===null?renalResult.reason:`${renalResult.value.toFixed(1)} mL/min · Cr de ${renalResult.date}`}${renalResult.hours!==null?` · Δt ${renalResult.hours.toFixed(1)} h${renalResult.approximate?" (estimado pelas datas; informe os horários)":""}`:""}`} style={{position:"absolute",right:7,top:7,zIndex:1,width:20,height:20,padding:0,border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,color:renalResult.value===null?"#b7791f":T.text3,fontSize:12,lineHeight:"18px",cursor:"help"}}>{renalResult.value===null?"!":"i"}</button>}
+    <button type="button" onClick={()=>setShowRenal(v=>!v)} aria-expanded={showRenal} aria-label={psicoativos?"Revisar função renal dos psicoativos":"Revisar função renal da analgesia"} title={`Função renal · ${renalResult.label}: ${renalResult.value===null?renalResult.reason:`${renalResult.value.toFixed(1)} mL/min · Cr de ${renalResult.date}`}${renalResult.hours!==null?` · Δt ${renalResult.hours.toFixed(1)} h${renalResult.approximate?" (estimado pelas datas; informe os horários)":""}`:""}`} style={{position:"absolute",right:7,top:7,zIndex:1,width:20,height:20,padding:0,border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,color:renalResult.value===null?"#b7791f":T.text3,fontSize:12,lineHeight:"18px",cursor:"help"}}>{renalResult.value===null?"!":"i"}</button>
     <textarea ref={textoRef} value={freeValue||""} onChange={e=>editarTexto(e.target.value)} onFocus={()=>{setFocused(true);setOpen(true);}} onClick={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} onKeyDown={e=>{if(!sugestoes.length||open)return;if(e.key==="ArrowDown"){e.preventDefault();setSuggestionIndex(i=>(i+1)%sugestoes.length);}else if(e.key==="ArrowUp"){e.preventDefault();setSuggestionIndex(i=>(i-1+sugestoes.length)%sugestoes.length);}else if(e.key==="Enter"){e.preventDefault();add(sugestoes[suggestionIndex]?.id,true);}}} rows={2} placeholder={psicoativos?"Digite ou selecione psicoativos…":"Digite a medicação ou o esquema analgésico…"} style={{width:"100%",height:54,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 32px 8px 10px",color:T.text1,fontSize:12,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
+    {showRenal&&<div role="region" aria-label="Revisão renal das medicações" style={{padding:8,margin:'0 0 6px',border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard,fontSize:10,color:T.text2}}><RenalEstimateInfo result={renalResult}/>{(()=>{const reconhecidos=todos.filter(m=>itens.some(x=>x.id===m.id)||textoAtual.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(m.nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()));return reconhecidos.length?reconhecidos.map(m=><div key={m.id} style={{marginTop:6}}><b>{m.nome}: </b>{alertaItem(m)||'Nenhum alerta automático disparado para os dados atuais; isso não confirma adequação da dose.'}{m.id==='levetiracetam'&&<a href="https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=3ca9df05-a506-4ec8-a4fe-320f1219ab21" target="_blank" rel="noreferrer" style={{display:'block',color:T.accent}}>Bula · ajuste renal</a>}</div>):<div>Selecione ou digite o nome da medicação para consultar os alertas disponíveis.</div>;})()}</div>}
+
 
     {!!sugestoes.length&&!open&&<div style={{position:"absolute",zIndex:45,left:0,right:0,top:"calc(100% + 3px)",border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard,overflow:"hidden"}}>{sugestoes.map((m,i)=><button key={m.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>add(m.id,true)} style={{display:"flex",width:"100%",padding:"7px 10px",border:0,borderBottom:`1px solid ${T.border}`,background:i===suggestionIndex?T.accentBg:"transparent",color:i===suggestionIndex?T.accent:T.text1,cursor:"pointer",textAlign:"left",fontSize:11}}><strong>{m.nome}</strong><span style={{marginLeft:"auto",fontSize:9,color:T.accent}}>{i===suggestionIndex?"Enter para selecionar":"selecionar"}</span></button>)}</div>}
     {open&&<div style={{position:"absolute",zIndex:44,left:0,right:0,top:"calc(100% + 3px)",padding:"9px",display:"grid",gap:7,border:`1px solid ${T.accentBorder}`,borderRadius:8,background:T.bgCard,boxShadow:"0 14px 34px rgba(0,0,0,.24)",maxHeight:390,overflowY:"auto"}}>
@@ -4705,7 +4724,7 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
         <strong style={{fontSize:10,color:T.text2,alignSelf:"center"}}>{def?.nome||item.id}</strong>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}><label style={{fontSize:8,color:T.text4}}>DOSE {def?.doseComUnidade?"":"(mg)"}<input ref={el=>{if(el)doseRefs.current[item.id]=el;}} list={`analgesia-dose-${item.id}`} value={item.dose||""} onChange={e=>{const dose=e.target.value,permitidos=item.id==="dipirona"&&dose==="2g"?["q6h"]:(def?.intervalos||ANALGESIA_INTERVALOS);upd(item.id,{dose,...(item.intervalo&&!permitidos.includes(item.intervalo)?{intervalo:""}:{})});}} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();intervalRefs.current[item.id]?.focus();}}} placeholder="— informar —" style={{display:"block",width:"100%",boxSizing:"border-box",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 7px"}}/><datalist id={`analgesia-dose-${item.id}`}>{(def?.doses||[]).map(x=><option key={x} value={x}/>)}</datalist></label><label style={{fontSize:8,color:T.text4}}>INTERVALO<input ref={el=>{if(el)intervalRefs.current[item.id]=el;}} list={`analgesia-int-${item.id}`} value={item.intervalo||""} onChange={e=>upd(item.id,{intervalo:e.target.value})} onBlur={e=>{const v=normalizarIntervalo(e.target.value);if(v!==e.target.value)upd(item.id,{intervalo:v});}} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();const v=normalizarIntervalo(e.currentTarget.value);if(v!==e.currentTarget.value)upd(item.id,{intervalo:v});voltarAoTexto();}}} placeholder="— informar —" style={{display:"block",boxSizing:"border-box",width:"100%",height:30,marginTop:2,borderRadius:6,border:`1px solid ${T.borderStrong}`,background:T.bgInput,color:T.text1,padding:"0 5px"}}/><datalist id={`analgesia-int-${item.id}`}>{(item.id==="dipirona"&&item.dose==="2g"?["q6h"]:(def?.intervalos||ANALGESIA_INTERVALOS)).map(x=><option key={x} value={x}/>)}</datalist></label></div>
         <button type="button" onClick={()=>remove(item.id)} title="Remover" style={{height:30,borderRadius:6,border:"1px solid rgba(248,113,113,.25)",background:"rgba(248,113,113,.06)",color:"#f87171",cursor:"pointer"}}>✕</button>
-        {!psicoativos&&alertaItem(item)&&<div style={{gridColumn:"1 / -1",padding:"5px 7px",borderRadius:6,background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.22)",fontSize:9,color:"#b7791f"}}>⚠ {alertaItem(item)}</div>}
+        {alertaItem(item)&&<div style={{gridColumn:"1 / -1",padding:"5px 7px",borderRadius:6,background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.22)",fontSize:9,color:"#b7791f"}}>⚠ {alertaItem(item)}</div>}
       </div>})}</div>}
     </div>}
   </div>;
@@ -6797,7 +6816,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         {(vis["n24h"]||valorDiario("n24h"))&&<ClinicalGroup label="CONTROLES DE 24H" color="#a78bfa"><Row><Col><TA fieldRef={refs.n24h} defaultValue={valorDiario("n24h")} sugestao="PIC 8-15 mmHg / DVE 120 mL / PPC 56-89 mmHg" rows={1} fieldName="n24h" onBlurSave={salvar}/></Col></Row></ClinicalGroup>}
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#a78bfa">
         <Row>
-          <Col><FL>P - PSICOATIVOS</FL><AnalgesiaEstruturada psicoativos catalog={PSICOATIVOS_CATALOGO} value={campos.nPsicoativosItens||[]} onChange={v=>onCampoEdit("nPsicoativosItens",v)} freeValue={campos.nSeda} onFreeChange={v=>onCampoEdit("nSeda",v)} leito={leito} config={config}/></Col>
+          <Col><FL>P - PSICOATIVOS</FL><AnalgesiaEstruturada psicoativos tabelaDataLeito={tabelaDataLeito} catalog={PSICOATIVOS_CATALOGO} value={campos.nPsicoativosItens||[]} onChange={v=>onCampoEdit("nPsicoativosItens",v)} freeValue={campos.nSeda} onFreeChange={v=>onCampoEdit("nSeda",v)} leito={leito} config={config}/></Col>
           <Col><FL>A — ANALGESIA</FL><AnalgesiaEstruturada value={campos.nAnalgesiaItens} onChange={v=>onCampoEdit("nAnalgesiaItens",v)} freeValue={campos.nAnalg} onFreeChange={v=>onCampoEdit("nAnalg",v)} leito={leito} tabelaDataLeito={tabelaDataLeito} config={config}/></Col>
         </Row>
         {vis["nEFExtra"]&&<Row><Col><FL>EF — Detalhe adicional</FL><TA fieldRef={refs.nEFExtra} defaultValue={campos.nEFExtra} isAntigo={isAntigo("nEFExtra")} rows={2} fieldName="nEFExtra" onBlurSave={salvar}/></Col></Row>}
