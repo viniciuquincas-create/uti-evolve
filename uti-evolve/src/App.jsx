@@ -5026,11 +5026,29 @@ function gruposMetas(metas=[],planos=[],problemas=[]){
  const grupos=[];
  ordenarMetas(metas).forEach(m=>{const plano=planos.find(p=>p.id===m.planoId),problema=problemas.find(p=>p.id===m.problemaId);const id=plano?`plano:${plano.id}`:m.problemaId?`problema:${m.problemaId}`:'geral';const titulo=plano?.titulo||(problema?nomeDiagnosticoProblema(problema):m.problemaNome)||'Metas gerais';let g=grupos.find(x=>x.id===id);if(!g){g={id,titulo,metas:[]};grupos.push(g);}g.metas.push(m);});return grupos;
 }
-function textoMetasAgrupadas(metas=[],planos=[],problemas=[]){return gruposMetas(metas,planos,problemas).map(g=>`- ${g.titulo}\n${g.metas.map(m=>`  - ${m.texto||m}${m.feito||m.status==='cumprido'?' (concluída)':''}`).join('\n')}`).join('\n');}
-function textoPlanoCuidado(items=[],metas=[]){
- const planos=items.map(p=>`- ${p.problemas?.length?p.problemas.map(x=>x.nome).join(' / ')+'\n  - ':''}${p.titulo}${(p.subitens||[]).filter(x=>x.texto?.trim()).map(x=>`\n    - ${x.texto.trim()}`).join('')}${ordenarMetas(metas.filter(m=>m.planoId===p.id)).map(m=>`\n    - ${m.texto}${m.feito||m.status==='cumprido'?' (concluída)':''}`).join('')}`).join('\n');
- const diretas=textoMetasAgrupadas(metas.filter(m=>!items.some(p=>p.id===m.planoId)),items);
- return [planos,diretas].filter(Boolean).join('\n');
+function textoMetasAgrupadas(metas=[],planos=[],problemas=[]){return gruposMetas(metas,planos,problemas).map(g=>`• ${g.titulo}\n${g.metas.map(m=>`  ↳ ${m.texto||m}${m.feito||m.status==='cumprido'?' (concluída)':''}`).join('\n')}`).join('\n');}
+function textoPlanoCuidado(items=[]){
+ return items.map(p=>`• ${p.titulo}${p.problemas?.length?' ('+p.problemas.map(x=>x.nome).join(' / ')+')':''}${(p.subitens||[]).filter(x=>x.texto?.trim()).map(x=>`\n  ↳ ${x.texto.trim()}`).join('')}`).join('\n');
+}
+const MetaAssociationContext=React.createContext(null);
+function MetaRow({meta,metas,onMetaChange,leito={},planos,problemas,children,onContextMenu,...props}){
+ const T=useTheme(),getProblemas=React.useContext(MetaAssociationContext);
+ const [menu,setMenu]=useState(null);
+ const ref=useRef(null);
+ useEffect(()=>{if(!menu)return;const close=e=>{if(!ref.current?.contains(e.target))setMenu(null);};const esc=e=>{if(e.key==='Escape')setMenu(null);};document.addEventListener('pointerdown',close);document.addEventListener('keydown',esc);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',esc);};},[menu]);
+ const plans=planos||leito.metasTerapeuticas||[];
+ const probs=menu?(problemas||getProblemas?.(leito)||diagnosticosAtivosUnificados(leito,[])):[];
+ const patch=values=>{onMetaChange?.(metas.map(m=>m===meta||m.id===meta.id?{...m,...values}:m));setMenu(null);};
+ const btn={display:'block',width:'100%',padding:8,textAlign:'left',border:0,borderRadius:5,background:'transparent',color:T.text2,cursor:'pointer',fontSize:11};
+ return <div {...props} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenu({x:e.clientX,y:e.clientY});}}>{children}{menu&&createPortal(<div ref={ref} role="dialog" aria-label="Organizar meta" onContextMenu={e=>{e.preventDefault();e.stopPropagation();}} onClick={e=>e.stopPropagation()} style={{position:'fixed',left:Math.max(6,Math.min(menu.x,window.innerWidth-286)),top:Math.max(6,Math.min(menu.y,window.innerHeight-360)),width:270,maxWidth:'calc(100vw - 24px)',maxHeight:'min(350px,calc(100vh - 24px))',overflowY:'auto',padding:6,border:`1px solid ${T.borderStrong}`,borderRadius:9,background:T.bgCard,boxShadow:'0 12px 32px #0005',zIndex:10010}}>
+ <div style={{padding:7,fontSize:11,fontWeight:700,color:T.text1}}>Vincular meta</div>
+ <button style={btn} onClick={()=>patch({planoId:'',problemaId:'',problemaNome:''})}>Sem vínculo</button>
+ {!!plans.length&&<div style={{padding:7,fontSize:10,color:T.text3}}>Planos de cuidado</div>}
+ {plans.map(p=><button key={p.id} style={btn} onClick={()=>patch({planoId:p.id,problemaId:'',problemaNome:''})}>{meta.planoId===p.id?'✓ ':''}• {p.titulo}</button>)}
+ {!!probs.length&&<div style={{padding:7,fontSize:10,color:T.text3}}>Problemas ativos</div>}
+ {probs.map(p=><button key={p.id} style={btn} onClick={()=>patch({planoId:'',problemaId:p.id,problemaNome:nomeDiagnosticoProblema(p)})}>{!meta.planoId&&meta.problemaId===p.id?'✓ ':''}{nomeDiagnosticoProblema(p)}</button>)}
+ <label style={{display:'grid',gap:5,padding:7,fontSize:10,color:T.text3}}>Equipe responsável<select aria-label="Equipe responsável" value={meta.equipe||''} onChange={e=>patch({equipe:e.target.value})} style={{...btn,background:T.bgInput,border:`1px solid ${T.border}`}}><option value="">Sem equipe</option>{EQUIPES.map(eq=><option key={eq.id} value={eq.id}>{eq.label}</option>)}</select></label>
+ </div>,document.body)}</div>;
 }
 
 function MetasTerapeuticas({items=[],onChange,metas=[],onMetaChange,problemas=[]}){
@@ -5040,13 +5058,13 @@ function MetasTerapeuticas({items=[],onChange,metas=[],onMetaChange,problemas=[]
   const add=()=>{if(!novo.trim())return;const id=(globalThis.crypto?.randomUUID?.()||`meta-${Date.now()}-${Math.random().toString(36).slice(2)}`);onChange([...items,{id,titulo:novo.trim(),subitens:[]}]);setNovo('');setAberto(id);};
   const btn={border:`1px solid ${T.border}`,borderRadius:6,padding:'5px 7px',background:T.bgInput,color:T.text2,fontSize:10,cursor:'pointer'};
   const checklist=(planoId,lista)=><div style={{marginTop:8,paddingLeft:8,borderLeft:`2px solid ${T.border}`}}>
-    {ordenarMetas(lista||metas.filter(m=>m.planoId===planoId)).map(m=><div key={m.id} style={{marginBottom:7}}>
+    {ordenarMetas(lista||metas.filter(m=>m.planoId===planoId)).map(m=><MetaRow meta={m} metas={metas} onMetaChange={onMetaChange} planos={items} problemas={problemas} key={m.id} style={{marginBottom:7}}>
       <div style={{display:'flex',gap:5,alignItems:'start'}}><MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/><input type="checkbox" aria-label={`Concluir meta: ${m.texto}`} checked={!!(m.feito||m.status==='cumprido')} onChange={e=>onMetaChange(metas.map(x=>x.id===m.id?{...x,feito:e.target.checked,status:e.target.checked?'cumprido':'pendente'}:x))}/><span style={{flex:1,fontSize:11,color:T.text2,textDecoration:m.feito||m.status==='cumprido'?'line-through':'none'}}>{m.texto}{m.equipe&&<small style={{display:'block'}}>{equipeLabel(m.equipe)}</small>}</span><button style={btn} title="Editar meta" onClick={()=>editarTextoMeta(metas,m,onMetaChange)}>✎</button><button style={btn} title="Excluir meta" onClick={()=>onMetaChange(metas.filter(x=>x.id!==m.id))}>×</button></div>
       <details style={{marginLeft:24}}><summary style={{fontSize:9,color:T.text3,cursor:'pointer'}}>Organizar meta</summary>
       <select aria-label={`Equipe da meta: ${m.texto}`} value={m.equipe||''} onChange={e=>onMetaChange(metas.map(x=>x.id===m.id?{...x,equipe:e.target.value}:x))} style={{...btn,width:'100%',marginTop:3}}><option value="">Equipe responsável…</option>{EQUIPES.map(e=><option key={e.id} value={e.id}>{e.label}</option>)}</select>
-      <select aria-label={`Plano da meta: ${m.texto}`} value={items.some(p=>p.id===m.planoId)?m.planoId:''} onChange={e=>onMetaChange(metas.map(x=>x.id===m.id?{...x,planoId:e.target.value}:x))} style={{...btn,width:'100%',marginTop:3}}><option value="">Sem plano definido</option>{items.map(p=><option key={p.id} value={p.id}>{p.titulo}</option>)}</select>
+      <select aria-label={`Plano da meta: ${m.texto}`} value={items.some(p=>p.id===m.planoId)?m.planoId:''} onChange={e=>onMetaChange(metas.map(x=>x.id===m.id?{...x,planoId:e.target.value,problemaId:'',problemaNome:''}:x))} style={{...btn,width:'100%',marginTop:3}}><option value="">Sem plano definido</option>{items.map(p=><option key={p.id} value={p.id}>{p.titulo}</option>)}</select>
       </details>
-    </div>)}
+    </MetaRow>)}
     {planoId&&<button style={btn} onClick={()=>{const texto=window.prompt('Meta do dia para este plano:');if(texto?.trim())onMetaChange([...metas,{id:(globalThis.crypto?.randomUUID?.()||`care-${Date.now()}-${Math.random().toString(36).slice(2)}`),texto:texto.trim(),feito:false,status:'pendente',prioridade:'amarelo',planoId:planoId||''}]);}}>+ meta / pendência do dia</button>}
   </div>;
   return <div aria-label="Plano de cuidado">
@@ -5065,7 +5083,7 @@ function MetasTerapeuticas({items=[],onChange,metas=[],onMetaChange,problemas=[]
     </div>)}
     {gruposMetas(metas.filter(m=>!items.some(p=>p.id===m.planoId)),items,problemas).map(g=><div key={g.id} style={{marginTop:10}}><b style={{fontSize:11,color:T.text2}}>{g.titulo}</b>{checklist(null,g.metas)}</div>)}
     <button style={{...btn,width:'100%',marginTop:8}} onClick={async()=>{try{await navigator.clipboard.writeText(textoMetasAgrupadas(metas,items,problemas));setErro('');}catch{setErro('Não foi possível copiar.');}}}>Copiar metas / pendências</button>
-    <button disabled={!items.length&&!metas.length} style={{...btn,width:'100%',marginTop:6}} onClick={async()=>{try{await navigator.clipboard.writeText(textoPlanoCuidado(items,metas));setErro('');setCopiado(true);setTimeout(()=>setCopiado(false),2000);}catch{setErro('Não foi possível copiar. Tente novamente.');}}}>{copiado?'✓ Copiado':'Copiar plano de cuidado'}</button>
+    <button disabled={!items.length} style={{...btn,width:'100%',marginTop:6}} onClick={async()=>{try{await navigator.clipboard.writeText(textoPlanoCuidado(items,metas));setErro('');setCopiado(true);setTimeout(()=>setCopiado(false),2000);}catch{setErro('Não foi possível copiar. Tente novamente.');}}}>{copiado?'✓ Copiado':'Copiar plano de cuidado'}</button>
     {erro&&<div role="alert" style={{fontSize:10,color:T.text2}}>{erro}</div>}
     <DiagnosticoTituloMenu menu={menu} onClose={()=>setMenu(null)} onEdit={()=>{const item=items.find(x=>x.id===menu?.id);if(!item)return;const titulo=window.prompt('Editar título do plano de cuidado:',item.titulo);if(titulo?.trim())update(item.id,{titulo:titulo.trim()});}}/>
   </div>;
@@ -5218,7 +5236,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
           </div>
           {modo!=="metas"&&<section aria-label="Metas e pendências do dia" style={{marginTop:10,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:metas.length?7:0}}><span style={{fontSize:9,fontWeight:600,letterSpacing:.6,color:T.text3,flex:1}}>METAS / PENDÊNCIAS{pendentes>0?` · ${pendentes}`:''}</span><div style={{display:'flex',alignItems:'center',gap:4}}><button title="Adicionar pendência" aria-label="Adicionar pendência" onClick={()=>{const texto=window.prompt('Nova pendência:');if(texto?.trim())onMetaChange?.([...metas,{id:`meta-${Date.now()}-${Math.random().toString(36).slice(2)}`,texto:texto.trim(),feito:false,status:'pendente',prioridade:'amarelo'}]);}} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:22,height:22,padding:0,fontSize:13,color:T.text3,background:'transparent',border:`1px solid ${T.border}`,borderRadius:11,cursor:'pointer'}}>+</button><button title="Copiar metas / pendências" aria-label="Copiar metas / pendências" disabled={!metas.length} onClick={async()=>{try{await navigator.clipboard.writeText(textoMetasAgrupadas(metas,leito.metasTerapeuticas||[],diagnosticosProblemas));setCopiado(v=>({...v,metas:true}));setTimeout(()=>setCopiado(v=>({...v,metas:false})),2000);}catch{window.alert('Não foi possível copiar. Tente novamente.');}}} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:22,height:22,padding:0,fontSize:13,color:T.text3,background:'transparent',border:`1px solid ${T.border}`,borderRadius:11,cursor:'pointer'}}>{copiado.metas?'✓':'⧉'}</button></div></div>
-            {gruposMetas(metas,leito.metasTerapeuticas||[],diagnosticosProblemas).map(g=><div key={g.id} style={{marginBottom:8}}><div style={{fontSize:10,fontWeight:700,color:T.text2,marginBottom:4}}>{g.titulo}</div>{g.metas.map(m=><div key={m.id} style={{display:'flex',gap:5,alignItems:'start',marginLeft:6,marginBottom:4}} onContextMenu={e=>{e.preventDefault();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,metaIndex:metas.indexOf(m),equipe:m.equipe||''});}}><MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/><input type="checkbox" aria-label={`Concluir pendência: ${m.texto}`} checked={!!(m.feito||m.status==='cumprido')} onChange={e=>onMetaChange?.(metas.map(x=>x.id===m.id?{...x,feito:e.target.checked,status:e.target.checked?'cumprido':'pendente'}:x))} style={{margin:0}}/><span style={{flex:1,fontSize:10,color:T.text2,textDecoration:m.feito||m.status==='cumprido'?'line-through':'none'}}>{m.texto}{m.equipe&&<small style={{display:'block',color:T.text3}}>{equipeLabel(m.equipe)}</small>}</span><button title="Editar pendência" onClick={()=>editarTextoMeta(metas,m,onMetaChange)} style={{border:0,padding:0,background:'transparent',color:T.text3,cursor:'pointer'}}>✎</button><button title="Excluir pendência" onClick={()=>onMetaChange?.(metas.filter(x=>x.id!==m.id))} style={{border:0,padding:0,background:'transparent',color:T.text3,cursor:'pointer'}}>×</button></div>)}</div>)}
+            {gruposMetas(metas,leito.metasTerapeuticas||[],diagnosticosProblemas).map(g=><div key={g.id} style={{marginBottom:8}}><div style={{fontSize:10,fontWeight:700,color:T.text2,marginBottom:4}}>{g.titulo}</div>{g.metas.map(m=><MetaRow meta={m} metas={metas} onMetaChange={onMetaChange} leito={leito} problemas={diagnosticosProblemas} key={m.id} style={{display:'flex',gap:5,alignItems:'start',marginLeft:6,marginBottom:4}} onContextMenu={e=>{e.preventDefault();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,metaIndex:metas.indexOf(m),equipe:m.equipe||''});}}><MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/><input type="checkbox" aria-label={`Concluir pendência: ${m.texto}`} checked={!!(m.feito||m.status==='cumprido')} onChange={e=>onMetaChange?.(metas.map(x=>x.id===m.id?{...x,feito:e.target.checked,status:e.target.checked?'cumprido':'pendente'}:x))} style={{margin:0}}/><span style={{flex:1,fontSize:10,color:T.text2,textDecoration:m.feito||m.status==='cumprido'?'line-through':'none'}}>{m.texto}{m.equipe&&<small style={{display:'block',color:T.text3}}>{equipeLabel(m.equipe)}</small>}</span><button title="Editar pendência" onClick={()=>editarTextoMeta(metas,m,onMetaChange)} style={{border:0,padding:0,background:'transparent',color:T.text3,cursor:'pointer'}}>✎</button><button title="Excluir pendência" onClick={()=>onMetaChange?.(metas.filter(x=>x.id!==m.id))} style={{border:0,padding:0,background:'transparent',color:T.text3,cursor:'pointer'}}>×</button></MetaRow>)}</div>)}
           </section>}
           <DiagnosticoTituloMenu menu={menuDiagnostico} onClose={()=>setMenuDiagnostico(null)} onEdit={()=>{
             const item=diagnosticosProblemas.find(d=>d.id===menuDiagnostico?.id);if(!item)return;
@@ -6375,7 +6393,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const imp = refs.impressao?.current?.value?.trim() || campos.impressao || "";
     if(imp) t+=`== Impressão:\n${imp}\n`;
     const plano=textoPlanoCuidado(leito.metasTerapeuticas||[],metas);
-    if(plano)t+=`\n${plano}\n`;
+    if(plano)t+=`\n== Plano de cuidado:\n${plano}\n`;
+    const metasTexto=textoMetasAgrupadas(metas,leito.metasTerapeuticas||[],leito.problemasDiagnosticos||[]);
+    if(metasTexto)t+=`\n== Metas / pendências:\n${metasTexto}\n`;
     navigator.clipboard.writeText(t);
     setCopiado(c=>({...c,tudo:true}));
     setTimeout(()=>setCopiado(c=>({...c,tudo:false})),2500);
@@ -7416,7 +7436,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
       </div>}
 
       {gruposMetas(metasFiltradas,leito.metasTerapeuticas||[],leito.problemasDiagnosticos||[]).map(grupo=><section key={grupo.id} style={{marginBottom:14}}><h4 style={{fontSize:12,color:'#64748b',margin:'8px 0'}}>{grupo.titulo}</h4>{grupo.metas.map(m=>(
-        <div key={m.id} draggable onDragStart={()=>setDragMeta(m.id)} onDragOver={e=>e.preventDefault()} onDrop={()=>moverMeta(m)} onDragEnd={()=>setDragMeta(null)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",
+        <MetaRow meta={m} metas={metas} onMetaChange={onChange} leito={leito} key={m.id} draggable onDragStart={()=>setDragMeta(m.id)} onDragOver={e=>e.preventDefault()} onDrop={()=>moverMeta(m)} onDragEnd={()=>setDragMeta(null)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 14px",
           background:"rgba(255,255,255,0.02)",borderRadius:10,marginBottom:6,
           border:`1px solid ${metaPrioridade(m).cor}55`,cursor:"grab"}}>
           <input type="checkbox" aria-label={`Concluir meta: ${m.texto}`} checked={!!(m.feito||m.status==='cumprido')} onChange={e=>onChange(metas.map(x=>x.id===m.id?{...x,feito:e.target.checked,status:e.target.checked?'cumprido':'pendente'}:x))}/>
@@ -7456,7 +7476,7 @@ function MetasPanel({ metas, onChange, leito={}, config={}, tabelaHoje={} }) {
             style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:14,padding:"2px 4px"}}>
             ✕
           </button>
-        </div>
+        </MetaRow>
       ))}</section>)}
     </div>
   );
@@ -8113,7 +8133,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                     <div style={{margin:"0 2px 8px",padding:"8px 10px",background:"rgba(56,189,248,0.04)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:8}}>
                       {metasL.length===0 && <div style={{fontSize:10,color:"#475569"}}>Sem metas cadastradas</div>}
                       {ordenarMetas(metasL).map((m,i)=>(
-                        <div key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
+                        <MetaRow meta={m} metas={metasL} onMetaChange={novas=>onMetaChange?.(l.id,novas)} leito={l} key={m.id||i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
                           <MetaPriorityDot meta={m} metas={metasL} onChange={novas=>onMetaChange&&onMetaChange(l.id,novas)}/>
                           <button onClick={()=>onMetaChange&&onMetaChange(l.id, metasL.map(x=>x.id===m.id?{...x,feito:!x.feito}:x))}
                             style={{background:"none",border:"none",cursor:"pointer",fontSize:12,padding:0,color:m.feito?"#34d399":"#334155",flexShrink:0}}>
@@ -8121,7 +8141,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
                           </button>
                           <span style={{fontSize:10,color:m.feito?T.text3:T.text1,fontWeight:claro&&!m.feito?600:400,borderLeft:`3px solid ${metaPrioridade(m).cor}`,paddingLeft:5,textDecoration:m.feito?"line-through":"none",lineHeight:1.4,flex:1}}>{m.texto||m}</span>
                           <button onClick={()=>editarTextoMeta(metasL,m,novas=>onMetaChange(l.id,novas))} title="Editar" style={{background:"none",border:"none",color:"#38bdf8",cursor:"pointer",padding:0}}>✎</button>
-                        </div>
+                        </MetaRow>
                       ))}
                     </div>
                   )}
@@ -8328,7 +8348,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
                   </div>
                 ))}
                 {metas.length>0 ? ordenarMetas(metas).map((m,i)=>(
-                  <div key={m.id||i} onContextMenu={e=>{e.preventDefault();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,leitoId:l.id,equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
+                  <MetaRow meta={m} metas={metas} onMetaChange={novas=>onMetaChange?.(l.id,novas)} leito={l} key={m.id||i} onContextMenu={e=>{e.preventDefault();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,leitoId:l.id,equipe:m.equipe||""});}} title="Clique com o botão direito para definir a equipe" style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}>
                     <MetaPriorityDot meta={m} metas={metas} onChange={novas=>onMetaChange(l.id,novas)}/>
                     <button onClick={()=>{
                       const novas=metas.map(x=>x.id===m.id?{...x,feito:!x.feito}:x);
@@ -8345,7 +8365,7 @@ function PlantaoPanel({ leitos, tabelaData, metasPorLeito, onMetaChange, onClear
                       style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,color:T.text3,flexShrink:0}}>
                       ✕
                     </button>
-                  </div>
+                  </MetaRow>
                 )) : alerts.length===0 && (
                   <div style={{fontSize:10,color:T.text2}}>Sem metas</div>
                 )}
@@ -9161,6 +9181,7 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={T}>
+    <MetaAssociationContext.Provider value={l=>diagnosticosAtivosUnificados(l,problemasAtivosAutomaticos(l,tabelaData[l.id]||{},evolPorLeito[l.id]||{},config))}>
     {importacao&&<ClinicalImportBox key={`${importacao.id}-${importacao.admissionId}`} T={T} destino={importacao} minimizada={importacao.minimizada} onMinimize={()=>setImportacao(atual=>({...atual,minimizada:true}))} onRestore={()=>setImportacao(atual=>({...atual,minimizada:false}))} onClose={()=>setImportacao(null)} onSave={resultado=>salvarImportacao(resultado,importacao)}/>}
     <ImportarDadosClinicosMenu menu={menuImportar} onClose={()=>setMenuImportar(null)} onImportar={()=>abrirImportacao(menuImportar?.leitoId??leito?.id)}/>
     <div className={theme==="light"?"theme-light":"theme-dark"} style={{minHeight:"100vh",background:T.bgPage,fontFamily:"'Sora','DM Sans',sans-serif",color:T.text1,display:"flex",flexDirection:"column"}}>
@@ -9571,6 +9592,7 @@ ${linha}`:linha}));
       </div>}
       {historicoAberto&&leito?.admissionId&&<HistoricoDiarioPanel internacao={historicoDiario[leito.admissionId]||{patientName:leito.paciente,days:{}}} onClose={()=>setHistoricoAberto(false)}/>}
     </div>
+    </MetaAssociationContext.Provider>
     </ThemeCtx.Provider>
   );
 }
