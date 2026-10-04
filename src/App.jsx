@@ -1,3 +1,4 @@
+import {sbariVisibleFields,revealSbariFields} from './sbari-visibility.js';
 import {createEvolutionWriter} from './evolution-save.js';
 import PainAssessment from './PainAssessment.jsx';
 import {painSummary,painCopy} from './pain.js';
@@ -5264,10 +5265,10 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
 const _PF_OPEN = {};
 
 
-function PickField({ label, options=[], value="", onChange, rows=2, placeholder="" }) {
+function PickField({ label, options=[], value="", onChange, rows=2, placeholder="", initialOpen=false }) {
   const T=useTheme();
   const _pfKey = label || options.join('|');
-  const [open, setOpen] = useState(() => !!_PF_OPEN[_pfKey]);
+  const [open, setOpen] = useState(() => initialOpen || !!_PF_OPEN[_pfKey]);
   const taRef = React.useRef(null);
   const mono = "'DM Mono',monospace";
 
@@ -6413,7 +6414,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
   // Visibilidade dos campos opcionais/adicionáveis — persistida em campos._vis_
   const [camposVis, setCamposVisRaw] = useState(()=>{
-    const initial={...(campos._vis_||{})};
+    const initial={...(campos._vis_||{}),...sbariVisibleFields(campos)};
+    // Additional examination text must never remain invisible while included in the copy.
+    if(campos.nEFExtra?.trim())initial.nEFExtra=true;
+    if(campos.rmEFExtra?.trim())initial.rmEFExtra=true;
     for(const system of ['n','cv','res','reme','tgi','he','in'])for(const kind of ['interconsulta','exames']){
       const key=`add_${system}_${kind}`;
       if(initial[key]===undefined&&(campos[`${system}_${kind}`]?.length||campos[key]))initial[key]=true;
@@ -6831,10 +6835,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
         <ClinicalGroup label="AVALIAÇÃO" color="#a78bfa">
         <Row>
           <Col>
-            <PickField label="RASS"
+            <PickField label="RASS" initialOpen={!!sbariVisibleFields(campos).nRASS}
               options={["-5 Não responsivo","-4 Resposta à dor","-3 Abre olhos à voz","-2 Acorda brevemente","-1 Sonolento","0 Alerta e calmo","+1 Agitado","+2 Muito agitado","+3 Agressivo","+4 Combativo"]}
               value={campos.nRASS||""} onChange={v=>onCampoEdit("nRASS",v)} rows={1}/>
-            <PickField label="Glasgow"
+            <PickField label="Glasgow" initialOpen={!!sbariVisibleFields(campos).nGlasgow}
               options={["15","14","13","12","11","10","9","8","7","6","5","4","3"]}
               value={campos.nGlasgow||""} onChange={v=>onCampoEdit("nGlasgow",v)} rows={1} placeholder="Total ou O/V/M"/>
           </Col>
@@ -9025,8 +9029,7 @@ export default function App() {
         const gaso=Object.fromEntries(Object.entries(c.gasometry||{}).filter(([,v])=>v!==""&&v!=null));
         if(Object.keys(gaso).length){let gasos=[];try{gasos=JSON.parse(row._gasos||"[]");}catch{}const duplicada=gasos.some(g=>["ph","pco2","hco3","lact"].every(k=>!gaso[k]||String(g?.[k]||"")===String(gaso[k])));if(!duplicada)gasos.push({id:`sbari-gaso-${Date.now()}-${l.id}`,data:dataAnterior,horario:"",...gaso});row={...row,_gasos:JSON.stringify(gasos)};}
         novaTabela[l.id]={...(novaTabela[l.id]||{}),[dataAnterior]:row};
-        const baseE=novaEvol[l.id]||EVOLUCAO_VAZIA,importada=evolucaoInicialSbari(p),merged=mergeSbariSemSobrescrever(baseE,importada);
-        if(importada.nEFExtra)merged._vis_={...(baseE._vis_||{}),nEFExtra:true};
+        const baseE=novaEvol[l.id]||EVOLUCAO_VAZIA,importada=evolucaoInicialSbari(p),merged=revealSbariFields(mergeSbariSemSobrescrever(baseE,importada),importada);
         if(importada.impressao&&baseE.impressao&&!baseE.impressao.includes(importada.impressao))merged.impressao=`${baseE.impressao}\n${importada.impressao}`;
         const camposImportados=Object.keys(importada).filter(k=>!k.startsWith("_")&&importada[k]&&(!baseE[k]||k==="impressao"));merged._datas={...(baseE._datas||{}),...Object.fromEntries(camposImportados.map(k=>[k,stampAnterior]))};novaEvol[l.id]=merged;
         if(l.admissionId)novoHistorico[l.admissionId]={...(novoHistorico[l.admissionId]||{}),admissionId:l.admissionId,patientId:l.patientId,status:"active",days:{...(novoHistorico[l.admissionId]?.days||{}),[dataAnterior]:{...(novoHistorico[l.admissionId]?.days?.[dataAnterior]||{}),source:"sbari",clinicalTable:row,bedside:{...(novoHistorico[l.admissionId]?.days?.[dataAnterior]?.bedside||{}),...c.ventilation,drogasVazao:mergeSbariSemSobrescrever(novoHistorico[l.admissionId]?.days?.[dataAnterior]?.bedside?.drogasVazao,c.pumps)},evolution:merged}}};
