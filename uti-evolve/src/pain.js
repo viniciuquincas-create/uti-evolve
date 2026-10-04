@@ -26,6 +26,10 @@ export function painSummary(a){
  const total=painTotal(a);
  if(total===null)return '';
  if(a.method==='EVA')return `EVA ${String(total).replace('.',',')}/10`;
- const detail=painItems(a.method,a.airway).map(i=>`${i.label}: ${a.values[i.id]}`).join('; ');
- return `${a.method} ${total}/${a.method==='CPOT'?8:12} (${detail})`;
+ return `${a.method} ${total}/${a.method==='CPOT'?8:12}`;
+}
+// Also shorten assessments saved before structured score copying was introduced.
+export function painCopy(assessment,legacy=''){
+ if(assessment)return painSummary(assessment);
+ return String(legacy||'').replace(/^(BPS(?:-NI)?|CPOT|EVA)(\s+\d+(?:[.,]\d+)?\/\d+)\s*\([^)]*\)\s*$/i,'$1$2');
 }

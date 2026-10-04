@@ -1,5 +1,5 @@
 import PainAssessment from './PainAssessment.jsx';
-import {painSummary} from './pain.js';
+import {painSummary,painCopy} from './pain.js';
 import {cgRaw,calcCKDEPI,calcCockcroftGault,calcKeGFR,renalEstimate,RENAL_EQUATIONS} from './renal.js';
 import { useState, useRef, useCallback, useEffect } from "react";
 import React from "react";
@@ -4646,7 +4646,13 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
   const [focused,setFocused]=useState(false);
   const [suggestionIndex,setSuggestionIndex]=useState(0);
   const [editingId,setEditingId]=useState("");
-  const doseRefs=useRef({}),intervalRefs=useRef({}),textoRef=useRef(null);
+  const doseRefs=useRef({}),intervalRefs=useRef({}),textoRef=useRef(null),rootRef=useRef(null);
+  useEffect(()=>{
+    if(!open)return;
+    const outside=e=>{if(!rootRef.current?.contains(e.target))setOpen(false);};
+    document.addEventListener('pointerdown',outside);
+    return ()=>document.removeEventListener('pointerdown',outside);
+  },[open]);
   const itens=Array.isArray(value)?value:[];
   const todos=catalog.flatMap(g=>g.itens);
   const textoAtual=String(freeValue||""),termoBruto=textoAtual.split(/[·,;\/\n]/).pop().trim(),termo=termoBruto.toLowerCase();
@@ -4713,7 +4719,7 @@ function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={}
     if(disfuncaoHepatica&&["paracetamol","metadona","amitriptilina"].includes(item.id))return "Disfunção hepática identificada: usar dose inicial conservadora e revisar dose/intervalo conforme gravidade e protocolo farmacêutico local.";
     return "";
   };
-  return <div onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpen(false);}} onKeyDown={e=>{if(e.key==="Escape")setOpen(false);}} style={{position:"relative",marginBottom:0}}>
+  return <div ref={rootRef} onBlur={e=>{if(e.relatedTarget&&!e.currentTarget.contains(e.relatedTarget))setOpen(false);}} onKeyDown={e=>{if(e.key==="Escape")setOpen(false);}} style={{position:"relative",marginBottom:0}}>
     <button type="button" onClick={()=>setShowRenal(v=>!v)} aria-expanded={showRenal} aria-label={psicoativos?"Revisar função renal dos psicoativos":"Revisar função renal da analgesia"} title={`Função renal · ${renalResult.label}: ${renalResult.value===null?renalResult.reason:`${renalResult.value.toFixed(1)} mL/min · Cr de ${renalResult.date}`}${renalResult.hours!==null?` · Δt ${renalResult.hours.toFixed(1)} h${renalResult.approximate?" (estimado pelas datas; informe os horários)":""}`:""}`} style={{position:"absolute",right:7,top:7,zIndex:1,width:20,height:20,padding:0,border:`1px solid ${T.border}`,borderRadius:10,background:T.bgCard,color:renalResult.value===null?"#b7791f":T.text3,fontSize:12,lineHeight:"18px",cursor:"help"}}>{renalResult.value===null?"!":"i"}</button>
     <textarea ref={textoRef} value={freeValue||""} onChange={e=>editarTexto(e.target.value)} onFocus={()=>{setFocused(true);setOpen(true);}} onClick={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setFocused(false),160)} onKeyDown={e=>{if(!sugestoes.length||open)return;if(e.key==="ArrowDown"){e.preventDefault();setSuggestionIndex(i=>(i+1)%sugestoes.length);}else if(e.key==="ArrowUp"){e.preventDefault();setSuggestionIndex(i=>(i-1+sugestoes.length)%sugestoes.length);}else if(e.key==="Enter"){e.preventDefault();add(sugestoes[suggestionIndex]?.id,true);}}} rows={2} placeholder={psicoativos?"Digite ou selecione psicoativos…":"Digite a medicação ou o esquema analgésico…"} style={{width:"100%",height:54,boxSizing:"border-box",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 32px 8px 10px",color:T.text1,fontSize:12,lineHeight:1.5,resize:"vertical",fontFamily:"inherit"}}/>
     {showRenal&&<div role="region" aria-label="Revisão renal das medicações" style={{padding:8,margin:'0 0 6px',border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard,fontSize:10,color:T.text2}}><RenalEstimateInfo result={renalResult}/>{(()=>{const reconhecidos=todos.filter(m=>itens.some(x=>x.id===m.id)||textoAtual.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(m.nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()));return reconhecidos.length?reconhecidos.map(m=><div key={m.id} style={{marginTop:6}}><b>{m.nome}: </b>{alertaItem(m)||'Nenhum alerta automático disparado para os dados atuais; isso não confirma adequação da dose.'}{m.id==='levetiracetam'&&<a href="https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=3ca9df05-a506-4ec8-a4fe-320f1219ab21" target="_blank" rel="noreferrer" style={{display:'block',color:T.accent}}>Bula · ajuste renal</a>}</div>):<div>Selecione ou digite o nome da medicação para consultar os alertas disponíveis.</div>;})()}</div>}
@@ -6492,7 +6498,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       get("nGlasgow")? `GCS ${get("nGlasgow")}` : "",
       get("nPupilas")? get("nPupilas") : "",
       get("nEF")     ? get("nEF") : "",
-      get("nDor")    ? get("nDor") : "",
+      painCopy(campos.nDorAvaliacao,get("nDor")),
       get("nEFExtra")? get("nEFExtra") : "",
     ].filter(Boolean).join(", ");
     if(ef) p.push(`- EF: ${ef}`);

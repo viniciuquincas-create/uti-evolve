@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {painItems,painTotal,painSummary} from '../src/pain.js';
+import {painItems,painTotal,painSummary,painCopy} from '../src/pain.js';
 for(const method of ['BPS','BPS-NI','CPOT'])for(const airway of (method==='CPOT'?['intubado','nao-intubado']:[undefined]))test(`${method} ${airway||''}: limites, incompleto e inválido`,()=>{
  const items=painItems(method,airway);const values={};const a={method,airway,values};
  assert.equal(painTotal(a),null);
@@ -24,4 +24,13 @@ test('EVA exige marcação explícita e aceita os extremos',()=>{
  assert.equal(painTotal({method:'EVA',eva:100}),10);
  assert.equal(painSummary({method:'EVA',eva:37}),'EVA 3,7/10');
  assert.equal(painSummary({method:'Não avaliável'}),'Dor: não avaliável');
+});
+
+test('cópia compacta para Tasy, incluindo registros anteriores',()=>{
+ const a={method:'BPS',values:{face:1,limbs:1,vent:1}};
+ assert.equal(painSummary(a),'BPS 3/12');
+ assert.equal(painCopy(a,'BPS 3/12 (Expressão facial: 1; Membros superiores: 1)'),'BPS 3/12');
+ assert.equal(painCopy(null,'CPOT 2/8 (Expressão facial: 1; Tensão muscular: 1)'),'CPOT 2/8');
+ assert.equal(painCopy(null,'Dor em membro inferior'),'Dor em membro inferior');
+ assert.equal(painCopy({method:'BPS',values:{}},'BPS 3/12'),'');
 });
