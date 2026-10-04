@@ -1,3 +1,4 @@
+import {removeActiveProblem,resolvedProcedures} from './problem-status.js';
 import {sbariVisibleFields,revealSbariFields} from './sbari-visibility.js';
 import {createEvolutionWriter} from './evolution-save.js';
 import PainAssessment from './PainAssessment.jsx';
@@ -4950,7 +4951,7 @@ const subitensDiagnosticoProblema=item=>{
 const diagnosticosAtivosUnificados=(leito,automaticos)=>{
   const manuais=Array.isArray(leito.problemasDiagnosticos)?leito.problemasDiagnosticos:[];
   const ajustes=leito.problemasAutomaticosEdicoes||{};
-  const lista=[...manuais,...automaticos.filter(p=>p.id==="jejum"||!ajustes[p.id]?.oculto).map(p=>({
+  const lista=[...manuais,...automaticos.filter(p=>!ajustes[p.id]?.resolvido&&(p.id==="jejum"||!ajustes[p.id]?.oculto)).map(p=>({
     id:`auto:${p.id}`,automaticoId:p.id,nome:p.texto,campos:{},custom:[],
     subitens:[...(p.id!=="jejum"&&p.detalhe?[p.detalhe]:[]),...(p.subitens||[])].map((texto,i)=>({id:`auto-sub-${i}`,texto})),
     ...ajustes[p.id],jejumResumo:p.id==="jejum"?p.detalhe:"",
@@ -5097,6 +5098,10 @@ function MetasTerapeuticas({items=[],onChange,metas=[],onMetaChange,problemas=[]
   </div>;
 }
 
+function textoProblemasResolvidos(leito,legacy=''){
+ return [...(leito.problemasResolvidos||[]).map(p=>`• ${textoDiagnosticoProblema(p)}`),...resolvedProcedures(leito).map(p=>`• ${p}`),legacy].filter(Boolean).join('\n');
+}
+
 function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}, tabelaDataLeito={}, onLeitoChange, config={} }) {
   const T=useTheme();
   const [open, setOpen] = useState(true);
@@ -5133,6 +5138,11 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
     const edicoes={...(leito.problemasAutomaticosEdicoes||{})};
     diagnosticosProblemas.filter(x=>x.automaticoId&&!lista.some(y=>y.id===x.id)).forEach(x=>{edicoes[x.automaticoId]={...edicoes[x.automaticoId],oculto:true};});
     onLeitoChange?.({...leito,problemasDiagnosticos:lista.filter(x=>!x.automaticoId),problemasAtivosOrdem:lista.map(x=>x.id),problemasAutomaticosEdicoes:edicoes});
+  };
+  const removerDiagnostico=(item,resolved=false)=>{
+    onLeitoChange?.(removeActiveProblem(leito,item,{resolved}));
+    setMenuDiagnostico(null);setDiagnosticoAberto(null);
+    if(resolved)setModo('resolvidos');
   };
   const adicionarDiagnostico=nomeBruto=>{
     const nome=String(nomeBruto||"").trim();if(!nome)return;
@@ -5195,10 +5205,11 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
           </div>}
           {!!diagnosticosProblemas.length&&<div style={{display:"grid",gap:6,marginBottom:8}}>{diagnosticosProblemas.map(item=>{const preset=presetDiagnosticoProblema(item.nome),expanded=diagnosticoAberto===item.id;return <div key={item.id} data-diagnostico-card={item.id} tabIndex={0} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setMenuDiagnostico({id:item.id,x:e.clientX,y:e.clientY});}} onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="ContextMenu"||(e.shiftKey&&e.key==="F10")){e.preventDefault();const r=e.currentTarget.getBoundingClientRect();setMenuDiagnostico({id:item.id,x:r.left,y:r.top+20});}}} onFocus={e=>{if(!e.target.closest("[data-toggle-diagnostico]"))setDiagnosticoAberto(item.id);}} onMouseDown={e=>{if(!e.target.closest("[data-toggle-diagnostico]" )&&!e.target.closest("button[data-remove-diagnostico]")&&!e.target.closest("[data-drag-diagnostico]"))setDiagnosticoAberto(item.id)}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDiagnosticoAberto(null)}} onDragOver={e=>{if(diagnosticoArrastando&&diagnosticoArrastando!==item.id)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(!diagnosticoArrastando||diagnosticoArrastando===item.id)return;const lista=[...diagnosticosProblemas],de=lista.findIndex(x=>x.id===diagnosticoArrastando),para=lista.findIndex(x=>x.id===item.id);if(de<0||para<0)return;const [movido]=lista.splice(de,1);lista.splice(para,0,movido);salvarDiagnosticosProblemas(lista);setDiagnosticoArrastando(null);}} style={{padding:"7px",borderRadius:8,border:"1px solid rgba(248,113,113,.3)",background:"rgba(248,113,113,.06)",opacity:diagnosticoArrastando===item.id?.55:1}}>
             <div style={{display:"flex",gap:5,alignItems:"flex-start",cursor:"pointer"}}><span data-drag-diagnostico draggable onDragStart={e=>{e.stopPropagation();setDiagnosticoArrastando(item.id);e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",item.id);}} onDragEnd={()=>setDiagnosticoArrastando(null)} title="Segure e arraste para alterar a ordem" style={{fontSize:13,color:T.text4,cursor:"grab",lineHeight:1,userSelect:"none"}}>⠿</span><span style={{fontSize:8,color:T.text4,marginTop:2}}>{expanded?"▼":"▶"}</span><div style={{flex:1,minWidth:0}}><button data-toggle-diagnostico aria-expanded={expanded} onClick={e=>{e.stopPropagation();setDiagnosticoAberto(atual=>atual===item.id?null:item.id);}} style={{display:"block",width:"100%",padding:0,border:0,background:"transparent",textAlign:"left",fontFamily:"inherit",fontWeight:700,fontSize:10,color:T.colorScheme==="light"?"#b91c1c":"#fca5a5",lineHeight:1.3,cursor:"pointer"}}>{nomeDiagnosticoProblema(item)}</button>{!expanded&&<small style={{display:"grid",gap:1,marginTop:2,color:T.text3,fontSize:8.5,lineHeight:1.3,whiteSpace:"normal",overflowWrap:"anywhere"}}>{subitensDiagnosticoProblema(item).length?subitensDiagnosticoProblema(item).map((sub,i)=><span key={i}>• {sub}</span>):<span>Sem classificação ou score preenchido</span>}</small>}</div><details data-care-menu onMouseDown={e=>e.stopPropagation()} onFocus={e=>e.stopPropagation()} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))e.currentTarget.open=false;}} onKeyDown={e=>{if(e.key==='Escape'){e.currentTarget.open=false;e.currentTarget.querySelector('summary').focus();}}} style={{position:'relative',flexShrink:0}}><summary aria-label={`Adicionar cuidado para ${nomeDiagnosticoProblema(item)}`} title="Adicionar plano ou pendência" style={{listStyle:'none',width:18,height:18,lineHeight:'16px',textAlign:'center',borderRadius:9,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:'pointer',fontSize:13}}>+</summary>            <div style={{position:'absolute',right:0,top:24,zIndex:60,minWidth:180,display:'grid',gap:5,padding:7,border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard,boxShadow:T.shadowCard}}>
+              <button onClick={e=>{e.currentTarget.closest('details').open=false;removerDiagnostico(item,true);}} style={{fontSize:10,padding:5,borderRadius:6,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:'pointer'}}>Marcar como resolvido</button>
               <button onClick={e=>{e.currentTarget.closest("details").open=false;const titulo=window.prompt('Plano de cuidado para '+nomeDiagnosticoProblema(item)+':');if(!titulo?.trim())return;onLeitoChange?.({...leito,metasTerapeuticas:[...(leito.metasTerapeuticas||[]),{id:(globalThis.crypto?.randomUUID?.()||`care-${Date.now()}-${Math.random().toString(36).slice(2)}`),titulo:titulo.trim(),problemas:[{id:item.id,nome:nomeDiagnosticoProblema(item)}],subitens:[]}]});}} style={{fontSize:10,padding:5,borderRadius:6,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:'pointer'}}>+ plano de cuidado</button>
               <button onClick={e=>{e.currentTarget.closest("details").open=false;const texto=window.prompt('Meta / pendência do dia para '+nomeDiagnosticoProblema(item)+':');if(!texto?.trim())return;onMetaChange?.([...metas,{id:(globalThis.crypto?.randomUUID?.()||`care-${Date.now()}-${Math.random().toString(36).slice(2)}`),texto:texto.trim(),feito:false,status:'pendente',prioridade:'amarelo',problemaId:item.id,problemaNome:nomeDiagnosticoProblema(item)}]);}} style={{fontSize:10,padding:5,borderRadius:6,border:`1px solid ${T.border}`,background:T.bgCard,color:T.text2,cursor:'pointer'}}>+ meta / pendência do dia</button>
             </div>
-</details><button data-remove-diagnostico hidden={item.automaticoId==="jejum"} onClick={e=>{e.stopPropagation();salvarDiagnosticosProblemas(diagnosticosProblemas.filter(x=>x.id!==item.id));}} title="Retirar dos problemas ativos; o diagnóstico permanecerá no cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
+</details><button data-remove-diagnostico hidden={item.automaticoId==="jejum"} onClick={e=>{e.stopPropagation();removerDiagnostico(item);}} title="Remover problema e diagnóstico do cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
             {expanded&&<>
             {(item.automaticoId==="choque"||item.automaticoId==="sepse"&&item.nome.startsWith("Choque"))&&<select value={["","distributivo","hemorrágico","cardiogênico","obstrutivo","misto"].includes(leito.tipoChoque||"")?(leito.tipoChoque||""):"__outro__"} onChange={e=>{let tipo=e.target.value;if(tipo==="__outro__"){tipo=window.prompt("Caracterização do choque:","")?.trim()||leito.tipoChoque||"";}onLeitoChange?.({...leito,tipoChoque:tipo});}} style={{width:"100%",marginTop:5,padding:"4px 6px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}><option value="">Caracterizar choque…</option><option value="distributivo">Distributivo</option><option value="hemorrágico">Hemorrágico</option><option value="cardiogênico">Cardiogênico</option><option value="obstrutivo">Obstrutivo</option><option value="misto">Misto</option><option value="__outro__">Outro…</option></select>}
             {!!preset?.campos?.length&&<div style={{display:"grid",gap:4,marginTop:6}}>{preset.campos.map(c=>c.tipo==="calculator"?<div key={c.key}><button onClick={()=>atualizarDiagnostico(item.id,{scoreAberto:item.scoreAberto===c.key?null:c.key})} style={{width:"100%",padding:"5px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800,textAlign:"left"}}>{item.scoreAberto===c.key?"▼":"▶"} {c.label}{item.campos?.[c.key]!==undefined&&item.campos?.[c.key]!==""?`: ${item.campos[c.key]}`:" — calcular"}</button>{item.scoreAberto===c.key&&(c.key==="grace"?<GraceEditor item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>:<ScoreEditor scoreKey={c.key} item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>)}</div>:<label key={c.key} style={{fontSize:8.5,color:T.text3}}>{c.label}{c.tipo==="select"?<select value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{c.opcoes.map(o=><option key={o}>{o}</option>)}</select>:<input type="number" min={c.min} max={c.max} value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}/>}</label>)}</div>}
@@ -5237,6 +5248,9 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
           </div>
           <div hidden={modo!=="resolvidos"} aria-label="Diagnósticos resolvidos">
             <div style={{fontSize:10,fontWeight:700,color:T.text2,marginBottom:7}}>Diagnósticos resolvidos</div>
+            {(leito.problemasResolvidos||[]).map(item=><div key={item.id} style={{padding:7,marginBottom:6,border:`1px solid ${T.border}`,borderRadius:7,color:T.text2,fontSize:11,whiteSpace:'pre-wrap'}}>• {textoDiagnosticoProblema(item)}</div>)}
+            {resolvedProcedures(leito).map((texto,i)=><div key={i} style={{padding:7,marginBottom:6,border:`1px solid ${T.border}`,borderRadius:7,color:T.text2,fontSize:11}}>• {texto}</div>)}
+            <button aria-label="Copiar problemas resolvidos" onClick={()=>navigator.clipboard.writeText(textoProblemasResolvidos(leito,campos.probResolvidos||''))} style={{marginBottom:8,border:`1px solid ${T.border}`,borderRadius:6,padding:5,background:T.bgCard,color:T.text2,cursor:'pointer'}}>⧉ Copiar resolvidos</button>
             <TA key={`resolvidos-${leito.id}`} fieldRef={refs.current.probResolvidos} defaultValue={campos.probResolvidos} isAntigo={isAntigo("probResolvidos")} placeholder="Registre os diagnósticos resolvidos…" rows={6} fieldName="probResolvidos" onBlurSave={salvar}/>
           </div>
           <div hidden={modo!=="metas"}>
@@ -5246,7 +5260,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:metas.length?7:0}}><span style={{fontSize:9,fontWeight:600,letterSpacing:.6,color:T.text3,flex:1}}>METAS / PENDÊNCIAS{pendentes>0?` · ${pendentes}`:''}</span><div style={{display:'flex',alignItems:'center',gap:4}}><button title="Adicionar pendência" aria-label="Adicionar pendência" onClick={()=>{const texto=window.prompt('Nova pendência:');if(texto?.trim())onMetaChange?.([...metas,{id:`meta-${Date.now()}-${Math.random().toString(36).slice(2)}`,texto:texto.trim(),feito:false,status:'pendente',prioridade:'amarelo'}]);}} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:22,height:22,padding:0,fontSize:13,color:T.text3,background:'transparent',border:`1px solid ${T.border}`,borderRadius:11,cursor:'pointer'}}>+</button><button title="Copiar metas / pendências" aria-label="Copiar metas / pendências" disabled={!metas.length} onClick={async()=>{try{await navigator.clipboard.writeText(textoMetasAgrupadas(metas,leito.metasTerapeuticas||[],diagnosticosProblemas));setCopiado(v=>({...v,metas:true}));setTimeout(()=>setCopiado(v=>({...v,metas:false})),2000);}catch{window.alert('Não foi possível copiar. Tente novamente.');}}} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:22,height:22,padding:0,fontSize:13,color:T.text3,background:'transparent',border:`1px solid ${T.border}`,borderRadius:11,cursor:'pointer'}}>{copiado.metas?'✓':'⧉'}</button></div></div>
             {gruposMetas(metas,leito.metasTerapeuticas||[],diagnosticosProblemas).map(g=><div key={g.id} style={{marginBottom:8}}><div style={{fontSize:10,fontWeight:700,color:T.text2,marginBottom:4}}>{g.titulo}</div>{g.metas.map(m=><MetaRow meta={m} metas={metas} onMetaChange={onMetaChange} leito={leito} problemas={diagnosticosProblemas} key={m.id} style={{display:'flex',gap:5,alignItems:'start',marginLeft:6,marginBottom:4}} onContextMenu={e=>{e.preventDefault();setMenuEquipe({x:e.clientX,y:e.clientY,metaId:m.id,metaIndex:metas.indexOf(m),equipe:m.equipe||''});}}><MetaPriorityDot meta={m} metas={metas} onChange={onMetaChange}/><input type="checkbox" aria-label={`Concluir pendência: ${m.texto}`} checked={!!(m.feito||m.status==='cumprido')} onChange={e=>onMetaChange?.(metas.map(x=>x.id===m.id?{...x,feito:e.target.checked,status:e.target.checked?'cumprido':'pendente'}:x))} style={{margin:0}}/><span style={{flex:1,fontSize:10,color:T.text2,textDecoration:m.feito||m.status==='cumprido'?'line-through':'none'}}>{m.texto}{m.equipe&&<small style={{display:'block',color:T.text3}}>{equipeLabel(m.equipe)}</small>}</span><button title="Editar pendência" onClick={()=>editarTextoMeta(metas,m,onMetaChange)} style={{border:0,padding:0,background:'transparent',color:T.text3,cursor:'pointer'}}>✎</button><button title="Excluir pendência" onClick={()=>onMetaChange?.(metas.filter(x=>x.id!==m.id))} style={{border:0,padding:0,background:'transparent',color:T.text3,cursor:'pointer'}}>×</button></MetaRow>)}</div>)}
           </section>}
-          <DiagnosticoTituloMenu menu={menuDiagnostico} onClose={()=>setMenuDiagnostico(null)} onEdit={()=>{
+          <DiagnosticoTituloMenu onResolve={()=>{const item=diagnosticosProblemas.find(p=>p.id===menuDiagnostico?.id);if(item)removerDiagnostico(item,true);}} menu={menuDiagnostico} onClose={()=>setMenuDiagnostico(null)} onEdit={()=>{
             const item=diagnosticosProblemas.find(d=>d.id===menuDiagnostico?.id);if(!item)return;
             const titulo=window.prompt("Editar título do diagnóstico:",nomeDiagnosticoProblema(item));
             if(titulo?.trim())atualizarDiagnostico(item.id,{titulo:titulo.trim()});
@@ -6332,7 +6346,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const diagnosticosAtivos=diagnosticosAtivosUnificados(leito,problemasAtivosAutomaticos(leito,tabelaDataLeito,campos,config)).map((d,i)=>`${i+1}. ${textoDiagnosticoProblema(d)}`);
     const ativos=[...diagnosticosAtivos,get("probAtivos")].filter(Boolean).join("\n");
     if(ativos) p.push(`ATIVOS:\n${ativos}`);
-    if(get("probResolvidos")) p.push(`RESOLVIDOS:\n${get("probResolvidos")}`);
+    const resolvidos=textoProblemasResolvidos(leito,get("probResolvidos"));
+    if(resolvidos)p.push(`RESOLVIDOS:\n${resolvidos}`);
     return p.join("\n");
   };
 
@@ -7289,7 +7304,7 @@ const equipeCor = (id) => (EQUIPES.find(e=>e.id===id)||{cor:"#64748b"}).cor;
 const equipeLabel = (id) => (EQUIPES.find(e=>e.id===id)||{label:"Geral"}).label;
 const equipeEmoji = (id) => (EQUIPES.find(e=>e.id===id)||{emoji:"📋"}).emoji;
 
-function DiagnosticoTituloMenu({menu,onClose,onEdit}){
+function DiagnosticoTituloMenu({menu,onClose,onEdit,onResolve}){
   const T=useTheme();
   const botao=React.useRef(null);
   useEffect(()=>{
@@ -7305,8 +7320,8 @@ function DiagnosticoTituloMenu({menu,onClose,onEdit}){
   },[menu]);
   if(!menu)return null;
   return createPortal(<div onMouseDown={e=>{e.stopPropagation();onClose();}} onContextMenu={e=>{e.preventDefault();e.stopPropagation();onClose();}} style={{position:"fixed",inset:0,zIndex:10000}}>
-    <div role="menu" aria-label="Ações do diagnóstico" onMouseDown={e=>e.stopPropagation()} style={{position:"fixed",left:Math.max(6,Math.min(menu.x,window.innerWidth-196)),top:Math.max(6,Math.min(menu.y,window.innerHeight-54)),width:180,padding:5,border:`1px solid ${T.borderStrong}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 32px rgba(0,0,0,.38)"}}>
-      <button ref={botao} role="menuitem" onClick={e=>{e.stopPropagation();onEdit();onClose();}} style={{width:"100%",padding:"8px",textAlign:"left",border:0,borderRadius:5,background:T.bgCardHover,color:T.text1,cursor:"pointer",fontSize:11}}>Editar título</button>
+    <div role="menu" aria-label="Ações do diagnóstico" onMouseDown={e=>e.stopPropagation()} style={{position:"fixed",left:Math.max(6,Math.min(menu.x,window.innerWidth-196)),top:Math.max(6,Math.min(menu.y,window.innerHeight-(onResolve?96:54))),width:180,padding:5,border:`1px solid ${T.borderStrong}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 32px rgba(0,0,0,.38)"}}>
+      <button ref={botao} role="menuitem" onClick={e=>{e.stopPropagation();onEdit();onClose();}} style={{width:"100%",padding:"8px",textAlign:"left",border:0,borderRadius:5,background:T.bgCardHover,color:T.text1,cursor:"pointer",fontSize:11}}>Editar título</button>{onResolve&&<button role="menuitem" onClick={e=>{e.stopPropagation();onResolve();onClose();}} style={{width:'100%',padding:8,textAlign:'left',border:0,borderRadius:5,background:'transparent',color:T.text1,cursor:'pointer',fontSize:11}}>Marcar como resolvido</button>}
     </div>
   </div>,document.body);
 }
