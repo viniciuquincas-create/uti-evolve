@@ -1,3 +1,4 @@
+import {createEvolutionWriter} from './evolution-save.js';
 import PainAssessment from './PainAssessment.jsx';
 import {painSummary,painCopy} from './pain.js';
 import {cgRaw,calcCKDEPI,calcCockcroftGault,calcKeGFR,renalEstimate,RENAL_EQUATIONS} from './renal.js';
@@ -4801,7 +4802,7 @@ const EVOLUCAO_VAZIA = {
   hda:"",
   nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nEFExtra:"", n24h:"", nSeda:"", nAnalg:"", nAnalgesiaItens:[], nPsiq:"", nObs:"",
   cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvTEC:"", cvLact:"", cvExtremidades:"", cvDeltaCO2:"", cvDeltaPP:"", cvTropo:"", cvObs:"",
-  reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
+  reSecrecaoQuantidade:"", reSecrecaoAspecto:"", reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
   tgEF:"", tg24h:"", tgLaxativos:"", tgLaxativosItens:[], tgProcineticos:"", tgProcineticosItens:[], tgLabs:"", tgPocus:"", tgObs:"",
   heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
@@ -6411,7 +6412,14 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
 
 
   // Visibilidade dos campos opcionais/adicionáveis — persistida em campos._vis_
-  const [camposVis, setCamposVisRaw] = useState(campos._vis_ || {});
+  const [camposVis, setCamposVisRaw] = useState(()=>{
+    const initial={...(campos._vis_||{})};
+    for(const system of ['n','cv','res','reme','tgi','he','in'])for(const kind of ['interconsulta','exames']){
+      const key=`add_${system}_${kind}`;
+      if(initial[key]===undefined&&(campos[`${system}_${kind}`]?.length||campos[key]))initial[key]=true;
+    }
+    return initial;
+  });
   const setCamposVis = (updater) => {
     const novo = typeof updater==="function" ? updater(camposVis) : updater;
     setCamposVisRaw(novo);
@@ -6580,6 +6588,8 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const ef_res = [get("reMV"), get("reRA"), get("reEF")].filter(Boolean).join(" / ");
     if(ef_res) p.push(`- EF: ${ef_res}`);
     if(get("re24h")) p.push(`- 24h: ${get("re24h")}`);
+    const secrecoes=[get('reSecrecaoQuantidade'),get('reSecrecaoAspecto')].filter(Boolean).join(' · ');
+    if(secrecoes)p.push(`- Secreções: ${secrecoes}`);
     // Gaso com bullet
     const gasoTxt = get("reGaso");
     if(gasoTxt) {
@@ -6992,7 +7002,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
                 return h+parts;
               }).join("\n");
             } catch { return ""; }
-          })()} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col></Row>
+          })()} sugestao="pH 7,41 / pCO2 40 / pO2 69 / bic 25 / SatO2 94%" rows={1} fieldName="reGaso" onBlurSave={salvar}/></Col><Col><FL>Secreções</FL><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(130px,100%),1fr))',gap:8}}><label style={{fontSize:10,color:T.text3}}>Quantidade<input aria-label="Quantidade de secreções" list="secrecoes-quantidade" value={campos.reSecrecaoQuantidade||''} onChange={e=>salvar('reSecrecaoQuantidade',e.target.value)} placeholder="Selecionar ou digitar" style={{width:'100%',boxSizing:'border-box',minWidth:0,padding:8,borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/><datalist id="secrecoes-quantidade">{['Ausente','Pequena','Moderada','Grande'].map(x=><option key={x} value={x}/>)}</datalist></label><label style={{fontSize:10,color:T.text3}}>Aspecto<input aria-label="Aspecto das secreções" list="secrecoes-aspecto" value={campos.reSecrecaoAspecto||''} onChange={e=>salvar('reSecrecaoAspecto',e.target.value)} placeholder="Selecionar ou digitar" style={{width:'100%',boxSizing:'border-box',minWidth:0,padding:8,borderRadius:8,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1}}/><datalist id="secrecoes-aspecto">{['Mucoide','Purulenta','Mucopurulenta','Sanguinolenta','Espumosa','Hialina'].map(x=><option key={x} value={x}/>)}</datalist></label></div></Col></Row>
         </ClinicalGroup>
         {vis["rePocus"]&&<Row><Col><FL>POCUS — Data · Achados</FL><TA fieldRef={refs.rePocus} defaultValue={campos.rePocus} isAntigo={isAntigo("rePocus")} sugestao="22/04: Excursão 0,87 / Fen 12%" rows={1} fieldName="rePocus" onBlurSave={salvar}/></Col></Row>}
         {vis["add_res_lus"]&&serialPanel("reLusSerial")}
@@ -7921,7 +7931,7 @@ function VisaoGeralPanel({ leitos, tabelaData, metasPorLeito={}, config={}, evol
   const EVOL_SYS_FIELDS = {
     "NEUROLÓGICO":       [{k:"nEF",l:"EF Neuro"},{k:"nSeda",l:"Psicoativos"},{k:"nAnalg",l:"Analgesia"},{k:"nPsiq",l:"Psiquiatria"},{k:"nObs",l:"Obs"}],
     "CARDIOVASCULAR":    [{k:"cvEF",l:"EF CV"},{k:"cv24h",l:"24h CV"},{k:"cvDVA",l:"Vasoativas"},{k:"cvMed",l:"Medicações"},{k:"cvPerf",l:"Perfusão"},{k:"cvObs",l:"Obs"}],
-    "RESPIRATÓRIO":      [{k:"reVM",l:"VM"},{k:"reEF",l:"EF Resp"},{k:"re24h",l:"24h Resp"},{k:"reGaso",l:"Gasometria"},{k:"rePocus",l:"POCUS"},{k:"reObs",l:"Obs"}],
+    "RESPIRATÓRIO":      [{k:"reSecrecaoQuantidade",l:"Secreções — quantidade"},{k:"reSecrecaoAspecto",l:"Secreções — aspecto"},{k:"reVM",l:"VM"},{k:"reEF",l:"EF Resp"},{k:"re24h",l:"24h Resp"},{k:"reGaso",l:"Gasometria"},{k:"rePocus",l:"POCUS"},{k:"reObs",l:"Obs"}],
     "RENAL / METABÓLICO":[{k:"rm24h",l:"24h Renal"},{k:"rmLabs",l:"Labs"},{k:"rmTRS",l:"TSR"},{k:"rmObs",l:"Obs"}],
     "HEMATOLÓGICO":      [{k:"heLabs",l:"Labs Hema"},{k:"heMed",l:"Medicações"},{k:"heProf",l:"Profilaxia TEV"},{k:"heObs",l:"Obs"}],
     "INFECCIOSO":        [{k:"heTemp",l:"Temperatura"},{k:"heAtb",l:"Antibióticos"}],
@@ -8636,8 +8646,11 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [saveState,setSaveState]=useState({pending:false,error:false});
   const [loadError,setLoadError]=useState(false);
+  const evolutionWriter=useRef(null);
+  if(!evolutionWriter.current)evolutionWriter.current=createEvolutionWriter(supabase);
   const saves=useRef(null);
   if(!saves.current)saves.current=createSaveQueue({onState:setSaveState,write:async(key,value)=>{
+    if(key==="evolucao_data")return evolutionWriter.current.write(value);
     const {error}=await supabase.from("config").upsert({key,value});
     if(error)throw new Error("Não foi possível salvar no servidor.");
   }});
@@ -8661,6 +8674,8 @@ export default function App() {
   tabelaRef.current=tabelaData;
   const leitosRef=useRef(leitos);
   leitosRef.current=leitos;
+  const metasRef=useRef(metasPorLeito);metasRef.current=metasPorLeito;
+  const arquivoRef=useRef(pacientesArquivados);arquivoRef.current=pacientesArquivados;
   const tabelaSaveChain=useRef(Promise.resolve());
   const configTimer = useRef(null);
   const metasTimer  = useRef(null);
@@ -8714,6 +8729,7 @@ export default function App() {
     } catch {falhou=true;}
     try {
       const { data: ed } = await readConfig("evolucao_data");
+      evolutionWriter.current.seed(ed?.value?JSON.parse(ed.value):{});
       if (ed?.value) {
         const p = JSON.parse(ed.value);
         if (p && typeof p === 'object') {
@@ -8831,7 +8847,7 @@ export default function App() {
   },[leitos,dataLoaded]);
 
   useEffect(()=>{
-    if(!dataLoaded)return;
+    if(!dataLoaded||sbariSyncing)return;
     clearTimeout(historicoTimer.current);
     historicoTimer.current=setTimeout(async()=>{
       const hoje=new Date().toISOString().slice(0,10),agora=new Date().toISOString();
@@ -8854,7 +8870,7 @@ export default function App() {
       agendarSave("historico_diario",novo);
     },1200);
     return()=>clearTimeout(historicoTimer.current);
-  },[leitos,evolPorLeito,tabelaData,metasPorLeito,config,dataLoaded]);
+  },[leitos,evolPorLeito,tabelaData,metasPorLeito,config,dataLoaded,sbariSyncing]);
 
   // Recupera a linha do tempo já existente na Tabela Clínica. Como as versões
   // antigas não guardavam snapshots completos, esses dias entram identificados
@@ -8873,7 +8889,7 @@ export default function App() {
     });
     if(!mudou)return;
     setHistoricoDiario(novo);
-    supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novo)}).then(({error})=>{if(error)console.warn("Falha ao recuperar histórico da tabela",error);});
+    agendarSave("historico_diario",novo);
   },[leitos,tabelaData,historicoDiario,dataLoaded]);
 
   const utiAtiva=utis.find(u=>u.id===utiAtivaId)||utis[0];
@@ -8928,9 +8944,17 @@ export default function App() {
     const raw=config.sbariLinks?.[utiAtiva?.id];
     const links=(Array.isArray(raw)?raw:(raw?[{label:"SBARI",url:raw}]:[])).filter(x=>x?.url);
     if(!links.length){window.alert("Cadastre ao menos um link do SBARI desta UTI em Configurações.");return;}
+    if(sbariSyncing)return;
     setSbariSyncing(true);
+    clearTimeout(historicoTimer.current);
     try{
+      const pendentes=await saves.current.flushAll();
+      if(pendentes.some(r=>r.status==='rejected'))throw new Error('Há alterações ainda não salvas. Tente salvar novamente antes de atualizar pelo SBARI.');
       const retornos=await Promise.all(links.map(async link=>{const resposta=await fetch("/api/sbari",{method:"POST",headers:{"content-type":"application/json","x-uti-session":sessionStorage.getItem(SESSION_KEY)||""},body:JSON.stringify({url:link.url})});const payload=await resposta.json().catch(()=>({}));if(!resposta.ok)throw new Error(`${link.label||"SBARI"}: ${payload.error||"não foi possível ler o documento"}`);return {...payload,linkLabel:link.label||payload.source?.name||"SBARI"};}));
+      // Re-read after the network request: preserve edits made before the overlay rendered.
+      const leitos=leitosRef.current,tabelaData=tabelaRef.current,evolPorLeito=evolPorLeitoRef.current;
+      const metasPorLeito=metasRef.current,historicoDiario=historicoRef.current,pacientesArquivados=arquivoRef.current;
+      const revisao=saves.current.revision();
       const porNomeRecebido=new Map();retornos.flatMap(r=>(r.pacientes||[]).map(p=>({...p,sbariOrigem:r.linkLabel}))).forEach(p=>porNomeRecebido.set(normalizarNomeSbari(p.paciente),p));
       const recebidos=[...porNomeRecebido.values()];
       const porLeitoVago=new Map();retornos.flatMap(r=>r.leitosVagos||[]).forEach(v=>porLeitoVago.set(normalizarNomeSbari(v.leito),v));
@@ -9007,14 +9031,18 @@ export default function App() {
         const camposImportados=Object.keys(importada).filter(k=>!k.startsWith("_")&&importada[k]&&(!baseE[k]||k==="impressao"));merged._datas={...(baseE._datas||{}),...Object.fromEntries(camposImportados.map(k=>[k,stampAnterior]))};novaEvol[l.id]=merged;
         if(l.admissionId)novoHistorico[l.admissionId]={...(novoHistorico[l.admissionId]||{}),admissionId:l.admissionId,patientId:l.patientId,status:"active",days:{...(novoHistorico[l.admissionId]?.days||{}),[dataAnterior]:{...(novoHistorico[l.admissionId]?.days?.[dataAnterior]||{}),source:"sbari",clinicalTable:row,bedside:{...(novoHistorico[l.admissionId]?.days?.[dataAnterior]?.bedside||{}),...c.ventilation,drogasVazao:mergeSbariSemSobrescrever(novoHistorico[l.admissionId]?.days?.[dataAnterior]?.bedside?.drogasVazao,c.pumps)},evolution:merged}}};
       });
+      if(revisao!==saves.current.revision())throw new Error('Os dados foram editados durante a leitura. Atualize o SBARI novamente para preservar essas alterações.');
       const resultados=await Promise.all([
         ["leitos_data",novosLeitos],["pacientes_arquivados",novoArquivo],["tabela_data",novaTabela],["evolucao_data",novaEvol],["metas_data",novasMetas],["historico_diario",novoHistorico]
-      ].map(([key,value])=>supabase.from("config").upsert({key,value:JSON.stringify(value)})));
+      ].map(([key,value])=>saves.current.enqueue(key,value,{immediate:true}).then(()=>({error:null}))));
       const falha=resultados.find(r=>r.error);if(falha)throw falha.error;
       setLeitos(novosLeitos);setPacientesArquivados(novoArquivo);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);
       const novaConfig={...config,sbariStatus:{...(config.sbariStatus||{}),[utiAtiva.id]:{at:agora,source:payload.source?.name||"SBARI",preservados:preservados.length,novos:novos.length,arquivados:removidos.length}}};
       setConfig(novaConfig);salvarConfig(novaConfig);
-      if(leitosSbari.length)setLeitoSelId(leitosSbari[0].id);
+      evolPorLeitoRef.current=novaEvol;tabelaRef.current=novaTabela;leitosRef.current=novosLeitos;
+      metasRef.current=novasMetas;historicoRef.current=novoHistorico;arquivoRef.current=novoArquivo;
+      const selecionado=novosLeitos.find(l=>l.id===leitoSelId&&l.paciente)||leitosSbari[0]||novosLeitos[0];
+      if(selecionado){setLeitoSelId(selecionado.id);setEvolCampos(novaEvol[selecionado.id]||EVOLUCAO_VAZIA);setEvolVersion(v=>v+1);}
       window.alert(`SBARI atualizado: ${preservados.length} preservado(s), ${novos.length} novo(s) e ${removidos.length} arquivado(s).`);
     }catch(e){console.error("Falha ao sincronizar SBARI",e);window.alert(e?.message||"Falha ao atualizar leitos pelo SBARI.");}
     finally{setSbariSyncing(false);}
@@ -9056,7 +9084,7 @@ export default function App() {
       const resultados=await Promise.all([
         supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(novosLeitos)}),
         supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(novaTabela)}),
-        supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(novaEvol)}),
+        saves.current.enqueue("evolucao_data",novaEvol,{immediate:true}).then(()=>({error:null})),
         supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(novasMetas)}),
         supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novoHistorico)}),
       ]);
@@ -9104,7 +9132,7 @@ export default function App() {
         supabase.from("config").upsert({key:"pacientes_arquivados",value:JSON.stringify(novoArquivo)}),
         supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(novosLeitos)}),
         supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(novaTabela)}),
-        supabase.from("config").upsert({key:"evolucao_data",value:JSON.stringify(novaEvol)}),
+        saves.current.enqueue("evolucao_data",novaEvol,{immediate:true}).then(()=>({error:null})),
         supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(novasMetas)}),
         supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novoHistorico)}),
       ]);
@@ -9189,6 +9217,8 @@ export default function App() {
   return (
     <ThemeCtx.Provider value={T}>
     <MetaAssociationContext.Provider value={l=>diagnosticosAtivosUnificados(l,problemasAtivosAutomaticos(l,tabelaData[l.id]||{},evolPorLeito[l.id]||{},config))}>
+    {saveState.message&&<div role="alert" style={{position:'fixed',bottom:12,left:12,right:12,zIndex:30001,padding:12,borderRadius:8,background:'#fffbeb',color:'#92400e',fontSize:12}}>{saveState.message}</div>}
+    {sbariSyncing&&<div role="status" aria-live="polite" style={{position:'fixed',inset:0,zIndex:30000,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center'}}><div style={{padding:24,borderRadius:12,background:T.bgCard,color:T.text1}}>Atualizando SBARI e preservando os dados salvos…</div></div>}
     {importacao&&<ClinicalImportBox key={`${importacao.id}-${importacao.admissionId}`} T={T} destino={importacao} minimizada={importacao.minimizada} onMinimize={()=>setImportacao(atual=>({...atual,minimizada:true}))} onRestore={()=>setImportacao(atual=>({...atual,minimizada:false}))} onClose={()=>setImportacao(null)} onSave={resultado=>salvarImportacao(resultado,importacao)}/>}
     <ImportarDadosClinicosMenu menu={menuImportar} onClose={()=>setMenuImportar(null)} onImportar={()=>abrirImportacao(menuImportar?.leitoId??leito?.id)}/>
     <div className={theme==="light"?"theme-light":"theme-dark"} style={{minHeight:"100vh",background:T.bgPage,fontFamily:"'Sora','DM Sans',sans-serif",color:T.text1,display:"flex",flexDirection:"column"}}>
@@ -9263,7 +9293,7 @@ export default function App() {
           <button onClick={()=>{setUtiMenu(null);setViewGlobal("coleta");}} style={{width:"100%",padding:"9px 10px",border:0,borderRadius:6,background:viewGlobal==="coleta"?"rgba(168,85,247,.12)":"transparent",color:viewGlobal==="coleta"?"#a855f7":T.text2,textAlign:"left",cursor:"pointer",fontSize:11,fontWeight:700}}>📝 Folha de coleta dos leitos</button>
         </div></div>}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:14}}>
-          <div role={saveState.error?"alert":"status"} tabIndex={saveState.error?0:undefined} onKeyDown={e=>{if(saveState.error&&(e.key==="Enter"||e.key===" ")){e.preventDefault();saves.current.flushAll();}}} onClick={()=>{if(saveState.error)saves.current.flushAll();}} style={{cursor:saveState.error?"pointer":"default",fontSize:11,fontFamily:mono,color:(saveState.error||saving||saveState.pending)?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
+          <div title={saveState.message||""} role={saveState.error?"alert":"status"} tabIndex={saveState.error?0:undefined} onKeyDown={e=>{if(saveState.error&&(e.key==="Enter"||e.key===" ")){e.preventDefault();saves.current.flushAll();}}} onClick={()=>{if(saveState.error)saves.current.flushAll();}} style={{cursor:saveState.error?"pointer":"default",fontSize:11,fontFamily:mono,color:(saveState.error||saving||saveState.pending)?"#f59e0b":T.accent,display:"flex",alignItems:"center",gap:4}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:(saveState.error||saving||saveState.pending)?"#f59e0b":T.accent}}/>
             {saveState.error?"Não salvo — tentar novamente":(saving||saveState.pending)?"Salvando…":"Salvo"}
           </div>
