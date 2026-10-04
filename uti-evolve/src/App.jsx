@@ -7212,6 +7212,7 @@ function FerramentasPanel() {
   const T=useTheme();
   const GRUPOS=[
     {titulo:"Protocolos institucionais do HSP",subtitulo:"Documentos oficiais para consulta assistencial",emoji:"🏥",cor:"#f59e0b",itens:[
+      {emoji:"📚",titulo:"Protocolos UTI — Unifesp",desc:"Protocolos da UTI da Escola Paulista de Medicina / Unifesp",href:"https://www.utiepmunifesp.com.br/protocolos",tipo:"Site"},
       {emoji:"💊",titulo:"Profilaxia antibiótica cirúrgica",desc:"Hospital São Paulo / UNIFESP — recomendações por especialidade",href:"/atb_profilaxia.pdf",tipo:"PDF"},
       {emoji:"🫀",titulo:"Pós-operatório de transplante hepático",desc:"Rotina de atendimento, prescrição, monitorização e complicações",href:"/tx_hepatico.pdf",tipo:"PDF"},
     ]},
