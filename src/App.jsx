@@ -8655,8 +8655,8 @@ export default function App() {
   const saves=useRef(null);
   if(!saves.current)saves.current=createSaveQueue({onState:setSaveState,write:async(key,value)=>{
     if(key==="evolucao_data")return evolutionWriter.current.write(value);
-    const {error}=await supabase.from("config").upsert({key,value});
-    if(error)throw new Error("Não foi possível salvar no servidor.");
+    const {error,status}=await supabase.from("config").upsert({key,value});
+    if(error)throw Object.assign(new Error(error.message||"Não foi possível salvar no servidor."),{code:error.code,status});
   }});
   useEffect(()=>{
     const guard=e=>{if(saves.current.hasPending()){e.preventDefault();e.returnValue="";}};
