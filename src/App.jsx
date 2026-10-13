@@ -1,3 +1,5 @@
+import {SWAN_FIELDS,SWAN_REFERENCE_SOURCE,withSwanReference} from './swan-reference.js';
+import {createLongitudinalStore,readWithRetry} from './longitudinal-store.js';
 import {removeActiveProblem,resolvedProcedures} from './problem-status.js';
 import {sbariVisibleFields,revealSbariFields} from './sbari-visibility.js';
 import {createEvolutionWriter} from './evolution-save.js';
@@ -6111,7 +6113,7 @@ function SerialMeasurements({title,fieldKey,fields=[],suggestedParams=[],value,o
   const state=value&&typeof value==="object"&&!Array.isArray(value)?value:{entries:[],customParams:[]};
   const entries=Array.isArray(state.entries)?state.entries:[],customParams=Array.isArray(state.customParams)?state.customParams:[];
   const latestEntryId=entries.reduce((latest,e)=>!latest||`${e.data||""}T${e.hora||"00:00"}`>=`${latest.data||""}T${latest.hora||"00:00"}`?e:latest,null)?.id;
-  const allFields=[...(subjective?[{key:"avaliacao",label:"Avaliação subjetiva",wide:true}]:[]),...fields,...customParams.map(p=>({...p,key:p.key,label:p.label}))];
+  const allFields=[...(subjective?[{key:"avaliacao",label:"Avaliação subjetiva",wide:true}]:[]),...fields,...customParams.map(p=>({...p,key:p.key,label:p.label}))].map(f=>calculator==="swan"?withSwanReference(f):f);
   const emit=next=>onChange({...state,...next});
   const add=()=>emit({entries:[...entries,{id:`sm_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,data:new Date().toISOString().slice(0,10),hora:new Date().toTimeString().slice(0,5),momento:entries.length?"reavaliacao":"avaliacao",interpretacao:"",conduta:"",values:{}}]});
   const upd=(id,key,val)=>emit({entries:entries.map(e=>e.id===id?{...e,[key]:val}:e)});
@@ -6139,12 +6141,12 @@ function SerialMeasurements({title,fieldKey,fields=[],suggestedParams=[],value,o
     else emit({customParams:[...customParams,p]});
   };
   return <div className="serial-responsive" style={{minWidth:0,maxWidth:"100%",marginTop:9,border:`1px solid ${color}33`,borderRadius:9,background:`${color}08`,overflow:"hidden"}}>
-    <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center",padding:"7px 9px",borderBottom:(entries.length||showParamMenu)?`1px solid ${color}22`:0}}><span style={{fontSize:10,fontFamily:mono,letterSpacing:1.2,color,fontWeight:700}}>{title}</span>{fields.some(f=>f.reference)&&<span title="Faixas usuais de referência; não são alvos terapêuticos e devem ser interpretadas no contexto clínico" style={{fontSize:8,color:T.text4,marginLeft:7,fontFamily:mono}}>refs usuais ⓘ</span>}<button onClick={()=>setShowParamMenu(v=>!v)} style={{marginLeft:"auto",border:0,background:"transparent",color:showParamMenu?color:T.text3,fontSize:10,cursor:"pointer"}}>+ variável</button><button onClick={add} style={{marginLeft:5,padding:"3px 8px",borderRadius:6,border:`1px solid ${color}55`,background:`${color}12`,color,cursor:"pointer",fontSize:10,fontWeight:700}}>+ medida</button></div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center",padding:"7px 9px",borderBottom:(entries.length||showParamMenu)?`1px solid ${color}22`:0}}><span style={{fontSize:10,fontFamily:mono,letterSpacing:1.2,color,fontWeight:700}}>{title}</span>{calculator==="swan"&&<a href={SWAN_REFERENCE_SOURCE} target="_blank" rel="noreferrer" style={{fontSize:8,color:T.text4}}>fonte</a>}{fields.some(f=>f.reference)&&<span title="Faixas usuais de referência; não são alvos terapêuticos e devem ser interpretadas no contexto clínico" style={{fontSize:8,color:T.text4,marginLeft:7,fontFamily:mono}}>refs usuais ⓘ</span>}<button onClick={()=>setShowParamMenu(v=>!v)} style={{marginLeft:"auto",border:0,background:"transparent",color:showParamMenu?color:T.text3,fontSize:10,cursor:"pointer"}}>+ variável</button><button onClick={add} style={{marginLeft:5,padding:"3px 8px",borderRadius:6,border:`1px solid ${color}55`,background:`${color}12`,color,cursor:"pointer",fontSize:10,fontWeight:700}}>+ medida</button></div>
     {showParamMenu&&<div style={{padding:"6px 9px",display:"flex",gap:5,flexWrap:"nowrap",overflowX:"auto",alignItems:"center",borderBottom:entries.length?`1px solid ${T.border}`:0}}>{suggestedParams.filter(p=>!fields.some(f=>f.key===p.key)).map(p=>{const active=Array.isArray(p.fields)?!!state.paramGroups?.[p.key]:customParams.some(f=>f.key===p.key);return <button key={p.key} onClick={()=>addSuggested(p)} title={p.help||(active?"Clique para remover":"Clique para adicionar")} style={{flex:"0 0 auto",whiteSpace:"nowrap",padding:"3px 8px",borderRadius:12,border:`1px solid ${active?"rgba(248,113,113,.5)":`${color}44`}`,background:active?"rgba(248,113,113,.10)":`${color}10`,color:active?"#f87171":color,fontSize:9,cursor:"pointer"}}>{active?"✕ ":"+ "}{p.label}</button>})}<button onClick={addParam} style={{flex:"0 0 auto",whiteSpace:"nowrap",padding:"3px 8px",borderRadius:12,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,fontSize:9,cursor:"pointer"}}>+ Nome livre</button></div>}
     {entries.map((e,i)=>{const anterior=i>0?entries[i-1]:null;const historica=(latestOnly&&e.id!==latestEntryId)||(compactHistory&&e.data&&e.data!==today);if(historica&&!expandedHistory[e.id]){const preenchidas=Object.values(e.values||{}).filter(v=>String(v??"").trim()).length;return <button key={e.id} onClick={()=>setExpandedHistory(x=>({...x,[e.id]:true}))} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 9px",border:0,borderTop:i?`1px solid ${T.border}`:0,background:T.bgCard,color:T.text2,cursor:"pointer",textAlign:"left"}}><span style={{fontSize:10,fontFamily:mono,color}}>{e.data?new Date(`${e.data}T00:00:00`).toLocaleDateString("pt-BR"):"sem data"}{e.hora?` · ${e.hora}`:""}</span><span style={{fontSize:9,color:T.text3}}>{preenchidas} parâmetro(s){e.interpretacao?" · com interpretação":""}{e.conduta?" · com conduta":""}</span><span style={{marginLeft:"auto",fontSize:10,color:T.text3}}>▾ consultar</span></button>}return <div key={e.id} style={{padding:"8px 9px",borderTop:i?`1px solid ${T.border}`:0}}>
       {historica&&<button onClick={()=>setExpandedHistory(x=>({...x,[e.id]:false}))} style={{float:"right",marginBottom:5,border:0,background:"transparent",color:T.text3,fontSize:9,cursor:"pointer"}}>▴ minimizar</button>}
       <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center",marginBottom:6}}><input type="date" value={e.data||""} onChange={x=>upd(e.id,"data",x.target.value)} style={{width:125,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/><input type="time" value={e.hora||""} onChange={x=>upd(e.id,"hora",x.target.value)} style={{width:82,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}/>{workflow&&<select value={e.momento||(i?"reavaliacao":"avaliacao")} onChange={x=>upd(e.id,"momento",x.target.value)} style={{background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"4px 6px",color:T.text1,fontSize:10}}><option value="avaliacao">Avaliação</option><option value="pos_intervencao">Após intervenção</option><option value="reavaliacao">Reavaliação</option></select>}<span style={{fontSize:9,color:T.text4}}>#{i+1}</span><button onClick={()=>remove(e.id)} style={{marginLeft:"auto",border:0,background:"transparent",color:"#f87171",cursor:"pointer"}}>✕</button></div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(115px,100%),1fr))",gap:5,minWidth:0,overflowX:"auto",paddingBottom:fieldKey==="cvPocusSerial"?2:0}}>{allFields.map(f=>{const atual=numPocus(e.values?.[f.key]),prev=numPocus(anterior?.values?.[f.key]),delta=atual!==null&&prev!==null?atual-prev:null;return <label key={f.key} style={{minWidth:0,fontSize:9,color:T.text3,gridColumn:f.wide?"1 / -1":undefined}}><span>{f.label}</span>{f.reference&&<span title="Faixa usual; interpretar no contexto clínico" style={{marginLeft:4,fontSize:8,color:T.text4,whiteSpace:"nowrap"}}>ref. {f.reference}</span>}<div style={{position:"relative"}}><input value={e.values?.[f.key]||""} onChange={x=>updVal(e.id,f.key,x.target.value)} style={{display:"block",boxSizing:"border-box",minWidth:0,width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:`5px ${delta!==null?24:6}px 5px 6px`,color:T.text1,fontSize:10}}/>{delta!==null&&delta!==0&&<span title={`Variação desde #${i}: ${delta>0?"+":""}${delta.toFixed(2)}`} style={{position:"absolute",right:6,top:7,fontSize:9,color:delta>0?"#f59e0b":"#38bdf8"}}>{delta>0?"↑":"↓"}</span>}</div></label>})}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(115px,100%),1fr))",gap:5,minWidth:0,overflowX:"auto",paddingBottom:fieldKey==="cvPocusSerial"?2:0}}>{allFields.map(f=>{const atual=numPocus(e.values?.[f.key]),prev=numPocus(anterior?.values?.[f.key]),delta=atual!==null&&prev!==null?atual-prev:null;return <label key={f.key} style={{minWidth:0,fontSize:9,color:T.text3,gridColumn:f.wide?"1 / -1":undefined}}><span>{f.label}</span>{f.reference&&<span title="Faixa usual; interpretar no contexto clínico" style={{display:calculator==="swan"?"block":undefined,marginLeft:calculator==="swan"?0:4,fontSize:8,color:T.text4,whiteSpace:calculator==="swan"?"normal":"nowrap"}}>ref. {f.reference}</span>}<div style={{position:"relative"}}><input value={e.values?.[f.key]||""} onChange={x=>updVal(e.id,f.key,x.target.value)} style={{display:"block",boxSizing:"border-box",minWidth:0,width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:`5px ${delta!==null?24:6}px 5px 6px`,color:T.text1,fontSize:10}}/>{delta!==null&&delta!==0&&<span title={`Variação desde #${i}: ${delta>0?"+":""}${delta.toFixed(2)}`} style={{position:"absolute",right:6,top:7,fontSize:9,color:delta>0?"#f59e0b":"#38bdf8"}}>{delta>0?"↑":"↓"}</span>}</div></label>})}</div>
       {workflow&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(220px,100%),1fr))",gap:6,marginTop:7}}><label style={{fontSize:9,color:T.text3}}>INTERPRETAÇÃO / ALVO<input value={e.interpretacao||""} onChange={x=>upd(e.id,"interpretacao",x.target.value)} placeholder="Ex.: baixo fluxo, provável responsividade..." style={{display:"block",boxSizing:"border-box",minWidth:0,width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10}}/></label><label style={{fontSize:9,color:T.text3}}>CONDUTA APÓS ESTA AVALIAÇÃO<input value={e.conduta||""} onChange={x=>upd(e.id,"conduta",x.target.value)} placeholder="Ex.: volume 250 mL, titular nora, iniciar dobutamina..." style={{display:"block",boxSizing:"border-box",minWidth:0,width:"100%",marginTop:2,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:5,padding:"6px 7px",color:T.text1,fontSize:10}}/></label></div>}
       {calculator==="pocus-co"&&(()=>{const c=calcPocusDerived(e.values,patient),tem=!!(c.co||c.pcwp!==null||c.papmTacc!==null||c.papmPsap!==null||c.vci);return <div style={{marginTop:7,padding:"7px 9px",borderRadius:7,border:`1px solid ${tem?"rgba(52,211,153,.28)":T.border}`,background:tem?"rgba(52,211,153,.07)":T.bgCard,fontSize:10,color:tem?"#34d399":T.text4,fontFamily:mono}}>{tem?<>{c.co&&<div>VS <b>{c.co.vs.toFixed(0)} mL</b> · DC <b>{c.co.dc.toFixed(2)} L/min</b> · IC <b>{c.co.ic?`${c.co.ic.toFixed(2)} L/min/m²`:"— (informe peso e altura)"}</b></div>}{c.pcwp!==null&&<div>PCWP estimada <b>{c.pcwp.toFixed(1)} mmHg</b> <span style={{color:T.text3}}>(1,24 × E/e′ + 1,9)</span></div>}{c.papmTacc!==null&&<div>PAPm por TAcc <b>{c.papmTacc.toFixed(1)} mmHg</b></div>}{c.papmPsap!==null&&<div>PAPm por PSAP <b>{c.papmPsap.toFixed(1)} mmHg</b></div>}{c.vci&&<div>VCI — índice de {c.vci.tipo}: <b>{c.vci.indice!==null?`${c.vci.indice.toFixed(1)}%`:"—"}</b>{c.vci.pvc!==null&&<> · PVC estimada <b>{c.vci.pvc} mmHg</b>{c.vci.pvcBaixaConfiabilidade&&<span style={{color:"#fbbf24"}}> · baixa confiabilidade em VM</span>}</>}</div>}{c.co&&<span style={{display:"block",marginTop:3,color:T.text3,fontSize:9}}>Área VSVE {c.co.area.toFixed(2)} cm²{c.co.sc?` · SC ${c.co.sc.toFixed(2)} m²`:""}</span>}</>:"Preencha os parâmetros para exibir os cálculos derivados."}</div>})()}
       {calculator==="swan"&&(()=>{const paps=numPocus(e.values?.paps),papd=numPocus(e.values?.papd),rap=numPocus(e.values?.pvc),papi=paps!==null&&papd!==null&&rap!==null&&rap>0?(paps-papd)/rap:null;return <div style={{marginTop:7,padding:"7px 9px",borderRadius:7,border:`1px solid ${papi!==null?"rgba(52,211,153,.28)":T.border}`,background:papi!==null?"rgba(52,211,153,.07)":T.bgCard,fontSize:10,color:papi!==null?"#34d399":T.text4,fontFamily:mono}}>{papi!==null?<>PAPi <b>{papi.toFixed(2)}</b><span style={{display:"block",marginTop:3,color:T.text3,fontSize:9}}>(PAPs − PAPd) / pressão atrial direita (PVC)</span></>:rap===0?"PAPi não calculável com PVC igual a zero.":"Preencha PAPs, PAPd e PVC para calcular a PAPi."}</div>})()}
@@ -6179,7 +6181,7 @@ const SERIAL_MONITOR_CONFIG={
   cvPocusSerial:{title:"POCUS — CICLO HEMODINÂMICO",color:"#f87171",subjective:true,calculator:"pocus-co",workflow:true,compactHistory:true,fields:[{key:"vciMax",label:"VCI maior (cm)",reference:"≤2,1"},{key:"vciMin",label:"VCI menor (cm)"},{key:"lvotDiam",label:"Diâmetro VSVE (cm)"},{key:"vtiVE",label:"VTI VE (cm)",reference:"18–22"},{key:"fc",label:"FC (bpm)"},{key:"vtiVD",label:"VTI VD (cm)",reference:">18"}],suggestedParams:[{key:"ea",label:"E/A",reference:"0,8–2,0"},{key:"ee",label:"E/e′",reference:"<14 (média); septal <15"},{key:"eprime",label:"e′ (cm/s)",reference:"septal ≥7; lateral ≥10"},{key:"feve",label:"FEVE (%)"},{key:"__vac",label:"VAC",help:"Adiciona FEVE, PAS, PAD, PAM, tNd e VSF para Ea, Ees e VAC",fields:[{key:"feve",label:"FEVE (%)"},{key:"pas",label:"PAS (mmHg)"},{key:"pad",label:"PAD (mmHg)"},{key:"pam",label:"PAM (mmHg)"},{key:"tnd",label:"tNd",reference:"razão 0–1"},{key:"vsf",label:"VSF (mL)"}]},{key:"mapse",label:"MAPSE (mm)",reference:">10"},{key:"epss",label:"EPSS (mm)",reference:"≤7"},{key:"tacc",label:"TAcc (ms)",reference:">130"},{key:"fac",label:"FAC (%)",reference:"≥35%"},{key:"tapse",label:"TAPSE (mm)",reference:"≥17"},{key:"psap",label:"PSAP (mmHg)",reference:"≤35"}]},
   cvPiccoSerial:{title:"PiCCO — CICLO HEMODINÂMICO",color:"#f87171",workflow:true,compactHistory:true,fields:[{key:"pvc",label:"PVC",reference:"2–6 mmHg"},{key:"ic",label:"IC",reference:"3–5 L/min/m²"},{key:"gedi",label:"GEDI",reference:"680–800 mL/m²"},{key:"elwi",label:"ELWI",reference:"3–7 mL/kg"},{key:"pvpi",label:"PVPI",reference:"1–3"},{key:"svri",label:"SVRI",reference:"1700–2400"},{key:"vvs",label:"VVS",reference:"<10–13%"},{key:"tdci",label:"tdCI",reference:"3–5 L/min/m²"},{key:"gef",label:"GEF",reference:"25–35%"}],suggestedParams:[{key:"pas",label:"PAS (mmHg)"},{key:"pam",label:"PAM (mmHg)"},{key:"fc",label:"FC (bpm)"},{key:"vs",label:"VS (mL)"},{key:"dc",label:"DC (L/min)"},{key:"vpp",label:"VPP (%)"}]},
   cvPerfusaoSerial:{title:"PERFUSÃO — ΔCO₂ / ΔPP · CICLO HEMODINÂMICO",color:"#f87171",workflow:true,compactHistory:true,fields:[{key:"deltaCO2",label:"ΔCO₂ (mmHg)",reference:"<6"},{key:"deltaPP",label:"ΔPP (%)",reference:"<10%; >13 sugere resposta"},{key:"lactato",label:"Lactato",reference:"<2 mmol/L"},{key:"svcO2",label:"ScvO₂ (%)",reference:"70–80%"}]},
-  cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",compactHistory:true,calculator:"swan",fields:[{key:"pvc",label:"PVC"},{key:"paps",label:"PAPs"},{key:"papd",label:"PAPd"},{key:"papm",label:"PAPm"},{key:"pcp",label:"PCP"},{key:"dc",label:"DC"},{key:"ic",label:"IC"},{key:"svo2",label:"SvO₂"},{key:"rvs",label:"RVS"}],suggestedParams:[{key:"pas",label:"PAS (mmHg)"},{key:"pam",label:"PAM (mmHg)"},{key:"fc",label:"FC (bpm)"},{key:"vs",label:"VS (mL)"}]},
+  cvSwanSerial:{title:"SWAN-GANZ — REGISTROS SERIADOS",color:"#f87171",compactHistory:true,calculator:"swan",fields:SWAN_FIELDS.slice(0,9),suggestedParams:SWAN_FIELDS.slice(9)},
   cvBiaSerial:{title:"BIA — REGISTROS SERIADOS",color:"#f87171",fields:[{key:"assistencia",label:"Relação de assistência"},{key:"trigger",label:"Trigger"},{key:"augmentacao",label:"Augmentação"},{key:"pasAssistida",label:"PAS assistida"},{key:"pasNaoAssistida",label:"PAS não assistida"},{key:"diastolicaAumentada",label:"Diastólica aumentada"},{key:"pam",label:"PAM"}]},
   reLusSerial:{title:"LUS — AVALIAÇÕES SERIADAS",color:"#38bdf8",subjective:true,workflow:true,compactHistory:true,fields:[{key:"htd",label:"HTD"},{key:"hte",label:"HTE"}]},
   rmTrsSerial:{title:"TSR — SESSÕES",color:"#34d399",latestOnly:true,fields:[{key:"modalidade",label:"Modalidade"},{key:"uf",label:"UF"},{key:"duracao",label:"Tempo de duração"},{key:"intercorrencias",label:"Intercorrências"}]},
@@ -8665,10 +8667,14 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [saveState,setSaveState]=useState({pending:false,error:false});
   const [loadError,setLoadError]=useState(false);
+  const [longState,setLongState]=useState('loading');
+  const longitudinal=useRef(null),longLoading=useRef(null);
+  if(!longitudinal.current)longitudinal.current=createLongitudinalStore(supabase);
   const evolutionWriter=useRef(null);
   if(!evolutionWriter.current)evolutionWriter.current=createEvolutionWriter(supabase);
   const saves=useRef(null);
   if(!saves.current)saves.current=createSaveQueue({onState:setSaveState,write:async(key,value)=>{
+    if(key==="historico_diario"||key==="pacientes_arquivados")return longitudinal.current.write(key,value);
     if(key==="evolucao_data")return evolutionWriter.current.write(value);
     const {error,status}=await supabase.from("config").upsert({key,value});
     if(error)throw Object.assign(new Error(error.message||"Não foi possível salvar no servidor."),{code:error.code,status});
@@ -8702,10 +8708,19 @@ export default function App() {
   const historicoRef = useRef({});
   useEffect(()=>{historicoRef.current=historicoDiario;},[historicoDiario]);
 
+  const loadLongitudinal=()=>{
+    if(longLoading.current)return longLoading.current;
+    setLongState('loading');
+    longLoading.current=Promise.all([longitudinal.current.load('historico_diario'),longitudinal.current.load('pacientes_arquivados')]).then(([history,archive])=>{
+      historicoRef.current=history;arquivoRef.current=archive;setHistoricoDiario(history);setPacientesArquivados(archive);setLongState('ready');
+    }).catch(()=>setLongState('error')).finally(()=>{longLoading.current=null;});
+    return longLoading.current;
+  };
+  const requireLongitudinal=()=>{if(longState==='ready')return true;loadLongitudinal();window.alert('Histórico e arquivo ainda não estão disponíveis. Os leitos podem ser editados; aguarde o carregamento antes de transferir, dar alta ou atualizar pelo SBARI.');return false;};
   // ── LOAD ─────────────────────────────────────────────────────────────────────
   const loadData = async () => {
     let falhou=false;setLoadError(false);isLoaded.current=false;
-    const readConfig=async key=>{const r=await supabase.from("config").select("value").eq("key",key).single();if(r.error&&r.error.code!=="PGRST116")throw r.error;return r;};
+    const readConfig=async key=>{return readWithRetry(async()=>{const r=await supabase.from("config").select("value").eq("key",key).single();return r.error?.code==="PGRST116"?{data:null,error:null}:r;});};
     let leitoAtualId = LEITOS_INICIAIS[0].id;
     let utiPadrao="uti-principal";
     try{
@@ -8764,18 +8779,10 @@ export default function App() {
         if (p && typeof p === 'object') setMetasPorLeito(p);
       }
     } catch {falhou=true;}
-    try {
-      const {data:ad}=await readConfig("pacientes_arquivados");
-      if(ad?.value){const p=JSON.parse(ad.value);if(Array.isArray(p))setPacientesArquivados(p);}
-    } catch {falhou=true;}
-    try {
-      const {data:hd}=await readConfig("historico_diario");
-      if(hd?.value){const p=JSON.parse(hd.value);if(p&&typeof p==="object")setHistoricoDiario(p);}
-    } catch {falhou=true;}
     // Libera saves e dispara a criação do snapshot de hoje após o load completo.
     if(falhou){setLoadError(true);return false;}
     setDataLoaded(true);
-    isLoaded.current = true;return true;
+    isLoaded.current = true;void loadLongitudinal();return true;
   };
 
   // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -8866,7 +8873,7 @@ export default function App() {
   },[leitos,dataLoaded]);
 
   useEffect(()=>{
-    if(!dataLoaded||sbariSyncing)return;
+    if(!dataLoaded||sbariSyncing||longState!=="ready")return;
     clearTimeout(historicoTimer.current);
     historicoTimer.current=setTimeout(async()=>{
       const hoje=new Date().toISOString().slice(0,10),agora=new Date().toISOString();
@@ -8874,7 +8881,7 @@ export default function App() {
       if(!ativos.length)return;
       const novo={...historicoRef.current};
       ativos.forEach(l=>{
-        const adm=novo[l.admissionId]||{admissionId:l.admissionId,patientId:l.patientId,startedAt:l.admissionStartedAt||agora,bedId:l.id,days:{}};
+        const adm={...(novo[l.admissionId]||{admissionId:l.admissionId,patientId:l.patientId,startedAt:l.admissionStartedAt||agora,bedId:l.id,days:{}})};
         adm.patientId=l.patientId;adm.bedId=l.id;adm.patientName=l.paciente;adm.days={...(adm.days||{}),[hoje]:{
           clinicalDate:hoje,recordedAt:agora,status:"draft",source:"uti-evolve",
           patient:{id:l.patientId,nome:l.paciente,sexo:l.sexo,idade:idadeDoLeito(l),peso:l.peso,diagnostico:l.diagnostico},
@@ -8883,19 +8890,23 @@ export default function App() {
           clinicalTable:JSON.parse(JSON.stringify((tabelaData[l.id]||{})[hoje]||{})),
           nutrition:calcularNutriDia(l,(tabelaData[l.id]||{})[hoje]||{},config),
           goals:JSON.parse(JSON.stringify(metasPorLeito[l.id]||[])),
-        }};novo[l.admissionId]=adm;
+        }};
+        const previous=novo[l.admissionId]?.days?.[hoje],current=adm.days[hoje];
+        if(previous&&JSON.stringify({...previous,recordedAt:null})===JSON.stringify({...current,recordedAt:null}))return;
+        novo[l.admissionId]=adm;
       });
+      if(JSON.stringify(novo)===JSON.stringify(historicoRef.current))return;
       setHistoricoDiario(novo);
       agendarSave("historico_diario",novo);
     },1200);
     return()=>clearTimeout(historicoTimer.current);
-  },[leitos,evolPorLeito,tabelaData,metasPorLeito,config,dataLoaded,sbariSyncing]);
+  },[leitos,evolPorLeito,tabelaData,metasPorLeito,config,dataLoaded,sbariSyncing,longState]);
 
   // Recupera a linha do tempo já existente na Tabela Clínica. Como as versões
   // antigas não guardavam snapshots completos, esses dias entram identificados
   // como parciais, preservando controles, exames, gasometrias e escores datados.
   useEffect(()=>{
-    if(!dataLoaded)return;
+    if(!dataLoaded||longState!=="ready")return;
     let mudou=false;const novo={...historicoDiario};
     leitos.filter(l=>l.paciente&&l.admissionId).forEach(l=>{
       const adm={...(novo[l.admissionId]||{admissionId:l.admissionId,patientId:l.patientId,patientName:l.paciente,startedAt:l.admissionStartedAt,bedId:l.id,days:{}}),days:{...(novo[l.admissionId]?.days||{})}};
@@ -8909,7 +8920,7 @@ export default function App() {
     if(!mudou)return;
     setHistoricoDiario(novo);
     agendarSave("historico_diario",novo);
-  },[leitos,tabelaData,historicoDiario,dataLoaded]);
+  },[leitos,tabelaData,historicoDiario,dataLoaded,longState]);
 
   const utiAtiva=utis.find(u=>u.id===utiAtivaId)||utis[0];
   const hospitalAtivo=hospitais.find(h=>h.id===utiAtiva?.hospitalId)||hospitais[0];
@@ -8960,6 +8971,7 @@ export default function App() {
   };
   useEffect(()=>{if(perfil!=="plantonista"){setPerfil("plantonista");sessionStorage.setItem("uti_perfil","plantonista");}},[perfil]);
   const sincronizarSbari=async()=>{
+    if(!requireLongitudinal())return false;
     const raw=config.sbariLinks?.[utiAtiva?.id];
     const links=(Array.isArray(raw)?raw:(raw?[{label:"SBARI",url:raw}]:[])).filter(x=>x?.url);
     if(!links.length){window.alert("Cadastre ao menos um link do SBARI desta UTI em Configurações.");return;}
@@ -9080,6 +9092,7 @@ export default function App() {
   };
 
   const transferirPaciente = async (destinoId) => {
+    if(!requireLongitudinal())return false;
     const origem=leito;
     const destino=leitos.find(l=>String(l.id)===String(destinoId));
     if(!origem?.paciente||!destino||destino.paciente||String(origem.id)===String(destino.id)){
@@ -9104,7 +9117,7 @@ export default function App() {
         supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(novaTabela)}),
         saves.current.enqueue("evolucao_data",novaEvol,{immediate:true}).then(()=>({error:null})),
         supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(novasMetas)}),
-        supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novoHistorico)}),
+        saves.current.enqueue("historico_diario",novoHistorico,{immediate:true}).then(()=>({error:null})),
       ]);
       const falha=resultados.find(r=>r.error);if(falha)throw falha.error;
       setLeitos(novosLeitos);setTabelaData(novaTabela);setEvolPorLeito(novaEvol);setMetasPorLeito(novasMetas);setHistoricoDiario(novoHistorico);
@@ -9119,6 +9132,7 @@ export default function App() {
     setAltaEditor({dataAlta:new Date().toISOString().slice(0,10),destino:"",destinoOutro:"",rankinAlta:""});
   };
   const confirmarAltaPaciente = async () => {
+    if(!requireLongitudinal())return false;
     if(!leito?.paciente||!altaEditor)return;
     if(!altaEditor.dataAlta){window.alert("Informe a data da alta.");return;}
     if(!altaEditor.destino){window.alert("Selecione o destino da alta.");return;}
@@ -9147,12 +9161,12 @@ export default function App() {
     setSaving(true);
     try {
       const resultados=await Promise.all([
-        supabase.from("config").upsert({key:"pacientes_arquivados",value:JSON.stringify(novoArquivo)}),
+        saves.current.enqueue("pacientes_arquivados",novoArquivo,{immediate:true}).then(()=>({error:null})),
         supabase.from("config").upsert({key:"leitos_data",value:JSON.stringify(novosLeitos)}),
         supabase.from("config").upsert({key:"tabela_data",value:JSON.stringify(novaTabela)}),
         saves.current.enqueue("evolucao_data",novaEvol,{immediate:true}).then(()=>({error:null})),
         supabase.from("config").upsert({key:"metas_data",value:JSON.stringify(novasMetas)}),
-        supabase.from("config").upsert({key:"historico_diario",value:JSON.stringify(novoHistorico)}),
+        saves.current.enqueue("historico_diario",novoHistorico,{immediate:true}).then(()=>({error:null})),
       ]);
       const falha=resultados.find(r=>r.error);
       if(falha) throw falha.error;
@@ -9235,6 +9249,7 @@ export default function App() {
   return (
     <ThemeCtx.Provider value={T}>
     <MetaAssociationContext.Provider value={l=>diagnosticosAtivosUnificados(l,problemasAtivosAutomaticos(l,tabelaData[l.id]||{},evolPorLeito[l.id]||{},config))}>
+    {longState!=='ready'&&<div role="status" style={{padding:'5px 12px',fontSize:11,background:T.bgCard,color:T.text3}}>{longState==='error'?'Histórico e arquivo indisponíveis. Os dados dos leitos continuam disponíveis.':'Carregando histórico e arquivo…'}{longState==='error'&&<button onClick={loadLongitudinal} style={{marginLeft:8}}>Tentar novamente</button>}</div>}
     {saveState.message&&<div role="alert" style={{position:'fixed',bottom:12,left:12,right:12,zIndex:30001,padding:12,borderRadius:8,background:'#fffbeb',color:'#92400e',fontSize:12}}>{saveState.message}</div>}
     {sbariSyncing&&<div role="status" aria-live="polite" style={{position:'fixed',inset:0,zIndex:30000,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center'}}><div style={{padding:24,borderRadius:12,background:T.bgCard,color:T.text1}}>Atualizando SBARI e preservando os dados salvos…</div></div>}
     {importacao&&<ClinicalImportBox key={`${importacao.id}-${importacao.admissionId}`} T={T} destino={importacao} minimizada={importacao.minimizada} onMinimize={()=>setImportacao(atual=>({...atual,minimizada:true}))} onRestore={()=>setImportacao(atual=>({...atual,minimizada:false}))} onClose={()=>setImportacao(null)} onSave={resultado=>salvarImportacao(resultado,importacao)}/>}
@@ -9434,9 +9449,9 @@ export default function App() {
           ) : viewGlobal==="ferramentas" ? (
             <div style={{flex:1,overflowY:"auto"}}><FerramentasPanel/></div>
           ) : viewGlobal==="pesquisa" ? (
-            <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><AnalysisErrorBoundary><PesquisaPanel historico={historicoDiario} arquivos={pacientesArquivados} leitos={leitos} utis={utis}/></AnalysisErrorBoundary></div>
+            <div style={{flex:1,overflowY:"auto",background:T.bgPage}}>{longState!=='ready'?<p>Carregando histórico e arquivo…</p>:<AnalysisErrorBoundary><PesquisaPanel historico={historicoDiario} arquivos={pacientesArquivados} leitos={leitos} utis={utis}/></AnalysisErrorBoundary>}</div>
           ) : viewGlobal==="arquivo" ? (
-            <div style={{flex:1,overflowY:"auto",background:T.bgPage}}><ArquivoPacientesPanel arquivos={pacientesArquivados}/></div>
+            <div style={{flex:1,overflowY:"auto",background:T.bgPage}}>{longState==='ready'?<ArquivoPacientesPanel arquivos={pacientesArquivados}/>:<p>Arquivo ainda não disponível. Aguarde ou tente novamente.</p>}</div>
           ) : viewGlobal==="visao_geral" ? (
             <div style={{flex:1,overflowY:"auto"}}>
               <VisaoGeralPanel leitos={leitosDaUti} tabelaData={tabelaData} metasPorLeito={metasPorLeito} config={config} evolCamposPorLeito={evolPorLeito}
@@ -9460,7 +9475,7 @@ export default function App() {
                 <div style={{fontSize:16,fontWeight:700,color:leito.paciente?T.text1:T.text3}}>{leito.paciente||"Leito sem paciente cadastrado"}</div>
                 {leito.paciente&&<button onClick={()=>setPacienteEditorAberto(true)} title={idadeAnos===null?"Clique para informar a idade":"Clique para editar a idade"} style={{padding:"3px 9px",borderRadius:10,border:`1px solid ${idadeAnos===null?T.border:"rgba(192,132,252,.38)"}`,background:idadeAnos===null?"transparent":"rgba(192,132,252,.11)",color:idadeAnos===null?T.text3:"#c084fc",fontSize:11,fontFamily:mono,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{idadeAnos===null?"Idade não informada":`${idadeAnos} anos`}</button>}
                 {(()=>{const tb=tabelaData[leitoSelId]||{};const datas=Object.keys(tb).sort();let acum=0,algum=false;datas.forEach(d=>{const bh=parseFloat(tb[d]?.c24_bh_ac||tb[d]?.c24_bh);if(!isNaN(bh)){acum+=bh;algum=true;}});const prev=parseFloat(leito.bhPrevio||0)||0;const tot=acum+prev;if(!algum&&!prev)return null;const cor=tot>0?"#f87171":tot<0?"#34d399":"#94a3b8";const sig=tot>=0?"+":"";return(<span style={{fontSize:11,fontFamily:mono,color:cor,fontWeight:700,padding:"2px 8px",borderRadius:10,background:`${cor}15`,border:`1px solid ${cor}30`}}>BH {sig}{Math.round(tot).toLocaleString("pt-BR")} mL</span>);})()}
-                <button onClick={()=>setHistoricoAberto(true)} title="Abrir histórico e comparar dias" style={{fontSize:10,fontFamily:mono,color:T.accent,padding:"2px 8px",borderRadius:10,background:T.accentBg,border:`1px solid ${T.accentBorder}`,cursor:"pointer"}}>◷ {diasHistorico.length||1} dia{(diasHistorico.length||1)!==1?'s':''} registrado{(diasHistorico.length||1)!==1?'s':''}</button>
+                <button onClick={()=>{if(requireLongitudinal())setHistoricoAberto(true)}} title="Abrir histórico e comparar dias" style={{fontSize:10,fontFamily:mono,color:T.accent,padding:"2px 8px",borderRadius:10,background:T.accentBg,border:`1px solid ${T.accentBorder}`,cursor:"pointer"}}>◷ {diasHistorico.length||1} dia{(diasHistorico.length||1)!==1?'s':''} registrado{(diasHistorico.length||1)!==1?'s':''}</button>
                 <button onClick={()=>setPacienteEditorAberto(true)} title="Editar cadastro, histórico e procedimentos" style={{marginLeft:"auto",padding:"5px 10px",borderRadius:7,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>✎ {leito.paciente?"Editar paciente":"Cadastrar paciente"}</button>
                 {leito.paciente&&<button onClick={darAltaPaciente} title="Arquivar todos os dados e liberar o leito" style={{padding:"5px 10px",borderRadius:7,border:"1px solid rgba(251,191,36,.35)",background:"rgba(251,191,36,.08)",color:"#fbbf24",fontSize:11,fontWeight:700,cursor:"pointer"}}>Dar alta</button>}
               </div>

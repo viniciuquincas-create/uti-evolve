@@ -19,26 +19,26 @@ export function mergeEvolution(base,local,remote,path=[]){
  }
  return conflict();
 }
-export function createEvolutionWriter(db){
+export function createEvolutionWriter(db,key='evolucao_data'){
  let baseline,loaded=false;
  return {
-  seed(value){baseline=value||{};loaded=true;},
+  seed(value){baseline=JSON.parse(JSON.stringify(value||{}));loaded=true;},
   async write(serialized){
    if(!loaded)throw new Error('A evolução ainda não terminou de carregar.');
    const local=JSON.parse(serialized);
    for(let attempt=0;attempt<4;attempt++){
-    const {data,error,status}=await db.from('config').select('value,updated_at').eq('key','evolucao_data').maybeSingle();
+    const {data,error,status}=await db.from('config').select('value,updated_at').eq('key',key).maybeSingle();
     if(error)throw Object.assign(new Error(error.message),{code:error.code,status});
-    const remote=data?.value?JSON.parse(data.value):{};
+    const remote=data?.value?JSON.parse(data.value):(Array.isArray(baseline)?[]:{});
     const merged=mergeEvolution(baseline,local,remote);
     if(equal(merged,remote)){baseline=local;return;}
     if(!data){
-     const result=await db.from('config').insert({key:'evolucao_data',value:JSON.stringify(merged)});
+     const result=await db.from('config').insert({key,value:JSON.stringify(merged)});
      if(result.error?.code==='23505')continue;
      if(result.error)throw Object.assign(new Error(result.error.message),{code:result.error.code,status:result.status});
      baseline=local;return;
     }
-    let query=db.from('config').update({value:JSON.stringify(merged)}).eq('key','evolucao_data');
+    let query=db.from('config').update({value:JSON.stringify(merged)}).eq('key',key);
     query=data.updated_at===null?query.is('updated_at',null):query.eq('updated_at',data.updated_at);
     const result=await query.select('key');
     if(result.error)throw Object.assign(new Error(result.error.message),{code:result.error.code,status:result.status});
