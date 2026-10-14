@@ -1,3 +1,4 @@
+import {gasosDoDia} from '../src/ventilation-gas.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -5,7 +6,7 @@ import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
 const body=source.slice(source.indexOf('function problemasAtivosAutomaticos('),source.indexOf('const textoProblemaAutomatico='));
 const sofa=source.slice(source.indexOf('function calcSofa('),source.indexOf('// ── Faixas de referência por exame'));
-const context=vm.createContext({hojeLocal:()=>context.today,today:'2026-10-13',numScore:v=>v===undefined||v===null||v===''?null:Number(String(v).replace(',','.')),calcularNutriDia:()=>({}),analisarGasometria:()=>({}),getDrogaConfig:key=>({label:key}),ABREV:{k:'K',na:'Na'}});
+const context=vm.createContext({gasosDoDia,hojeLocal:()=>context.today,today:'2026-10-13',numScore:v=>v===undefined||v===null||v===''?null:Number(String(v).replace(',','.')),calcularNutriDia:()=>({}),analisarGasometria:()=>({}),getDrogaConfig:key=>({label:key}),ABREV:{k:'K',na:'Na'}});
 vm.runInContext(sofa+body,context);
 const problems=(patient={},table={})=>context.problemasAtivosAutomaticos(patient,table);
 test('electrolytes must be present today, including after midnight',()=>{const table={'2026-10-12':{k:'2.5',na:'160'},'2026-10-13':{k:'2.8'}};assert(problems({},table).find(p=>p.id==='eletrolitos').subitens.every(s=>!s.includes('160')));context.today='2026-10-14';assert(!problems({},table).some(p=>p.id==='eletrolitos'));context.today='2026-10-13';assert(!problems({},{...table,'2026-10-13':{k:'4'}}).some(p=>p.id==='eletrolitos'));});

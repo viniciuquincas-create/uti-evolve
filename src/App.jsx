@@ -1,3 +1,4 @@
+import {gasosDoDia,ventilacaoGasometria} from './ventilation-gas.js';
 import {SWAN_FIELDS,SWAN_REFERENCE_SOURCE,withSwanReference,isSwanFieldVisible,swanReferenceDirection} from './swan-reference.js';
 import {createLongitudinalStore,readWithRetry} from './longitudinal-store.js';
 import {removeActiveProblem,resolvedProcedures} from './problem-status.js';
@@ -1002,13 +1003,13 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const valorAte=(date,key,score=false)=>{for(const d of [...datas].filter(x=>x<=date).reverse()){const v=score?tabelaDataLeito[d]?._scoreInputs?.[key]:tabelaDataLeito[d]?.[key];if(v!==undefined&&v!==null&&String(v).trim()!=="")return v;}return "";};
   const gasoAte=date=>{for(const d of [...datas].filter(x=>x<=date).reverse()){let gs=tabelaDataLeito[d]?._gasos||[];try{if(typeof gs==="string")gs=JSON.parse(gs);}catch{gs=[];}gs=[...(gs||[])].filter(g=>Object.values(g||{}).some(Boolean)).sort((a,b)=>`${a.data||d} ${a.horario||""} ${a.id||""}`.localeCompare(`${b.data||d} ${b.horario||""} ${b.id||""}`));if(gs.length)return gs.at(-1);}return {};};
   const scorePorData=date=>{
-    const salvo=tabelaDataLeito[date]?._scoreInputs||{},g=gasoAte(date),hoje=new Date().toISOString().slice(0,10),atual=date.slice(0,10)===hoje;
+    const salvo=tabelaDataLeito[date]?._scoreInputs||{},g=gasosDoDia(tabelaDataLeito,date.slice(0,10)).at(-1)||{},hoje=hojeLocal(),atual=date.slice(0,10)===hoje;
     const fio2=numScore(atual?(leito.vm_fio2||valorAte(date,"fio2",true)):valorAte(date,"fio2",true));
     const po2=numScore(g.po2),sat=numScore(g.sato2)??numScore(valorAte(date,"c24_sat")),pam=numScore(valorAte(date,"c24_pam"));
     const circAnterior=valorAte(date,"circulacaoSofa",true)||valorAte(date,"circulacao",true);
     const autoCirc=atual&&dvaAtivas.length?"dva_baixa":circAnterior||(pam!==null&&pam<70?"pam_baixa":"normal");
     return {bilirrubina:valorAte(date,"bttot"),creatinina:valorAte(date,"cr"),inr:valorAte(date,"rni"),leucocitos:valorAte(date,"leuco"),plaquetas:valorAte(date,"plaq"),diurese:valorAte(date,"c24_diur"),
-      pf:po2!==null&&fio2?String(Math.round(po2/(fio2/100))):"",sf:sat!==null&&fio2?String(Math.round(sat/(fio2/100))):"",fio2:fio2??"",gcs:atual?(campos.nGlasgow||valorAte(date,"gcs",true)):valorAte(date,"gcs",true),suporteResp:atual?(!!leito.vm_modo||!!valorAte(date,"suporteResp",true)):!!valorAte(date,"suporteResp",true),circulacao:autoCirc,circulacaoSofa:autoCirc,...salvo};
+      pf:po2!==null&&fio2?String(Math.round(po2/(fio2/100))):"",sf:sat!==null&&fio2?String(Math.round(sat/(fio2/100))):"",fio2:fio2??"",gcs:atual?(campos.nGlasgow||valorAte(date,"gcs",true)):valorAte(date,"gcs",true),suporteResp:atual?(!!leito.vm_modo||!!valorAte(date,"suporteResp",true)):!!valorAte(date,"suporteResp",true),circulacao:autoCirc,circulacaoSofa:autoCirc,...salvo,...(leito.vm_semGasoData===date.slice(0,10)?{pf:""}:{})};
   };
   const evolucao=(valores,format=v=>v)=>valores.length?`${format(valores[0])}${valores.length>1?` → ${format(valores.at(-1))}`:""}`:"";
   if(problemaVmi&&leito.vm_modo==="vm_psv"){
@@ -1048,7 +1049,7 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
     let gasos=linhaHoje._gasos||[];try{if(typeof gasos==="string")gasos=JSON.parse(gasos);}catch{gasos=[];}
     const gaso=Array.isArray(gasos)?[...gasos].filter(g=>!g.data||g.data.slice(0,10)===diaAtual).sort((a,b)=>String(a.horario||"").localeCompare(String(b.horario||""))).at(-1)||{}:{};
     const fio2=numScore(leito.vm_fio2||salvo.fio2),po2=numScore(gaso.po2);
-    const sc=calcSofa({plaquetas:linhaHoje.plaq,bilirrubina:linhaHoje.bttot,creatinina:linhaHoje.cr,diurese:linhaHoje.c24_diur,gcs:campos.nGlasgow,pf:po2!==null&&fio2>0?po2/(fio2>1?fio2/100:fio2):"",suporteResp:!!leito.vm_modo,circulacaoSofa:!dvaAtivas.length&&numScore(linhaHoje.c24_pam)!==null?(numScore(linhaHoje.c24_pam)<70?"pam_baixa":"normal"):"",...salvo});
+    const sc=calcSofa({plaquetas:linhaHoje.plaq,bilirrubina:linhaHoje.bttot,creatinina:linhaHoje.cr,diurese:linhaHoje.c24_diur,gcs:campos.nGlasgow,pf:po2!==null&&fio2>0?po2/(fio2>1?fio2/100:fio2):"",suporteResp:!!leito.vm_modo,circulacaoSofa:!dvaAtivas.length&&numScore(linhaHoje.c24_pam)!==null?(numScore(linhaHoje.c24_pam)<70?"pam_baixa":"normal"):"",...salvo,...(leito.vm_semGasoData===diaAtual?{pf:""}:{})});
     const problema=problemas.find(p=>p.id===(dvaAtivas.length||septico?choqueId:"sepse"));
     if(problema)problema.subitens.push(sc.faltam?.length?`SOFA de hoje incompleto — preencher: ${sc.faltam.join(", ")}`:`SOFA ${sc.sofa}`);
   }
@@ -1824,6 +1825,7 @@ function DispositivosPanel({ dispositivos={}, onChange, alertas={} }) {
 
 // ── VentilacaoPanel ────────────────────────────────────────────────────────────
 const VM_MODOS = [
+  {id:"tqt_nebulizacao",label:"Traqueostomia — nebulização",icone:"💨"},
   { id:"ar_ambiente",  label:"Ar ambiente",                       icone:"🌬️"  },
   { id:"cn",           label:"Cateter Nasal",                 icone:"👃"  },
   { id:"ms",           label:"Máscara Simples",               icone:"😷"  },
@@ -1839,6 +1841,7 @@ const VM_MODOS = [
 const VM_INVASIVA_MODOS=["vm_psv","vm_pcv","vm_vcv","vm_aprv"];
 
 const VM_CAMPOS = {
+  tqt_nebulizacao:[{key:"vm_o2",label:"O₂ (L/min)",type:"number",placeholder:""},{key:"vm_fio2",label:"FiO₂ (%)",type:"number",placeholder:"Se conhecida"}],
   ar_ambiente: [],
   cn:         [{ key:"vm_o2",   label:"O₂ (L/min)", type:"number", placeholder:"1-6" }],
   ms:         [{ key:"vm_o2",   label:"O₂ (L/min)", type:"number", placeholder:"5-10" }],
@@ -1945,7 +1948,8 @@ function calcularGasAlveolar({fio2,paco2,pao2,pb=760,rq=.8}){
   };
 }
 
-function gerarTextoVM(leito) {
+function gerarTextoVM(leito,tabelaDataLeito={}) {
+  const gasAtual=ventilacaoGasometria(leito,tabelaDataLeito);
   const modo = leito.vm_modo;
   if (!modo || modo === "ar_ambiente") return leito.vm_sato2 ? `Ar ambiente / SatO2 ${leito.vm_sato2}%` : "Ar ambiente";
   const m = VM_MODOS.find(x=>x.id===modo);
@@ -1978,9 +1982,9 @@ function gerarTextoVM(leito) {
   if (leito.vm_sato2) partes.push(`SatO2: ${leito.vm_sato2}%`);
   if (VM_INVASIVA_MODOS.includes(modo) && leito.dispositivos?.tqt?.ativo && leito.vm_cuff) partes.push(`Cuff: ${leito.vm_cuff}`);
   if (mostraOpcional("obs")&&leito.vm_obs) partes.push(leito.vm_obs);
-  const pao2=parseFloat(leito.vm_pf), fio2=parseFloat(leito.vm_fio2);
+  const pao2=parseFloat(gasAtual.pao2), fio2=parseFloat(leito.vm_fio2);
   if(Number.isFinite(pao2)&&pao2>0&&Number.isFinite(fio2)&&fio2>0) partes.push(`→ P/F ${Math.round(pao2/(fio2/100))}`);
-  const gasAlveolar=leito.vmOpcionais?.gasa?calcularGasAlveolar({fio2:leito.vm_modo==="ar_ambiente"?21:leito.vm_fio2,paco2:leito.vm_paco2,pao2:leito.vm_pf,pb:leito.vm_pb||760,rq:leito.vm_rq||.8}):null;
+  const gasAlveolar=leito.vmOpcionais?.gasa?calcularGasAlveolar({fio2:leito.vm_modo==="ar_ambiente"?21:leito.vm_fio2,paco2:gasAtual.paco2,pao2:gasAtual.pao2,pb:leito.vm_pb||760,rq:leito.vm_rq||.8}):null;
   if(gasAlveolar){
     partes.push(`PAO₂: ${Math.round(gasAlveolar.pao2Alveolar)} mmHg`);
     if(gasAlveolar.gradienteAa!==null)partes.push(`Gradiente A–a: ${Math.round(gasAlveolar.gradienteAa)} mmHg`);
@@ -1995,7 +1999,7 @@ function gerarTextoVM(leito) {
   return `${label}: ${partes.join(" / ")}${cuidados.length?`\n- Cuidados VM: ${cuidados.join("; ")}`:""}`;
 }
 
-const VM_SNAPSHOT_KEYS=["vm_modo","vm_sato2","vm_pf","vm_paco2","vm_pb","vm_rq","vm_o2","vm_flow","vm_fio2","vm_ipap","vm_epap","vm_br","vm_ps","vm_peep","vm_fr","vm_vt","vm_p01","vm_pocc","vm_pins","vm_pplat","vm_ppico","vm_phigh","vm_plow","vm_thigh","vm_tlow","vm_cuff"];
+const VM_SNAPSHOT_KEYS=["vm_modo","vm_sato2","vm_pfData","vm_paco2Data","vm_semGasoData","vm_pf","vm_paco2","vm_pb","vm_rq","vm_o2","vm_flow","vm_fio2","vm_ipap","vm_epap","vm_br","vm_ps","vm_peep","vm_fr","vm_vt","vm_p01","vm_pocc","vm_pins","vm_pplat","vm_ppico","vm_phigh","vm_plow","vm_thigh","vm_tlow","vm_cuff"];
 const snapshotVM=(leito)=>Object.fromEntries(VM_SNAPSHOT_KEYS.filter(k=>leito[k]!==undefined&&leito[k]!=="").map(k=>[k,leito[k]]));
 const resumoSnapshotVM=(snap={})=>snap.vm_modo?gerarTextoVM({...snap}).split("\n")[0]:"Suporte não definido";
 
@@ -2013,12 +2017,9 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
 
   const modoAtual = VM_MODOS.find(m=>m.id===leito.vm_modo);
   const campos = VM_CAMPOS[leito.vm_modo] || [];
-  const pao2Gasometrias=Object.keys(tabelaDataLeito||{}).sort().reverse().flatMap(data=>{
-    let gasos=tabelaDataLeito[data]?._gasos||[];
-    try{if(typeof gasos==="string")gasos=JSON.parse(gasos);}catch{gasos=[];}
-    return (Array.isArray(gasos)?gasos:[]).filter(g=>g?.po2!==undefined&&g.po2!=="").map(g=>({valor:g.po2,pco2:g.pco2??"",horario:g.horario||"sem horário",data:g.data||data})).reverse();
-  });
-  const ultimaGasoResp=pao2Gasometrias[0]||null;
+  const gasAtual=ventilacaoGasometria(leito,tabelaDataLeito);
+  const pao2Gasometrias=gasosDoDia(tabelaDataLeito).filter(g=>g.po2!==undefined&&g.po2!==null&&String(g.po2).trim()!=="").map(g=>({valor:g.po2,pco2:g.pco2??"",horario:g.horario||"sem horário",data:g.data})).reverse();
+  const ultimaGasoResp=gasAtual.gas;
 
   const modosFiltrados = busca.length >= 1
     ? VM_MODOS.filter(m=>m.label.toLowerCase().includes(busca.toLowerCase()))
@@ -2031,8 +2032,8 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const pins  = parseFloat(leito.vm_pins||0)  || 0;
   const ps    = parseFloat(leito.vm_ps||0)    || 0;
   const fio2  = parseFloat(leito.vm_fio2||0)  || 0;
-  const po2   = parseFloat(leito.vm_pf||ultimaGasoResp?.valor||0) || 0;
-  const paco2 = parseFloat(leito.vm_paco2||ultimaGasoResp?.pco2||0) || 0;
+  const po2   = parseFloat(gasAtual.pao2||0) || 0;
+  const paco2 = parseFloat(gasAtual.paco2||0) || 0;
 
   const dp    = (pplat && peep) ? Math.round((pplat - peep)*10)/10 : null;
   const csr   = (vt && pplat && peep && pplat>peep) ? Math.round(vt/(pplat-peep)) : null;
@@ -2072,7 +2073,7 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
   const oxiCor = sat!==null ? (sat<90?"#f87171":sat<94?"#fbbf24":"#34d399") : pf_calc!==null ? (pf_calc<150?"#f87171":pf_calc<300?"#fbbf24":"#34d399") : "#94a3b8";
 
   const alterarVM=(patch)=>onChange({...leito,vmBaseline:leito.vmBaseline||snapshotVM(leito),...patch});
-  const set = (key, val) => alterarVM({[key]:val});
+  const set = (key, val) => alterarVM({[key]:val,...(key==="vm_pf"?{vm_pfData:hojeLocal(),vm_semGasoData:val===""?hojeLocal():""}:{}),...(key==="vm_paco2"?{vm_paco2Data:hojeLocal()}: {})});
   const registrarMudanca=()=>{
     const anterior=leito.vmBaseline||snapshotVM(leito),atual=snapshotVM(leito);
     if(JSON.stringify(anterior)===JSON.stringify(atual)){window.alert("Altere ao menos um parâmetro ventilatório antes de registrar.");return;}
@@ -2204,12 +2205,13 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
           </div>
           <div style={{minWidth:160,flex:1,position:"relative"}}>
             <div style={{fontSize:9,color:"#64748b",fontFamily:mono,letterSpacing:1,marginBottom:3}}>PaO₂ ARTERIAL (mmHg)</div>
-            <input type="number" value={leito.vm_pf||ultimaGasoResp?.valor||""} onChange={e=>set("vm_pf",e.target.value)} onFocus={()=>setShowPaO2List(true)} onBlur={()=>setTimeout(()=>setShowPaO2List(false),150)} placeholder="Digite ou escolha da gasometria"
+            <input type="number" value={gasAtual.pao2} onChange={e=>set("vm_pf",e.target.value)} onFocus={()=>setShowPaO2List(true)} onBlur={()=>setTimeout(()=>setShowPaO2List(false),150)} placeholder="Digite ou escolha da gasometria"
               style={{width:"100%",background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text1,fontSize:12}}/>
-            {!leito.vm_pf&&ultimaGasoResp&&<div style={{fontSize:8,color:T.text4,fontFamily:mono,marginTop:3}}>Gasometria {ultimaGasoResp.horario} · {String(ultimaGasoResp.data).split("-").reverse().join("/")}</div>}
+            <button type="button" onClick={()=>{alterarVM({vm_pf:"",vm_paco2:"",vm_pfData:hojeLocal(),vm_paco2Data:hojeLocal(),vm_semGasoData:hojeLocal()});setShowPaO2List(false);}} style={{fontSize:9,border:0,background:"transparent",color:T.text3,padding:"4px 0",cursor:"pointer"}}>Sem gasometria / não calcular P/F</button>
+            {ultimaGasoResp&&<div style={{fontSize:8,color:T.text4,fontFamily:mono,marginTop:3}}>Gasometria {ultimaGasoResp.horario||"sem horário"} · {String(ultimaGasoResp.data).split("-").reverse().join("/")}</div>}
             {showPaO2List&&pao2Gasometrias.length>0&&<div style={{position:"absolute",zIndex:30,top:"100%",left:0,right:0,marginTop:4,maxHeight:190,overflowY:"auto",border:`1px solid ${T.border}`,borderRadius:8,background:T.bgCard,boxShadow:"0 12px 28px rgba(0,0,0,.24)"}}>
-              <div style={{padding:"6px 9px",fontSize:8,color:T.text3,fontFamily:mono,letterSpacing:1}}>PaO₂ REGISTRADAS NAS GASOMETRIAS</div>
-              {pao2Gasometrias.map((g,i)=><button key={`${g.data}-${g.horario}-${i}`} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>{alterarVM({vm_pf:String(g.valor),...(g.pco2!==""?{vm_paco2:String(g.pco2)}:{})});setShowPaO2List(false);}} style={{width:"100%",padding:"7px 9px",display:"flex",justifyContent:"space-between",gap:10,border:0,borderTop:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left"}}><strong>PaO₂ {g.valor} mmHg{g.pco2!==""?` · PaCO₂ ${g.pco2}`:""}</strong><span style={{fontSize:9,color:T.text3,fontFamily:mono}}>{g.horario} · {String(g.data).split("-").reverse().join("/")}</span></button>)}
+              <div style={{padding:"6px 9px",fontSize:8,color:T.text3,fontFamily:mono,letterSpacing:1}}>PaO₂ REGISTRADAS NAS GASOMETRIAS DE HOJE</div>
+              {pao2Gasometrias.map((g,i)=><button key={`${g.data}-${g.horario}-${i}`} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>{alterarVM({vm_pf:String(g.valor),vm_pfData:hojeLocal(),vm_paco2Data:hojeLocal(),vm_semGasoData:"",vm_paco2:String(g.pco2)});setShowPaO2List(false);}} style={{width:"100%",padding:"7px 9px",display:"flex",justifyContent:"space-between",gap:10,border:0,borderTop:`1px solid ${T.border}`,background:"transparent",color:T.text1,cursor:"pointer",textAlign:"left"}}><strong>PaO₂ {g.valor} mmHg{g.pco2!==""?` · PaCO₂ ${g.pco2}`:""}</strong><span style={{fontSize:9,color:T.text3,fontFamily:mono}}>{g.horario} · {String(g.data).split("-").reverse().join("/")}</span></button>)}
             </div>}
           </div>
           {VM_INVASIVA_MODOS.includes(leito.vm_modo) && leito.dispositivos?.tqt?.ativo && (
@@ -2230,8 +2232,8 @@ function VentilacaoPanel({ leito, onChange, integrated=false, tabelaDataLeito={}
           {leito.vm_modo==="ar_ambiente"&&<span style={{fontSize:8,color:T.text4}}>FiO₂ 21%</span>}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(135px,1fr))",gap:8,alignItems:"end"}}>
-          <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PaO₂ ARTERIAL (mmHg)<input type="number" step="0.1" value={leito.vm_pf||ultimaGasoResp?.valor||""} onChange={e=>set("vm_pf",e.target.value)} placeholder="Da gasometria" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
-          <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PaCO₂ ARTERIAL (mmHg)<input type="number" step="0.1" value={leito.vm_paco2||ultimaGasoResp?.pco2||""} onChange={e=>set("vm_paco2",e.target.value)} placeholder="Da mesma gasometria" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
+          <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PaO₂ ARTERIAL (mmHg)<input type="number" step="0.1" value={gasAtual.pao2} onChange={e=>set("vm_pf",e.target.value)} placeholder="Da gasometria" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
+          <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PaCO₂ ARTERIAL (mmHg)<input type="number" step="0.1" value={gasAtual.paco2} onChange={e=>set("vm_paco2",e.target.value)} placeholder="Da mesma gasometria" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
           {leito.vm_modo!=="ar_ambiente"&&!campos.some(c=>c.key==="vm_fio2")&&<label style={{fontSize:9,color:T.text3,fontFamily:mono}}>FiO₂ PARA O CÁLCULO (%)<input type="number" step="0.1" value={leito.vm_fio2||""} onChange={e=>set("vm_fio2",e.target.value)} placeholder="Ex.: 28" style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>}
           <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>PRESSÃO BAROMÉTRICA (mmHg)<input type="number" step="1" value={leito.vm_pb??760} onChange={e=>set("vm_pb",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
           <label style={{fontSize:9,color:T.text3,fontFamily:mono}}>QUOCIENTE RESPIRATÓRIO<input type="number" min="0.1" step="0.05" value={leito.vm_rq??0.8} onChange={e=>set("vm_rq",e.target.value)} style={{display:"block",width:"100%",marginTop:3,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 9px",color:T.text1}}/></label>
@@ -3711,7 +3713,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   }
   const onCustomCtrlChange = (ctrls) => { if(onLeitoChange) onLeitoChange({...leito, customCtrls:ctrls}); };
   const T = useTheme();
-  const hoje = new Date().toISOString().split("T")[0];
+  const hoje = hojeLocal();
   const [novaData, setNovaData] = useState("");
   const [showAddCol, setShowAddCol] = useState(false);
   const [showAddExame, setShowAddExame] = useState(false);
@@ -3776,7 +3778,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
   const ultimaGaso = date => {for(const d of datasAte(date)){const gs=gasosData(d);for(let i=gs.length-1;i>=0;i--){if(Object.values(gs[i]||{}).some(Boolean))return gs[i];}}return {};};
   const scoreInputs = date => {
     const row=data[date]||{}, salvo=row._scoreInputs||{};
-    const g=ultimaGaso(date);
+    const g=gasosDoDia(data,date.slice(0,10)).at(-1)||{};
     const fio2=numScore(date===hoje?(leito.vm_fio2||ultimoScore(date,"fio2")):ultimoScore(date,"fio2"));
     const po2=numScore(g.po2), sat=numScore(g.sato2)??numScore(ultimoLab(date,"c24_sat"));
     const nora=date===hoje?calcDoseFromMLH("noradrenalina",leito.drogasVazao?.noradrenalina,leito.peso,undefined,undefined,config,pesoPredito(leito.altura,leito.sexo))?.dose:null;
@@ -3788,7 +3790,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     return {bilirrubina:ultimoLab(date,"bttot"),creatinina:ultimoLab(date,"cr"),inr:ultimoLab(date,"rni"),leucocitos:ultimoLab(date,"leuco"),plaquetas:ultimoLab(date,"plaq"),diurese:ultimoLab(date,"c24_diur"),
       pf:po2!==null&&fio2?String(Math.round(po2/(fio2/100))):"",sf:sat!==null&&fio2?String(Math.round(sat/(fio2/100))):"",fio2:fio2??"",
       gcs:gcsAtual||"",suporteResp:!!suporteAtual,circulacao:autoCirc,circulacaoSofa:autoCirc,
-      ...salvo};
+      ...salvo,...(leito.vm_semGasoData===date.slice(0,10)?{pf:""}:{})};
   };
   const salvarScoreInputs = (date, values) => {
     const snapshot={clif:calcClifScores(values,idadeDoLeito(leito)),sofa:calcSofa(values),idade:idadeDoLeito(leito),capturadoEm:new Date().toISOString()};
@@ -3982,7 +3984,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
     }
 
     // Ventilação mecânica → reVM (campo "Ventilação — Modo" na evolução)
-    const vmTexto = gerarTextoVM(leito);
+    const vmTexto = gerarTextoVM(leito,data);
     if (vmTexto && vmTexto !== "Ar ambiente") {
       campos.reVM = vmTexto;
     }
@@ -4653,9 +4655,9 @@ const formatarAnalgesiaItens=itens=>(Array.isArray(itens)?itens:[]).map(item=>{
 
 const PSICOATIVOS_CATALOGO=[
  {grupo:'Benzodiazepínicos',itens:[{id:'diazepam',nome:'Diazepam'},{id:'lorazepam',nome:'Lorazepam'},{id:'clonazepam',nome:'Clonazepam'},{id:'clobazam',nome:'Clobazam'}]},
- {grupo:'Antipsicóticos',itens:[{id:'quetiapina',nome:'Quetiapina'},{id:'olanzapina',nome:'Olanzapina'},{id:'haloperidol',nome:'Haloperidol'}]},
+ {grupo:'Antipsicóticos',itens:[{id:'quetiapina',nome:'Quetiapina'},{id:'olanzapina',nome:'Olanzapina'},{id:'haloperidol',nome:'Haloperidol'},{id:'clorpromazina',nome:'Clorpromazina'},{id:'risperidona',nome:'Risperidona'}]},
  {grupo:'Antidepressivos',itens:[{id:'sertralina',nome:'Sertralina'}]},
- {grupo:'Antiepilépticos',itens:[{id:'fenitoina',nome:'Fenitoína'},{id:'levetiracetam',nome:'Levetiracetam'},{id:'fenobarbital',nome:'Fenobarbital'},{id:'valproico',nome:'Ácido valpróico'}]}
+ {grupo:'Antiepilépticos',itens:[{id:'carbamazepina',nome:'Carbamazepina'},{id:'fenitoina',nome:'Fenitoína'},{id:'levetiracetam',nome:'Levetiracetam'},{id:'fenobarbital',nome:'Fenobarbital'},{id:'valproico',nome:'Ácido valpróico'}]}
 ];
 function AnalgesiaEstruturada({value,onChange,freeValue="",onFreeChange,leito={},tabelaDataLeito={},config={},catalog=ANALGESIA_CATALOGO,psicoativos=false}){
   const T=useTheme();
@@ -4821,10 +4823,10 @@ function MedicacoesTgiEstruturadas({value,onChange,freeValue="",onFreeChange,cat
 const EVOLUCAO_VAZIA = {
   hda:"",
   nRASS:"", nGlasgow:"", nPupilas:"", nDor:"", nEF:"", nEFExtra:"", n24h:"", nSeda:"", nAnalg:"", nAnalgesiaItens:[], nPsiq:"", nObs:"",
-  cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvTEC:"", cvLact:"", cvExtremidades:"", cvDeltaCO2:"", cvDeltaPP:"", cvTropo:"", cvObs:"",
+  cvMucosas:"", cvCianose:"", cvHemo:"", cvCardioscopia:"", cvAusculta:"", cvEF:"", cv24h:"", cvDVA:"", cvMed:"", cvTEC:"", cvLact:"", cvExtremidades:"", cvDeltaCO2:"", cvDeltaPP:"", cvTropo:"", cvObs:"",
   reSecrecaoQuantidade:"", reSecrecaoAspecto:"", reVM:"", reMV:"", reRA:"", reEF:"", re24h:"", reGaso:"", rePocus:"", reLUS:"", reObs:"",
   rm24h:"", rmLabs:"", rmTRS:"", rmObs:"",
-  tgEF:"", tg24h:"", tgLaxativos:"", tgLaxativosItens:[], tgProcineticos:"", tgProcineticosItens:[], tgLabs:"", tgPocus:"", tgObs:"",
+  tgIctericia:"", tgEF:"", tg24h:"", tgLaxativos:"", tgLaxativosItens:[], tgProcineticos:"", tgProcineticosItens:[], tgLabs:"", tgPocus:"", tgObs:"",
   heTemp:"", heLabs:"", heMed:"", heAtb:"", heProf:"", heObs:"", heCulturas:"",
   probAtivos:"", probResolvidos:"",
   impressao:"",
@@ -5300,7 +5302,7 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
 const _PF_OPEN = {};
 
 
-function PickField({ label, options=[], value="", onChange, rows=2, placeholder="", initialOpen=false }) {
+function PickField({ label, options=[], value="", onChange, rows=2, placeholder="", initialOpen=false, single=false }) {
   const T=useTheme();
   const _pfKey = label || options.join('|');
   const [open, setOpen] = useState(() => initialOpen || !!_PF_OPEN[_pfKey]);
@@ -5315,7 +5317,7 @@ function PickField({ label, options=[], value="", onChange, rows=2, placeholder=
 
   const applyChip = (opt, sel) => {
     const cur = taRef.current ? taRef.current.value : value;
-    const newVal = sel
+    const newVal = single ? (sel ? "" : opt) : sel
       ? cur.replace(opt,"").replace(/\s*\/\s*\/\s*/," / ").replace(/^\s*\/\s*/,"").replace(/\s*\/\s*$/,"").trim()
       : (cur ? cur+" / "+opt : opt);
     if(taRef.current) taRef.current.value = newVal;
@@ -6290,7 +6292,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtCv = () => {
     const p=[];
-    if(get("cvEF"))   p.push(`- EF: ${get("cvEF")}`);
+    {const ef=[get("cvEF"),get("cvMucosas"),get("cvCianose")].filter(Boolean).join("; ");if(ef)p.push(`- EF: ${ef}`);}
     if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
     if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
     if(get("cvMed"))  p.push(`- P: ${get("cvMed")}`);
@@ -6300,7 +6302,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   };
   const txtRes = () => {
     const p=[];
-    const vmAtual=leito.vm_modo?gerarTextoVM(leito):get("reVM");
+    const vmAtual=leito.vm_modo?gerarTextoVM(leito,tabelaDataLeito):get("reVM");
     if(vmAtual) p.push(`- Ventilação: ${vmAtual}`);
     if(get("reEF"))    p.push(`- EF: ${get("reEF")}`);
     if(get("re24h"))   p.push(`- 24h: ${get("re24h")}`);
@@ -6335,7 +6337,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       p.push(`- ${dl}`);
     }else if(d?.tipo==="jejum") p.push(`- Dieta: ${avaliarJejum(d).resumo}`);
     if(d?.aporteGlicose?.ativo&&d.aporteGlicose.volumeDia){const ag=calcAporteGlicose(d.aporteGlicose);p.push(`- Aporte glicêmico: SG ${d.aporteGlicose.concentracao||5}% · ${d.aporteGlicose.volumeDia} mL/dia · ${ag.kcal} kcal/dia`);}
-    if(get("tgEF"))   p.push(`- EF: ${get("tgEF")}`);
+    {const ef=[get("tgEF"),get("tgIctericia")].filter(Boolean).join("; ");if(ef)p.push(`- EF: ${ef}`);}
     if(get("tg24h"))  p.push(`- 24h: ${get("tg24h")}`);
     const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
     const _lamg=get("tgLAMG")||leito.tgLAMG;
@@ -6581,7 +6583,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     });
     if(cd.length)p.push(`- DVA: ${cd.join(" · ")}`);}
     // EF: hemodinâmica; ausculta; cardioscopia
-    const ef_cv = [get("cvHemo"), get("cvAusculta"), get("cvCardioscopia")?`cardioscopia: ${get("cvCardioscopia")}`:"", get("cvEF")].filter(Boolean).join("; ");
+    const ef_cv = [get("cvHemo"), get("cvAusculta"), get("cvCardioscopia")?`cardioscopia: ${get("cvCardioscopia")}`:"", get("cvEF"),get("cvMucosas"),get("cvCianose")].filter(Boolean).join("; ");
     if(ef_cv) p.push(`- EF: ${ef_cv}`);
     if(get("cvDVA"))  p.push(`- DVA: ${get("cvDVA")}`);
     if(get("cv24h"))  p.push(`- 24h: ${get("cv24h")}`);
@@ -6621,7 +6623,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     // Usa diretamente o suporte atual do leito; reVM permanece como fallback para registros legados.
     const nebVisivel=!Object.prototype.hasOwnProperty.call(leito.vmOpcionais||{},"neb")||!!leito.vmOpcionais.neb;
     const nebTxt = nebVisivel&&(leito.nebMed||leito.nebFreq) ? ` | Neb: ${[leito.nebMed,leito.nebFreq].filter(Boolean).join(" ")}` : "";
-    const vmAtual=leito.vm_modo?gerarTextoVM(leito):get("reVM");
+    const vmAtual=leito.vm_modo?gerarTextoVM(leito,tabelaDataLeito):get("reVM");
     if(vmAtual){const [vmLinha,...vmExtras]=vmAtual.split("\n");p.push(`- Ventilação: ${vmLinha}${nebTxt}`,...vmExtras);}
     else if(nebTxt) p.push(`- Nebulização:${nebTxt}`);
     // EF: MV + RA + outros
@@ -6671,7 +6673,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
       p.push(dl);
     } else if(d?.tipo==="jejum") p.push(`- Dieta: ${avaliarJejum(d).resumo}`);
     if(d?.aporteGlicose?.ativo&&d.aporteGlicose.volumeDia){const ag=calcAporteGlicose(d.aporteGlicose);p.push(`- Aporte glicêmico: SG ${d.aporteGlicose.concentracao||5}% · ${d.aporteGlicose.volumeDia} mL/dia · ${ag.kcal} kcal/dia`);}
-    if(get("tgEF"))  p.push(`- EF: ${get("tgEF")}`);
+    {const ef=[get("tgEF"),get("tgIctericia")].filter(Boolean).join("; ");if(ef)p.push(`- EF: ${ef}`);}
     if(get("tg24h")) p.push(`- 24h: ${get("tg24h")}`);
     const _ultEvac=get("tgUltEvac")||leito.tgUltEvac;
     const _lamg=get("tgLAMG")||leito.tgLAMG;
@@ -6933,6 +6935,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
             {vis.cvEF&&<><FL>EF Cardiovascular (outros)</FL><TA fieldRef={refs.cvEF} defaultValue={campos.cvEF} isAntigo={isAntigo("cvEF")} rows={2} fieldName="cvEF" onBlurSave={salvar}/></>}
           </Col>
         </Row>
+        <Row>
+          <Col><PickField single label="Hidratação das mucosas" options={["Mucosas hidratadas","Mucosas secas","Mucosas muito secas"]} value={campos.cvMucosas||""} onChange={v=>onCampoEdit("cvMucosas",v)} rows={1}/></Col>
+          <Col><PickField single label="Cianose" options={["Acianótico","Cianose periférica","Cianose central","Cianose central e periférica"]} value={campos.cvCianose||""} onChange={v=>onCampoEdit("cvCianose",v)} rows={1}/></Col>
+        </Row>
         </ClinicalGroup>
                 {/* ── DVA / Bombas Cardiovasculares ── */}
         <ClinicalGroup label="TRATAMENTO E SUPORTE" color="#f87171">
@@ -7110,6 +7116,7 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
           <Col><FL>Profilaxia LAMG</FL><ProcineticosOpcoes label="Profilaxia LAMG" options={getHospitalConfig(config).lamgOpcoes} freeValue={campos.tgLAMG} onFreeChange={v=>onCampoEdit("tgLAMG",v)}/></Col>
         </Row>
 <Row>
+          <Col><PickField single label="Icterícia" options={["Anictérico","Icterícia +/4+","Icterícia ++/4+","Icterícia +++/4+","Icterícia ++++/4+"]} value={campos.tgIctericia||""} onChange={v=>onCampoEdit("tgIctericia",v)} rows={1}/></Col>
           <Col><FL>EF — Abdome</FL><TA fieldRef={refs.tgEF} defaultValue={campos.tgEF} isAntigo={isAntigo("tgEF")} sugestao="Abdômen globoso, flácido, indolor à palpação." rows={2} fieldName="tgEF" onBlurSave={salvar}/></Col>
           <Col><FL>24h — Evacuação · Drenos digestivos</FL><TA fieldRef={refs.tg24h} defaultValue={valorDiario("tg24h")} sugestao="Evacuações 2x / dreno abdominal 120 mL" rows={2} fieldName="tg24h" onBlurSave={salvar}/></Col>
         </Row>
