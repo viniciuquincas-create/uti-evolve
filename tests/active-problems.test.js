@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+const body=source.slice(source.indexOf('function problemasAtivosAutomaticos('),source.indexOf('const textoProblemaAutomatico='));
+const sofa=source.slice(source.indexOf('function calcSofa('),source.indexOf('// ── Faixas de referência por exame'));
+const context=vm.createContext({hojeLocal:()=>context.today,today:'2026-10-13',numScore:v=>v===undefined||v===null||v===''?null:Number(String(v).replace(',','.')),calcularNutriDia:()=>({}),analisarGasometria:()=>({}),getDrogaConfig:key=>({label:key}),ABREV:{k:'K',na:'Na'}});
+vm.runInContext(sofa+body,context);
+const problems=(patient={},table={})=>context.problemasAtivosAutomaticos(patient,table);
+test('electrolytes must be present today, including after midnight',()=>{const table={'2026-10-12':{k:'2.5',na:'160'},'2026-10-13':{k:'2.8'}};assert(problems({},table).find(p=>p.id==='eletrolitos').subitens.every(s=>!s.includes('160')));context.today='2026-10-14';assert(!problems({},table).some(p=>p.id==='eletrolitos'));context.today='2026-10-13';assert(!problems({},{...table,'2026-10-13':{k:'4'}}).some(p=>p.id==='eletrolitos'));});
+test('anemia threshold is strict and current-day only',()=>{for(const [hb,expected] of [['6,9',true],['7',false],['',false]])assert.equal(problems({},{'2026-10-13':{hb}}).some(p=>p.id==='anemia'),expected);assert(!problems({},{'2026-10-12':{hb:'6'}}).some(p=>p.id==='anemia'));});
+test('cardiogenic shock stays distinct; septic subtype integrates current SOFA',()=>{const d={drogasVazao:{noradrenalina:'5'},tipoChoque:'cardiogênico',labSOFA:true};assert.equal(problems(d)[0].texto,'Choque cardiogênico');const septic={...d,tipoChoque:'distributivo',subtipoChoqueDistributivo:'septico',choqueProblemaId:'choque'};const inputs={pf:250,plaquetas:100,bilirrubina:1,creatinina:1,gcs:15,circulacaoSofa:'dva_media',suporteResp:true};const current=problems(septic,{'2026-10-13':{_scoreInputs:inputs}})[0];assert.equal(current.id,'choque');assert.equal(current.texto,'Choque séptico');assert(current.subitens.includes('SOFA 6'));assert(problems(septic,{'2026-10-12':{_scoreInputs:inputs}})[0].subitens[0].includes('incompleto'));assert.equal(problems({...septic,subtipoChoqueDistributivo:'nao-septico'})[0].texto,'Choque (distributivo)');});

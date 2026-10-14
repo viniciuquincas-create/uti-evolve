@@ -991,6 +991,7 @@ function analisarGasometria(g={}){
 
 function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config={}){
   const problemas=[];
+  const diaAtual=hojeLocal(),linhaHoje=tabelaDataLeito[diaAtual]||{};
   if(leito.dieta?.tipo==="jejum")problemas.push({id:"jejum",texto:"Jejum",detalhe:avaliarJejum(leito.dieta).resumo});
   const problemaVmi=leito.dispositivos?.tot?.ativo?{id:"vmi",texto:"Intubado em VMI",detalhe:"TOT ativo",subitens:[]}:null;
   if(problemaVmi)problemas.push(problemaVmi);
@@ -1032,12 +1033,25 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
     if(excessivas.length)problemaVmi.subitens.push(`Assistência ventilatória excessiva — ${excessivas.join(" · ")}`);
   }
   const tipoChoque=String(leito.tipoChoque||"").trim();
-  const rotuloChoque=base=>tipoChoque?`${base} (${tipoChoque})`:base;
-  if(leito.labSOFA){
-    const sofas=datas.map(d=>calcSofa(scorePorData(d))).filter(s=>!(s.faltam||[]).length&&Number.isFinite(s.sofa)).map(s=>s.sofa);
-    const base=dvaAtivas.length?rotuloChoque("Choque séptico"):"Sepse";
-    problemas.push({id:"sepse",texto:sofas.length?`${base} — SOFA ${evolucao(sofas)}`:base,detalhe:dvaAtivas.length?dvaAtivas.map(([k])=>getDrogaConfig(k,config)?.label||k).join(" + "):"sem DVA ativa"});
-  }else if(dvaAtivas.length)problemas.push({id:"choque",texto:rotuloChoque("Choque"),detalhe:dvaAtivas.map(([k])=>getDrogaConfig(k,config)?.label||k).join(" + ")});
+  const cardiogenico=tipoChoque==="cardiogênico";
+  const septico=tipoChoque==="distributivo"&&leito.subtipoChoqueDistributivo==="septico";
+  const sepseAtiva=septico||(!cardiogenico&&leito.labSOFA&&!(tipoChoque==="distributivo"&&leito.subtipoChoqueDistributivo==="nao-septico"));
+  const choqueId=leito.choqueProblemaId||(leito.labSOFA?"sepse":"choque");
+  const drogasTexto=dvaAtivas.map(([k])=>getDrogaConfig(k,config)?.label||k).join(" + ");
+  if(dvaAtivas.length||septico){
+    const nome=cardiogenico?"Choque cardiogênico":sepseAtiva?"Choque séptico":tipoChoque?`Choque (${tipoChoque})`:"Choque";
+    problemas.push({id:choqueId,texto:nome,choque:true,detalhe:drogasTexto,subitens:[]});
+  }else if(sepseAtiva)problemas.push({id:"sepse",texto:"Sepse",subitens:[]});
+  if(sepseAtiva){
+    // Use today's saved SOFA variables and today's tests, never carry labs across days.
+    const salvo=linhaHoje._scoreInputs||{};
+    let gasos=linhaHoje._gasos||[];try{if(typeof gasos==="string")gasos=JSON.parse(gasos);}catch{gasos=[];}
+    const gaso=Array.isArray(gasos)?[...gasos].filter(g=>!g.data||g.data.slice(0,10)===diaAtual).sort((a,b)=>String(a.horario||"").localeCompare(String(b.horario||""))).at(-1)||{}:{};
+    const fio2=numScore(leito.vm_fio2||salvo.fio2),po2=numScore(gaso.po2);
+    const sc=calcSofa({plaquetas:linhaHoje.plaq,bilirrubina:linhaHoje.bttot,creatinina:linhaHoje.cr,diurese:linhaHoje.c24_diur,gcs:campos.nGlasgow,pf:po2!==null&&fio2>0?po2/(fio2>1?fio2/100:fio2):"",suporteResp:!!leito.vm_modo,circulacaoSofa:!dvaAtivas.length&&numScore(linhaHoje.c24_pam)!==null?(numScore(linhaHoje.c24_pam)<70?"pam_baixa":"normal"):"",...salvo});
+    const problema=problemas.find(p=>p.id===(dvaAtivas.length||septico?choqueId:"sepse"));
+    if(problema)problema.subitens.push(sc.faltam?.length?`SOFA de hoje incompleto — preencher: ${sc.faltam.join(", ")}`:`SOFA ${sc.sofa}`);
+  }
   if(leito.labACLF){
     const melds=datas.map(d=>calcMeldNa({bilirrubina:tabelaDataLeito[d]?.bttot,inr:tabelaDataLeito[d]?.rni,creatinina:tabelaDataLeito[d]?.cr,sodio:tabelaDataLeito[d]?.na})).filter(Boolean).map(s=>s.meldNa);
     const clifs=datas.map(d=>calcClifScores(scorePorData(d),idadeDoLeito(leito))).filter(s=>!(s.faltam||[]).length&&Number.isFinite(s.clifOF));
@@ -1067,7 +1081,9 @@ function problemasAtivosAutomaticos(leito={},tabelaDataLeito={},campos={},config
   const grau=Math.max(grauCr,grauDiurese,emTRS?3:0);
   const eletrolitos=[];
   const registrarDist=(key,nome,grauDist,v,omitir=false)=>{if(!omitir)eletrolitos.push(`${nome} ${grauDist} (${ABREV[key]||key} ${String(v).replace(".",",")})`);};
-  const valoresEletro={na:num(dataAtual?valorAte(dataAtual,"na"):null),k:num(dataAtual?valorAte(dataAtual,"k"):null),mg:num(dataAtual?valorAte(dataAtual,"mg"):null),cai:num(dataAtual?valorAte(dataAtual,"cai"):null),p:num(dataAtual?valorAte(dataAtual,"p"):null)};
+  const hbHoje=num(linhaHoje.hb);
+  if(hbHoje!==null&&hbHoje<7)problemas.push({id:"anemia",texto:"Anemia",detalhe:`Hb ${String(hbHoje).replace(".",",")} g/dL (${diaAtual.split("-").reverse().join("/")})`});
+  const valoresEletro={na:num(linhaHoje.na),k:num(linhaHoje.k),mg:num(linhaHoje.mg),cai:num(linhaHoje.cai),p:num(linhaHoje.p)};
   const {na,k,mg,cai,p}=valoresEletro;
   if(na!==null&&na<135){const g=na<125?"grave":na<130?"moderada":"leve";registrarDist("na","Hiponatremia",g,na,g!=="grave");}
   else if(na!==null&&na>145){const g=na>=160?"grave":na>=151?"moderada":"leve";registrarDist("na","Hipernatremia",g,na,g==="leve");}
@@ -4937,7 +4953,7 @@ const DIAGNOSTICOS_PROBLEMAS_PRESETS=[
   {nome:"Cirrose / insuficiência hepática",campos:[{key:"childPugh",label:"Child-Pugh",tipo:"calculator"},{key:"meldNa",label:"MELD-Na",tipo:"calculator"}]},
   {nome:"SDRA",aliases:["Síndrome do desconforto respiratório agudo"],campos:[{key:"berlin",label:"Berlim",tipo:"select",opcoes:["Leve — P/F 201–300","Moderada — P/F 101–200","Grave — P/F ≤100"]}]},
 ];
-const presetDiagnosticoProblema=nome=>DIAGNOSTICOS_PROBLEMAS_PRESETS.find(p=>p.nome===nome||(p.aliases||[]).includes(nome));
+const presetDiagnosticoProblema=nome=>DIAGNOSTICOS_PROBLEMAS_PRESETS.find(p=>p.nome===nome||(p.aliases||[]).includes(nome)||(p.nome==="Choque cardiogênico"&&/^Choque.*cardiogênico/i.test(nome||"")));
 const nomeDiagnosticoProblema=item=>item.titulo?.trim()||presetDiagnosticoProblema(item.nome)?.nome||item.nome;
 const subitensDiagnosticoProblema=item=>{
   const preset=presetDiagnosticoProblema(item.nome),campos=item.campos||{};
@@ -4954,9 +4970,10 @@ const diagnosticosAtivosUnificados=(leito,automaticos)=>{
   const manuais=Array.isArray(leito.problemasDiagnosticos)?leito.problemasDiagnosticos:[];
   const ajustes=leito.problemasAutomaticosEdicoes||{};
   const lista=[...manuais,...automaticos.filter(p=>!ajustes[p.id]?.resolvido&&(p.id==="jejum"||!ajustes[p.id]?.oculto)).map(p=>({
-    id:`auto:${p.id}`,automaticoId:p.id,nome:p.texto,campos:{},custom:[],
+    id:`auto:${p.id}`,automaticoId:p.id,nome:p.texto,choque:!!p.choque,campos:{},custom:[],
     subitens:[...(p.id!=="jejum"&&p.detalhe?[p.detalhe]:[]),...(p.subitens||[])].map((texto,i)=>({id:`auto-sub-${i}`,texto})),
     ...ajustes[p.id],jejumResumo:p.id==="jejum"?p.detalhe:"",
+    ...(["lra","eletrolitos","anemia","choque","sepse"].includes(p.id)?{subitens:[...[...(p.detalhe?[p.detalhe]:[]),...(p.subitens||[])].map((texto,i)=>({id:`auto-sub-${i}`,texto})),...(ajustes[p.id]?.subitens||[]).filter(s=>!String(s.id).startsWith("auto-sub-"))]}:{}),
   }))];
   const ordem=leito.problemasAtivosOrdem||[];
   const rank=id=>{const i=ordem.indexOf(id);return i<0?ordem.length:i;};
@@ -5213,7 +5230,9 @@ function ProbFloating({ campos={}, onCampoEdit, metas=[], onMetaChange, leito={}
             </div>
 </details><button data-remove-diagnostico hidden={item.automaticoId==="jejum"} onClick={e=>{e.stopPropagation();removerDiagnostico(item);}} title="Remover problema e diagnóstico do cadastro" style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>✕</button></div>
             {expanded&&<>
-            {(item.automaticoId==="choque"||item.automaticoId==="sepse"&&item.nome.startsWith("Choque"))&&<select value={["","distributivo","hemorrágico","cardiogênico","obstrutivo","misto"].includes(leito.tipoChoque||"")?(leito.tipoChoque||""):"__outro__"} onChange={e=>{let tipo=e.target.value;if(tipo==="__outro__"){tipo=window.prompt("Caracterização do choque:","")?.trim()||leito.tipoChoque||"";}onLeitoChange?.({...leito,tipoChoque:tipo});}} style={{width:"100%",marginTop:5,padding:"4px 6px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}><option value="">Caracterizar choque…</option><option value="distributivo">Distributivo</option><option value="hemorrágico">Hemorrágico</option><option value="cardiogênico">Cardiogênico</option><option value="obstrutivo">Obstrutivo</option><option value="misto">Misto</option><option value="__outro__">Outro…</option></select>}
+            {(item.choque||item.automaticoId==="choque"||item.automaticoId==="sepse"&&item.nome.startsWith("Choque"))&&<select aria-label="Tipo de choque" value={["","distributivo","hemorrágico","cardiogênico","obstrutivo","misto"].includes(leito.tipoChoque||"")?(leito.tipoChoque||""):"__outro__"} onChange={e=>{let tipo=e.target.value;if(tipo==="__outro__"){tipo=window.prompt("Caracterização do choque:","")?.trim()||leito.tipoChoque||"";}onLeitoChange?.({...leito,tipoChoque:tipo,choqueProblemaId:item.automaticoId});}} style={{width:"100%",marginTop:5,padding:"4px 6px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:10}}><option value="">Caracterizar choque…</option><option value="distributivo">Distributivo</option><option value="hemorrágico">Hemorrágico</option><option value="cardiogênico">Cardiogênico</option><option value="obstrutivo">Obstrutivo</option><option value="misto">Misto</option><option value="__outro__">Outro…</option></select>}
+            {item.choque&&leito.tipoChoque==="distributivo"&&<label style={{display:"block",marginTop:5,fontSize:9,color:T.text3}}>Subtipo distributivo<select aria-label="Subtipo de choque distributivo" value={leito.subtipoChoqueDistributivo||""} onChange={e=>onLeitoChange?.({...leito,choqueProblemaId:item.automaticoId,subtipoChoqueDistributivo:e.target.value,...(e.target.value==="septico"?{labSOFA:true}:{})})} style={{display:"block",width:"100%",padding:5,borderRadius:5,background:T.bgInput,color:T.text1,border:`1px solid ${T.border}`}}><option value="">Selecionar…</option><option value="septico">Séptico</option><option value="nao-septico">Não séptico</option></select></label>}
+
             {!!preset?.campos?.length&&<div style={{display:"grid",gap:4,marginTop:6}}>{preset.campos.map(c=>c.tipo==="calculator"?<div key={c.key}><button onClick={()=>atualizarDiagnostico(item.id,{scoreAberto:item.scoreAberto===c.key?null:c.key})} style={{width:"100%",padding:"5px",borderRadius:5,border:`1px solid ${T.accentBorder}`,background:T.accentBg,color:T.accent,cursor:"pointer",fontSize:9,fontWeight:800,textAlign:"left"}}>{item.scoreAberto===c.key?"▼":"▶"} {c.label}{item.campos?.[c.key]!==undefined&&item.campos?.[c.key]!==""?`: ${item.campos[c.key]}`:" — calcular"}</button>{item.scoreAberto===c.key&&(c.key==="grace"?<GraceEditor item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>:<ScoreEditor scoreKey={c.key} item={item} T={T} onUpdate={patch=>atualizarDiagnostico(item.id,patch)}/>)}</div>:<label key={c.key} style={{fontSize:8.5,color:T.text3}}>{c.label}{c.tipo==="select"?<select value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}><option value="">— selecionar —</option>{c.opcoes.map(o=><option key={o}>{o}</option>)}</select>:<input type="number" min={c.min} max={c.max} value={item.campos?.[c.key]||""} onChange={e=>atualizarDiagnostico(item.id,{campos:{...(item.campos||{}),[c.key]:e.target.value}})} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:2,padding:"4px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:9}}/>}</label>)}</div>}
             {(item.custom||[]).map(c=><div key={c.id} style={{display:"grid",gridTemplateColumns:"minmax(60px,.8fr) minmax(70px,1fr) 14px",gap:3,marginTop:4}}><input value={c.label||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,label:e.target.value}:x)})} placeholder="Score" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text2,fontSize:8.5}}/><input value={c.value||""} onChange={e=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).map(x=>x.id===c.id?{...x,value:e.target.value}:x)})} placeholder="Classificação/valor" style={{minWidth:0,padding:"3px 4px",borderRadius:4,border:`1px solid ${T.border}`,background:T.bgInput,color:T.text1,fontSize:8.5}}/><button onClick={()=>atualizarDiagnostico(item.id,{custom:(item.custom||[]).filter(x=>x.id!==c.id)})} style={{border:0,background:"transparent",color:T.text4,cursor:"pointer",padding:0}}>×</button></div>)}
             <button onClick={()=>atualizarDiagnostico(item.id,{custom:[...(item.custom||[]),{id:`class-${Date.now()}`,label:"",value:""}]})} style={{marginTop:5,padding:"2px 5px",borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.text3,cursor:"pointer",fontSize:8.5}}>+ score/classificação</button>
