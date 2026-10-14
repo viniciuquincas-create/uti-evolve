@@ -3,7 +3,7 @@
 // Resting heart rate: https://medlineplus.gov/ency/article/003399.htm
 // Context-dependent variables deliberately have no fabricated universal range.
 export const SWAN_REFERENCE_SOURCE='https://www.edwards.com/apm/media/br/devices/monitoring/hemodynamic%20monitoring/normal%20hemodynamic%20parameters%20and%20lab%20values-1.pdf';
-export const SWAN_FIELDS=[
+const SWAN_CATALOG=[
   {
     "key": "pvc",
     "label": "PVC",
@@ -237,6 +237,23 @@ export const SWAN_FIELDS=[
 ];
 const normalized=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/₂/g,'2').replace(/[^a-z0-9]/g,'');
 export function withSwanReference(field){
- const match=SWAN_FIELDS.find(f=>f.key===field.key||normalized(f.label)===normalized(field.label)||normalized(f.label.split(' (')[0])===normalized(field.label));
- return {...field,reference:match?.reference||field.reference||'Sem faixa universal estabelecida'};
+ const match=SWAN_CATALOG.find(f=>f.key===field.key||normalized(f.label)===normalized(field.label)||normalized(f.label.split(' (')[0])===normalized(field.label));
+ return {...field,range:match?.range,reference:match?.reference||field.reference||'Sem faixa universal estabelecida'};
+}
+
+const removed=new Set(['fc','pesoMonitor','alturaMonitor','pas','pam','pad','imc','fio2','pbar','hb','ph','pao2','paco2','sao2','pvo2','pvco2']);
+const ranges={pvc:[2,6],paps:[15,25],papd:[8,15],papm:[10,20],pcp:[6,12],dc:[4,8],ic:[2.5,4],svo2:[60,80],rvs:[800,1200],vs:[60,100],is:[33,47],irvs:[1970,2390],rvp:[100,250],irvp:[255,285],itsve:[50,62],itsvd:[5,10],cao2:[17,20],cvo2:[12,15],cavO2:[4,6],vo2i:[120,160],do2i:[500,600],to2:[22,30]};
+SWAN_CATALOG.forEach(f=>{f.range=ranges[f.key];});
+export function isSwanFieldVisible(field){
+ const match=SWAN_CATALOG.find(f=>f.key===field.key||normalized(f.label)===normalized(field.label)||normalized(f.label.split(' (')[0])===normalized(field.label));
+ return !removed.has(match?.key||field.key);
+}
+export const SWAN_FIELDS=SWAN_CATALOG.filter(isSwanFieldVisible);
+export function swanReferenceDirection(field,raw){
+ if(raw===null||raw===undefined||String(raw).trim()==='')return null;
+ const text=String(raw).trim().replace(',','.');
+ if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text))return null;
+ const value=Number(text),range=withSwanReference(field).range;
+ if(!Number.isFinite(value)||!range)return null;
+ return value<range[0]?'below':value>range[1]?'above':null;
 }
