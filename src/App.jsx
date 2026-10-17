@@ -1,3 +1,4 @@
+import {clinicalEventDetail} from './clinical-event-text.js';
 import {gasosDoDia,ventilacaoGasometria} from './ventilation-gas.js';
 import {SWAN_FIELDS,SWAN_REFERENCE_SOURCE,withSwanReference,isSwanFieldVisible,swanReferenceDirection} from './swan-reference.js';
 import {createLongitudinalStore,readWithRetry} from './longitudinal-store.js';
@@ -6531,10 +6532,10 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const rows=entries.filter(e=>e.titulo||e.avaliacao||e.conduta||e.resultado).map(e=>{
       const data=e.data?new Date(`${e.data}T00:00:00`).toLocaleDateString("pt-BR"):"sem data";
       const header=`- ${e.titulo|| (kind==="interconsulta"?"Especialidade não informada":"Exame não informado")} [${data}]`;
-      const sub=kind==="interconsulta"?[e.avaliacao?`  • Avaliação: ${e.avaliacao}`:null,e.conduta?`  • Conduta: ${e.conduta}`:null]:[e.resultado?`  • Resultado: ${e.resultado}`:null];
+      const sub=kind==="interconsulta"?[clinicalEventDetail("Avaliação",e.avaliacao),clinicalEventDetail("Conduta",e.conduta)]:[clinicalEventDetail("Resultado",e.resultado)];
       return [header,...sub.filter(Boolean)].join("\n");
     });
-    if(legacy) rows.push(`- Registro anterior: ${legacy}`);
+    if(legacy) rows.push(`- Registro anterior\n${clinicalEventDetail("Descrição",legacy)}`);
     if(!rows.length)return "";
     return `\n${kind==="interconsulta"?"Interconsultas":"Exames complementares"}:\n${rows.join("\n")}`;
   };
