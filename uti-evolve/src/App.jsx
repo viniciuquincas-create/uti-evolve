@@ -1,3 +1,4 @@
+import LabTrend from './LabTrend.jsx';
 import {clinicalEventDetail} from './clinical-event-text.js';
 import {gasosDoDia,ventilacaoGasometria} from './ventilation-gas.js';
 import {SWAN_FIELDS,SWAN_REFERENCE_SOURCE,withSwanReference,isSwanFieldVisible,swanReferenceDirection} from './swan-reference.js';
@@ -4220,7 +4221,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                 <React.Fragment key={grupo}>
                   <tr>
                     <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:T.text3,background:T.bgTableGroup,fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>
-                      {grupo}
+                      <LabTrend group={grupo} params={params} dates={datas} getValue={getVal} theme={T}/>
                     </td>
                   </tr>
                   {params.map(({key,label,unit})=>(
@@ -4443,7 +4444,7 @@ function TabelaClinica({ leito, data, onChange, onAplicarEvolucao, onLeitoChange
                   <React.Fragment key={grupo}>
                     <tr>
                       <td colSpan={2+datas.length} style={{padding:"7px 12px",fontSize:10,fontWeight:700,color:T.accent,background:T.bgTableGroupCtrl,fontFamily:mono,letterSpacing:1.5,borderBottom:`1px solid ${T.borderTableRow}`}}>
-                        {grupo}
+                        <LabTrend group={grupo} params={params} dates={datas} getValue={getVal} theme={T}/>
                       </td>
                     </tr>
                     {params.map(({key,label,unit})=>(
