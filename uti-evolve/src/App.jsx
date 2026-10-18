@@ -6532,11 +6532,11 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
     const legacy=String(campos[`add_${system}_${kind}`]||"").trim();
     const rows=entries.filter(e=>e.titulo||e.avaliacao||e.conduta||e.resultado).map(e=>{
       const data=e.data?new Date(`${e.data}T00:00:00`).toLocaleDateString("pt-BR"):"sem data";
-      const header=`▸ ${e.titulo|| (kind==="interconsulta"?"Especialidade não informada":"Exame não informado")} [${data}]`;
+      const header=`== ${e.titulo|| (kind==="interconsulta"?"Especialidade não informada":"Exame não informado")} [${data}]`;
       const sub=kind==="interconsulta"?[clinicalEventDetail("Avaliação",e.avaliacao),clinicalEventDetail("Conduta",e.conduta)]:[clinicalEventDetail("Resultado",e.resultado)];
       return [header,...sub.filter(Boolean)].join("\n");
     });
-    if(legacy) rows.push(`▸ Registro anterior\n${clinicalEventDetail("Descrição",legacy)}`);
+    if(legacy) rows.push(`== Registro anterior\n${clinicalEventDetail("Descrição",legacy)}`);
     if(!rows.length)return "";
     return `\n${kind==="interconsulta"?"Interconsultas":"Exames complementares"}:\n${rows.join("\n")}`;
   };
