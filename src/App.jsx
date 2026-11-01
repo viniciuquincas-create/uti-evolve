@@ -1,3 +1,4 @@
+import {enteralSummary} from './nutrition-summary.js';
 import LabTrend from './LabTrend.jsx';
 import {clinicalEventDetail} from './clinical-event-text.js';
 import {gasosDoDia,ventilacaoGasometria} from './ventilation-gas.js';
@@ -1356,7 +1357,7 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
   const aporteGlicose=dieta.aporteGlicose||{ativo:false,concentracao:"5",volumeDia:""};
   const glicoseNutri=calcAporteGlicose(aporteGlicose);
   const somarAdicionais = n => n||moduloPtn||glicoseNutri.kcal?{kcal:+((n?.kcal||0)+glicoseNutri.kcal).toFixed(0),ptn:+((n?.ptn||0)+moduloPtn).toFixed(1),cho:+((n?.cho||0)+glicoseNutri.cho).toFixed(1),lip:n?.lip||0}:null;
-  const nutriHoje = somarAdicionais(calcNutri(dietaSel, volHoje));
+  const nutriHoje = dietaSel&&String(diureseHojeVol??"" ).trim()!=="" ? calcNutri(dietaSel, volHoje)||{kcal:0,ptn:0,cho:0,lip:0} : null;
   const kcalPct = metaAbs?.kcal && nutriHoje?.kcal ? Math.round(nutriHoje.kcal/metaAbs.kcal*100) : null;
   const ptnPct = metaAbs?.ptn && nutriHoje?.ptn ? Math.round(nutriHoje.ptn/metaAbs.ptn*100) : null;
   const adequacao = kcalPct!==null && ptnPct!==null ? Math.min(kcalPct,ptnPct) : (kcalPct ?? ptnPct);
@@ -1489,17 +1490,17 @@ function DietaPanel({ dados, onChange, config={}, diureseHojeVol="", tabelaDataL
                   style={{flex:1,background:"none",border:"none",padding:"8px 10px",color:"#e2e8f0",fontSize:14,fontFamily:"inherit"}}/>
                 <span style={{paddingRight:10,color:"#475569",fontSize:12,alignSelf:"center"}}>mL/h</span>
               </div>
-              {dieta.vazao && <div style={{fontSize:12,color:"#64748b"}}>= {(parseFloat(dieta.vazao)*20).toFixed(0)} mL em 20h · {(parseFloat(dieta.vazao)*24).toFixed(0)} mL/24h</div>}
+              {dieta.vazao && <div style={{fontSize:12,color:"#64748b"}}>= {(parseFloat(dieta.vazao)*(dieta.tipo==="enteral"?20:24)).toFixed(0)} mL/dia ({dieta.tipo==="enteral"?20:24}h planejadas)</div>}
             </div>
             <div style={{fontSize:10,color:"#475569",marginTop:4}}>ℹ️ O volume real que entrou é registrado nos <strong style={{color:"#38bdf8"}}>Controles 24h</strong> → Vol. Dieta.</div>
             {dietaSel && dieta.vazao && peso>0 && (()=>{
-              const volProj = parseFloat(dieta.vazao)*24;
+              const volProj = parseFloat(dieta.vazao)*(dieta.tipo==="enteral"?20:24);
               const nutriProj = somarAdicionais(calcNutri(dietaSel, volProj));
               if (!nutriProj) return null;
               return (
                 <div style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
                   <div style={{padding:"4px 10px",borderRadius:6,background:"rgba(251,146,60,0.08)",border:"1px solid rgba(251,146,60,0.2)",fontSize:11,color:"#fdba74"}}>
-                    <span style={{color:"#64748b"}}>projetado 24h → </span>
+                    <span style={{color:"#64748b"}}>projetado {dieta.tipo==="enteral"?20:24}h → </span>
                     <strong>{(nutriProj.kcal/peso).toFixed(1)} kcal/kg/d</strong>
                     <span style={{color:"#64748b"}}> · </span>
                     <strong>{(nutriProj.ptn/peso).toFixed(2)} g ptn/kg/d</strong>
@@ -6343,6 +6344,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const txtTGI = () => {
     const p=[];
     const d=leito.dieta;
+    const nutriDay=hojeLocal();
+    const nutriRow=Object.entries(tabelaDataLeito||{}).filter(([date,row])=>date.slice(0,10)===nutriDay&&String(row?.c24_diet_vol??'').trim()!=='').sort(([a],[b])=>a.localeCompare(b)).at(-1)?.[1];
+    p.push(...enteralSummary({dieta:d,formula:getDietasCatalogo(config).find(f=>f.id===d?.catalogId),peso:leito.peso,meta:calcMetaNutricional(leito),glicoseKcal:calcAporteGlicose(d?.aporteGlicose).kcal,volumeRecebido:nutriRow?.c24_diet_vol}));
     if(d?.tipo&&d.tipo!=="jejum"){
       const tl={enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
       let dl=`Dieta: ${tl}`;
@@ -6684,6 +6688,9 @@ function EvolucaoEditor({ leito, campos, onCampoEdit, config={}, tabelaHoje={}, 
   const txtTGIFull = () => {
     const p=[];
     const d=leito.dieta;
+    const nutriDay=hojeLocal();
+    const nutriRow=Object.entries(tabelaDataLeito||{}).filter(([date,row])=>date.slice(0,10)===nutriDay&&String(row?.c24_diet_vol??'').trim()!=='').sort(([a],[b])=>a.localeCompare(b)).at(-1)?.[1];
+    p.push(...enteralSummary({dieta:d,formula:getDietasCatalogo(config).find(f=>f.id===d?.catalogId),peso:leito.peso,meta:calcMetaNutricional(leito),glicoseKcal:calcAporteGlicose(d?.aporteGlicose).kcal,volumeRecebido:nutriRow?.c24_diet_vol}));
     if(d?.tipo&&d.tipo!=="jejum"){
       const tl={enteral:"via SNE",parenteral:"NPT",oral:"VO",mista:"Mista"}[d.tipo]||d.tipo;
       let dl=`- Dieta: ${tl}`;
